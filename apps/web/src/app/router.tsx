@@ -115,9 +115,10 @@ export const routes = {
   }),
   scan: createRoute({
     ...r('/scan'),
-    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch => ({
+    // `code`: a barcode already read elsewhere (photo page) – looked up immediately, camera stays idle.
+    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { code?: string } => ({
       ...validateMeal(s),
-      ...clean({ into: intoParam(s.into) }),
+      ...clean({ into: intoParam(s.into), code: strParam(s.code)?.replace(/\D/g, '') || undefined }),
     }),
     component: lazyRouteComponent(() => import('@/features/foods/ScanPage'), 'ScanPage'),
   }),

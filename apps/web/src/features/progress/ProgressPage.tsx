@@ -1,6 +1,6 @@
 import { addDays, bmi, dayId, linearTrend, movingAverage, round, type WeightEntry } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Plus, Scale, Trash2 } from 'lucide-react';
+import { CalendarDays, Minus, Plus, Scale, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -18,10 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useSettings, useToday, useWeights } from '@/hooks/data';
-import { fmt1, fmtDate } from '@/lib/format';
+import { fmt1, fmtDate, fmtRelativeDay } from '@/lib/format';
 
 const RANGES = [
   { id: '7', label: '7 T', days: 7 },
@@ -244,6 +245,7 @@ function WeightDialog({
 }) {
   const db = useDb();
   const [date, setDate] = useState(entry?.date ?? today);
+  const [dateOpen, setDateOpen] = useState(false);
   const [value, setValue] = useState<number | null>(entry?.kg ?? last);
   const [prevKey, setPrevKey] = useState('');
   // Re-initialize when opened, when editing another entry, or once the last weight has loaded.
@@ -251,9 +253,16 @@ function WeightDialog({
   if (key !== prevKey) {
     setPrevKey(key);
     setDate(entry?.date ?? today);
+    setDateOpen(false);
     setValue(entry?.kg ?? last);
   }
   const valid = value !== null && value >= 20 && value <= 400;
+  // The slider covers ±12 kg around the starting weight; the number field still takes anything.
+  const base = entry?.kg ?? last ?? 80;
+  const sliderMin = Math.max(20, Math.floor(base - 12));
+  const sliderMax = Math.min(400, Math.ceil(base + 12));
+  const sliderValue = value === null ? base : Math.min(sliderMax, Math.max(sliderMin, value));
+  const nudge = (delta: number) => setValue(round(Math.min(400, Math.max(20, (value ?? base) + delta)), 1));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -264,24 +273,66 @@ function WeightDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="w-date">Datum</Label>
-            <Input
-              id="w-date"
-              type="date"
-              value={date}
-              max={today}
-              disabled={!!entry}
-              onChange={(e) => e.target.value && setDate(e.target.value)}
+          <div className="tabular text-center">
+            <output htmlFor="w-slider" className="text-4xl font-bold">
+              {value === null ? '–' : fmt1(value)}
+            </output>
+            <span className="ml-1 text-lg text-muted-foreground">kg</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" aria-label="0,1 kg weniger" onClick={() => nudge(-0.1)}>
+              <Minus aria-hidden />
+            </Button>
+            <Slider
+              id="w-slider"
+              aria-label="Gewicht in Kilogramm"
+              min={sliderMin}
+              max={sliderMax}
+              step={0.1}
+              value={[sliderValue]}
+              onValueChange={([v]) => v !== undefined && setValue(round(v, 1))}
+              className="flex-1"
             />
+            <Button variant="outline" size="icon" aria-label="0,1 kg mehr" onClick={() => nudge(0.1)}>
+              <Plus aria-hidden />
+            </Button>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{sliderMin} kg</span>
+            <span>{sliderMax} kg</span>
           </div>
           <NumberField
-            label="Gewicht"
+            label="Genauer Wert"
             unit="kg"
             value={value}
             onValueChange={setValue}
             error={value !== null && !valid ? 'Zwischen 20 und 400 kg.' : null}
           />
+          {/* The date stays collapsed: almost every entry is for today. */}
+          {entry || !dateOpen ? (
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <CalendarDays className="size-4" aria-hidden />
+                {fmtRelativeDay(date, today)}
+              </span>
+              {!entry && (
+                <Button variant="ghost" size="sm" onClick={() => setDateOpen(true)}>
+                  Datum ändern
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid gap-1.5">
+              <Label htmlFor="w-date">Datum</Label>
+              <Input
+                id="w-date"
+                type="date"
+                value={date}
+                max={today}
+                onChange={(e) => e.target.value && setDate(e.target.value)}
+              />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

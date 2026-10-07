@@ -7,6 +7,7 @@ import {
   LoaderCircle,
   Plus,
   RotateCcw,
+  ScanBarcode,
   Sparkles,
   Trash2,
   TriangleAlert,
@@ -15,6 +16,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { detectBarcodeInImage } from '@/components/BarcodeScanner';
 import { MacroSplitBar } from '@/components/MacroBars';
 import { MealPhoto } from '@/components/MealPhoto';
 import { NumberField } from '@/components/NumberField';
@@ -62,14 +64,28 @@ export function PhotoPage() {
   }
 
   return (
-    <Page title="Foto analysieren" back withTabBar={false}>
+    <Page title="Foto / Scan" back withTabBar={false}>
       {aiEnabled === false && (
         <p role="alert" className="mb-4 flex gap-2 rounded-xl bg-warn/10 p-3 text-sm">
           <TriangleAlert className="size-5 shrink-0 text-warn" aria-hidden />
           Die Foto-Analyse ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).
         </p>
       )}
-      <Capture date={date} meal={meal} onQueued={setActiveId} />
+      <Capture
+        date={date}
+        meal={meal}
+        onQueued={setActiveId}
+        onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
+      />
+      <p className="mt-3 text-center text-sm">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 text-primary underline-offset-4 hover:underline"
+          onClick={() => void navigate({ to: '/scan', search: { date, meal } })}
+        >
+          <ScanBarcode className="size-4" aria-hidden /> Barcode live scannen
+        </button>
+      </p>
       {queue && queue.length > 0 && (
         <Section title="Analysen" className="mt-4">
           <ul className="divide-y divide-border/70">
@@ -80,16 +96,26 @@ export function PhotoPage() {
         </Section>
       )}
       <p className="mt-4 text-xs text-muted-foreground text-pretty">
-        Das Foto wird zur Analyse an Claude (Anthropic) gesendet und nicht gespeichert. Die Nährwerte stammen
-        immer aus dem BLS bzw. Open Food Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt
-        (typisch ±20–40&nbsp;%). Prüfe die Mengen vor dem Speichern. Verpackte Produkte lieber per Barcode
-        erfassen.
+        Ein fotografierter Barcode wird erkannt und direkt nachgeschlagen. Teller-Fotos gehen zur Analyse an
+        Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw.
+        Open Food Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20–40&nbsp;%).
+        Prüfe die Mengen vor dem Speichern. Verpackte Produkte lieber per Barcode erfassen.
       </p>
     </Page>
   );
 }
 
-function Capture({ date, meal, onQueued }: { date: string; meal: number; onQueued: (id: number) => void }) {
+function Capture({
+  date,
+  meal,
+  onQueued,
+  onBarcode,
+}: {
+  date: string;
+  meal: number;
+  onQueued: (id: number) => void;
+  onBarcode: (code: string) => void;
+}) {
   const db = useDb();
   const settings = useSettings();
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -101,12 +127,24 @@ function Capture({ date, meal, onQueued }: { date: string; meal: number; onQueue
   const [targetMeal, setTargetMeal] = useState(meal);
   const [busy, setBusy] = useState(false);
 
+  const [reading, setReading] = useState(false);
+
   async function pick(file: File | undefined) {
     if (!file) return;
+    setReading(true);
     try {
+      // A photographed barcode skips the AI entirely and goes to the product lookup.
+      const code = await detectBarcodeInImage(file);
+      if (code) {
+        toast(`Barcode ${code} erkannt`);
+        onBarcode(code);
+        return;
+      }
       setImage(await compressImage(file));
     } catch {
       toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
+    } finally {
+      setReading(false);
     }
   }
 
@@ -171,22 +209,37 @@ function Capture({ date, meal, onQueued }: { date: string; meal: number; onQueue
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              className="h-28 flex-col gap-2"
-              onClick={() => cameraInput.current?.click()}
-            >
-              <Camera className="size-7 text-primary" aria-hidden /> Foto aufnehmen
-            </Button>
-            <Button
-              variant="outline"
-              className="h-28 flex-col gap-2"
-              onClick={() => galleryInput.current?.click()}
-            >
-              <ImagePlus className="size-7 text-primary" aria-hidden /> Aus Mediathek
-            </Button>
-          </div>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="h-28 flex-col gap-2"
+                disabled={reading}
+                onClick={() => cameraInput.current?.click()}
+              >
+                {reading ? (
+                  <LoaderCircle
+                    className="size-7 animate-spin text-primary motion-reduce:animate-none"
+                    aria-hidden
+                  />
+                ) : (
+                  <Camera className="size-7 text-primary" aria-hidden />
+                )}
+                {reading ? 'Lese Foto…' : 'Foto aufnehmen'}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-28 flex-col gap-2"
+                disabled={reading}
+                onClick={() => galleryInput.current?.click()}
+              >
+                <ImagePlus className="size-7 text-primary" aria-hidden /> Aus Mediathek
+              </Button>
+            </div>
+            <p className="-mt-1 text-center text-xs text-muted-foreground">
+              Teller oder Barcode fotografieren – Barcodes werden automatisch erkannt.
+            </p>
+          </>
         )}
         <div className="grid gap-1.5">
           <Label htmlFor="ai-text">Hinweise (optional)</Label>

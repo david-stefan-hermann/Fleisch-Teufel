@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Keyboard, LoaderCircle, PackageSearch } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
 import { Page } from '@/components/Page';
@@ -25,17 +25,17 @@ type State =
   | { kind: 'error'; code: string };
 
 export function ScanPage() {
-  const { date, meal, into } = useSearch({ from: '/authed/scan' });
+  const { date, meal, into, code: initialCode } = useSearch({ from: '/authed/scan' });
   const navigate = useNavigate();
   const db = useDb();
-  const [state, setState] = useState<State>({ kind: 'scanning' });
+  const [state, setState] = useState<State>(
+    initialCode ? { kind: 'looking', code: initialCode } : { kind: 'scanning' },
+  );
   const [camError, setCamError] = useState<ScannerError | null>(null);
   const [manual, setManual] = useState('');
 
-  const handle = useCallback(
-    async (code: string) => {
-      setState({ kind: 'looking', code });
-      const r = await lookupBarcode(db, code);
+  const apply = useCallback(
+    async (code: string, r: Awaited<ReturnType<typeof lookupBarcode>>) => {
       if (r.status === 'found')
         await navigate({
           to: '/food/$foodId',
@@ -47,8 +47,24 @@ export function ScanPage() {
       else if (r.status === 'offline') setState({ kind: 'offline', code });
       else setState({ kind: 'error', code });
     },
-    [db, navigate, date, meal, into],
+    [navigate, date, meal, into],
   );
+  // State changes only happen once the lookup resolves (keeps the effect below free of sync setState).
+  const lookup = useCallback(
+    (code: string) => lookupBarcode(db, code).then((r) => apply(code, r)),
+    [db, apply],
+  );
+  const handle = useCallback(
+    (code: string) => {
+      setState({ kind: 'looking', code });
+      return lookup(code);
+    },
+    [lookup],
+  );
+  // A code handed over from the photo page is looked up once on arrival.
+  useEffect(() => {
+    if (initialCode) void lookup(initialCode);
+  }, [initialCode, lookup]);
   const onError = useCallback((e: ScannerError) => setCamError(e), []);
 
   return (

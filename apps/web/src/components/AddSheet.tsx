@@ -1,8 +1,10 @@
 import { today } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Camera, Dumbbell, Flame, ScanBarcode, Search, Scale } from 'lucide-react';
+import { Search, Scale } from 'lucide-react';
+import type { ComponentType } from 'react';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { defaultMealForNow } from '@/lib/meals';
+import { ScanCameraIcon } from './ScanCameraIcon';
 
 export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const navigate = useNavigate();
@@ -13,36 +15,23 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
     onOpenChange(false);
     fn();
   };
-  const items = [
+  // Deliberately only three entries: quick add lives in the food search, training in the diary card.
+  const items: { label: string; icon: ComponentType<{ className?: string }>; run: () => unknown }[] = [
     {
       label: 'Lebensmittel suchen',
       icon: Search,
       run: () => navigate({ to: '/add', search: { date, meal } }),
     },
     {
-      label: 'Barcode scannen',
-      icon: ScanBarcode,
-      run: () => navigate({ to: '/scan', search: { date, meal } }),
-    },
-    {
-      label: 'Foto analysieren',
-      icon: Camera,
+      // One entry for photo and barcode: a photographed barcode is recognized on the photo page.
+      label: 'Foto / Scan',
+      icon: ScanCameraIcon,
       run: () => navigate({ to: '/photo', search: { date, meal } }),
-    },
-    {
-      label: 'Schnell hinzufügen',
-      icon: Flame,
-      run: () => navigate({ to: '/quick-add', search: { date, meal } }),
     },
     {
       label: 'Gewicht eintragen',
       icon: Scale,
       run: () => navigate({ to: '/progress', search: { log: true } }),
-    },
-    {
-      label: 'Training eintragen',
-      icon: Dumbbell,
-      run: () => navigate({ to: '/exercise', search: { date } }),
     },
   ];
   return (
@@ -61,7 +50,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
               onClick={() => go(() => void it.run())}
               className="flex aspect-square touch-manipulation sm:aspect-auto sm:h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-secondary p-2 text-center text-sm font-medium transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             >
-              <it.icon className="size-7 text-primary" aria-hidden />
+              <it.icon className="size-7 text-primary" />
               <span className="leading-tight text-balance">{it.label}</span>
             </button>
           ))}

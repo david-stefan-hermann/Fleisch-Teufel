@@ -26,6 +26,34 @@ export function validGtin(code: string): boolean {
   return (10 - (sum % 10)) % 10 === check;
 }
 
+/**
+ * Finds an EAN/UPC in a still image (a photographed barcode). Detection runs on a downscaled copy:
+ * fast enough on phones, and a barcode filling a decent part of the frame survives ~1600 px wide.
+ * QR codes count only if they carry a plain GTIN. Returns null when nothing valid is found.
+ */
+export async function detectBarcodeInImage(blob: Blob): Promise<string | null> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+  } catch {
+    return null;
+  }
+  try {
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const detector = new BarcodeDetector({ formats: [...FORMATS, 'qr_code'] });
+    const codes = await detector.detect(canvas);
+    return codes.map((c) => c.rawValue.trim()).find(validGtin) ?? null;
+  } catch {
+    return null;
+  } finally {
+    bitmap.close();
+  }
+}
+
 export function BarcodeScanner({
   onDetected,
   onError,
