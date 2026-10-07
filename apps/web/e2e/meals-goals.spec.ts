@@ -224,6 +224,81 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(page.getByRole('button', { name: /Hafer Flocken/ })).toBeVisible();
 });
 
+test('AI result "Nur eintragen" logs a named group without a saved meal', async ({ page }) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  const item = (name: string, id: string, kcal: number, grams: number) => ({
+    name,
+    grams,
+    confidence: 'high',
+    preparation: null,
+    packaged: false,
+    searchTerms: [],
+    candidates: [
+      {
+        food: {
+          id,
+          source: 'bls',
+          sourceId: id,
+          name,
+          nameEn: null,
+          brand: null,
+          group: null,
+          unit: 'g',
+          nutrients: { ENERCC: kcal, PROT625: 10, CHO: 20, FAT: 5 },
+          portions: [],
+        },
+        score: 1,
+      },
+    ],
+  });
+  await page.route('**/api/ai/analyze', (r) =>
+    r.fulfill({
+      json: {
+        analysisId: '00000000-0000-7000-8000-000000000002',
+        dishName: 'Reis mit Hähnchen',
+        items: [item('Reis gekocht', 'bls:R', 130, 200), item('Hähnchenbrust', 'bls:H', 110, 150)],
+        notes: null,
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+      },
+    }),
+  );
+  await page.goto('/photo?meal=1');
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+  await page.getByLabel('Name des Meals').fill('Mittag vom Foto');
+  await expect(page.getByRole('button', { name: 'Als Meal speichern & eintragen' })).toBeVisible();
+  await page.getByRole('button', { name: 'Nur eintragen' }).click();
+
+  await expect(page.getByText('„Mittag vom Foto“ eingetragen')).toBeVisible();
+  const group = page.getByRole('button', { name: /Mittag vom Foto/ });
+  await expect(group).toBeVisible();
+  await expect(group).toContainText(/2\sZutaten/);
+  await expect(group.getByLabel('aus Foto')).toBeVisible();
+  await group.click();
+  await expect(page.getByRole('list', { name: 'Zutaten von Mittag vom Foto' })).toContainText('Reis gekocht');
+
+  // No saved meal, and the name reaches the server with the entries.
+  await page.goto('/meals');
+  await expect(page.getByText('Noch keine Meals')).toBeVisible();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const r = await fetch('/api/sync/pull?since=0');
+          const entries = (await r.json()).changes.filter(
+            (c: { table: string }) => c.table === 'foodEntries',
+          );
+          return entries.map((c: { data: { groupName: string | null } }) => c.data.groupName);
+        }),
+      { timeout: 15_000 },
+    )
+    .toEqual(['Mittag vom Foto', 'Mittag vom Foto']);
+});
+
 test('macro templates: protein follows body weight', async ({ page }) => {
   await register(page);
   await page.getByRole('radio', { name: 'Männlich' }).click();

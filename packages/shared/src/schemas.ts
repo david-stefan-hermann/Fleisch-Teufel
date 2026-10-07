@@ -170,6 +170,11 @@ export const foodEntrySchema = z.object({
    * Logging the same meal twice gives two groups. Defaults to null for records from older app versions.
    */
   groupId: idSchema.nullable().default(null),
+  /**
+   * Name of a group logged without a saved meal (AI analysis "Nur eintragen"); the diary row shows it.
+   * Null for groups from a saved meal (their name comes from the meal) and for records from older app versions.
+   */
+  groupName: z.string().trim().max(120).nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
 

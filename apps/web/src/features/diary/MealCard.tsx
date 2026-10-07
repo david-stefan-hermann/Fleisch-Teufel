@@ -180,7 +180,7 @@ export function MealCard({
               <li key={row.groupId}>
                 <GroupRow
                   groupId={row.groupId}
-                  name={(row.mealId && mealInfo?.get(row.mealId)?.name) || 'Meal'}
+                  name={(row.mealId && mealInfo?.get(row.mealId)?.name) || row.groupName || 'Meal'}
                   photoId={(row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
                   entries={row.entries}
                   nutrients={row.nutrients}
@@ -254,7 +254,10 @@ function NutrientSummary({ nutrients }: { nutrients: NutrientMap }) {
   );
 }
 
-/** Entries logged together from a saved meal: one row, expandable to the single items. */
+/**
+ * Entries logged together (from a saved meal, or as a named group from an AI analysis): one row,
+ * expandable to the single items.
+ */
 function GroupRow({
   groupId,
   name,

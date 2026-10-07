@@ -1,7 +1,8 @@
-import { dayId, uuidv7 } from '@ft/shared';
+import { dayId, groupDiaryEntries, uuidv7 } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
+  logAiItems,
   logFoodEntry,
   logItems,
   moveEntriesToMeal,
@@ -150,7 +151,80 @@ describe('local writes', () => {
     });
     expect(entries[0]!.groupId).toBeTruthy();
     expect(entries[1]!.groupId).toBe(entries[0]!.groupId);
+    // The name comes from the saved meal.
+    expect(entries[0]!.groupName).toBeNull();
     expect(await d.outbox.count()).toBe(3);
+  });
+
+  it('logs an AI analysis as a named group without a saved meal or photo ("Nur eintragen")', async () => {
+    const d = db();
+    const food = {
+      id: 'bls:R',
+      source: 'bls' as const,
+      sourceId: 'R',
+      name: 'Reis gekocht',
+      nameEn: null,
+      brand: null,
+      group: null,
+      unit: 'g' as const,
+      nutrients: { ENERCC: 130, CHO: 28 },
+      portions: [],
+    };
+    const chicken = { ...food, id: 'bls:H', sourceId: 'H', name: 'Hähnchen', nutrients: { ENERCC: 110 } };
+    const n = await logAiItems(
+      d,
+      '  Bowl vom Foto ',
+      [
+        { food, grams: 200 },
+        { food: chicken, grams: 150 },
+      ],
+      { date: '2026-10-07', meal: 1 },
+      { analysisId: 'a2' },
+    );
+    expect(n).toBe(2);
+    expect(await d.meals.count()).toBe(0);
+    expect(await d.photos.count()).toBe(0);
+    const entries = await d.foodEntries.orderBy('loggedAt').toArray();
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({
+      source: 'ai',
+      mealId: null,
+      aiAnalysisId: 'a2',
+      groupName: 'Bowl vom Foto',
+      meal: 1,
+      nutrients: { ENERCC: 260, CHO: 56 },
+    });
+    expect(entries[0]!.groupId).toBeTruthy();
+    expect(entries[1]!.groupId).toBe(entries[0]!.groupId);
+    expect(entries[1]!.groupName).toBe('Bowl vom Foto');
+    // Only the two entries go to the outbox (no meal record).
+    expect(await d.outbox.count()).toBe(2);
+    // The diary shows them as one group carrying the name.
+    const [row] = groupDiaryEntries(entries);
+    expect(row).toMatchObject({ kind: 'group', mealId: null, groupName: 'Bowl vom Foto' });
+  });
+
+  it('names an unnamed group and never groups plain logs', async () => {
+    const d = db();
+    const item = {
+      foodId: null,
+      source: 'quick' as const,
+      name: 'Tee',
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 2 },
+    };
+    await logItems(d, [item, item], { date: '2026-10-07', meal: 3 }, { groupName: '   ' });
+    const entries = await d.foodEntries.toArray();
+    // A blank name is no group.
+    expect(entries.map((e) => [e.groupId, e.groupName])).toEqual([
+      [null, null],
+      [null, null],
+    ]);
   });
 
   it('gives every logging of a saved meal its own group, but none to copied entries', async () => {

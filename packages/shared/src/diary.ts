@@ -119,10 +119,19 @@ export { MICRO_NUTRIENTS };
 /** One row of a diary meal: a single entry, or all entries logged together from a saved meal. */
 export type DiaryRow =
   | { kind: 'entry'; entry: FoodEntry }
-  | { kind: 'group'; groupId: string; mealId: string | null; entries: FoodEntry[]; nutrients: NutrientMap };
+  | {
+      kind: 'group';
+      groupId: string;
+      mealId: string | null;
+      /** Name of a group logged without a saved meal (`groupName` of its first entry). */
+      groupName: string | null;
+      entries: FoodEntry[];
+      nutrients: NutrientMap;
+    };
 
 /**
- * Groups entries that share a `groupId` (logged in one action from a saved meal) into one row.
+ * Groups entries that share a `groupId` (logged in one action from a saved meal, or as a named
+ * group from an AI analysis) into one row.
  * Rows keep the order of their first entry (`entries` must be sorted by `loggedAt`); entries
  * without `groupId` (quick adds, single foods, records from older app versions) stay single.
  * A group with only one remaining entry (the others were deleted) is shown as a plain entry.
@@ -149,6 +158,7 @@ export function groupDiaryEntries(entries: FoodEntry[]): DiaryRow[] {
       kind: 'group',
       groupId: e.groupId!,
       mealId: e.mealId,
+      groupName: e.groupName ?? null,
       entries: group,
       nutrients: sumNutrients(group.map((g) => g.nutrients)),
     });

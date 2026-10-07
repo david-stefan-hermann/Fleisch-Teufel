@@ -23,7 +23,9 @@ neues Gewicht am selben Tag überschreibt den Grabstein, der Eintrag verschwinde
 
 Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
 hochladen können, z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal
-eingetragen wurden; das Tagebuch zeigt sie als eine Zeile) und `exerciseEntries.note`.
+eingetragen wurden; das Tagebuch zeigt sie als eine Zeile), `foodEntries.groupName` (Name einer Gruppe
+ohne gespeichertes Meal, z. B. eine Foto-Analyse mit „Nur eintragen“; bei Meal-Gruppen bleibt es `null`,
+der Name kommt vom Meal) und `exerciseEntries.note`.
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.

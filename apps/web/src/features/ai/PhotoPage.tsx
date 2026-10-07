@@ -35,11 +35,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { currentDraft, patchRow, rowGrams, scaleDraft, type RowGrams } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
-import { saveAiMeal } from '@/db/entries';
+import { logAiItems, saveAiMeal } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
 import { useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
-import { fmt0, fmtPercent, fmtTime } from '@/lib/format';
+import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { compressImage } from './image';
 import { enqueuePhoto, processQueue } from './queue';
@@ -451,21 +451,23 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     });
   }
 
-  async function save() {
+  /**
+   * `asMeal`: saves a reusable meal with the photo and logs it. Otherwise ("Nur eintragen") the
+   * ingredients are logged as one named group, without a saved meal and without the photo.
+   */
+  async function save(asMeal: boolean) {
     const name = mealName.trim() || 'Foto-Meal';
-    await saveAiMeal(
-      db,
-      name,
-      resolved.map((r) => ({ food: r.food, grams: r.grams })),
-      { date: item.date, meal },
-      result,
-      item.image,
-    );
+    const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
+    const target = { date: item.date, meal };
+    if (asMeal) await saveAiMeal(db, name, items, target, result, item.image);
+    else await logAiItems(db, name, items, target, result);
     for (const r of resolved) await rememberFood(db, r.food);
     await db.aiQueue.delete(item.localId!);
-    toast.success(`„${name}“ eingetragen`, {
-      description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen und bearbeiten.',
-    });
+    if (asMeal)
+      toast.success(`„${name}“ eingetragen`, {
+        description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen und bearbeiten.',
+      });
+    else toast.success(`„${name}“ eingetragen`);
     await navigate({ to: '/', search: { date: item.date } });
   }
 
@@ -655,12 +657,21 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
               </SelectContent>
             </Select>
           </div>
-          <Button size="lg" disabled={resolved.length === 0} onClick={() => void save()}>
+          <Button size="lg" disabled={resolved.length === 0} onClick={() => void save(true)}>
             Als Meal speichern & eintragen
           </Button>
-          <p className="text-xs text-muted-foreground">
-            {resolved.length} Zutaten werden mit dem Foto als Meal gespeichert und eingetragen. Unter
-            „Gespeicherte Meals“ kannst du es später wieder hinzufügen und bearbeiten.
+          <Button
+            size="lg"
+            variant="outline"
+            disabled={resolved.length === 0}
+            onClick={() => void save(false)}
+          >
+            Nur eintragen
+          </Button>
+          <p className="text-xs text-muted-foreground text-pretty">
+            {fmtIngredients(resolved.length)} werden mit dem Foto als Meal gespeichert und eingetragen. Unter
+            „Gespeicherte Meals“ kannst du es später wieder hinzufügen und bearbeiten. Mit „Nur eintragen“
+            landen die Zutaten als Gruppe im Tagebuch, ohne Meal und ohne Foto.
           </p>
           <p className="text-xs text-muted-foreground">
             Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}

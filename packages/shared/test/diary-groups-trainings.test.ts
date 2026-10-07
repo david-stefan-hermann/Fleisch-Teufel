@@ -23,6 +23,7 @@ const entry = (id: string, loggedAt: number, kcal: number, groupId: string | nul
   mealId: groupId ? 'meal-1' : null,
   aiAnalysisId: null,
   groupId,
+  groupName: null as string | null,
 });
 
 describe('groupDiaryEntries', () => {
@@ -43,6 +44,17 @@ describe('groupDiaryEntries', () => {
     expect(group.kind === 'group' && group.entries.map((e) => e.id)).toEqual(['pasta', 'sauce', 'cheese']);
     expect(group.kind === 'group' && group.nutrients).toEqual({ ENERCC: 680, PROT625: 3 });
     expect(group.kind === 'group' && group.mealId).toBe('meal-1');
+    expect(group.kind === 'group' && group.groupName).toBeNull();
+  });
+
+  it('carries the name of a group without a saved meal', () => {
+    const named = (id: string, loggedAt: number) => ({
+      ...entry(id, loggedAt, 100, 'g1'),
+      mealId: null,
+      groupName: 'Mittag vom Foto',
+    });
+    const [row] = groupDiaryEntries([named('rice', 1), named('chicken', 2)]);
+    expect(row).toMatchObject({ kind: 'group', mealId: null, groupName: 'Mittag vom Foto' });
   });
 
   it('keeps two loggings of the same meal apart and shows leftovers of a group as single entries', () => {
@@ -106,9 +118,12 @@ describe('recentTrainings', () => {
 });
 
 describe('schema defaults for older clients', () => {
-  it('fills groupId and note with null when missing', () => {
-    const { groupId: _omit, ...old } = entry('x', 1, 10);
+  it('fills groupId, groupName and note with null when missing', () => {
+    const { groupId: _omit, groupName: _name, ...old } = entry('x', 1, 10);
     expect(foodEntrySchema.parse(old).groupId).toBeNull();
+    expect(foodEntrySchema.parse(old).groupName).toBeNull();
+    expect(foodEntrySchema.parse({ ...old, groupName: '  Bowl ' }).groupName).toBe('Bowl');
+    expect(() => foodEntrySchema.parse({ ...old, groupName: 'x'.repeat(121) })).toThrow();
     const ex = exerciseEntrySchema.parse({
       id: 'e',
       updatedAt: 1,

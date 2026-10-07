@@ -14,13 +14,23 @@ import type { UserDb } from './dexie';
 import { storePhoto } from './photos';
 import { patchRecord, saveRecord } from './write';
 
-export type NewFoodEntry = Omit<FoodEntry, 'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId'>;
+export type NewFoodEntry = Omit<
+  FoodEntry,
+  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName'
+>;
 
 /** Logs the same item on one or more days (multi-day log). */
 export async function logFoodEntry(db: UserDb, item: NewFoodEntry, dates: string[]): Promise<void> {
   const now = Date.now();
   for (const [i, date] of dates.entries()) {
-    await saveRecord(db, 'foodEntries', { ...item, id: uuidv7(), date, loggedAt: now + i, groupId: null });
+    await saveRecord(db, 'foodEntries', {
+      ...item,
+      id: uuidv7(),
+      date,
+      loggedAt: now + i,
+      groupId: null,
+      groupName: null,
+    });
   }
 }
 
@@ -57,17 +67,24 @@ export async function saveExerciseTemplate(
 }
 
 /**
- * Logs items into a diary meal. With `mealId` (a saved meal) all entries share one `groupId`,
+ * Logs items into a diary meal. With `mealId` (a saved meal) or `groupName` (a group without a
+ * saved meal, e.g. an AI analysis logged with "Nur eintragen") all entries share one `groupId`,
  * so the diary shows them as one expandable row; `factor` scales every item (0.5 = half).
  */
 export async function logItems(
   db: UserDb,
   items: MealItem[],
   target: { date: string; meal: number },
-  opts: { factor?: number; mealId?: string | null; aiAnalysisId?: string | null } = {},
+  opts: {
+    factor?: number;
+    mealId?: string | null;
+    aiAnalysisId?: string | null;
+    groupName?: string | null;
+  } = {},
 ): Promise<number> {
   const factor = opts.factor ?? 1;
-  const groupId = opts.mealId ? uuidv7() : null;
+  const groupName = opts.groupName?.trim().slice(0, 120) || null;
+  const groupId = opts.mealId || groupName ? uuidv7() : null;
   const now = Date.now();
   for (const [i, item] of items.entries()) {
     const scaled = factor === 1 ? item : rescaleItem(item, Math.round(item.quantity * factor * 1000) / 1000);
@@ -92,6 +109,7 @@ export async function logItems(
       mealId: opts.mealId ?? null,
       aiAnalysisId: opts.aiAnalysisId ?? null,
       groupId,
+      groupName,
     });
   }
   return items.length;
@@ -126,6 +144,23 @@ export async function updateMealItem(
   await patchRecord(db, 'meals', mealId, { items });
 }
 
+/** Confirmed ingredients of an AI analysis as logged items (source "ai", grams as 1 g portions). */
+export function aiMealItems(items: { food: Food; grams: number }[]): MealItem[] {
+  return items.map(({ food, grams }) => ({
+    foodId: food.id,
+    source: 'ai',
+    name: food.name,
+    brand: food.brand,
+    grams,
+    portionLabel: food.unit === 'ml' ? '1 ml' : '1 g',
+    portionGrams: 1,
+    quantity: grams,
+    per100: food.nutrients,
+    nutrients: computeItem({ per100: food.nutrients, portionLabel: '1 g', portionGrams: 1, quantity: grams })
+      .nutrients,
+  }));
+}
+
 /**
  * Saves the confirmed items of an AI photo analysis as a reusable saved meal and logs it
  * (source "ai", grouped in the diary). Returns the id of the new meal.
@@ -139,22 +174,27 @@ export async function saveAiMeal(
   /** The analysed photo; becomes the meal photo. */
   photo: Blob | null = null,
 ): Promise<string> {
-  const mealItems: MealItem[] = items.map(({ food, grams }) => ({
-    foodId: food.id,
-    source: 'ai',
-    name: food.name,
-    brand: food.brand,
-    grams,
-    portionLabel: food.unit === 'ml' ? '1 ml' : '1 g',
-    portionGrams: 1,
-    quantity: grams,
-    per100: food.nutrients,
-    nutrients: computeItem({ per100: food.nutrients, portionLabel: '1 g', portionGrams: 1, quantity: grams })
-      .nutrients,
-  }));
+  const mealItems = aiMealItems(items);
   const mealId = uuidv7();
   const photoId = photo ? await storePhoto(db, photo) : null;
   await saveRecord(db, 'meals', { id: mealId, name: name.trim().slice(0, 120), items: mealItems, photoId });
   await logItems(db, mealItems, target, { mealId, aiAnalysisId: analysis.analysisId });
   return mealId;
+}
+
+/**
+ * "Nur eintragen" of an AI analysis: logs the confirmed items as one named group in the diary,
+ * without a saved meal and without storing the photo. Returns the number of logged entries.
+ */
+export async function logAiItems(
+  db: UserDb,
+  name: string,
+  items: { food: Food; grams: number }[],
+  target: { date: string; meal: number },
+  analysis: Pick<AiAnalysisResult, 'analysisId'>,
+): Promise<number> {
+  return logItems(db, aiMealItems(items), target, {
+    groupName: name.trim() || 'Meal vom Foto',
+    aiAnalysisId: analysis.analysisId,
+  });
 }

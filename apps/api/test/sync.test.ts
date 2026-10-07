@@ -33,6 +33,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   mealId: null,
   aiAnalysisId: null,
   groupId: null,
+  groupName: null,
   ...over,
 });
 
@@ -121,6 +122,16 @@ describe('sync', () => {
     };
     const records = [
       { table: 'foodEntries', data: e },
+      // A named group without a saved meal ("Nur eintragen" of an AI analysis).
+      {
+        table: 'foodEntries',
+        data: entry({
+          source: 'ai',
+          groupId: uuidv7(),
+          groupName: 'Mittag vom Foto',
+          aiAnalysisId: uuidv7(),
+        }),
+      },
       { table: 'settings', data: settings },
       { table: 'goals', data: goal },
       { table: 'meals', data: meal },
@@ -210,7 +221,7 @@ describe('sync', () => {
   });
 
   it('accepts records from older app versions without the newer optional fields', async () => {
-    const { groupId: _g, ...oldEntry } = entry({ groupId: null });
+    const { groupId: _g, groupName: _n, ...oldEntry } = entry({ groupId: null });
     const oldExercise = {
       id: uuidv7(),
       updatedAt: 7,
@@ -234,7 +245,11 @@ describe('sync', () => {
     });
     expect(r.json).toEqual({ applied: 2, stale: [], rejected: [] });
     const { changes } = await pullAll(alice, before);
-    expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({ ...oldEntry, groupId: null });
+    expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({
+      ...oldEntry,
+      groupId: null,
+      groupName: null,
+    });
     expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({ ...oldExercise, note: null });
   });
 
