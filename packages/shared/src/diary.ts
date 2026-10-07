@@ -115,3 +115,43 @@ export function microStatus(
 }
 
 export { MICRO_NUTRIENTS };
+
+/** One row of a diary meal: a single entry, or all entries logged together from a saved meal. */
+export type DiaryRow =
+  | { kind: 'entry'; entry: FoodEntry }
+  | { kind: 'group'; groupId: string; mealId: string | null; entries: FoodEntry[]; nutrients: NutrientMap };
+
+/**
+ * Groups entries that share a `groupId` (logged in one action from a saved meal) into one row.
+ * Rows keep the order of their first entry (`entries` must be sorted by `loggedAt`); entries
+ * without `groupId` – quick adds, single foods, records from older app versions – stay single.
+ * A group with only one remaining entry (the others were deleted) is shown as a plain entry.
+ */
+export function groupDiaryEntries(entries: FoodEntry[]): DiaryRow[] {
+  const byGroup = new Map<string, FoodEntry[]>();
+  for (const e of entries) {
+    if (!e.groupId) continue;
+    const list = byGroup.get(e.groupId);
+    if (list) list.push(e);
+    else byGroup.set(e.groupId, [e]);
+  }
+  const rows: DiaryRow[] = [];
+  const seen = new Set<string>();
+  for (const e of entries) {
+    const group = e.groupId ? byGroup.get(e.groupId) : undefined;
+    if (!group || group.length < 2) {
+      rows.push({ kind: 'entry', entry: e });
+      continue;
+    }
+    if (seen.has(e.groupId!)) continue;
+    seen.add(e.groupId!);
+    rows.push({
+      kind: 'group',
+      groupId: e.groupId!,
+      mealId: e.mealId,
+      entries: group,
+      nutrients: sumNutrients(group.map((g) => g.nutrients)),
+    });
+  }
+  return rows;
+}

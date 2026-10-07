@@ -312,3 +312,33 @@ export function netExerciseKcal(met: number, weightKg: number, minutes: number):
 
 /** Fallback body weight when none is logged yet (only used for the estimate, UI asks to log weight). */
 export const DEFAULT_WEIGHT_KG = 75;
+
+/** The fields that make two trainings "the same" for the quick selection. */
+export interface TrainingSetup {
+  typeKey: string;
+  name: string;
+  minutes: number;
+  intensity: Intensity;
+  note: string | null;
+}
+
+/**
+ * The last `limit` distinct trainings (newest first, by `loggedAt`) for the quick selection.
+ * Entries with the same type, duration, intensity and note count once.
+ */
+export function recentTrainings<T extends TrainingSetup & { loggedAt: number; deleted?: boolean }>(
+  entries: T[],
+  limit = 5,
+): T[] {
+  const out: T[] = [];
+  const keys = new Set<string>();
+  for (const e of [...entries].sort((a, b) => b.loggedAt - a.loggedAt)) {
+    if (e.deleted) continue;
+    const key = JSON.stringify([e.typeKey, e.minutes, e.intensity, e.note?.trim() || null]);
+    if (keys.has(key)) continue;
+    keys.add(key);
+    out.push(e);
+    if (out.length === limit) break;
+  }
+  return out;
+}

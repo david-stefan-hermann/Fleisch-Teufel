@@ -25,6 +25,7 @@ const fakeAnalyzer: FoodAnalyzer = {
     received.push(input);
     if (refuse) throw new AiRefusalError('general_harms');
     return {
+      dishName: 'Hähnchen mit Nudeln',
       items: [
         item({
           name: 'Hähnchenbrust',
@@ -95,6 +96,7 @@ describe('POST /api/ai/analyze', () => {
     const r = await c.req('POST', '/api/ai/analyze', photo());
     expect(r.status).toBe(200);
     expect(received.at(-1)).toMatchObject({ mediaType: 'image/jpeg', text: 'mit etwas Öl gebraten' });
+    expect(r.json.dishName).toBe('Hähnchen mit Nudeln');
     expect(r.json.items).toHaveLength(3);
     expect(r.json.items[0].candidates[0].food.id).toBe('bls:V411180');
     expect(r.json.items[1].candidates[0].food.id).toBe('bls:E411000');

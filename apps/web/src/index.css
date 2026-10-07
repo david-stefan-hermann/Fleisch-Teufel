@@ -174,3 +174,106 @@
 input[type='search']::-webkit-search-cancel-button {
   filter: grayscale(1) opacity(0.6);
 }
+
+/*
+ * Date inputs: iOS Safari gives them an intrinsic min-width and its own inner layout, so in a
+ * grid they overflow horizontally and the value is misaligned. Reset to a plain block box.
+ */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  /* flex centers the value vertically like in a text field (a block box puts it at the top) */
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+input[type='date']::-webkit-datetime-edit {
+  padding: 0;
+}
+
+/* Photo analysis: scan line, pulsing icon and progress steps (pure CSS, no timers). */
+.ai-scan {
+  position: absolute;
+  inset-inline: 0;
+  top: -40%;
+  height: 40%;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklch, var(--primary) 45%, transparent) 85%,
+    color-mix(in oklch, white 80%, transparent)
+  );
+  animation: ai-scan 2.4s ease-in-out infinite;
+}
+@keyframes ai-scan {
+  from {
+    top: -40%;
+  }
+  to {
+    top: 100%;
+  }
+}
+.ai-pulse {
+  animation: ai-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ai-pulse {
+  50% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+}
+.ai-steps > span {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.ai-steps > span:nth-child(1) {
+  animation:
+    ai-step-in 0.4s ease-out 0s both,
+    ai-step-out 0.3s ease-in 3s forwards;
+}
+.ai-steps > span:nth-child(2) {
+  animation:
+    ai-step-in 0.4s ease-out 3.3s both,
+    ai-step-out 0.3s ease-in 7s forwards;
+}
+.ai-steps > span:nth-child(3) {
+  animation: ai-step-in 0.4s ease-out 7.3s both;
+}
+@keyframes ai-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ai-step-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-scan,
+  .ai-pulse,
+  .ai-steps > span {
+    animation: none;
+  }
+  .ai-scan {
+    display: none;
+  }
+  .ai-steps > span:first-child {
+    opacity: 1;
+  }
+}

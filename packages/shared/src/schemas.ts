@@ -152,6 +152,11 @@ export const foodEntrySchema = z.object({
   mealId: idSchema.nullable(),
   /** Set when logged from an AI photo analysis (for later accuracy evaluation). */
   aiAnalysisId: idSchema.nullable(),
+  /**
+   * Shared by all entries logged in one action from a saved meal; the diary shows them as one row.
+   * Logging the same meal twice gives two groups. Defaults to null for records from older app versions.
+   */
+  groupId: idSchema.nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
 
@@ -175,8 +180,22 @@ export const exerciseEntrySchema = z.object({
   /** Net kcal credited to the day ((MET − 1) × kg × h). */
   kcal: z.number().min(0).max(20_000),
   loggedAt: z.number().int().nonnegative(),
+  /** Free text, e.g. exercises and sets. Defaults to null for records from older app versions. */
+  note: z.string().trim().max(2000).nullable().default(null),
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
+
+/** A saved training ("Vorlage"); kcal are computed when it is logged, with the weight of that day. */
+export const exerciseTemplateSchema = z.object({
+  ...base,
+  name: z.string().trim().min(1).max(80),
+  typeKey: z.string().min(1).max(64),
+  typeName: z.string().trim().min(1).max(80),
+  minutes: z.number().min(1).max(1440),
+  intensity: intensitySchema,
+  note: z.string().trim().max(2000).nullable(),
+});
+export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 
 export const weightEntrySchema = z.object({
   ...base,
@@ -203,6 +222,7 @@ export const SYNC_SCHEMAS = {
   foodEntries: foodEntrySchema,
   exerciseTypes: exerciseTypeSchema,
   exerciseEntries: exerciseEntrySchema,
+  exerciseTemplates: exerciseTemplateSchema,
   weightEntries: weightEntrySchema,
   dayNotes: dayNoteSchema,
 } as const;
@@ -324,6 +344,8 @@ export interface AiCandidate {
 export interface AiAnalysisResult {
   analysisId: string;
   items: (AiItem & { candidates: AiCandidate[] })[];
+  /** Short German name of the whole dish ("Spaghetti Bolognese"); null for older results. */
+  dishName: string | null;
   notes: string | null;
   model: string;
   usage: { inputTokens: number; outputTokens: number; costUsd: number };

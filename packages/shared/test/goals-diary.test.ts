@@ -34,6 +34,7 @@ const entry = (date: string, meal: number, kcal: number, extra: Record<string, n
   nutrients: { ENERCC: kcal, ...extra },
   mealId: null,
   aiAnalysisId: null,
+  groupId: null,
 });
 
 const exercise = (date: string, kcal: number): ExerciseEntry => ({
@@ -49,6 +50,7 @@ const exercise = (date: string, kcal: number): ExerciseEntry => ({
   weightKg: 80,
   kcal,
   loggedAt: 1,
+  note: null,
 });
 
 describe('goals', () => {

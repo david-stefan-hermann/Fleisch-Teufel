@@ -119,3 +119,13 @@ export function useLoggedDates(from: ISODate, to: ISODate): Set<string> | undefi
     return new Set(list.map((e) => e.date));
   }, [db, from, to]);
 }
+
+/** Names of saved meals by id (also deleted ones: diary groups keep showing their name). */
+export function useMealNames(ids: (string | null)[]): Map<string, string> | undefined {
+  const db = useDb();
+  const key = [...new Set(ids.filter((id): id is string => !!id))].sort().join(',');
+  return useLiveQuery(async () => {
+    const list = key ? await db.meals.bulkGet(key.split(',')) : [];
+    return new Map(list.filter((m) => !!m).map((m) => [m.id, m.name]));
+  }, [db, key]);
+}

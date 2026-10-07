@@ -47,7 +47,8 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
   ];
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="pb-[calc(var(--safe-bottom)+1rem)]">
+      {/* On wide screens a centered card instead of a full-width sheet with giant square tiles. */}
+      <DrawerContent className="pb-[calc(var(--safe-bottom)+1rem)] sm:mx-auto sm:max-w-md sm:rounded-t-2xl sm:border-x">
         <DrawerHeader>
           <DrawerTitle>Hinzufügen</DrawerTitle>
           <DrawerDescription>Was möchtest du eintragen?</DrawerDescription>
@@ -58,7 +59,7 @@ export function AddSheet({ open, onOpenChange }: { open: boolean; onOpenChange: 
               key={it.label}
               type="button"
               onClick={() => go(() => void it.run())}
-              className="flex aspect-square touch-manipulation flex-col items-center justify-center gap-2 rounded-2xl bg-secondary p-2 text-center text-sm font-medium transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="flex aspect-square touch-manipulation sm:aspect-auto sm:h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-secondary p-2 text-center text-sm font-medium transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             >
               <it.icon className="size-7 text-primary" aria-hidden />
               <span className="leading-tight text-balance">{it.label}</span>

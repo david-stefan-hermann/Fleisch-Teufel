@@ -1,7 +1,6 @@
 import { addDays, MEAL_COUNT } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { CalendarDays, ChevronLeft, ChevronRight, Target } from 'lucide-react';
-import { useRef } from 'react';
+import { ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
@@ -24,7 +23,6 @@ export function DiaryPage() {
   const exercises = useDayExercises(date);
   const settings = useSettings();
   const goals = useGoals();
-  const dateInput = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
 
@@ -40,7 +38,27 @@ export function DiaryPage() {
           >
             <ChevronLeft aria-hidden />
           </Button>
-          <span className="min-w-0 truncate">{fmtRelativeDay(date, today)}</span>
+          {/*
+            The transparent date input lies on top of the label: a tap hits the input itself, which is
+            the only way iOS Safari opens its picker (showPicker() on a hidden input does nothing there).
+          */}
+          <label className="relative min-w-0 cursor-pointer rounded-md px-1 hover:bg-accent focus-within:ring-[3px] focus-within:ring-ring/50">
+            <span className="block truncate">{fmtRelativeDay(date, today)}</span>
+            <input
+              type="date"
+              aria-label="Datum wählen"
+              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              value={date}
+              onClick={(e) => {
+                try {
+                  e.currentTarget.showPicker?.();
+                } catch {
+                  // Not allowed in this browser/context: the native tap behaviour still applies.
+                }
+              }}
+              onChange={(e) => e.target.value && go(e.target.value)}
+            />
+          </label>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -53,23 +71,6 @@ export function DiaryPage() {
       }
       actions={
         <>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Datum wählen"
-            onClick={() => dateInput.current?.showPicker?.() ?? dateInput.current?.click()}
-          >
-            <CalendarDays aria-hidden />
-          </Button>
-          <input
-            ref={dateInput}
-            type="date"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            value={date}
-            onChange={(e) => e.target.value && go(e.target.value)}
-          />
           <SyncIndicator />
         </>
       }

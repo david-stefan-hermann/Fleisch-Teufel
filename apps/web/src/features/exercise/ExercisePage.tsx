@@ -6,19 +6,22 @@ import {
   metFor,
   netExerciseKcal,
   normalize,
+  recentTrainings,
   round,
   uuidv7,
   type ExerciseEntry,
+  type ExerciseTemplate,
   type Intensity,
 } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { BookmarkPlus, Check, Plus, Search, Trash2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,11 +33,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { saveExercise } from '@/db/entries';
+import { saveExercise, saveExerciseTemplate } from '@/db/entries';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useCurrentWeight, useSettings } from '@/hooks/data';
-import { fmt0, fmt1, fmtDayLong } from '@/lib/format';
+import { fmt0, fmt1, fmtDate, fmtDayLong } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 interface TypeOption {
@@ -62,15 +66,19 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   const settings = useSettings();
   const weight = useCurrentWeight(date);
   const customTypes = useLiveQuery(() => db.exerciseTypes.filter((t) => !t.deleted).toArray(), [db]);
-  const recentKeys = useLiveQuery(async () => {
-    const list = await db.exerciseEntries
-      .orderBy('date')
-      .reverse()
-      .filter((e) => !e.deleted)
-      .limit(50)
-      .toArray();
-    return [...new Set(list.map((e) => e.typeKey))].slice(0, 6);
-  }, [db]);
+  const templates = useLiveQuery(() => db.exerciseTemplates.filter((t) => !t.deleted).sortBy('name'), [db]);
+  const recent = useLiveQuery(
+    async () =>
+      recentTrainings(
+        await db.exerciseEntries
+          .orderBy('date')
+          .reverse()
+          .filter((e) => !e.deleted)
+          .limit(100)
+          .toArray(),
+      ),
+    [db],
+  );
 
   const options: TypeOption[] = useMemo(
     () => [
@@ -87,17 +95,30 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   const [typeKey, setTypeKey] = useState<string | null>(entry?.typeKey ?? null);
   const [intensity, setIntensity] = useState<Intensity>(entry?.intensity ?? 'moderate');
   const [minutes, setMinutes] = useState<number | null>(entry?.minutes ?? 30);
+  const [note, setNote] = useState(entry?.note ?? '');
   const [filter, setFilter] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   const type = options.find((o) => o.key === typeKey) ?? null;
   const usedWeight = entry?.weightKg ?? weight ?? DEFAULT_WEIGHT_KG;
   const met = type ? metFor(type, intensity) : null;
   const kcal = met && minutes ? round(netExerciseKcal(met, usedWeight, minutes), 0) : 0;
   const shown = filter ? options.filter((o) => normalize(o.name).includes(normalize(filter))) : options;
-  const recent = (recentKeys ?? [])
-    .map((k) => options.find((o) => o.key === k))
-    .filter((o): o is TypeOption => !!o);
+  const setup = { typeKey, minutes, intensity, note: note.trim() || null };
+
+  /** Fills the form from a template or an earlier training. */
+  function apply(t: { typeKey: string; minutes: number; intensity: Intensity; note: string | null }) {
+    if (!options.some((o) => o.key === t.typeKey)) {
+      toast.error('Diese Sportart gibt es nicht mehr.');
+      return;
+    }
+    setTypeKey(t.typeKey);
+    setIntensity(t.intensity);
+    setMinutes(t.minutes);
+    setNote(t.note ?? '');
+    setFilter('');
+  }
 
   async function save() {
     if (!type || !met || !minutes) return;
@@ -110,6 +131,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       met,
       weightKg: usedWeight,
       kcal,
+      note: setup.note,
     };
     await saveExercise(db, data, entry ?? null);
     toast.success(`${type.name}: ${fmt0(kcal)} kcal`);
@@ -144,22 +166,55 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       }
     >
       <p className="mb-3 text-sm text-muted-foreground">{fmtDayLong(date)}</p>
+      {!entry && ((templates?.length ?? 0) > 0 || (recent?.length ?? 0) > 0) && (
+        <Section title="Schnellauswahl">
+          <div className="grid gap-3 pb-3">
+            {templates && templates.length > 0 && (
+              <QuickList title="Vorlagen">
+                {templates.map((t) => (
+                  <li key={t.id}>
+                    <SwipeToDelete
+                      label={`Vorlage ${t.name} löschen`}
+                      onDelete={async () => {
+                        await deleteRecord(db, 'exerciseTemplates', t.id);
+                        toast(`Vorlage „${t.name}“ gelöscht`, {
+                          action: {
+                            label: 'Rückgängig',
+                            onClick: () => void restoreRecord(db, 'exerciseTemplates', t.id),
+                          },
+                        });
+                      }}
+                    >
+                      <QuickItem
+                        title={t.name}
+                        subtitle={describe(t.typeName, t.minutes, t.intensity, t.note)}
+                        selected={sameSetup(setup, t)}
+                        onSelect={() => apply(t)}
+                      />
+                    </SwipeToDelete>
+                  </li>
+                ))}
+              </QuickList>
+            )}
+            {recent && recent.length > 0 && (
+              <QuickList title="Zuletzt">
+                {recent.map((r) => (
+                  <li key={r.id}>
+                    <QuickItem
+                      title={r.name}
+                      subtitle={describe(null, r.minutes, r.intensity, r.note, r.date)}
+                      selected={sameSetup(setup, r)}
+                      onSelect={() => apply(r)}
+                    />
+                  </li>
+                ))}
+              </QuickList>
+            )}
+          </div>
+        </Section>
+      )}
       <Section title="Sportart">
         <div className="grid gap-3 px-4 pb-4">
-          {recent.length > 0 && !entry && (
-            <div className="flex flex-wrap gap-2">
-              {recent.map((o) => (
-                <Button
-                  key={o.key}
-                  size="sm"
-                  variant={typeKey === o.key ? 'default' : 'secondary'}
-                  onClick={() => setTypeKey(o.key)}
-                >
-                  {o.name}
-                </Button>
-              ))}
-            </div>
-          )}
           <div className="relative">
             <Search
               className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -237,6 +292,17 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
               </Button>
             ))}
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="ex-note">Notiz (optional)</Label>
+            <Textarea
+              id="ex-note"
+              value={note}
+              maxLength={2000}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="z. B. Bankdrücken 3 × 8 à 60 kg, Kniebeugen 4 × 10…"
+              className="min-h-20"
+            />
+          </div>
           <div className="rounded-xl bg-muted p-3">
             <div className="flex items-baseline justify-between">
               <span className="text-sm">Verbrauch (zusätzlich zum Grundumsatz)</span>
@@ -255,6 +321,9 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
           <Button size="lg" disabled={!type || !minutes} onClick={() => void save()}>
             {entry ? 'Änderungen speichern' : 'Training speichern'}
           </Button>
+          <Button variant="outline" disabled={!type || !minutes} onClick={() => setTemplateOpen(true)}>
+            <BookmarkPlus aria-hidden /> Als Vorlage speichern
+          </Button>
           <p className="text-xs text-muted-foreground">
             MET-Werte: Compendium of Physical Activities (Ainsworth 2011/Herrmann 2024), gerundet.{' '}
             <Link to="/about" className="underline">
@@ -263,6 +332,14 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
           </p>
         </div>
       </Section>
+      {type && minutes && (
+        <TemplateDialog
+          open={templateOpen}
+          onOpenChange={setTemplateOpen}
+          defaultName={setup.note ? `${type.name} – ${setup.note.split('\n')[0]!.slice(0, 40)}` : type.name}
+          data={{ typeKey: type.key, typeName: type.name, minutes, intensity, note: setup.note }}
+        />
+      )}
       <CustomTypeDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
@@ -272,6 +349,127 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         }}
       />
     </Page>
+  );
+}
+
+function sameSetup(
+  a: { typeKey: string | null; minutes: number | null; intensity: Intensity; note: string | null },
+  b: { typeKey: string; minutes: number; intensity: Intensity; note: string | null },
+): boolean {
+  return (
+    a.typeKey === b.typeKey &&
+    a.minutes === b.minutes &&
+    a.intensity === b.intensity &&
+    (a.note ?? null) === (b.note?.trim() || null)
+  );
+}
+
+function describe(
+  typeName: string | null,
+  minutes: number,
+  intensity: Intensity,
+  note: string | null,
+  date?: string,
+): string {
+  return [typeName, `${fmt0(minutes)} Min.`, INTENSITY_LABELS_DE[intensity], date && fmtDate(date), note]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function QuickList({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <h3 className="px-4 pb-1 text-xs font-medium text-muted-foreground">{title}</h3>
+      <ul className="divide-y divide-border/70 border-y border-border/70">{children}</ul>
+    </div>
+  );
+}
+
+function QuickItem({
+  title,
+  subtitle,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onSelect}
+      className={cn(
+        'flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none focus-visible:bg-accent focus-visible:outline-none',
+        selected ? 'bg-primary/10' : 'hover:bg-accent/60',
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
+      </div>
+      {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden />}
+    </button>
+  );
+}
+
+function TemplateDialog({
+  open,
+  onOpenChange,
+  defaultName,
+  data,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  defaultName: string;
+  data: Omit<ExerciseTemplate, 'id' | 'updatedAt' | 'deleted' | 'name'>;
+}) {
+  const db = useDb();
+  const [name, setName] = useState(defaultName);
+  const [prevDefault, setPrevDefault] = useState(defaultName);
+  if (defaultName !== prevDefault) {
+    setPrevDefault(defaultName);
+    setName(defaultName);
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Als Vorlage speichern</DialogTitle>
+          <DialogDescription>
+            Sportart, Dauer, Intensität und Notiz stehen danach unter „Schnellauswahl“ bereit.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-1.5">
+          <Label htmlFor="tpl-name">Name</Label>
+          <Input
+            id="tpl-name"
+            autoComplete="off"
+            maxLength={80}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="z. B. Oberkörper-Tag…"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Abbrechen
+          </Button>
+          <Button
+            disabled={!name.trim()}
+            onClick={async () => {
+              await saveExerciseTemplate(db, { ...data, name: name.trim() });
+              toast.success(`Vorlage „${name.trim()}“ gespeichert`);
+              onOpenChange(false);
+            }}
+          >
+            Vorlage speichern
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

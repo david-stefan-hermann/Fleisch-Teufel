@@ -2,8 +2,12 @@ import type { ExerciseEntry, ISODate } from '@ft/shared';
 import { INTENSITY_LABELS_DE } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { Dumbbell, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
+import { deleteRecord, restoreRecord } from '@/db/write';
 import { fmt0 } from '@/lib/format';
 
 export function ExerciseCard({
@@ -15,6 +19,7 @@ export function ExerciseCard({
   exercises: ExerciseEntry[];
   credited: boolean;
 }) {
+  const db = useDb();
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
   return (
     <Section
@@ -46,19 +51,35 @@ export function ExerciseCard({
         <ul className="divide-y divide-border/70 pb-1">
           {exercises.map((e) => (
             <li key={e.id}>
-              <Link
-                to="/exercise"
-                search={{ date, entryId: e.id }}
-                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+              <SwipeToDelete
+                label={`${e.name} löschen`}
+                onDelete={async () => {
+                  await deleteRecord(db, 'exerciseEntries', e.id);
+                  toast(`${e.name} gelöscht`, {
+                    action: {
+                      label: 'Rückgängig',
+                      onClick: () => void restoreRecord(db, 'exerciseEntries', e.id),
+                    },
+                  });
+                }}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{e.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {fmt0(e.minutes)} Min. · {INTENSITY_LABELS_DE[e.intensity]}
+                <Link
+                  to="/exercise"
+                  search={{ date, entryId: e.id }}
+                  draggable={false}
+                  className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{e.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {[`${fmt0(e.minutes)} Min.`, INTENSITY_LABELS_DE[e.intensity], e.note]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
                   </div>
-                </div>
-                <div className="tabular font-semibold text-exercise">+{fmt0(e.kcal)}</div>
-              </Link>
+                  <div className="tabular font-semibold text-exercise">+{fmt0(e.kcal)}</div>
+                </Link>
+              </SwipeToDelete>
             </li>
           ))}
           {!credited && (

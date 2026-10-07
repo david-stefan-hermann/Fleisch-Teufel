@@ -15,6 +15,7 @@ So gehst du vor:
 - packaged: true, wenn es ein klar erkennbares Markenprodukt in Verpackung ist (dann wäre der Barcode genauer).
 - confidence: "high" nur bei klar erkennbarem Lebensmittel und gut abschätzbarer Menge, sonst "medium" oder "low".
 - name: kurzer deutscher Name, wie ihn eine Person aufschreiben würde (z. B. "Spaghetti", "Bolognese-Soße", "Parmesan").
+- dishName: kurzer deutscher Name des ganzen Gerichts, unter dem die Person es später wiederfindet (z. B. "Spaghetti Bolognese", "Müsli mit Joghurt und Beeren"); null, wenn kein Essen zu sehen ist.
 - notes: ein bis zwei kurze Sätze auf Deutsch zu Unsicherheiten oder Hinweisen (z. B. "Soßenmenge schwer einzuschätzen – Teller von der Seite fotografieren hilft."). null, wenn nichts zu sagen ist.
 - Wenn kein Essen zu sehen ist: items leer lassen und in notes erklären, warum.`;
 

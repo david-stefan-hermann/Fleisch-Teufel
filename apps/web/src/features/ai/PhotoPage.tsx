@@ -10,12 +10,13 @@ import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import type { AiQueueItem } from '@/db/dexie';
-import { saveAiItems } from '@/db/entries';
+import { saveAiMeal } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
 import { useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
@@ -138,15 +139,19 @@ function Capture({ date, meal, onQueued }: { date: string; meal: number; onQueue
               width={800}
               height={600}
             />
-            <Button
-              variant="secondary"
-              size="icon-sm"
-              className="absolute top-2 right-2"
-              onClick={() => setImage(null)}
-              aria-label="Foto entfernen"
-            >
-              <X aria-hidden />
-            </Button>
+            {busy ? (
+              <AnalyzingOverlay />
+            ) : (
+              <Button
+                variant="secondary"
+                size="icon-sm"
+                className="absolute top-2 right-2"
+                onClick={() => setImage(null)}
+                aria-label="Foto entfernen"
+              >
+                <X aria-hidden />
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -196,10 +201,31 @@ function Capture({ date, meal, onQueued }: { date: string; meal: number; onQueue
           ) : (
             <Sparkles aria-hidden />
           )}
-          {busy ? 'Analysiere… (bis zu 30 s)' : 'Analysieren'}
+          {busy ? 'Analysiere…' : 'Analysieren'}
         </Button>
       </div>
     </Section>
+  );
+}
+
+/** Shown over the photo while Claude looks at it; pure CSS animation (see `.ai-*` in index.css). */
+function AnalyzingOverlay() {
+  return (
+    <div
+      role="status"
+      className="absolute inset-0 grid place-items-center overflow-hidden rounded-xl bg-black/50 text-white"
+    >
+      <div className="ai-scan" aria-hidden />
+      <div className="relative flex flex-col items-center gap-2 px-4 text-center">
+        <Sparkles className="ai-pulse size-8" aria-hidden />
+        <div className="text-lg font-semibold">Analysiere Foto…</div>
+        <div className="ai-steps relative h-5 w-64 text-sm">
+          <span>Erkenne Lebensmittel</span>
+          <span>Schätze die Mengen</span>
+          <span>Suche Nährwerte heraus</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -217,7 +243,14 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
           : (item.error ?? 'Fehlgeschlagen');
   return (
     <li className="flex items-center gap-3 px-4 py-2">
-      <img src={thumb} alt="" width={48} height={48} className="size-12 rounded-lg object-cover" />
+      <div className="relative size-12 shrink-0">
+        <img src={thumb} alt="" width={48} height={48} className="size-12 rounded-lg object-cover" />
+        {item.status === 'analyzing' && (
+          <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
+            <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />
+          </div>
+        )}
+      </div>
       <button
         type="button"
         className="min-w-0 flex-1 text-left disabled:cursor-default"
@@ -272,6 +305,15 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
   const settings = useSettings();
   const result = item.result as AiAnalysisResult;
   const [meal, setMeal] = useState(item.meal);
+  const [mealName, setMealName] = useState(
+    () =>
+      result.dishName ??
+      (result.items
+        .slice(0, 3)
+        .map((i) => i.name)
+        .join(', ') ||
+        'Foto-Meal'),
+  );
   const [rows, setRows] = useState<EditableItem[]>(() =>
     result.items.map((it, i) => ({
       key: `${i}`,
@@ -298,15 +340,19 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   async function save() {
-    await saveAiItems(
+    const name = mealName.trim() || 'Foto-Meal';
+    await saveAiMeal(
       db,
+      name,
       resolved.map((r) => ({ food: r.food, grams: r.grams })),
       { date: item.date, meal },
       result,
     );
     for (const r of resolved) await rememberFood(db, r.food);
     await db.aiQueue.delete(item.localId!);
-    toast.success(`${resolved.length} Einträge aus dem Foto gespeichert`);
+    toast.success(`„${name}“ eingetragen`, {
+      description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen.',
+    });
     await navigate({ to: '/', search: { date: item.date } });
   }
 
@@ -417,6 +463,17 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
             fat={get(totals, N.fat)}
           />
           <div className="grid gap-1.5">
+            <Label htmlFor="result-name">Name des Meals</Label>
+            <Input
+              id="result-name"
+              value={mealName}
+              maxLength={120}
+              autoComplete="off"
+              onChange={(e) => setMealName(e.target.value)}
+              placeholder="z. B. Spaghetti Bolognese…"
+            />
+          </div>
+          <div className="grid gap-1.5">
             <Label htmlFor="result-meal">Mahlzeit</Label>
             <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
               <SelectTrigger id="result-meal" className="w-full">
@@ -432,8 +489,12 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
             </Select>
           </div>
           <Button size="lg" disabled={resolved.length === 0} onClick={() => void save()}>
-            {resolved.length} Einträge speichern
+            Als Meal speichern & eintragen
           </Button>
+          <p className="text-xs text-muted-foreground">
+            {resolved.length} Zutaten werden als ein Meal eingetragen und gespeichert – so kannst du es später
+            mit einem Tipp wieder hinzufügen.
+          </p>
           <p className="text-xs text-muted-foreground">
             Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}
             {result.usage.costUsd.toLocaleString('de-DE', {

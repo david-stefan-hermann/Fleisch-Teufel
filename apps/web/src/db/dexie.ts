@@ -14,6 +14,7 @@ import type {
   CustomFood,
   DayNote,
   ExerciseEntry,
+  ExerciseTemplate,
   Food,
   FoodEntry,
   FoodPortion,
@@ -65,6 +66,7 @@ export class UserDb extends Dexie {
   foodEntries!: EntityTable<FoodEntry, 'id'>;
   exerciseTypes!: EntityTable<CustomExerciseType, 'id'>;
   exerciseEntries!: EntityTable<ExerciseEntry, 'id'>;
+  exerciseTemplates!: EntityTable<ExerciseTemplate, 'id'>;
   weightEntries!: EntityTable<WeightEntry, 'id'>;
   dayNotes!: EntityTable<DayNote, 'id'>;
   outbox!: EntityTable<OutboxItem, 'key'>;
@@ -90,6 +92,8 @@ export class UserDb extends Dexie {
       aiQueue: '++localId, createdAt',
       kv: 'key',
     });
+    // v2: saved trainings. New fields (exerciseEntries.note, foodEntries.groupId) are not indexed.
+    this.version(2).stores({ exerciseTemplates: 'id, name' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

@@ -41,6 +41,10 @@ Serve the production web build through the API (same origin, service worker acti
 - TanStack Router search params: validators return optional keys (`clean()` in the router) so links can omit them.
 - shadcn/ui: components live in `apps/web/src/components/ui` and were adjusted (touch sizes h-10/h-11, no
   `transition-all`). The CLI once wrote `from "cn"` — imports must be `@/lib/utils`.
+- Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast).
+  Entries logged together from a saved meal share `groupId`; `groupDiaryEntries` (shared) builds diary rows.
+- E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
+  `playwright install webkit`).
 - Charts: `src/components/Chart.tsx` (uPlot). One y-axis only; text uses ink tokens, never series colors.
   Macro colors were validated with the dataviz palette checker for light and dark.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).

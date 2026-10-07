@@ -17,12 +17,23 @@ export default defineConfig({
   reporter: process.env.CI ? 'github' : 'list',
   use: {
     baseURL: `http://localhost:${PORT}`,
-    ...devices['iPhone 13'],
-    browserName: 'chromium',
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
     trace: 'retain-on-failure',
   },
+  projects: [
+    {
+      name: 'chromium-iphone',
+      testIgnore: /ios-layout/,
+      use: { ...devices['iPhone 13'], browserName: 'chromium' },
+    },
+    {
+      // Real WebKit engine for iOS-specific layout checks (`playwright install webkit`).
+      name: 'webkit-iphone',
+      testMatch: /ios-layout/,
+      use: { ...devices['iPhone 15'] },
+    },
+  ],
   webServer: {
     command: 'pnpm build && pnpm --filter @ft/api exec tsx src/dev.ts',
     url: `http://localhost:${PORT}/health`,

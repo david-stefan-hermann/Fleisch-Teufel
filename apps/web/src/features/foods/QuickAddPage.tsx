@@ -73,7 +73,14 @@ function QuickAddForm({
       aiAnalysisId: null,
     };
     if (entry) await saveRecord(db, 'foodEntries', { ...entry, ...base });
-    else await saveRecord(db, 'foodEntries', { ...base, id: uuidv7(), date, loggedAt: Date.now() });
+    else
+      await saveRecord(db, 'foodEntries', {
+        ...base,
+        id: uuidv7(),
+        date,
+        loggedAt: Date.now(),
+        groupId: null,
+      });
     toast.success(`${fmt0(kcal!)} kcal eingetragen`);
     await navigate({ to: '/', search: { date: entry?.date ?? date } });
   }

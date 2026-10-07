@@ -11,6 +11,7 @@ import { costUsd } from './pricing.js';
 import { SYSTEM_PROMPT, userPrompt } from './prompt.js';
 
 export const analysisSchema = z.object({
+  dishName: z.string().nullable(),
   items: z.array(aiItemSchema),
   notes: z.string().nullable(),
 });
@@ -24,6 +25,7 @@ export interface AnalyzeInput {
 }
 
 export interface AnalyzeOutput {
+  dishName: string | null;
   items: AiItem[];
   notes: string | null;
   model: string;
@@ -80,6 +82,7 @@ export function createClaudeAnalyzer(opts: {
         u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
       const usage = { inputTokens, outputTokens: u.output_tokens };
       return {
+        dishName: response.parsed_output.dishName?.trim() || null,
         items: response.parsed_output.items,
         notes: response.parsed_output.notes,
         model: response.model,

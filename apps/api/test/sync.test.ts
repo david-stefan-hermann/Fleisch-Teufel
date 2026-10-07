@@ -32,6 +32,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   nutrients: { ENERCC: 174 },
   mealId: null,
   aiAnalysisId: null,
+  groupId: null,
   ...over,
 });
 
@@ -152,6 +153,21 @@ describe('sync', () => {
           weightKg: 82.4,
           kcal: 362.9,
           loggedAt: 5,
+          note: 'Intervalle 6 × 400 m',
+        },
+      },
+      {
+        table: 'exerciseTemplates',
+        data: {
+          id: uuidv7(),
+          updatedAt: 5,
+          deleted: false,
+          name: 'Oberkörper',
+          typeKey: 'weight_training',
+          typeName: 'Krafttraining',
+          minutes: 60,
+          intensity: 'vigorous',
+          note: 'Bankdrücken 3 × 8',
         },
       },
       {
@@ -189,6 +205,35 @@ describe('sync', () => {
     for (const rec of records) {
       expect(changes.find((c) => c.table === rec.table && c.data.id === rec.data.id)?.data).toEqual(rec.data);
     }
+  });
+
+  it('accepts records from older app versions without the newer optional fields', async () => {
+    const { groupId: _g, ...oldEntry } = entry({ groupId: null });
+    const oldExercise = {
+      id: uuidv7(),
+      updatedAt: 7,
+      deleted: false,
+      date: '2026-10-07',
+      typeKey: 'cycling',
+      name: 'Radfahren',
+      minutes: 45,
+      intensity: 'moderate',
+      met: 7,
+      weightKg: 80,
+      kcal: 360,
+      loggedAt: 7,
+    };
+    const before = (await pullAll(alice)).cursor;
+    const r = await alice.post('/api/sync/push', {
+      records: [
+        { table: 'foodEntries', data: oldEntry },
+        { table: 'exerciseEntries', data: oldExercise },
+      ],
+    });
+    expect(r.json).toEqual({ applied: 2, stale: [], rejected: [] });
+    const { changes } = await pullAll(alice, before);
+    expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({ ...oldEntry, groupId: null });
+    expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({ ...oldExercise, note: null });
   });
 
   it('keeps users isolated even with identical ids', async () => {

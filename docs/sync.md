@@ -15,6 +15,10 @@ Jeder synchronisierte Datensatz (Tabellen siehe `SYNC_SCHEMAS` in `packages/shar
 | `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                                |
 | `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                         |
 
+Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
+hochladen können – z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal
+eingetragen wurden; das Tagebuch zeigt sie als eine Zeile) und `exerciseEntries.note`.
+
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.
 

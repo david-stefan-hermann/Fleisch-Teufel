@@ -65,7 +65,7 @@ export function aiRoutes(deps: Deps) {
             outputTokens: out.usage.outputTokens,
             costUsd: out.usage.costUsd,
             durationMs: Date.now() - started,
-            result: { items: out.items, notes: out.notes },
+            result: { dishName: out.dishName, items: out.items, notes: out.notes },
           })
           .returning({ id: aiAnalyses.id });
         log.info('ai analysis', {
@@ -77,6 +77,7 @@ export function aiRoutes(deps: Deps) {
         });
         const result: AiAnalysisResult = {
           analysisId: row!.id,
+          dishName: out.dishName,
           items,
           notes: out.notes,
           model: out.model,

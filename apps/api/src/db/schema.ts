@@ -152,6 +152,7 @@ export const foodEntries = pgTable(
     nutrients: jsonb().$type<NutrientMap>().notNull(),
     mealId: text(),
     aiAnalysisId: text(),
+    groupId: text(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
@@ -179,8 +180,23 @@ export const exerciseEntries = pgTable(
     weightKg: doublePrecision().notNull(),
     kcal: doublePrecision().notNull(),
     loggedAt: bigint({ mode: 'number' }).notNull(),
+    note: text(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
+);
+
+export const exerciseTemplates = pgTable(
+  'exercise_templates',
+  {
+    ...syncColumns(),
+    name: text().notNull(),
+    typeKey: text().notNull(),
+    typeName: text().notNull(),
+    minutes: doublePrecision().notNull(),
+    intensity: text({ enum: ['light', 'moderate', 'vigorous'] }).notNull(),
+    note: text(),
+  },
+  syncExtras,
 );
 
 export const weightEntries = pgTable(
@@ -265,6 +281,7 @@ export const syncTables = {
   foodEntries,
   exerciseTypes,
   exerciseEntries,
+  exerciseTemplates,
   weightEntries,
   dayNotes,
 } as const;

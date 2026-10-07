@@ -1,10 +1,19 @@
-import { get, N, uuidv7, type FoodEntry, type ISODate, type NutrientMap } from '@ft/shared';
+import {
+  get,
+  groupDiaryEntries,
+  N,
+  uuidv7,
+  type FoodEntry,
+  type ISODate,
+  type NutrientMap,
+} from '@ft/shared';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Copy, EllipsisVertical, ListPlus, Plus, Save, Trash2 } from 'lucide-react';
+import { Camera, ChevronDown, Copy, EllipsisVertical, ListPlus, Plus, Save, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -24,6 +33,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { useMealNames } from '@/hooks/data';
 import { fmt0, fmt1, fmtGrams } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -58,10 +68,14 @@ export function MealCard({
   const [saveOpen, setSaveOpen] = useState(false);
   const kcal = get(totals, N.kcal);
 
-  async function clearMeal() {
-    const ids = entries.map((e) => e.id);
+  const rows = groupDiaryEntries(entries);
+  const mealNames = useMealNames(rows.map((r) => (r.kind === 'group' ? r.mealId : null)));
+
+  /** Soft-deletes entries with an undo toast. */
+  async function removeEntries(list: FoodEntry[], message?: string) {
+    const ids = list.map((e) => e.id);
     for (const id of ids) await deleteRecord(db, 'foodEntries', id);
-    toast(`${name} geleert`, {
+    toast(message ?? (list.length === 1 ? `${list[0]!.name} gelöscht` : `${list.length} Einträge gelöscht`), {
       action: {
         label: 'Rückgängig',
         onClick: () => void Promise.all(ids.map((id) => restoreRecord(db, 'foodEntries', id))),
@@ -101,7 +115,7 @@ export function MealCard({
               <DropdownMenuItem
                 variant="destructive"
                 disabled={entries.length === 0}
-                onSelect={() => void clearMeal()}
+                onSelect={() => void removeEntries(entries, `${name} geleert`)}
               >
                 <Trash2 aria-hidden /> Alle Einträge löschen
               </DropdownMenuItem>
@@ -125,30 +139,29 @@ export function MealCard({
         </Link>
       ) : (
         <ul className="divide-y divide-border/70 pb-1">
-          {entries.map((e) => (
-            <li key={e.id}>
-              <Link
-                to={e.source === 'quick' ? '/quick-add' : '/entry/$entryId'}
-                params={{ entryId: e.id }}
-                search={e.source === 'quick' ? { date, meal, entryId: e.id } : undefined}
-                className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{e.name}</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {[e.brand, entryAmountLabel(e)].filter(Boolean).join(' · ')}
-                  </div>
-                </div>
-                <div className="tabular text-right">
-                  <div className="font-semibold">{fmt0(get(e.nutrients, N.kcal))}</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    P {fmt0(get(e.nutrients, N.protein))} · K {fmt0(get(e.nutrients, N.carbs))} · F{' '}
-                    {fmt0(get(e.nutrients, N.fat))}
-                  </div>
-                </div>
-              </Link>
-            </li>
-          ))}
+          {rows.map((row) =>
+            row.kind === 'entry' ? (
+              <li key={row.entry.id}>
+                <EntryRow
+                  entry={row.entry}
+                  date={date}
+                  meal={meal}
+                  onDelete={() => void removeEntries([row.entry])}
+                />
+              </li>
+            ) : (
+              <li key={row.groupId}>
+                <GroupRow
+                  name={(row.mealId && mealNames?.get(row.mealId)) || 'Meal'}
+                  entries={row.entries}
+                  nutrients={row.nutrients}
+                  date={date}
+                  meal={meal}
+                  onDelete={(list) => void removeEntries(list)}
+                />
+              </li>
+            ),
+          )}
         </ul>
       )}
       {showMicros && entries.length > 0 && <MealMicros totals={totals} />}
@@ -159,6 +172,124 @@ export function MealCard({
         entries={entries}
       />
     </Section>
+  );
+}
+
+function EntryRow({
+  entry: e,
+  date,
+  meal,
+  onDelete,
+  className,
+}: {
+  entry: FoodEntry;
+  date: ISODate;
+  meal: number;
+  onDelete: () => void;
+  className?: string;
+}) {
+  return (
+    <SwipeToDelete label={`${e.name} löschen`} onDelete={onDelete}>
+      <Link
+        to={e.source === 'quick' ? '/quick-add' : '/entry/$entryId'}
+        params={{ entryId: e.id }}
+        search={e.source === 'quick' ? { date, meal, entryId: e.id } : undefined}
+        className={cn(
+          'flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none',
+          className,
+        )}
+        draggable={false}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{e.name}</div>
+          <div className="truncate text-xs text-muted-foreground">
+            {[e.brand, entryAmountLabel(e)].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <NutrientSummary nutrients={e.nutrients} />
+      </Link>
+    </SwipeToDelete>
+  );
+}
+
+function NutrientSummary({ nutrients }: { nutrients: NutrientMap }) {
+  return (
+    <div className="tabular text-right">
+      <div className="font-semibold">{fmt0(get(nutrients, N.kcal))}</div>
+      <div className="text-[11px] text-muted-foreground">
+        P {fmt0(get(nutrients, N.protein))} · K {fmt0(get(nutrients, N.carbs))} · F{' '}
+        {fmt0(get(nutrients, N.fat))}
+      </div>
+    </div>
+  );
+}
+
+/** Entries logged together from a saved meal: one row, expandable to the single items. */
+function GroupRow({
+  name,
+  entries,
+  nutrients,
+  date,
+  meal,
+  onDelete,
+}: {
+  name: string;
+  entries: FoodEntry[];
+  nutrients: NutrientMap;
+  date: ISODate;
+  meal: number;
+  onDelete: (entries: FoodEntry[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const fromPhoto = entries.some((e) => e.source === 'ai');
+  return (
+    <>
+      <SwipeToDelete label={`${name} löschen`} onDelete={() => onDelete(entries)}>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 font-medium">
+              {fromPhoto ? (
+                <Camera className="size-4 shrink-0 text-muted-foreground" aria-label="aus Foto" />
+              ) : (
+                <ListPlus className="size-4 shrink-0 text-muted-foreground" aria-label="Meal" />
+              )}
+              <span className="truncate">{name}</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              {entries.length} Zutaten
+              <ChevronDown
+                className={cn(
+                  'size-3.5 transition-transform motion-reduce:transition-none',
+                  expanded && 'rotate-180',
+                )}
+                aria-hidden
+              />
+            </div>
+          </div>
+          <NutrientSummary nutrients={nutrients} />
+        </button>
+      </SwipeToDelete>
+      {expanded && (
+        <ul className="border-t border-border/70 bg-muted/40" aria-label={`Zutaten von ${name}`}>
+          {entries.map((e) => (
+            <li key={e.id} className="border-b border-border/50 last:border-b-0">
+              <EntryRow
+                entry={e}
+                date={date}
+                meal={meal}
+                onDelete={() => onDelete([e])}
+                className="min-h-12 pl-10 text-sm"
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 

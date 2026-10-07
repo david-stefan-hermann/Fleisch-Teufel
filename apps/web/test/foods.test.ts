@@ -119,6 +119,7 @@ describe('food service', () => {
       nutrients: { ENERCC: 1 },
       mealId: null,
       aiAnalysisId: null,
+      groupId: null,
     };
     await saveRecord(db, 'foodEntries', {
       ...base,

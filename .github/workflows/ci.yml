@@ -42,7 +42,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @ft/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @ft/web exec playwright install --with-deps chromium webkit
       - name: Playwright smoke test (offline reload, sync)
         run: pnpm e2e
       - if: failure()
