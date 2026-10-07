@@ -9,11 +9,12 @@
  *   deleted        tombstone flag
  *   change_seq     server-assigned value from the global `sync_seq` sequence: the pull cursor.
  */
-import type { DayTarget, MealItem, NutrientMap, Portion } from '@ft/shared';
+import type { DayTarget, MacroPlan, MealItem, NutrientMap, Portion } from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  customType,
   date,
   doublePrecision,
   index,
@@ -83,6 +84,7 @@ export const userSettings = pgTable(
     mealNames: jsonb().$type<string[]>().notNull(),
     addExerciseCalories: boolean().notNull(),
     onboardedAt: bigint({ mode: 'number' }),
+    macroPlan: jsonb().$type<MacroPlan>(),
   },
   syncExtras,
 );
@@ -129,6 +131,7 @@ export const meals = pgTable(
     ...syncColumns(),
     name: text().notNull(),
     items: jsonb().$type<MealItem[]>().notNull(),
+    photoId: text(),
   },
   syncExtras,
 );
@@ -270,6 +273,27 @@ export const appMeta = pgTable('app_meta', {
   key: text().primaryKey(),
   value: text().notNull(),
 });
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+/**
+ * Meal photos (immutable: a changed photo gets a new id). Not part of the LWW sync – records only
+ * reference them by `photoId`; devices upload/download them via `/api/photos/:id`.
+ */
+export const photos = pgTable(
+  'photos',
+  {
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
+    mime: text().notNull(),
+    bytes: integer().notNull(),
+    data: bytea().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] })],
+);
 
 /** Wire table name → Drizzle table. */
 export const syncTables = {

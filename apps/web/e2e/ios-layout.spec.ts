@@ -25,4 +25,25 @@ test('onboarding date input fits the iPhone screen', async ({ page }, info) => {
   expect(Math.abs(box.height - height)).toBeLessThanOrEqual(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('onboarding-iphone.png') });
+
+  // Profile: date field next to a number field – both inputs start at the same height and the date
+  // value is vertically centred like the number.
+  await page.goto('/settings/profile');
+  const pBirth = page.getByLabel('Geburtsdatum');
+  await pBirth.fill('2001-04-29');
+  const date = (await pBirth.boundingBox())!;
+  const size = (await page.getByLabel('Größe').boundingBox())!;
+  expect(Math.abs(date.y - size.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(date.height - size.height)).toBeLessThanOrEqual(2);
+  await page.screenshot({ path: info.outputPath('profile-iphone.png') });
+
+  // Account: nothing sticks out of its card.
+  await page.goto('/settings/account');
+  const overflow = await page.evaluate(() =>
+    [...document.querySelectorAll('main section')].some((s) => {
+      const r = s.getBoundingClientRect();
+      return [...s.querySelectorAll('button')].some((b) => b.getBoundingClientRect().right > r.right + 0.5);
+    }),
+  );
+  expect(overflow).toBe(false);
 });

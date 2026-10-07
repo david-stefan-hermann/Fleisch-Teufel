@@ -1,16 +1,20 @@
 import {
   dayId,
+  DEFAULT_MACRO_PLAN,
   FALLBACK_TARGET,
   goalForDate,
   kcalFromMacros,
+  macrosForPlan,
   MICRO_DEFAULTS,
   microTarget,
   N,
+  SETTINGS_ID,
   uniformWeek,
   WEEKDAYS_LONG_DE,
   WEEKDAYS_SHORT_DE,
   type DayTarget,
   type Goal,
+  type MacroPlan,
   type MicroKey,
 } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
@@ -18,13 +22,14 @@ import { Calculator, History } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { MacroPlanPicker } from '@/components/MacroPlanPicker';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { saveRecord } from '@/db/write';
-import { useGoals, useToday } from '@/hooks/data';
+import { patchRecord, saveRecord } from '@/db/write';
+import { useCurrentWeight, useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmt0, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -39,12 +44,32 @@ const MICRO_ROWS: { key: MicroKey; label: string }[] = [
 export function GoalsPage() {
   const today = useToday();
   const goals = useGoals();
-  if (!goals) return null;
-  return <GoalsForm goals={goals} today={today} />;
+  const settings = useSettings();
+  const weight = useCurrentWeight(today);
+  if (!goals || !settings) return null;
+  return (
+    <GoalsForm
+      goals={goals}
+      today={today}
+      initialPlan={settings.macroPlan ?? DEFAULT_MACRO_PLAN}
+      weightKg={weight ?? null}
+    />
+  );
 }
 
-function GoalsForm({ goals, today }: { goals: Goal[]; today: string }) {
+function GoalsForm({
+  goals,
+  today,
+  initialPlan,
+  weightKg,
+}: {
+  goals: Goal[];
+  today: string;
+  initialPlan: MacroPlan;
+  weightKg: number | null;
+}) {
   const db = useDb();
+  const [plan, setPlan] = useState(initialPlan);
   const current = goalForDate(goals, today);
   const [days, setDays] = useState<DayTarget[]>(() =>
     (current?.days ?? uniformWeek(FALLBACK_TARGET)).map((x) => ({ ...x })),
@@ -59,7 +84,19 @@ function GoalsForm({ goals, today }: { goals: Goal[]; today: string }) {
     setDays((ds) => ds.map((d, i) => (perDay ? (i === idx ? { ...d, ...patch } : d) : { ...d, ...patch })));
   const macroKcal = kcalFromMacros(day);
 
+  /** Fills protein/carbs/fat from the template for the shown day (or all days) at their calories. */
+  function applyPlan() {
+    if (!weightKg) return;
+    setDays((ds) =>
+      ds.map((d, i) =>
+        perDay && i !== idx ? d : { ...d, ...macrosForPlan(d.kcal, weightKg, plan), kcal: d.kcal },
+      ),
+    );
+    toast.success('Makros nach Vorlage berechnet – speichern nicht vergessen');
+  }
+
   async function save() {
+    await patchRecord(db, 'settings', SETTINGS_ID, { macroPlan: plan });
     await saveRecord(db, 'goals', {
       id: dayId.goal(today),
       validFrom: today,
@@ -177,12 +214,21 @@ function GoalsForm({ goals, today }: { goals: Goal[]; today: string }) {
         </div>
       </Section>
 
+      <Section title="Makro-Verteilung">
+        <div className="grid gap-3 px-4 pb-4">
+          <MacroPlanPicker plan={plan} onChange={setPlan} kcal={day.kcal} weightKg={weightKg} />
+          <Button variant="outline" disabled={!weightKg} onClick={applyPlan}>
+            {perDay ? `Auf ${WEEKDAYS_LONG_DE[idx]} anwenden` : 'Makros übernehmen'}
+          </Button>
+        </div>
+      </Section>
+
       <Section title="Nährstoff-Ziele">
         <div className="grid gap-3 px-4 pb-4">
           <p className="text-xs text-muted-foreground">
             Leer lassen für DGE-Empfehlungen (abhängig vom Kalorienziel).
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 items-start gap-3">
             {MICRO_ROWS.map((m) => (
               <NumberField
                 key={m.key}

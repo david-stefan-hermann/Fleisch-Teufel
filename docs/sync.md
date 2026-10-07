@@ -61,6 +61,15 @@ App-Start, App wird sichtbar **oder unsichtbar** (iOS: beim Wegwischen wird sofo
 `online`-Event, 0,8 s nach lokalen Änderungen, alle 5 Minuten im Vordergrund und manuell. iOS kennt
 kein Background Sync – deshalb gibt es keinen Service-Worker-Sync.
 
+## Fotos
+
+Meal-Fotos laufen nicht über den Datensatz-Sync, sondern über `PUT/GET /api/photos/:id` (Tabelle
+`photos`, nur für den Besitzer). Ein Meal verweist per `photoId` darauf. Fotos sind unveränderlich – ein
+neues Foto bekommt eine neue ID –, deshalb gibt es keine Konflikte und der Abruf ist dauerhaft cachebar.
+Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0/1); die `SyncEngine` lädt offene
+Fotos **vor** dem Push hoch, damit ein Meal nie vor seinem Foto auf einem anderen Gerät ankommt. Andere
+Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
+
 ## Was nicht synchronisiert
 
 - BLS-Katalog (kommt als statische Datei mit der App, ist für alle gleich)

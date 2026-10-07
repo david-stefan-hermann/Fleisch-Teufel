@@ -45,6 +45,11 @@ Serve the production web build through the API (same origin, service worker acti
   Entries logged together from a saved meal share `groupId`; `groupDiaryEntries` (shared) builds diary rows.
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).
+- Food search with a target: `?into=meal:<id>` / `ai:<localId>` on `/add`, `/food/$foodId`, `/scan`,
+  `/custom-food/$id` adds to a saved meal / AI review instead of the diary (`src/lib/into.ts`; return via
+  `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
+- Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
+  API `routes/photos.ts`. Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Charts: `src/components/Chart.tsx` (uPlot). One y-axis only; text uses ink tokens, never series colors.
   Macro colors were validated with the dataviz palette checker for light and dark.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).

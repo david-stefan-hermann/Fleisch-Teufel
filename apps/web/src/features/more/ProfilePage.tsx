@@ -55,7 +55,7 @@ function ProfileForm({ initial }: { initial: Settings }) {
               </ToggleGroupItem>
             </ToggleGroup>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 items-start gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="p-birth">Geburtsdatum</Label>
               <Input
@@ -90,7 +90,7 @@ function ProfileForm({ initial }: { initial: Settings }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 items-start gap-3">
             <NumberField
               label="Zielgewicht"
               unit="kg"

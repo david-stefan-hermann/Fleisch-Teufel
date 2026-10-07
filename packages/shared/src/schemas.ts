@@ -10,6 +10,7 @@
  */
 import { z } from 'zod';
 import { isISODate } from './dates.js';
+import { MACRO_PRESET_IDS } from './tdee.js';
 import { MICRO_NUTRIENTS } from './nutrients.js';
 
 export const idSchema = z
@@ -61,6 +62,16 @@ export const settingsSchema = z.object({
   mealNames: z.array(z.string().trim().min(1).max(40)).length(MEAL_COUNT),
   addExerciseCalories: z.boolean(),
   onboardedAt: z.number().int().nullable(),
+  /** Chosen macro template (goal editor). Defaults to null for records from older app versions. */
+  macroPlan: z
+    .object({
+      preset: z.enum(MACRO_PRESET_IDS),
+      proteinPerKg: z.number().min(0.5).max(3.5),
+      fatPct: z.number().min(10).max(70).nullable(),
+      carbsPct: z.number().min(0).max(80).nullable(),
+    })
+    .nullable()
+    .default(null),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -134,6 +145,8 @@ export const mealSchema = z.object({
   ...base,
   name: z.string().trim().min(1).max(120),
   items: z.array(mealItemSchema).min(1).max(100),
+  /** Photo stored via `/api/photos` (immutable; a new photo gets a new id). Null for older records. */
+  photoId: idSchema.nullable().default(null),
 });
 export type Meal = z.infer<typeof mealSchema>;
 

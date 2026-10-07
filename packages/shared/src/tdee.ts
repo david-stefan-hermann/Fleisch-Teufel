@@ -83,24 +83,116 @@ export interface MacroSplitOptions {
   proteinPerKg?: number;
   /** Fat share of energy in percent. Default 30 % (DGE guideline value for adults: 30 %). */
   fatPct?: number;
+  /**
+   * Carbohydrate share of energy in percent. When set, carbs are fixed and fat fills the rest
+   * (low carb); `fatPct` is ignored.
+   */
+  carbsPct?: number | null;
 }
 
 /**
  * Default macro split: protein by body weight (capped at 35 % of energy), fat by energy share,
- * carbohydrates fill the rest.
+ * carbohydrates fill the rest – or, with `carbsPct`, carbohydrates fixed and fat fills the rest.
  */
 export function defaultMacros(kcal: number, weightKg: number, opts: MacroSplitOptions = {}): MacroGrams {
   const proteinPerKg = opts.proteinPerKg ?? 1.8;
-  const fatPct = opts.fatPct ?? 30;
   const proteinG = Math.min(proteinPerKg * weightKg, (kcal * 0.35) / KCAL_PER_G.protein);
-  const fatG = (kcal * fatPct) / 100 / KCAL_PER_G.fat;
-  const carbsKcal = Math.max(0, kcal - proteinG * KCAL_PER_G.protein - fatG * KCAL_PER_G.fat);
+  const proteinKcal = proteinG * KCAL_PER_G.protein;
+  let fatG: number;
+  let carbsG: number;
+  if (opts.carbsPct != null) {
+    carbsG = (kcal * opts.carbsPct) / 100 / KCAL_PER_G.carbs;
+    fatG = Math.max(0, kcal - proteinKcal - carbsG * KCAL_PER_G.carbs) / KCAL_PER_G.fat;
+  } else {
+    fatG = (kcal * (opts.fatPct ?? 30)) / 100 / KCAL_PER_G.fat;
+    carbsG = Math.max(0, kcal - proteinKcal - fatG * KCAL_PER_G.fat) / KCAL_PER_G.carbs;
+  }
   return {
     kcal: Math.round(kcal),
     proteinG: Math.round(proteinG),
     fatG: Math.round(fatG),
-    carbsG: Math.round(carbsKcal / KCAL_PER_G.carbs),
+    carbsG: Math.round(carbsG),
   };
+}
+
+export const MACRO_PRESET_IDS = ['balanced', 'high_protein', 'cut', 'low_carb', 'custom'] as const;
+export type MacroPresetId = (typeof MACRO_PRESET_IDS)[number];
+
+export interface MacroPreset {
+  id: Exclude<MacroPresetId, 'custom'>;
+  label: string;
+  hint: string;
+  proteinPerKg: number;
+  fatPct: number | null;
+  carbsPct: number | null;
+}
+
+/**
+ * Macro templates for the goal editor. Protein per kg body weight is what matters most in practice;
+ * fat or carbohydrates are set as energy share, the remaining macro fills up the calories.
+ */
+export const MACRO_PRESETS: readonly MacroPreset[] = [
+  {
+    id: 'balanced',
+    label: 'Ausgewogen',
+    hint: '1,0 g Eiweiß/kg · 30 % Fett – nah an den DGE-Empfehlungen',
+    proteinPerKg: 1.0,
+    fatPct: 30,
+    carbsPct: null,
+  },
+  {
+    id: 'high_protein',
+    label: 'Proteinreich',
+    hint: '1,6 g Eiweiß/kg · 30 % Fett – sättigt besser, gut bei Sport',
+    proteinPerKg: 1.6,
+    fatPct: 30,
+    carbsPct: null,
+  },
+  {
+    id: 'cut',
+    label: 'Diät / Muskelerhalt',
+    hint: '2,0 g Eiweiß/kg · 25 % Fett – schützt Muskeln im Defizit',
+    proteinPerKg: 2.0,
+    fatPct: 25,
+    carbsPct: null,
+  },
+  {
+    id: 'low_carb',
+    label: 'Low Carb',
+    hint: '1,8 g Eiweiß/kg · 20 % Kohlenhydrate, Rest Fett',
+    proteinPerKg: 1.8,
+    fatPct: null,
+    carbsPct: 20,
+  },
+];
+
+/** A chosen macro plan (template or own values), stored in the settings. */
+export interface MacroPlan {
+  preset: MacroPresetId;
+  proteinPerKg: number;
+  fatPct: number | null;
+  carbsPct: number | null;
+}
+
+export const DEFAULT_MACRO_PLAN: MacroPlan = {
+  preset: 'high_protein',
+  proteinPerKg: 1.6,
+  fatPct: 30,
+  carbsPct: null,
+};
+
+export function planFromPreset(id: MacroPreset['id']): MacroPlan {
+  const p = MACRO_PRESETS.find((x) => x.id === id)!;
+  return { preset: p.id, proteinPerKg: p.proteinPerKg, fatPct: p.fatPct, carbsPct: p.carbsPct };
+}
+
+/** Macro grams for a calorie target and body weight according to a plan. */
+export function macrosForPlan(kcal: number, weightKg: number, plan: MacroPlan): MacroGrams {
+  return defaultMacros(kcal, weightKg, {
+    proteinPerKg: plan.proteinPerKg,
+    fatPct: plan.fatPct ?? undefined,
+    carbsPct: plan.carbsPct,
+  });
 }
 
 /** Energy implied by macro grams (for the "macros don't add up" hint in the goal editor). */

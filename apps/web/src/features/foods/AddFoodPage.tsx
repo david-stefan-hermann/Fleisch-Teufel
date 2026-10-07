@@ -5,12 +5,17 @@ import { Camera, Flame, Globe, LoaderCircle, Plus, ScanBarcode, Search, WifiOff 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { addFoodToDraft } from '@/db/aiDraft';
+import type { UserDb } from '@/db/dexie';
+import { addItemToMeal } from '@/db/entries';
 import { saveRecord } from '@/db/write';
 import {
+  getFood,
   recentAndFrequent,
   searchLocal,
   searchOnline,
@@ -20,6 +25,8 @@ import {
 import { useSettings, useToday } from '@/hooks/data';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
+import { parseInto, type Into } from '@/lib/into';
+import { cn } from '@/lib/utils';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 
 type Tab = 'all' | 'recent' | 'frequent' | 'mine' | 'meals';
@@ -47,7 +54,11 @@ export function AddFoodPage() {
   const today = useToday();
   const settings = useSettings();
   const { date, meal } = search;
-  const tab = (TABS.some((t) => t.id === search.tab) ? search.tab : 'all') as Tab;
+  const into = parseInto(search.into);
+  /** Search params for links to the food page / scanner: keep the target (diary meal or `into`). */
+  const linkSearch: FoodLinkSearch = { date, meal, ...(search.into ? { into: search.into } : {}) };
+  const tabs = into ? TABS.filter((t) => t.id !== 'meals') : TABS;
+  const tab = (tabs.some((t) => t.id === search.tab) ? search.tab : 'all') as Tab;
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
   const qOnline = useDebounced(query.trim(), 600);
@@ -98,6 +109,11 @@ export function AddFoodPage() {
     void navigate({ search: (s) => ({ ...s, tab: t === 'all' ? undefined : t }), replace: true });
 
   async function quickRelog(r: RecentFood) {
+    if (into) {
+      await addRecentToTarget(db, into, r);
+      toast.success(`${r.name} hinzugefügt`);
+      return;
+    }
     const { id: _id, updatedAt: _u, deleted: _d, ...rest } = r.last;
     await saveRecord(db, 'foodEntries', {
       ...rest,
@@ -107,32 +123,37 @@ export function AddFoodPage() {
       loggedAt: Date.now(),
       mealId: null,
       aiAnalysisId: null,
+      groupId: null,
     });
     toast.success(`${r.name} zu ${mealName} hinzugefügt`);
   }
 
   return (
     <Page
-      title={`Zu ${mealName}`}
+      title={into ? 'Zutat hinzufügen' : `Zu ${mealName}`}
       back
       withTabBar={false}
       actions={
         <>
           <Button variant="ghost" size="icon" asChild>
-            <Link to="/scan" search={{ date, meal }} aria-label="Barcode scannen">
+            <Link to="/scan" search={linkSearch} aria-label="Barcode scannen">
               <ScanBarcode aria-hidden />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/photo" search={{ date, meal }} aria-label="Foto analysieren">
-              <Camera aria-hidden />
-            </Link>
-          </Button>
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/quick-add" search={{ date, meal }} aria-label="Schnell hinzufügen">
-              <Flame aria-hidden />
-            </Link>
-          </Button>
+          {!into && (
+            <>
+              <Button variant="ghost" size="icon" asChild>
+                <Link to="/photo" search={{ date, meal }} aria-label="Foto analysieren">
+                  <Camera aria-hidden />
+                </Link>
+              </Button>
+              <Button variant="ghost" size="icon" asChild>
+                <Link to="/quick-add" search={{ date, meal }} aria-label="Schnell hinzufügen">
+                  <Flame aria-hidden />
+                </Link>
+              </Button>
+            </>
+          )}
         </>
       }
       headerExtra={
@@ -159,8 +180,8 @@ export function AddFoodPage() {
             />
           </div>
           <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-            <TabsList className="grid w-full grid-cols-5">
-              {TABS.map((t) => (
+            <TabsList className={cn('grid w-full', into ? 'grid-cols-4' : 'grid-cols-5')}>
+              {tabs.map((t) => (
                 <TabsTrigger key={t.id} value={t.id} className="px-1 text-xs">
                   {t.label}
                 </TabsTrigger>
@@ -173,7 +194,7 @@ export function AddFoodPage() {
       {tab === 'all' && q.length < 2 && (
         <>
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Kürzlich gegessen</h2>
-          <RecentList items={history?.recent.slice(0, 15)} date={date} meal={meal} onQuick={quickRelog} />
+          <RecentList items={history?.recent.slice(0, 15)} search={linkSearch} onQuick={quickRelog} />
         </>
       )}
 
@@ -182,7 +203,7 @@ export function AddFoodPage() {
           {local && local.length > 0 && (
             <ul className="-mx-4 divide-y divide-border/70">
               {local.map((h) => (
-                <FoodRow key={h.food.id} food={h.food} date={date} meal={meal} />
+                <FoodRow key={h.food.id} food={h.food} search={linkSearch} />
               ))}
             </ul>
           )}
@@ -195,7 +216,7 @@ export function AddFoodPage() {
                 <Link
                   to="/custom-food/$id"
                   params={{ id: 'new' }}
-                  search={{ name: q, date, meal }}
+                  search={{ name: q, ...linkSearch }}
                   className="text-primary underline"
                 >
                   lege ein eigenes Lebensmittel an
@@ -230,7 +251,7 @@ export function AddFoodPage() {
             {onlineFoods.length > 0 && (
               <ul className="-mx-4 divide-y divide-border/70">
                 {onlineFoods.map((f) => (
-                  <FoodRow key={f.id} food={f} date={date} meal={meal} />
+                  <FoodRow key={f.id} food={f} search={linkSearch} />
                 ))}
               </ul>
             )}
@@ -241,17 +262,15 @@ export function AddFoodPage() {
         </>
       )}
 
-      {tab === 'recent' && (
-        <RecentList items={history?.recent} date={date} meal={meal} onQuick={quickRelog} />
-      )}
+      {tab === 'recent' && <RecentList items={history?.recent} search={linkSearch} onQuick={quickRelog} />}
       {tab === 'frequent' && (
-        <RecentList items={history?.frequent} date={date} meal={meal} onQuick={quickRelog} showCount />
+        <RecentList items={history?.frequent} search={linkSearch} onQuick={quickRelog} showCount />
       )}
 
       {tab === 'mine' && (
         <>
           <Button variant="outline" className="mb-3 w-full" asChild>
-            <Link to="/custom-food/$id" params={{ id: 'new' }} search={{ date, meal }}>
+            <Link to="/custom-food/$id" params={{ id: 'new' }} search={linkSearch}>
               <Plus aria-hidden /> Eigenes Lebensmittel anlegen
             </Link>
           </Button>
@@ -262,7 +281,7 @@ export function AddFoodPage() {
           )}
           <ul className="-mx-4 divide-y divide-border/70">
             {custom?.map((c) => (
-              <FoodRow key={c.id} food={customToFood(c)} date={date} meal={meal} />
+              <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
             ))}
           </ul>
         </>
@@ -285,6 +304,7 @@ export function AddFoodPage() {
                   search={{ date, meal }}
                   className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
                 >
+                  <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{m.name}</div>
                     <div className="truncate text-xs text-muted-foreground">
@@ -304,14 +324,39 @@ export function AddFoodPage() {
   );
 }
 
-function FoodRow({ food, date, meal }: { food: Food; date: string; meal: number }) {
+type FoodLinkSearch = { date: string; meal: number; into?: string };
+
+/** "+" on a recent food in `into` mode: same amount as last time, into the meal / analysis. */
+async function addRecentToTarget(db: UserDb, into: Into, r: RecentFood): Promise<void> {
+  const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
+    r.last;
+  if (into.kind === 'meal') {
+    await addItemToMeal(db, into.mealId, {
+      foodId,
+      source,
+      name,
+      brand,
+      grams,
+      portionLabel,
+      portionGrams,
+      quantity,
+      per100,
+      nutrients,
+    });
+    return;
+  }
+  const food = await getFood(db, r.foodId);
+  if (food) await addFoodToDraft(db, into.localId, food, grams ?? 100);
+}
+
+function FoodRow({ food, search }: { food: Food; search: FoodLinkSearch }) {
   const unit = food.unit === 'ml' ? 'ml' : 'g';
   return (
     <li>
       <Link
         to="/food/$foodId"
         params={{ foodId: food.id }}
-        search={{ date, meal }}
+        search={search}
         className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
       >
         <div className="min-w-0 flex-1">
@@ -337,14 +382,12 @@ function FoodRow({ food, date, meal }: { food: Food; date: string; meal: number 
 
 function RecentList({
   items,
-  date,
-  meal,
+  search,
   onQuick,
   showCount,
 }: {
   items: RecentFood[] | undefined;
-  date: string;
-  meal: number;
+  search: FoodLinkSearch;
   onQuick: (r: RecentFood) => void;
   showCount?: boolean;
 }) {
@@ -362,7 +405,7 @@ function RecentList({
           <Link
             to="/food/$foodId"
             params={{ foodId: r.foodId }}
-            search={{ date, meal }}
+            search={search}
             className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 pl-4 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
           >
             <div className="min-w-0 flex-1">

@@ -41,7 +41,7 @@ export function NumberField({
     if (!same) setText(display(value));
   }
   return (
-    <div className={cn('grid gap-1.5', className)}>
+    <div className={cn('grid content-start gap-1.5', className)}>
       {label && <Label htmlFor={inputId}>{label}</Label>}
       <div className="relative">
         <Input

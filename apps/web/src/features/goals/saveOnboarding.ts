@@ -9,7 +9,7 @@ export async function saveOnboarding(
     base: Settings;
     profile: Pick<
       Settings,
-      'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'weeklyRateKg'
+      'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'weeklyRateKg' | 'macroPlan'
     >;
     weightKg: number;
     target: DayTarget;

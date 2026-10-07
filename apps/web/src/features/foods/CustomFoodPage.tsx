@@ -93,7 +93,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       await navigate({
         to: '/food/$foodId',
         params: { foodId: record.id },
-        search: { date: search.date, meal: search.meal ?? 0 },
+        search: { date: search.date, meal: search.meal ?? 0, ...(search.into ? { into: search.into } : {}) },
         replace: true,
       });
     } else {
@@ -150,7 +150,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               />
               {touched && errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 items-start gap-3">
               <div className="grid gap-1.5">
                 <Label htmlFor="cf-brand">Marke (optional)</Label>
                 <Input
@@ -218,7 +218,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 error={touched ? errors.serving : null}
               />
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 items-start gap-3">
               {FIELDS.map((f) => (
                 <NumberField
                   key={f.key}

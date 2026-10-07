@@ -1,11 +1,22 @@
-import { computeItem, get, N, sumNutrients, type AiAnalysisResult, type Food } from '@ft/shared';
-import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { computeItem, get, N, sumNutrients, type AiAnalysisResult } from '@ft/shared';
+import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, ImagePlus, LoaderCircle, RotateCcw, Sparkles, Trash2, TriangleAlert, X } from 'lucide-react';
+import {
+  Camera,
+  ImagePlus,
+  LoaderCircle,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MacroSplitBar } from '@/components/MacroBars';
+import { MealPhoto } from '@/components/MealPhoto';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
@@ -15,20 +26,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import type { AiQueueItem } from '@/db/dexie';
+import { currentDraft, patchRow } from '@/db/aiDraft';
+import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { saveAiMeal } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
 import { useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
 import { fmt0, fmtTime } from '@/lib/format';
+import { rememberIntoStart } from '@/lib/into';
 import { compressImage } from './image';
 import { enqueuePhoto, processQueue } from './queue';
 
 export function PhotoPage() {
-  const { date, meal } = useSearch({ from: '/authed/photo' });
+  const { date, meal, review } = useSearch({ from: '/authed/photo' });
+  const navigate = useNavigate({ from: '/photo' });
   const db = useDb();
   const queue = useLiveQuery(() => db.aiQueue.orderBy('createdAt').reverse().toArray(), [db]);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  // The open analysis lives in the URL, so returning from the food search lands in it again.
+  const setActiveId = (id: number | null) =>
+    void navigate({ search: (s) => ({ ...s, review: id ?? undefined }), replace: id === null });
+  const activeId = review ?? null;
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -41,7 +58,7 @@ export function PhotoPage() {
 
   const active = queue?.find((q) => q.localId === activeId);
   if (active?.status === 'done' && active.result) {
-    return <ResultEditor item={active} onClose={() => setActiveId(null)} />;
+    return <ResultEditor key={active.localId} item={active} onClose={() => setActiveId(null)} />;
   }
 
   return (
@@ -55,7 +72,7 @@ export function PhotoPage() {
       <Capture date={date} meal={meal} onQueued={setActiveId} />
       {queue && queue.length > 0 && (
         <Section title="Analysen" className="mt-4">
-          <ul className="divide-y divide-border/70 pb-1">
+          <ul className="divide-y divide-border/70">
             {queue.map((q) => (
               <QueueRow key={q.localId} item={q} onOpen={() => setActiveId(q.localId!)} />
             ))}
@@ -288,42 +305,27 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   );
 }
 
-interface EditableItem {
-  key: string;
-  name: string;
-  grams: number | null;
-  confidence: 'low' | 'medium' | 'high';
-  candidates: Food[];
-  foodId: string | null;
-}
-
 const CONFIDENCE = { low: 'unsicher', medium: 'mittel', high: 'sicher' } as const;
 
+/**
+ * Review of a finished analysis. The working state is kept in component state for smooth typing and
+ * written through to the queue item (`draft`), so adding an ingredient via the food search – or
+ * closing the app – does not lose any edits.
+ */
 function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => void }) {
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
   const settings = useSettings();
   const result = item.result as AiAnalysisResult;
-  const [meal, setMeal] = useState(item.meal);
-  const [mealName, setMealName] = useState(
-    () =>
-      result.dishName ??
-      (result.items
-        .slice(0, 3)
-        .map((i) => i.name)
-        .join(', ') ||
-        'Foto-Meal'),
-  );
-  const [rows, setRows] = useState<EditableItem[]>(() =>
-    result.items.map((it, i) => ({
-      key: `${i}`,
-      name: it.name,
-      grams: Math.round(it.grams),
-      confidence: it.confidence,
-      candidates: it.candidates.map((c) => c.food),
-      foodId: it.candidates[0]?.food.id ?? null,
-    })),
-  );
+  const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
+  const { rows, meal, mealName } = draft;
+  const commit = (next: AiDraft) => {
+    setDraft(next);
+    void db.aiQueue.update(item.localId!, { draft: next });
+  };
+  const update = (key: string, patch: Partial<AiDraftRow>) => commit(patchRow(draft, key, patch));
+
   const resolved = rows
     .map((r) => {
       const food = r.candidates.find((c) => c.id === r.foodId);
@@ -336,8 +338,14 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     })
     .filter((x) => x !== null);
   const totals = sumNutrients(resolved.map((r) => r.nutrients));
-  const update = (key: string, patch: Partial<EditableItem>) =>
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+
+  function searchIngredient(q?: string) {
+    rememberIntoStart(router.history);
+    void navigate({
+      to: '/add',
+      search: { date: item.date, meal, into: `ai:${item.localId}`, ...(q ? { q } : {}) },
+    });
+  }
 
   async function save() {
     const name = mealName.trim() || 'Foto-Meal';
@@ -347,11 +355,12 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
       resolved.map((r) => ({ food: r.food, grams: r.grams })),
       { date: item.date, meal },
       result,
+      item.image,
     );
     for (const r of resolved) await rememberFood(db, r.food);
     await db.aiQueue.delete(item.localId!);
     toast.success(`„${name}“ eingetragen`, {
-      description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen.',
+      description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen und bearbeiten.',
     });
     await navigate({ to: '/', search: { date: item.date } });
   }
@@ -367,9 +376,27 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
         </Button>
       }
     >
+      <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
+        <MealPhoto blob={item.image} alt="Analysiertes Foto" className="aspect-[4/3] w-full" />
+      </div>
+      <Section>
+        <div className="grid gap-1.5 p-4">
+          <Label htmlFor="result-name">Name des Meals</Label>
+          <Input
+            id="result-name"
+            value={mealName}
+            maxLength={120}
+            autoComplete="off"
+            onChange={(e) => commit({ ...draft, mealName: e.target.value })}
+            placeholder="z. B. Spaghetti Bolognese…"
+          />
+        </div>
+      </Section>
       {result.notes && <p className="mb-4 rounded-xl bg-muted p-3 text-sm text-pretty">{result.notes}</p>}
       {rows.length === 0 && (
-        <EmptyState title="Kein Essen erkannt">Versuche ein Foto von schräg oben bei gutem Licht.</EmptyState>
+        <EmptyState title="Kein Essen erkannt">
+          Versuche ein Foto von schräg oben bei gutem Licht – oder füge die Zutaten selbst hinzu.
+        </EmptyState>
       )}
       {rows.map((r) => {
         const food = r.candidates.find((c) => c.id === r.foodId);
@@ -380,9 +407,15 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-semibold">{r.name}</div>
-                  <Badge variant={r.confidence === 'low' ? 'outline' : 'secondary'} className="mt-1">
-                    KI: {CONFIDENCE[r.confidence]}
-                  </Badge>
+                  {r.confidence ? (
+                    <Badge variant={r.confidence === 'low' ? 'outline' : 'secondary'} className="mt-1">
+                      KI: {CONFIDENCE[r.confidence]}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="mt-1">
+                      von dir hinzugefügt
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="tabular font-semibold">{fmt0(kcal)} kcal</span>
@@ -390,13 +423,13 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
                     variant="ghost"
                     size="icon"
                     aria-label={`${r.name} entfernen`}
-                    onClick={() => setRows(rows.filter((x) => x.key !== r.key))}
+                    onClick={() => commit({ ...draft, rows: rows.filter((x) => x.key !== r.key) })}
                   >
                     <Trash2 aria-hidden />
                   </Button>
                 </div>
               </div>
-              {r.candidates.length > 0 ? (
+              {r.candidates.length > 1 ? (
                 <div className="grid gap-1.5">
                   <Label htmlFor={`cand-${r.key}`}>Lebensmittel aus der Datenbank</Label>
                   <Select value={r.foodId ?? ''} onValueChange={(v) => update(r.key, { foodId: v })}>
@@ -416,16 +449,22 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
                     </SelectContent>
                   </Select>
                 </div>
+              ) : r.candidates.length === 1 ? (
+                <p className="text-sm text-muted-foreground">
+                  {r.candidates[0]!.name}
+                  {r.candidates[0]!.brand ? ` (${r.candidates[0]!.brand})` : ''} ·{' '}
+                  {fmt0(get(r.candidates[0]!.nutrients, N.kcal))} kcal/100 g
+                </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Kein passendes Lebensmittel gefunden – wird nicht gespeichert.{' '}
-                  <Link
-                    to="/add"
-                    search={{ date: item.date, meal, q: r.name }}
+                  <button
+                    type="button"
+                    onClick={() => searchIngredient(r.name)}
                     className="text-primary underline"
                   >
-                    Manuell suchen
-                  </Link>
+                    Selbst suchen
+                  </button>
                 </p>
               )}
               <div className="grid grid-cols-[1fr_7rem] items-end gap-3">
@@ -450,6 +489,9 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
           </Section>
         );
       })}
+      <Button variant="outline" className="mb-4 w-full" onClick={() => searchIngredient()}>
+        <Plus aria-hidden /> Zutat hinzufügen
+      </Button>
 
       <Section>
         <div className="grid gap-3 p-4">
@@ -463,19 +505,8 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
             fat={get(totals, N.fat)}
           />
           <div className="grid gap-1.5">
-            <Label htmlFor="result-name">Name des Meals</Label>
-            <Input
-              id="result-name"
-              value={mealName}
-              maxLength={120}
-              autoComplete="off"
-              onChange={(e) => setMealName(e.target.value)}
-              placeholder="z. B. Spaghetti Bolognese…"
-            />
-          </div>
-          <div className="grid gap-1.5">
             <Label htmlFor="result-meal">Mahlzeit</Label>
-            <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
+            <Select value={String(meal)} onValueChange={(v) => commit({ ...draft, meal: Number(v) })}>
               <SelectTrigger id="result-meal" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -492,8 +523,8 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
             Als Meal speichern & eintragen
           </Button>
           <p className="text-xs text-muted-foreground">
-            {resolved.length} Zutaten werden als ein Meal eingetragen und gespeichert – so kannst du es später
-            mit einem Tipp wieder hinzufügen.
+            {resolved.length} Zutaten werden mit dem Foto als Meal gespeichert und eingetragen. Unter
+            „Gespeicherte Meals“ kannst du es später wieder hinzufügen und bearbeiten.
           </p>
           <p className="text-xs text-muted-foreground">
             Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}

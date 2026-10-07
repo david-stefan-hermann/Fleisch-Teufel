@@ -14,7 +14,10 @@ async function register(page: Page) {
 }
 
 async function swipeLeft(page: Page, text: string) {
-  const box = (await page.getByText(text, { exact: true }).first().boundingBox())!;
+  const row = page.getByText(text, { exact: true }).first();
+  // Centre the row: toasts sit at the bottom and would catch the pointer.
+  await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const box = (await row.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + 200, y);
   await page.mouse.down();

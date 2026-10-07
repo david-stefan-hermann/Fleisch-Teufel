@@ -12,6 +12,7 @@ import { Camera, ChevronDown, Copy, EllipsisVertical, ListPlus, Plus, Save, Tras
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { MealPhoto } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
@@ -33,7 +34,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
-import { useMealNames } from '@/hooks/data';
+import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt1, fmtGrams } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -69,7 +70,7 @@ export function MealCard({
   const kcal = get(totals, N.kcal);
 
   const rows = groupDiaryEntries(entries);
-  const mealNames = useMealNames(rows.map((r) => (r.kind === 'group' ? r.mealId : null)));
+  const mealInfo = useMealInfo(rows.map((r) => (r.kind === 'group' ? r.mealId : null)));
 
   /** Soft-deletes entries with an undo toast. */
   async function removeEntries(list: FoodEntry[], message?: string) {
@@ -138,7 +139,7 @@ export function MealCard({
           Lebensmittel hinzufügen
         </Link>
       ) : (
-        <ul className="divide-y divide-border/70 pb-1">
+        <ul className="divide-y divide-border/70">
           {rows.map((row) =>
             row.kind === 'entry' ? (
               <li key={row.entry.id}>
@@ -152,7 +153,8 @@ export function MealCard({
             ) : (
               <li key={row.groupId}>
                 <GroupRow
-                  name={(row.mealId && mealNames?.get(row.mealId)) || 'Meal'}
+                  name={(row.mealId && mealInfo?.get(row.mealId)?.name) || 'Meal'}
+                  photoId={(row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
                   entries={row.entries}
                   nutrients={row.nutrients}
                   date={date}
@@ -227,6 +229,7 @@ function NutrientSummary({ nutrients }: { nutrients: NutrientMap }) {
 /** Entries logged together from a saved meal: one row, expandable to the single items. */
 function GroupRow({
   name,
+  photoId,
   entries,
   nutrients,
   date,
@@ -234,6 +237,7 @@ function GroupRow({
   onDelete,
 }: {
   name: string;
+  photoId: string | null;
   entries: FoodEntry[];
   nutrients: NutrientMap;
   date: ISODate;
@@ -251,9 +255,12 @@ function GroupRow({
           onClick={() => setExpanded(!expanded)}
           className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
         >
+          {photoId && (
+            <MealPhoto photoId={photoId} alt="" className="size-10 shrink-0 rounded-lg" placeholder />
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 font-medium">
-              {fromPhoto ? (
+              {photoId ? null : fromPhoto ? (
                 <Camera className="size-4 shrink-0 text-muted-foreground" aria-label="aus Foto" />
               ) : (
                 <ListPlus className="size-4 shrink-0 text-muted-foreground" aria-label="Meal" />
@@ -340,7 +347,7 @@ function SaveMealDialog({
         nutrients,
       }),
     );
-    await saveRecord(db, 'meals', { id: uuidv7(), name: name.trim() || defaultName, items });
+    await saveRecord(db, 'meals', { id: uuidv7(), name: name.trim() || defaultName, items, photoId: null });
     onOpenChange(false);
     toast.success(`„${name.trim() || defaultName}“ gespeichert`);
   }

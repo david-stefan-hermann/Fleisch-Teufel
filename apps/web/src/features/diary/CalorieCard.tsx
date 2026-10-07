@@ -1,7 +1,11 @@
 import { get, N, type DaySummary } from '@ft/shared';
+import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { fmt0 } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import { NutrientList } from './NutrientCard';
 
 export function CalorieCard({
   summary,
@@ -12,10 +16,22 @@ export function CalorieCard({
 }) {
   const eaten = get(summary.food, N.kcal);
   const t = summary.targets;
+  const [open, setOpenState] = useState(readOpen);
+  const [sources, setSources] = useState(false);
+  const setOpen = (o: boolean) => {
+    setOpenState(o);
+    writeOpen(o);
+  };
   return (
     <section
-      className="mb-4 rounded-2xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
+      className="mb-4 cursor-pointer rounded-2xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
       aria-label="Kalorien heute"
+      // Tapping anywhere on the overview toggles the details; the button below is the accessible control.
+      onClick={(e) => {
+        if ((e.target as Element).closest('a, button, input, select, textarea')) return;
+        if (window.getSelection()?.toString()) return;
+        setOpen(!open);
+      }}
     >
       <div className="flex items-center gap-4">
         <CalorieRing eaten={eaten} budget={summary.budgetKcal} />
@@ -40,8 +56,52 @@ export function CalorieCard({
           { key: 'fat', label: 'Fett', value: get(summary.food, N.fat), target: t.fatG },
         ]}
       />
+      {open && (
+        <div id="day-details" className="mt-4 cursor-auto border-t border-border/70 pt-4">
+          <NutrientList summary={summary} showSources={sources} />
+          <button
+            type="button"
+            onClick={() => setSources(!sources)}
+            className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+          >
+            {sources ? 'Quellen ausblenden' : 'Woher kommen die Zielwerte?'}
+          </button>
+        </div>
+      )}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="day-details"
+        onClick={() => setOpen(!open)}
+        className="-mb-2 mt-2 flex h-9 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        {open ? 'Weniger' : 'Nährstoffe & Details'}
+        <ChevronDown
+          className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
     </section>
   );
+}
+
+const OPEN_KEY = 'ft.diary.detailsOpen';
+
+/** Per-device preference; storage may be unavailable (private mode), then it stays closed. */
+function readOpen(): boolean {
+  try {
+    return localStorage.getItem(OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeOpen(open: boolean) {
+  try {
+    localStorage.setItem(OPEN_KEY, open ? '1' : '0');
+  } catch {
+    // ignore
+  }
 }
 
 function Row({

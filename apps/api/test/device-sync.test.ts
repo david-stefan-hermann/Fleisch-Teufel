@@ -6,6 +6,7 @@ import 'fake-indexeddb/auto';
 import { dayId, uuidv7, type FoodEntry } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UserDb } from '../../web/src/db/dexie';
+import { loadPhoto, storePhoto } from '../../web/src/db/photos';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
 import { SyncEngine } from '../../web/src/sync/syncEngine';
 import { createTestContext, registeredClient, type TestCtx } from './helpers.js';
@@ -180,5 +181,43 @@ describe('device ↔ server sync', () => {
     const a = device('invalid');
     await expect(saveRecord(a.db, 'foodEntries', entry({ meal: 9 }))).rejects.toThrow();
     expect(await a.db.outbox.count()).toBe(0);
+  });
+
+  it('uploads a meal photo before the meal and lets another device download it', async () => {
+    const phone = device('photo-phone');
+    const laptop = device('photo-laptop');
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5]);
+    const photoId = await storePhoto(phone.db, new Blob([bytes], { type: 'image/jpeg' }));
+    await saveRecord(phone.db, 'meals', {
+      id: uuidv7(),
+      name: 'Spaghetti',
+      photoId,
+      items: [
+        {
+          foodId: null,
+          source: 'quick',
+          name: 'Spaghetti',
+          brand: null,
+          grams: null,
+          portionLabel: null,
+          portionGrams: null,
+          quantity: 1,
+          per100: null,
+          nutrients: { ENERCC: 600 },
+        },
+      ],
+    });
+    await phone.engine.sync();
+    expect((await phone.db.photos.get(photoId))?.uploaded).toBe(1);
+
+    await laptop.engine.sync();
+    const [meal] = await laptop.db.meals.toArray();
+    expect(meal?.photoId).toBe(photoId);
+    const blob = await loadPhoto(laptop.db, photoId, (path, init) => {
+      const headers = new Headers(init?.headers);
+      headers.set('cookie', cookie);
+      return Promise.resolve(ctx.app.request(path, { ...init, headers }));
+    });
+    expect(new Uint8Array(await new Response(blob).arrayBuffer())).toEqual(bytes);
   });
 });

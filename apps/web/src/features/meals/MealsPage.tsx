@@ -2,6 +2,7 @@ import { Link, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { UtensilsCrossed } from 'lucide-react';
 import { useDb } from '@/app/session';
+import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { useSettings } from '@/hooks/data';
 import { fmt0 } from '@/lib/format';
@@ -34,10 +35,11 @@ export function MealsPage() {
               search={{ date, meal }}
               className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
             >
+              <MealPhoto photoId={m.photoId} alt="" className="size-12 shrink-0 rounded-lg" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{m.name}</div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {m.items.length} Teile · {m.items.map((i) => i.name).join(', ')}
+                  {m.items.length} Zutaten · {m.items.map((i) => i.name).join(', ')}
                 </div>
               </div>
               <div className="tabular font-semibold">{fmt0(mealKcal(m))}</div>

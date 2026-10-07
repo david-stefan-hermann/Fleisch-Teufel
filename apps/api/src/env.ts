@@ -12,6 +12,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Registration is always possible while no user exists; afterwards only with this flag. */
   ALLOW_REGISTRATION: bool,
+  /** Registrations per IP and hour (brute-force/spam protection; raised only for automated tests). */
+  REGISTER_RATE_LIMIT: z.coerce.number().int().min(1).default(5),
   /** Used for the OFF User-Agent ("FleischTeufel/x (mail)") as requested by Open Food Facts. */
   OFF_CONTACT_EMAIL: z.string().default('fleisch-teufel@example.invalid'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),

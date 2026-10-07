@@ -7,6 +7,7 @@
  * device ↔ server sync tests.
  */
 import Dexie, { type EntityTable, type Table } from 'dexie';
+import type { LocalPhoto } from './photos';
 import type {
   AiAnalysisResult,
   AnySyncRecord,
@@ -50,6 +51,24 @@ export interface AiQueueItem {
   status: 'pending' | 'analyzing' | 'done' | 'failed';
   error?: string;
   result?: AiAnalysisResult;
+  /** Review state of a done analysis (rows edited/added by the user), kept across navigation. */
+  draft?: AiDraft;
+}
+
+/** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */
+export interface AiDraftRow {
+  key: string;
+  name: string;
+  grams: number | null;
+  confidence: 'low' | 'medium' | 'high' | null;
+  candidates: Food[];
+  foodId: string | null;
+}
+
+export interface AiDraft {
+  rows: AiDraftRow[];
+  meal: number;
+  mealName: string;
 }
 
 export interface KvItem {
@@ -73,6 +92,7 @@ export class UserDb extends Dexie {
   foodCache!: EntityTable<CachedFood, 'id'>;
   aiQueue!: EntityTable<AiQueueItem, 'localId'>;
   kv!: EntityTable<KvItem, 'key'>;
+  photos!: EntityTable<LocalPhoto, 'id'>;
 
   constructor(name: string, options?: ConstructorParameters<typeof Dexie>[1]) {
     super(name, options);
@@ -94,6 +114,8 @@ export class UserDb extends Dexie {
     });
     // v2: saved trainings. New fields (exerciseEntries.note, foodEntries.groupId) are not indexed.
     this.version(2).stores({ exerciseTemplates: 'id, name' });
+    // v3: meal photos (device copy + upload state). AiQueueItem.draft needs no index.
+    this.version(3).stores({ photos: 'id, uploaded' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

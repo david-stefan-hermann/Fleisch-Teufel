@@ -48,7 +48,7 @@ export function ExerciseCard({
           <Dumbbell className="size-4" aria-hidden /> Training eintragen
         </Link>
       ) : (
-        <ul className="divide-y divide-border/70 pb-1">
+        <ul className="divide-y divide-border/70">
           {exercises.map((e) => (
             <li key={e.id}>
               <SwipeToDelete

@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mealNames: [...DEFAULT_MEAL_NAMES],
   addExerciseCalories: true,
   onboardedAt: null,
+  macroPlan: null,
 };
 
 /** Current calendar day; rolls over at midnight and when the app returns to the foreground. */
@@ -120,12 +121,14 @@ export function useLoggedDates(from: ISODate, to: ISODate): Set<string> | undefi
   }, [db, from, to]);
 }
 
-/** Names of saved meals by id (also deleted ones: diary groups keep showing their name). */
-export function useMealNames(ids: (string | null)[]): Map<string, string> | undefined {
+/** Name and photo of saved meals by id (also deleted ones: diary groups keep showing them). */
+export function useMealInfo(
+  ids: (string | null)[],
+): Map<string, { name: string; photoId: string | null }> | undefined {
   const db = useDb();
   const key = [...new Set(ids.filter((id): id is string => !!id))].sort().join(',');
   return useLiveQuery(async () => {
     const list = key ? await db.meals.bulkGet(key.split(',')) : [];
-    return new Map(list.filter((m) => !!m).map((m) => [m.id, m.name]));
+    return new Map(list.filter((m) => !!m).map((m) => [m.id, { name: m.name, photoId: m.photoId ?? null }]));
   }, [db, key]);
 }

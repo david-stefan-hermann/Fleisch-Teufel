@@ -8,6 +8,7 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  'aria-label': ariaLabel,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   const _values = React.useMemo(
@@ -45,7 +46,10 @@ function Slider({
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
-          className="block size-4 shrink-0 rounded-full border border-primary bg-white shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+          // The label belongs on the focusable thumb (role="slider"), not on the container.
+          aria-label={ariaLabel}
+          // 16 px thumb with a 40 px touch target.
+          className="relative block size-4 shrink-0 after:absolute after:-inset-3 after:content-[''] rounded-full border border-primary bg-white shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
         />
       ))}
     </SliderPrimitive.Root>

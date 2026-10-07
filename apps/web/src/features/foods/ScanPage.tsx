@@ -25,7 +25,7 @@ type State =
   | { kind: 'error'; code: string };
 
 export function ScanPage() {
-  const { date, meal } = useSearch({ from: '/authed/scan' });
+  const { date, meal, into } = useSearch({ from: '/authed/scan' });
   const navigate = useNavigate();
   const db = useDb();
   const [state, setState] = useState<State>({ kind: 'scanning' });
@@ -40,14 +40,14 @@ export function ScanPage() {
         await navigate({
           to: '/food/$foodId',
           params: { foodId: r.food.id },
-          search: { date, meal },
+          search: { date, meal, ...(into ? { into } : {}) },
           replace: true,
         });
       else if (r.status === 'not_found') setState({ kind: 'notfound', code });
       else if (r.status === 'offline') setState({ kind: 'offline', code });
       else setState({ kind: 'error', code });
     },
-    [db, navigate, date, meal],
+    [db, navigate, date, meal, into],
   );
   const onError = useCallback((e: ScannerError) => setCamError(e), []);
 
@@ -90,7 +90,7 @@ export function ScanPage() {
                   void navigate({
                     to: '/custom-food/$id',
                     params: { id: 'new' },
-                    search: { barcode: state.code, date, meal },
+                    search: { barcode: state.code, date, meal, ...(into ? { into } : {}) },
                   })
                 }
               >

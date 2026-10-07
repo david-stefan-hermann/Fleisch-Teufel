@@ -80,7 +80,8 @@ export function Section({
   return (
     <section
       className={cn(
-        'mb-4 rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]',
+        // overflow-hidden: full-bleed rows (swipe actions, hover backgrounds) follow the rounded corners.
+        'mb-4 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]',
         className,
       )}
     >

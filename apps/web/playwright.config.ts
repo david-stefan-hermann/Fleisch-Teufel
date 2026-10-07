@@ -47,6 +47,8 @@ export default defineConfig({
       DEV_NO_WATCH: '1',
       WEB_DIST: join(import.meta.dirname, 'dist'),
       ALLOW_REGISTRATION: 'true',
+      // Every spec registers its own account.
+      REGISTER_RATE_LIMIT: '1000',
       AI_ENABLED: 'false',
       DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:54399/fleisch_teufel',
     },

@@ -2,12 +2,14 @@ import {
   ACTIVITY_LABELS_DE,
   ageOn,
   calorieGoal,
-  defaultMacros,
+  DEFAULT_MACRO_PLAN,
+  macrosForPlan,
   kcalFromMacros,
   today as todayOf,
   WEEKLY_RATES,
   weightOn,
   type ActivityLevel,
+  type MacroPlan,
   type Settings,
   type Sex,
 } from '@ft/shared';
@@ -15,6 +17,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { MacroPlanPicker } from '@/components/MacroPlanPicker';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -54,6 +57,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
   const [protein, setProtein] = useState<number | null>(null);
   const [fat, setFat] = useState<number | null>(null);
   const [carbs, setCarbs] = useState<number | null>(null);
+  const [plan, setPlanState] = useState<MacroPlan>(settings.macroPlan ?? DEFAULT_MACRO_PLAN);
 
   const age = birthDate ? ageOn(birthDate, today) : null;
   const profileValid =
@@ -80,13 +84,22 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
     else if (t < weight && rate >= 0) setRate(-0.5);
   }
 
-  function computeTargets() {
-    if (!goal || weight === null) return;
-    const m = defaultMacros(goal.kcal, weight);
+  function applyMacros(kcalTarget: number, p: MacroPlan) {
+    if (weight === null) return;
+    const m = macrosForPlan(kcalTarget, weight, p);
     setKcal(m.kcal);
     setProtein(m.proteinG);
     setFat(m.fatG);
     setCarbs(m.carbsG);
+  }
+
+  function computeTargets() {
+    if (goal) applyMacros(goal.kcal, plan);
+  }
+
+  function setPlan(p: MacroPlan) {
+    setPlanState(p);
+    if (kcal !== null) applyMacros(kcal, p);
   }
 
   async function finish() {
@@ -100,6 +113,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
         activityLevel: activity,
         targetWeightKg: targetWeight,
         weeklyRateKg: rate,
+        macroPlan: plan,
       },
       weightKg: weight!,
       target: { kcal, proteinG: protein, fatG: fat, carbsG: carbs },
@@ -164,7 +178,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
               />
               {age !== null && <p className="text-xs text-muted-foreground">{age} Jahre</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 items-start gap-3">
               <NumberField label="Größe" unit="cm" value={height} onValueChange={setHeight} integer />
               <NumberField label="Aktuelles Gewicht" unit="kg" value={weight} onValueChange={setWeight} />
             </div>
@@ -265,6 +279,11 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
               Mifflin-St Jeor × Aktivitätsfaktor, plus/minus 7700 kcal je kg Wochenziel.
             </p>
           </Section>
+          <Section title="Makro-Verteilung">
+            <div className="px-4 pb-4">
+              <MacroPlanPicker plan={plan} onChange={setPlan} kcal={kcal ?? goal.kcal} weightKg={weight} />
+            </div>
+          </Section>
           <Section title="Tagesziele (anpassbar)">
             <div className="grid gap-3 px-4 pb-4">
               <NumberField label="Kalorien" unit="kcal" value={kcal} onValueChange={setKcal} integer />
@@ -284,8 +303,8 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                   </p>
                 )}
               <p className="text-xs text-muted-foreground">
-                Vorschlag: {fmt1(protein && weight ? protein / weight : 0)} g Protein pro kg, 30 % Fett, Rest
-                Kohlenhydrate. Ziele je Wochentag stellst du danach unter „Ziele“ ein.
+                Das sind {fmt1(protein && weight ? protein / weight : 0)} g Eiweiß pro kg Körpergewicht. Ziele
+                je Wochentag stellst du danach unter „Ziele“ ein.
               </p>
             </div>
           </Section>

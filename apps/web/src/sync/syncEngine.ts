@@ -23,6 +23,7 @@ import {
 } from '@ft/shared';
 import { liveQuery, type Subscription } from 'dexie';
 import type { UserDb } from '../db/dexie';
+import { PhotoHttpError, uploadPendingPhotos } from '../db/photos';
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'unauthorized';
 
@@ -187,6 +188,12 @@ export class SyncEngine {
   }
 
   async push(): Promise<{ pushed: number; rejected: number }> {
+    // Photos first, so a meal never arrives on another device before its photo.
+    try {
+      await uploadPendingPhotos(this.db, this.doFetch);
+    } catch (e) {
+      throw e instanceof PhotoHttpError ? new HttpError(e.status) : e;
+    }
     let pushed = 0;
     let rejectedCount = 0;
     for (;;) {

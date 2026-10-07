@@ -9,6 +9,7 @@ import {
   useRouterState,
 } from '@tanstack/react-router';
 import { TabBar } from '@/components/TabBar';
+import { intoParam } from '@/lib/into';
 import { useSessionContext } from './session';
 import { AppBanners } from './AppBanners';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -33,6 +34,10 @@ const strParam = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.len
 
 export interface DateSearch {
   date?: string;
+}
+/** Food search that adds to a saved meal or an AI analysis instead of the diary (see lib/into.ts). */
+export interface IntoSearch {
+  into?: string;
 }
 export interface MealSearch {
   date: string;
@@ -82,17 +87,17 @@ export const routes = {
   diary: createRoute({ ...r('/'), validateSearch: validateDate, component: DiaryPage }),
   add: createRoute({
     ...r('/add'),
-    validateSearch: (s: Record<string, unknown>): MealSearch & { tab?: string; q?: string } => ({
+    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { tab?: string; q?: string } => ({
       ...validateMeal(s),
-      ...clean({ tab: strParam(s.tab), q: strParam(s.q) }),
+      ...clean({ tab: strParam(s.tab), q: strParam(s.q), into: intoParam(s.into) }),
     }),
     component: AddFoodPage,
   }),
   food: createRoute({
     ...r('/food/$foodId'),
-    validateSearch: (s: Record<string, unknown>): MealSearch & { entryId?: string } => ({
+    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { entryId?: string } => ({
       ...validateMeal(s),
-      ...clean({ entryId: strParam(s.entryId) }),
+      ...clean({ entryId: strParam(s.entryId), into: intoParam(s.into) }),
     }),
     component: lazyRouteComponent(() => import('@/features/foods/FoodLogPage'), 'FoodLogPage'),
   }),
@@ -110,12 +115,21 @@ export const routes = {
   }),
   scan: createRoute({
     ...r('/scan'),
-    validateSearch: validateMeal,
+    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch => ({
+      ...validateMeal(s),
+      ...clean({ into: intoParam(s.into) }),
+    }),
     component: lazyRouteComponent(() => import('@/features/foods/ScanPage'), 'ScanPage'),
   }),
   photo: createRoute({
     ...r('/photo'),
-    validateSearch: validateMeal,
+    validateSearch: (s: Record<string, unknown>): MealSearch & { review?: number } => {
+      const review = Number(s.review);
+      return {
+        ...validateMeal(s),
+        ...clean({ review: Number.isInteger(review) && review > 0 ? review : undefined }),
+      };
+    },
     component: lazyRouteComponent(() => import('@/features/ai/PhotoPage'), 'PhotoPage'),
   }),
   customFoods: createRoute({ ...r('/custom-foods'), component: CustomFoodsPage }),
@@ -123,8 +137,9 @@ export const routes = {
     ...r('/custom-food/$id'),
     validateSearch: (
       s: Record<string, unknown>,
-    ): { barcode?: string; name?: string; date?: string; meal?: number } =>
+    ): { barcode?: string; name?: string; date?: string; meal?: number; into?: string } =>
       clean({
+        into: intoParam(s.into),
         barcode: strParam(s.barcode),
         name: strParam(s.name),
         date: dateParam(s.date),

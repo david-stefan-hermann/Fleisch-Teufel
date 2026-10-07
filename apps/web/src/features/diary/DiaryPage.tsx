@@ -11,7 +11,6 @@ import { CalorieCard } from './CalorieCard';
 import { ExerciseCard } from './ExerciseCard';
 import { MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
-import { NutrientCard } from './NutrientCard';
 import { WeekStrip } from './WeekStrip';
 
 export function DiaryPage() {
@@ -111,7 +110,6 @@ export function DiaryPage() {
             />
           ))}
           <ExerciseCard date={date} exercises={exercises} credited={settings.addExerciseCalories} />
-          <NutrientCard summary={summary} />
           <NoteCard key={date} date={date} />
         </>
       )}

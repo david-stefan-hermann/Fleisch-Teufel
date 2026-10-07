@@ -13,7 +13,7 @@ import {
   type Portion,
 } from '@ft/shared';
 import catalog from '@ft/shared/nutrients-catalog.json';
-import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CalendarPlus, ChevronDown, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -36,11 +36,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { logFoodEntry } from '@/db/entries';
+import { addFoodToDraft } from '@/db/aiDraft';
+import { addItemToMeal, logFoodEntry } from '@/db/entries';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useSettings } from '@/hooks/data';
 import { fmt0, fmt1, fmtDayShort, fmtGrams } from '@/lib/format';
+import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { cn } from '@/lib/utils';
 
 const CATALOG = catalog as NutrientInfo[];
@@ -48,7 +50,7 @@ const CATALOG = catalog as NutrientInfo[];
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
 export function FoodLogPage() {
   const params = useParams({ strict: false }) as { foodId?: string; entryId?: string };
-  const search = useSearch({ strict: false }) as { date?: string; meal?: number };
+  const search = useSearch({ strict: false }) as { date?: string; meal?: number; into?: string };
   const db = useDb();
   const entry = useLiveQuery(
     async () => (params.entryId ? ((await db.foodEntries.get(params.entryId)) ?? null) : null),
@@ -128,6 +130,7 @@ export function FoodLogPage() {
       entry={entry ?? null}
       defaultDate={search.date}
       defaultMeal={search.meal}
+      into={entry ? null : parseInto(search.into)}
     />
   );
 }
@@ -137,6 +140,8 @@ interface FormProps {
   entry: FoodEntry | null;
   defaultDate?: string;
   defaultMeal?: number;
+  /** Add to a saved meal / AI analysis instead of the diary. */
+  into: Into | null;
 }
 
 /** Loads the data the form needs for its initial values, then mounts the editor. */
@@ -178,11 +183,17 @@ function FoodLogEditor({
   entry,
   defaultDate,
   defaultMeal,
+  into,
   customPortions,
   initial,
 }: FormProps & { customPortions: Portion[]; initial: { portion: Portion; quantity: number } }) {
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
+  const targetMeal = useLiveQuery(
+    async () => (into?.kind === 'meal' ? ((await db.meals.get(into.mealId)) ?? null) : null),
+    [db, into?.kind === 'meal' ? into.mealId : null],
+  );
   const settings = useSettings();
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
   const date = entry?.date ?? defaultDate ?? today();
@@ -205,8 +216,38 @@ function FoodLogEditor({
   const valid = q > 0;
   const unit = food.unit;
 
+  async function addToTarget(target: Into) {
+    if (target.kind === 'meal') {
+      const ok = await addItemToMeal(db, target.mealId, {
+        foodId: food.id,
+        source: food.source,
+        name: food.name,
+        brand: food.brand,
+        grams,
+        portionLabel: effectivePortion.label,
+        portionGrams: effectivePortion.grams,
+        quantity: q,
+        per100: food.nutrients,
+        nutrients,
+      });
+      if (!ok) return void toast.error('Das Meal gibt es nicht mehr.');
+    } else {
+      await addFoodToDraft(db, target.localId, food, grams);
+    }
+    await rememberFood(db, food);
+    toast.success(`${food.name} hinzugefügt`);
+    returnFromInto(
+      router.history,
+      () =>
+        void (target.kind === 'meal'
+          ? navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true })
+          : navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true })),
+    );
+  }
+
   async function save() {
     if (!valid) return;
+    if (into) return addToTarget(into);
     const base = {
       foodId: food.id,
       source: (entry?.source === 'ai' ? 'ai' : food.source) as FoodEntry['source'],
@@ -251,7 +292,15 @@ function FoodLogEditor({
 
   return (
     <Page
-      title={entry ? 'Eintrag bearbeiten' : 'Eintragen'}
+      title={
+        entry
+          ? 'Eintrag bearbeiten'
+          : into
+            ? into.kind === 'meal'
+              ? `Zu „${targetMeal?.name ?? 'Meal'}“`
+              : 'Zur Foto-Analyse'
+            : 'Eintragen'
+      }
       back
       withTabBar={false}
       actions={
@@ -341,22 +390,24 @@ function FoodLogEditor({
             </Button>
           </div>
           <p className="tabular -mt-2 text-sm text-muted-foreground">= {fmtGrams(grams, unit)}</p>
-          <div className="grid gap-1.5">
-            <Label htmlFor="meal">Mahlzeit</Label>
-            <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
-              <SelectTrigger id="meal" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(settings?.mealNames ?? []).map((n, i) => (
-                  <SelectItem key={i} value={String(i)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {!entry && (
+          {!into && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="meal">Mahlzeit</Label>
+              <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
+                <SelectTrigger id="meal" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(settings?.mealNames ?? []).map((n, i) => (
+                    <SelectItem key={i} value={String(i)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {!entry && !into && (
             <div>
               <button
                 type="button"
@@ -468,7 +519,13 @@ function FoodLogEditor({
 
       <div className="sticky bottom-0 -mx-4 border-t border-border/70 bg-background/90 px-4 pt-3 pb-[calc(var(--safe-bottom)+0.75rem)] backdrop-blur-md">
         <Button size="lg" className="w-full" disabled={!valid} onClick={() => void save()}>
-          {entry ? 'Änderungen speichern' : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} hinzufügen`}
+          {entry
+            ? 'Änderungen speichern'
+            : into
+              ? into.kind === 'meal'
+                ? 'Zum Meal hinzufügen'
+                : 'Zur Analyse hinzufügen'
+              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} hinzufügen`}
         </Button>
       </div>
 

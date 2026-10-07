@@ -32,7 +32,7 @@ export function authRoutes(deps: Deps) {
   const { db } = deps;
   // 10 failed logins per 15 minutes per IP and per account.
   const loginLimiter = new RateLimiter(10, 15 * 60_000);
-  const registerLimiter = new RateLimiter(5, 60 * 60_000);
+  const registerLimiter = new RateLimiter(deps.env.REGISTER_RATE_LIMIT, 60 * 60_000);
   const app = new Hono<AppEnv>();
 
   app.post('/register', async (c) => {

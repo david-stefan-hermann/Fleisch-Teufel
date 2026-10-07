@@ -77,6 +77,7 @@ describe('sync', () => {
       mealNames: ['Frühstück', 'Mittag', 'Abend', 'Snacks'],
       addExerciseCalories: true,
       onboardedAt: 5,
+      macroPlan: { preset: 'low_carb', proteinPerKg: 1.8, fatPct: null, carbsPct: 20 },
     };
     const goal = {
       id: dayId.goal('2026-10-01'),
@@ -90,6 +91,7 @@ describe('sync', () => {
       id: uuidv7(),
       updatedAt: 5,
       deleted: false,
+      photoId: 'photo-abc123',
       name: 'Porridge',
       items: [{ ...entry(), id: undefined, date: undefined }].map(
         ({

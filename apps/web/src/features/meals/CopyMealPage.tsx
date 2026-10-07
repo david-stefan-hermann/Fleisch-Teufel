@@ -40,7 +40,7 @@ export function CopyMealPage() {
   return (
     <Page title={`Nach ${names[meal] ?? ''} kopieren`} back withTabBar={false}>
       <Section>
-        <div className="grid grid-cols-2 gap-3 p-4">
+        <div className="grid grid-cols-2 items-start gap-3 p-4">
           <div className="grid gap-1.5">
             <Label htmlFor="src-date">Von Tag</Label>
             <Input

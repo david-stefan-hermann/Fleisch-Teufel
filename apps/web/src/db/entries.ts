@@ -11,7 +11,8 @@ import {
   type MealItem,
 } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { saveRecord } from './write';
+import { storePhoto } from './photos';
+import { patchRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<FoodEntry, 'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId'>;
 
@@ -83,6 +84,35 @@ export async function logItems(
   return items.length;
 }
 
+/** Appends an ingredient to a saved meal (meal editor / "Zutat hinzufügen"). */
+export async function addItemToMeal(db: UserDb, mealId: string, item: MealItem): Promise<boolean> {
+  const meal = await db.meals.get(mealId);
+  if (!meal || meal.deleted) return false;
+  const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
+    item;
+  await patchRecord(db, 'meals', mealId, {
+    items: [
+      ...meal.items,
+      { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients },
+    ],
+  });
+  return true;
+}
+
+/** Replaces one ingredient of a saved meal (amount changed) or removes it (`null`). */
+export async function updateMealItem(
+  db: UserDb,
+  mealId: string,
+  index: number,
+  item: MealItem | null,
+): Promise<void> {
+  const meal = await db.meals.get(mealId);
+  if (!meal) return;
+  const items = meal.items.flatMap((it, i) => (i !== index ? [it] : item ? [item] : []));
+  if (items.length === 0) throw new Error('A meal needs at least one ingredient');
+  await patchRecord(db, 'meals', mealId, { items });
+}
+
 /**
  * Saves the confirmed items of an AI photo analysis as a reusable saved meal and logs it
  * (source "ai", grouped in the diary). Returns the id of the new meal.
@@ -93,6 +123,8 @@ export async function saveAiMeal(
   items: { food: Food; grams: number }[],
   target: { date: string; meal: number },
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
+  /** The analysed photo; becomes the meal photo. */
+  photo: Blob | null = null,
 ): Promise<string> {
   const mealItems: MealItem[] = items.map(({ food, grams }) => ({
     foodId: food.id,
@@ -108,7 +140,8 @@ export async function saveAiMeal(
       .nutrients,
   }));
   const mealId = uuidv7();
-  await saveRecord(db, 'meals', { id: mealId, name: name.trim().slice(0, 120), items: mealItems });
+  const photoId = photo ? await storePhoto(db, photo) : null;
+  await saveRecord(db, 'meals', { id: mealId, name: name.trim().slice(0, 120), items: mealItems, photoId });
   await logItems(db, mealItems, target, { mealId, aiAnalysisId: analysis.analysisId });
   return mealId;
 }

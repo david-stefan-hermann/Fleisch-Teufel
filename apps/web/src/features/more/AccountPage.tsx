@@ -87,11 +87,15 @@ export function AccountPage() {
         </form>
       </Section>
       <Section>
-        <div className="grid gap-2 p-4">
+        <div className="grid grid-cols-1 gap-2 p-4">
           <Button variant="outline" onClick={() => setConfirm('logout')}>
             <LogOut aria-hidden /> Abmelden
           </Button>
-          <Button variant="ghost" className="text-destructive" onClick={() => setConfirm('wipe')}>
+          <Button
+            variant="ghost"
+            className="h-auto min-h-10 py-2 whitespace-normal text-destructive"
+            onClick={() => setConfirm('wipe')}
+          >
             Abmelden und Daten von diesem Gerät löschen
           </Button>
         </div>
