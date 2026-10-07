@@ -90,6 +90,8 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
   await page.getByLabel('Name').fill('Mein Frühstück');
   await page.getByRole('button', { name: 'Meal speichern' }).click();
+  // Wait for the write to finish before the full reload below (the click resolves earlier).
+  await expect(page.getByText('„Mein Frühstück“ gespeichert')).toBeVisible();
 
   await page.goto('/meals');
   await page.getByRole('link', { name: /Mein Frühstück/ }).click();
@@ -178,8 +180,8 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
     }),
   );
   await page.goto('/photo?meal=1');
-  await page.locator('input[type=file]').nth(1).setInputFiles('public/pwa-192x192.png');
-  await page.getByRole('button', { name: 'Analysieren' }).click();
+  // A picked gallery photo (no barcode in it) is analyzed right away.
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Gramm' }).or(page.getByLabel('Gramm')).first().fill('180');

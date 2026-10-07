@@ -3,20 +3,24 @@ import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Camera,
-  ImagePlus,
+  Images,
   LoaderCircle,
   Plus,
   RotateCcw,
-  ScanBarcode,
   Sparkles,
   Trash2,
   TriangleAlert,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { detectBarcodeInImage } from '@/components/BarcodeScanner';
+import {
+  BarcodeScanner,
+  detectBarcodeInImage,
+  type CaptureFn,
+  type ScannerError,
+} from '@/components/BarcodeScanner';
 import { MacroSplitBar } from '@/components/MacroBars';
 import { MealPhoto } from '@/components/MealPhoto';
 import { NumberField } from '@/components/NumberField';
@@ -27,7 +31,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
 import { currentDraft, patchRow } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { saveAiMeal } from '@/db/entries';
@@ -71,21 +74,12 @@ export function PhotoPage() {
           Die Foto-Analyse ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).
         </p>
       )}
-      <Capture
+      <CameraCapture
         date={date}
         meal={meal}
         onQueued={setActiveId}
-        onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
+        onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code }, replace: true })}
       />
-      <p className="mt-3 text-center text-sm">
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 text-primary underline-offset-4 hover:underline"
-          onClick={() => void navigate({ to: '/scan', search: { date, meal } })}
-        >
-          <ScanBarcode className="size-4" aria-hidden /> Barcode live scannen
-        </button>
-      </p>
       {queue && queue.length > 0 && (
         <Section title="Analysen" className="mt-4">
           <ul className="divide-y divide-border/70">
@@ -96,16 +90,28 @@ export function PhotoPage() {
         </Section>
       )}
       <p className="mt-4 text-xs text-muted-foreground text-pretty">
-        Ein fotografierter Barcode wird erkannt und direkt nachgeschlagen. Teller-Fotos gehen zur Analyse an
-        Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw.
-        Open Food Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20–40&nbsp;%).
-        Prüfe die Mengen vor dem Speichern. Verpackte Produkte lieber per Barcode erfassen.
+        Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos gehen zur Analyse an Claude
+        (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw. Open Food
+        Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20–40&nbsp;%). Prüfe die
+        Mengen vor dem Speichern.
       </p>
     </Page>
   );
 }
 
-function Capture({
+const CAM_ERRORS: Record<ScannerError, string> = {
+  permission: 'Kein Kamerazugriff – erlaube die Kamera in den iOS-Einstellungen (Safari → Kamera).',
+  'no-camera': 'Keine Kamera gefunden.',
+  unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff.',
+  other: 'Die Kamera konnte nicht gestartet werden.',
+};
+
+/**
+ * Live camera as the single entry point: a barcode in view is looked up immediately, the shutter
+ * sends the frame to the AI, the gallery button (bottom left) analyzes a saved photo. The optional
+ * hint is typed before shooting so that one tap on the shutter is all it takes.
+ */
+function CameraCapture({
   date,
   meal,
   onQueued,
@@ -117,164 +123,173 @@ function Capture({
   onBarcode: (code: string) => void;
 }) {
   const db = useDb();
-  const settings = useSettings();
-  const cameraInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
-  const [image, setImage] = useState<Blob | null>(null);
-  const preview = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
-  useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
+  const fallbackCamera = useRef<HTMLInputElement>(null);
+  const capture = useRef<CaptureFn | null>(null);
+  const [camError, setCamError] = useState<ScannerError | null>(null);
   const [text, setText] = useState('');
-  const [targetMeal, setTargetMeal] = useState(meal);
+  const [shot, setShot] = useState<Blob | null>(null);
+  const preview = useMemo(() => (shot ? URL.createObjectURL(shot) : null), [shot]);
+  useEffect(() => () => void (preview && URL.revokeObjectURL(preview)), [preview]);
   const [busy, setBusy] = useState(false);
+  const onError = useCallback((e: ScannerError) => setCamError(e), []);
+  const barcodeSeen = useRef(false);
+  const onDetected = useCallback(
+    (code: string) => {
+      if (barcodeSeen.current) return;
+      barcodeSeen.current = true;
+      toast(`Barcode ${code} erkannt`);
+      onBarcode(code);
+    },
+    [onBarcode],
+  );
 
-  const [reading, setReading] = useState(false);
-
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    setReading(true);
+  async function analyze(image: Blob) {
+    setBusy(true);
+    setShot(image);
     try {
-      // A photographed barcode skips the AI entirely and goes to the product lookup.
-      const code = await detectBarcodeInImage(file);
-      if (code) {
-        toast(`Barcode ${code} erkannt`);
-        onBarcode(code);
+      const compressed = await compressImage(image);
+      const id = await enqueuePhoto(db, { date, meal, text, image: compressed });
+      await processQueue(db);
+      const item = await db.aiQueue.get(id);
+      if (item?.status === 'done') {
+        onQueued(id);
         return;
       }
-      setImage(await compressImage(file));
+      if (item?.status === 'pending')
+        toast('Offline – das Foto wird analysiert, sobald du wieder verbunden bist.');
+      else if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+      setText('');
     } catch {
       toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
     } finally {
-      setReading(false);
+      setBusy(false);
+      setShot(null);
     }
   }
 
-  async function analyze() {
-    if (!image) return;
-    setBusy(true);
-    const id = await enqueuePhoto(db, { date, meal: targetMeal, text, image });
-    await processQueue(db);
-    const item = await db.aiQueue.get(id);
-    setBusy(false);
-    setImage(null);
-    setText('');
-    if (item?.status === 'done') onQueued(id);
-    else if (item?.status === 'pending')
-      toast('Offline – das Foto wird analysiert, sobald du wieder verbunden bist.');
-    else if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+  async function shoot() {
+    const blob = await capture.current?.();
+    if (!blob) return toast.error('Die Kamera liefert noch kein Bild.');
+    navigator.vibrate?.(30);
+    await analyze(blob);
   }
 
+  async function pick(file: File | undefined) {
+    if (!file) return;
+    setBusy(true);
+    // A photographed barcode skips the AI entirely and goes to the product lookup.
+    const code = await detectBarcodeInImage(file);
+    if (code) {
+      setBusy(false);
+      return onDetected(code);
+    }
+    await analyze(file);
+  }
+
+  const overlay = (
+    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
+      <Button
+        variant="secondary"
+        size="icon-lg"
+        className="rounded-xl bg-black/55 text-white hover:bg-black/70"
+        aria-label="Foto aus der Mediathek analysieren"
+        disabled={busy}
+        onClick={() => galleryInput.current?.click()}
+      >
+        <Images className="size-6" aria-hidden />
+      </Button>
+      <button
+        type="button"
+        aria-label="Foto aufnehmen und analysieren"
+        disabled={busy}
+        onClick={() => void shoot()}
+        className="grid size-[4.5rem] touch-manipulation place-items-center rounded-full border-4 border-white/90 bg-white/20 backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50 focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none motion-reduce:transition-none"
+      >
+        <span className="size-14 rounded-full bg-white" aria-hidden />
+      </button>
+      {/* Spacer keeps the shutter centered (torch toggle sits top right). */}
+      <span className="size-11" aria-hidden />
+    </div>
+  );
+
   return (
-    <Section>
-      <div className="grid gap-4 p-4">
-        <input
-          ref={cameraInput}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden
-          onChange={(e) => void pick(e.target.files?.[0])}
-        />
-        <input
-          ref={galleryInput}
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          tabIndex={-1}
-          aria-hidden
-          onChange={(e) => void pick(e.target.files?.[0])}
-        />
-        {preview ? (
-          <div className="relative">
-            <img
-              src={preview}
-              alt="Ausgewähltes Foto"
-              className="aspect-[4/3] w-full rounded-xl object-cover"
-              width={800}
-              height={600}
-            />
-            {busy ? (
-              <AnalyzingOverlay />
-            ) : (
-              <Button
-                variant="secondary"
-                size="icon-sm"
-                className="absolute top-2 right-2"
-                onClick={() => setImage(null)}
-                aria-label="Foto entfernen"
-              >
-                <X aria-hidden />
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="outline"
-                className="h-28 flex-col gap-2"
-                disabled={reading}
-                onClick={() => cameraInput.current?.click()}
-              >
-                {reading ? (
-                  <LoaderCircle
-                    className="size-7 animate-spin text-primary motion-reduce:animate-none"
-                    aria-hidden
-                  />
-                ) : (
-                  <Camera className="size-7 text-primary" aria-hidden />
-                )}
-                {reading ? 'Lese Foto…' : 'Foto aufnehmen'}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-28 flex-col gap-2"
-                disabled={reading}
-                onClick={() => galleryInput.current?.click()}
-              >
-                <ImagePlus className="size-7 text-primary" aria-hidden /> Aus Mediathek
-              </Button>
-            </div>
-            <p className="-mt-1 text-center text-xs text-muted-foreground">
-              Teller oder Barcode fotografieren – Barcodes werden automatisch erkannt.
-            </p>
-          </>
-        )}
-        <div className="grid gap-1.5">
-          <Label htmlFor="ai-text">Hinweise (optional)</Label>
-          <Textarea
-            id="ai-text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="z. B. „mit Butter gebraten“, „halbe Portion gegessen“, „250 g Hähnchen“…"
+    <div className="grid gap-3">
+      <input
+        ref={galleryInput}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => {
+          void pick(e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      {preview ? (
+        <div className="relative overflow-hidden rounded-2xl bg-black">
+          <img src={preview} alt="Aufgenommenes Foto" className="aspect-[3/4] w-full object-cover" />
+          {busy && <AnalyzingOverlay />}
+        </div>
+      ) : camError ? (
+        <div className="grid gap-3 rounded-2xl border p-4">
+          <p role="alert" className="text-sm">
+            {CAM_ERRORS[camError]} Du kannst stattdessen ein Foto mit der Kamera-App aufnehmen oder aus der
+            Mediathek wählen.
+          </p>
+          <input
+            ref={fallbackCamera}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => void pick(e.target.files?.[0])}
           />
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              className="h-24 flex-col gap-2"
+              onClick={() => fallbackCamera.current?.click()}
+            >
+              <Camera className="size-7 text-primary" aria-hidden /> Foto aufnehmen
+            </Button>
+            <Button
+              variant="outline"
+              className="h-24 flex-col gap-2"
+              onClick={() => galleryInput.current?.click()}
+            >
+              <Images className="size-7 text-primary" aria-hidden /> Aus Mediathek
+            </Button>
+          </div>
         </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="ai-meal">Mahlzeit</Label>
-          <Select value={String(targetMeal)} onValueChange={(v) => setTargetMeal(Number(v))}>
-            <SelectTrigger id="ai-meal" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(settings?.mealNames ?? []).map((n, i) => (
-                <SelectItem key={i} value={String(i)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button size="lg" disabled={!image || busy} onClick={() => void analyze()}>
-          {busy ? (
-            <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden />
-          ) : (
-            <Sparkles aria-hidden />
-          )}
-          {busy ? 'Analysiere…' : 'Analysieren'}
-        </Button>
+      ) : (
+        <BarcodeScanner
+          frame="photo"
+          onDetected={onDetected}
+          onError={onError}
+          paused={busy}
+          captureRef={capture}
+        >
+          <p className="pointer-events-none absolute inset-x-0 top-3 text-center text-xs font-medium text-white/85 drop-shadow">
+            Teller fotografieren – Barcodes werden automatisch erkannt
+          </p>
+          {overlay}
+        </BarcodeScanner>
+      )}
+      <div className="grid gap-1.5">
+        <Label htmlFor="ai-text">Hinweis für die Analyse (optional)</Label>
+        <Input
+          id="ai-text"
+          value={text}
+          disabled={busy}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
+        />
       </div>
-    </Section>
+    </div>
   );
 }
 

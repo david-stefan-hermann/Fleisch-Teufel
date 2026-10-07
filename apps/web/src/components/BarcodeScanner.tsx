@@ -5,7 +5,7 @@
  */
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 prepareZXingModule({
   overrides: {
@@ -54,16 +54,43 @@ export async function detectBarcodeInImage(blob: Blob): Promise<string | null> {
   }
 }
 
+/** Takes a still from the live camera (full sensor resolution of the stream) as JPEG. */
+export type CaptureFn = () => Promise<Blob | null>;
+
 export function BarcodeScanner({
   onDetected,
   onError,
   paused,
+  captureRef,
+  children,
+  frame = 'barcode',
 }: {
   onDetected: (code: string) => void;
   onError: (e: ScannerError) => void;
   paused?: boolean;
+  /** Receives a capture function once the camera runs (photo mode). */
+  captureRef?: RefObject<CaptureFn | null>;
+  /** Overlay controls (shutter, gallery, …) rendered above the video. */
+  children?: ReactNode;
+  /** 'barcode': dimmed frame for scanning; 'photo': light corner marks only. */
+  frame?: 'barcode' | 'photo';
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (!captureRef) return;
+    captureRef.current = async () => {
+      const v = video.current;
+      if (!v || v.readyState < 2 || !v.videoWidth) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      canvas.getContext('2d')!.drawImage(v, 0, 0);
+      return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+    };
+    return () => {
+      captureRef.current = null;
+    };
+  }, [captureRef]);
   const [torch, setTorch] = useState<MediaStreamTrack | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const pausedRef = useRef(paused);
@@ -86,7 +113,7 @@ export function BarcodeScanner({
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
         });
       } catch (e) {
         const name = (e as DOMException).name;
@@ -147,9 +174,24 @@ export function BarcodeScanner({
         autoPlay
         aria-label="Kamerabild"
       />
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
-        <div className="h-1/3 w-4/5 rounded-xl border-2 border-white/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.35)]" />
-      </div>
+      {frame === 'barcode' ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+          <div className="h-1/3 w-4/5 rounded-xl border-2 border-white/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.35)]" />
+        </div>
+      ) : (
+        <div className="pointer-events-none absolute inset-6 bottom-28" aria-hidden>
+          {(
+            [
+              'top-0 left-0 border-t-2 border-l-2',
+              'top-0 right-0 border-t-2 border-r-2',
+              'bottom-0 left-0 border-b-2 border-l-2',
+              'bottom-0 right-0 border-b-2 border-r-2',
+            ] as const
+          ).map((c) => (
+            <span key={c} className={`absolute size-6 border-white/80 ${c}`} />
+          ))}
+        </div>
+      )}
       {torch && (
         <button
           type="button"
@@ -159,12 +201,13 @@ export function BarcodeScanner({
               .catch(() => {});
             setTorchOn(!torchOn);
           }}
-          className="absolute right-3 bottom-3 rounded-full bg-black/60 px-4 py-2 text-sm text-white focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none"
+          className="absolute top-3 right-3 rounded-full bg-black/60 px-4 py-2 text-sm text-white focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none"
           aria-pressed={torchOn}
         >
           {torchOn ? 'Licht aus' : 'Licht an'}
         </button>
       )}
+      {children}
     </div>
   );
 }
