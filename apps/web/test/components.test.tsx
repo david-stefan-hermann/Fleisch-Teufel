@@ -5,10 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BarcodeScanner, TorchButton, type TorchState } from '@/components/BarcodeScanner';
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
-import { useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
+import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { UserDb } from '@/db/dexie';
+
+// MealPhoto reads the database from the session; components here only need a throwaway one.
+vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
+let sessionDb: UserDb;
+beforeEach(() => {
+  sessionDb = new UserDb(`s-${uuidv7()}`);
+});
 
 afterEach(() => {
   cleanup();
@@ -243,6 +250,57 @@ describe('useObjectUrl', () => {
     rerender(<Img blob={new Blob(['abc'], { type: 'image/jpeg' })} k="ai:2" />);
     expect(src()).not.toBe(first);
     expect(revoked).toEqual([first]);
+  });
+});
+
+describe('MealPhoto', () => {
+  let created: string[];
+  beforeEach(() => {
+    created = [];
+    URL.createObjectURL = vi.fn(() => {
+      created.push(`blob:test/${created.length + 1}`);
+      return created.at(-1)!;
+    });
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('re-creates the image once when it fails to decode, then shows "not readable"', () => {
+    expect(PHOTO_DECODE_ATTEMPTS).toBe(2);
+    const blob = new Blob(['jpeg'], { type: 'image/jpeg' });
+    render(<MealPhoto blob={blob} blobKey="ai:1" alt="Foto" className="size-12" />);
+    const img = () => screen.getByRole('img', { name: 'Foto' });
+    expect(img().getAttribute('src')).toBe('blob:test/1');
+    // WebKit: the blob read earlier is unreadable; the retry uses a new Blob object and URL.
+    fireEvent.error(img());
+    expect(created).toHaveLength(2);
+    expect(img().getAttribute('src')).toBe('blob:test/2');
+    expect((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[1]![0]).not.toBe(blob);
+    fireEvent.error(img());
+    expect(screen.getByRole('img', { name: 'Foto (nicht lesbar)' }).tagName).toBe('DIV');
+    expect(created).toHaveLength(2);
+  });
+
+  it('starts over for another photo', () => {
+    const { rerender } = render(<MealPhoto blob={new Blob(['a'])} blobKey="ai:1" alt="Foto" />);
+    fireEvent.error(screen.getByRole('img'));
+    fireEvent.error(screen.getByRole('img'));
+    expect(screen.getByRole('img', { name: 'Foto (nicht lesbar)' })).toBeTruthy();
+    rerender(<MealPhoto blob={new Blob(['b'])} blobKey="ai:2" alt="Foto" />);
+    expect(screen.getByRole('img', { name: 'Foto' }).tagName).toBe('IMG');
+  });
+
+  it('shows a stored meal photo (bytes) from the device database', async () => {
+    await sessionDb.photos.put({
+      id: 'p1',
+      bytes: new Uint8Array([0xff, 0xd8, 0xff]).buffer,
+      type: 'image/jpeg',
+      uploaded: 1,
+      createdAt: 1,
+    });
+    render(<MealPhoto photoId="p1" alt="Foto von Bowl" />);
+    expect((await screen.findByRole('img', { name: 'Foto von Bowl' })).tagName).toBe('IMG');
+    const blob = (URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Blob;
+    expect(blob).toMatchObject({ size: 3, type: 'image/jpeg' });
   });
 });
 

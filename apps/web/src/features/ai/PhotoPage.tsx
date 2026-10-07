@@ -42,7 +42,7 @@ import { endpoints } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { compressImage } from './image';
-import { enqueuePhoto, processQueue } from './queue';
+import { discardQueueItem, enqueuePhoto, imageBlob, processQueue } from './queue';
 
 export function PhotoPage() {
   const { date, meal, review } = useSearch({ from: '/authed/photo' });
@@ -155,7 +155,7 @@ function CameraCapture({
     setShot(image);
     try {
       const compressed = await compressImage(image);
-      const id = await enqueuePhoto(db, { date, meal, text, image: compressed });
+      const id = await enqueuePhoto(db, { date, meal, text }, compressed);
       await processQueue(db);
       const item = await db.aiQueue.get(id);
       if (item?.status === 'done') {
@@ -322,10 +322,23 @@ function AnalyzingOverlay() {
   );
 }
 
+/**
+ * Photo of a queue item: the `aiImages` row (re-read only when that row changes, not on every
+ * status change of the item), or the inline Blob of an item from an older app version.
+ * `undefined` while loading, `null` when there is none.
+ */
+function useAiImage(item: AiQueueItem): Blob | null | undefined {
+  const db = useDb();
+  const legacy = item.image ?? null;
+  return useLiveQuery(async () => {
+    const row = item.localId !== undefined ? await db.aiImages.get(item.localId) : undefined;
+    return row ? imageBlob(row) : legacy;
+  }, [db, item.localId, legacy]);
+}
+
 function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   const db = useDb();
-  // Keyed by the queue id: every status change re-reads the item (and a new Blob) from IndexedDB.
-  const thumb = useObjectUrl(item.image, `ai:${item.localId}`);
+  const image = useAiImage(item);
   const label =
     item.status === 'done'
       ? `${item.result?.items.length ?? 0} Lebensmittel erkannt, bitte prüfen`
@@ -337,11 +350,7 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   return (
     <li className="flex items-center gap-3 px-4 py-2">
       <div className="relative size-12 shrink-0">
-        {thumb ? (
-          <img src={thumb} alt="" width={48} height={48} className="size-12 rounded-lg object-cover" />
-        ) : (
-          <div className="size-12 rounded-lg bg-muted" />
-        )}
+        <MealPhoto blob={image} blobKey={`ai:${item.localId}`} alt="" className="size-12 rounded-lg" />
         {item.status === 'analyzing' && (
           <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
             <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />
@@ -377,7 +386,7 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
         variant="ghost"
         size="icon"
         aria-label="Verwerfen"
-        onClick={() => void db.aiQueue.delete(item.localId!)}
+        onClick={() => void discardQueueItem(db, item.localId!)}
       >
         <Trash2 aria-hidden />
       </Button>
@@ -408,6 +417,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
   const router = useRouter();
   const settings = useSettings();
   const result = item.result as AiAnalysisResult;
+  const image = useAiImage(item);
   const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
   const { rows, meal, mealName } = draft;
   const commit = (next: AiDraft) => {
@@ -459,10 +469,10 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     const name = mealName.trim() || 'Foto-Meal';
     const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
     const target = { date: item.date, meal };
-    if (asMeal) await saveAiMeal(db, name, items, target, result, item.image);
+    if (asMeal) await saveAiMeal(db, name, items, target, result, image ?? null);
     else await logAiItems(db, name, items, target, result);
     for (const r of resolved) await rememberFood(db, r.food);
-    await db.aiQueue.delete(item.localId!);
+    await discardQueueItem(db, item.localId!);
     if (asMeal)
       toast.success(`„${name}“ eingetragen`, {
         description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen und bearbeiten.',
@@ -484,7 +494,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     >
       <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
         <MealPhoto
-          blob={item.image}
+          blob={image}
           blobKey={`ai:${item.localId}`}
           alt="Analysiertes Foto"
           className="aspect-[4/3] w-full"

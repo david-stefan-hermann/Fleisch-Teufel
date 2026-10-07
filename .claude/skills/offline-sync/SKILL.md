@@ -50,3 +50,7 @@ deterministic id and add it to `requiredId()` so offline devices converge.
 - Camera: `getUserMedia({ video: { facingMode: 'environment' } })` + `<video playsInline muted>`; file inputs
   with `capture="environment"` for photos. Inputs need ≥ 16 px font or Safari zooms.
 - `viewport-fit=cover` + `env(safe-area-inset-*)` (`--safe-top`/`--safe-bottom` tokens).
+- Images in IndexedDB: store `ArrayBuffer` + type, never a `Blob` in a record that is written again.
+  WebKit keeps IndexedDB Blobs as files; a Blob read before its record was rewritten can no longer be
+  read (`WebKitBlobResource error 1`, broken thumbnails). Meal photos (`photos.bytes`) and AI queue
+  photos (own table `aiImages`, Dexie v4) follow this; build Blobs in memory with `photoBlob`/`imageBlob`.

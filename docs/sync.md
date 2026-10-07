@@ -74,7 +74,8 @@ kein Background Sync, deshalb gibt es keinen Service-Worker-Sync.
 Meal-Fotos laufen nicht über den Datensatz-Sync, sondern über `PUT/GET /api/photos/:id` (Tabelle
 `photos`, nur für den Besitzer). Ein Meal verweist per `photoId` darauf. Fotos sind unveränderlich (ein
 neues Foto bekommt eine neue ID), deshalb gibt es keine Konflikte und der Abruf ist dauerhaft cachebar.
-Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0/1); die `SyncEngine` lädt offene
+Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0/1, Bild als `bytes`/`type`, ältere
+Datensätze noch als `blob`); die `SyncEngine` lädt offene
 Fotos **vor** dem Push hoch, damit ein Meal nie vor seinem Foto auf einem anderen Gerät ankommt. Andere
 Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
 

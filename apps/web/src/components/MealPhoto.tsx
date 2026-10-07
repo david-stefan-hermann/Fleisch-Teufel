@@ -1,9 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ImageOff, Utensils } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDb } from '@/app/session';
 import type { UserDb } from '@/db/dexie';
-import { loadPhoto } from '@/db/photos';
+import { loadPhoto, photoBlob } from '@/db/photos';
 import { cn } from '@/lib/utils';
 
 /** A failed download (offline, server error, not uploaded yet) is retried after this long. */
@@ -26,7 +26,10 @@ export function usePhotoBlob(id: string | null): Blob | null | undefined {
 
 /** `usePhotoBlob` with an explicit database and fetch (tests). */
 export function usePhotoBlobFrom(db: UserDb, id: string | null, fetchFn: Fetch): Blob | null | undefined {
-  const local = useLiveQuery(async () => (id ? ((await db.photos.get(id))?.blob ?? null) : null), [db, id]);
+  const local = useLiveQuery(async () => {
+    const p = id ? await db.photos.get(id) : undefined;
+    return p ? photoBlob(p) : null;
+  }, [db, id]);
   // Bumped to re-run the download effect (retry timer, `online` event).
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -98,7 +101,17 @@ export function useObjectUrl(blob: Blob | null | undefined, key?: string): strin
   return current && url?.blob === current ? url.url : null;
 }
 
-/** Meal photo with a neutral placeholder while loading or when there is none. */
+/** Decode attempts of one photo before the "not readable" placeholder shows (first try + retry). */
+export const PHOTO_DECODE_ATTEMPTS = 2;
+
+/**
+ * Meal photo with a neutral placeholder while loading or when there is none.
+ *
+ * Safety net for unreadable blobs (WebKit: a Blob read from IndexedDB before its record was
+ * rewritten): when the image fails to decode, the held blob is dropped (the `useObjectUrl` key
+ * changes), so the latest blob from the database gets a new object URL; after
+ * `PHOTO_DECODE_ATTEMPTS` failures the "not readable" placeholder is shown.
+ */
 export function MealPhoto({
   photoId,
   blob,
@@ -117,16 +130,37 @@ export function MealPhoto({
   placeholder?: boolean;
 }) {
   const stored = usePhotoBlob(blob ? null : (photoId ?? null));
-  const url = useObjectUrl(blob ?? stored, blob ? blobKey : (photoId ?? undefined));
-  if (url) return <img src={url} alt={alt} className={cn('object-cover', className)} draggable={false} />;
+  const key = blob ? blobKey : (photoId ?? undefined);
+  // Failed decodes per key; another photo starts at zero again.
+  const [failed, setFailed] = useState<{ key: string | undefined; n: number }>({ key, n: 0 });
+  const failures = failed.key === key ? failed.n : 0;
+  const broken = failures >= PHOTO_DECODE_ATTEMPTS;
+  const source = broken ? null : (blob ?? stored ?? null);
+  // A retry needs a new Blob object even when the database had nothing newer: `slice()` is a cheap
+  // view on the same data, so the object URL (and the decode) is created again.
+  const attempt = useMemo(
+    () => (source && failures > 0 ? source.slice(0, source.size, source.type) : source),
+    [source, failures],
+  );
+  const url = useObjectUrl(attempt, key === undefined ? undefined : `${key}#${failures}`);
+  if (url)
+    return (
+      <img
+        src={url}
+        alt={alt}
+        className={cn('object-cover', className)}
+        draggable={false}
+        onError={() => setFailed({ key, n: failures + 1 })}
+      />
+    );
   if (!placeholder) return null;
   return (
     <div
       role="img"
-      aria-label={photoId ? `${alt} (wird geladen)` : alt}
+      aria-label={broken ? `${alt} (nicht lesbar)` : photoId ? `${alt} (wird geladen)` : alt}
       className={cn('grid place-items-center bg-muted text-muted-foreground', className)}
     >
-      {photoId && stored === null ? (
+      {broken || (photoId && stored === null) ? (
         <ImageOff className="size-5" aria-hidden />
       ) : (
         <Utensils className="size-5" aria-hidden />

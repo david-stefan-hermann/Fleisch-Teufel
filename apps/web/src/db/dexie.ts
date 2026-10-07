@@ -46,7 +46,11 @@ export interface AiQueueItem {
   date: string;
   meal: number;
   text: string;
-  image: Blob;
+  /**
+   * Legacy (app versions before Dexie v4): the photo inline as Blob. New items keep the bytes in
+   * `aiImages`; `migrateLegacyImages` moves old ones over. See `AiImage`.
+   */
+  image?: Blob;
   /** pending → (analyzing) → done | failed; removed once saved to the diary or discarded. */
   status: 'pending' | 'analyzing' | 'done' | 'failed';
   error?: string;
@@ -71,6 +75,20 @@ export interface AiDraft {
   mealName: string;
 }
 
+/**
+ * Photo of an AI queue item, as bytes in its own table. Two WebKit pitfalls made inline Blobs
+ * unreliable: IndexedDB Blobs are file-backed, and a Blob object read earlier becomes unreadable
+ * once its record is written again (`WebKitBlobResource error 1`). The queue item is rewritten on
+ * every status change and review edit, so the photo lives apart from it, as an ArrayBuffer (always
+ * copied on read, never a file reference).
+ */
+export interface AiImage {
+  /** Same key as the queue item. */
+  localId: number;
+  bytes: ArrayBuffer;
+  type: string;
+}
+
 export interface KvItem {
   key: string;
   value: unknown;
@@ -93,6 +111,7 @@ export class UserDb extends Dexie {
   aiQueue!: EntityTable<AiQueueItem, 'localId'>;
   kv!: EntityTable<KvItem, 'key'>;
   photos!: EntityTable<LocalPhoto, 'id'>;
+  aiImages!: EntityTable<AiImage, 'localId'>;
 
   constructor(name: string, options?: ConstructorParameters<typeof Dexie>[1]) {
     super(name, options);
@@ -116,6 +135,10 @@ export class UserDb extends Dexie {
     this.version(2).stores({ exerciseTemplates: 'id, name' });
     // v3: meal photos (device copy + upload state). AiQueueItem.draft needs no index.
     this.version(3).stores({ photos: 'id, uploaded' });
+    // v4: AI queue photos as bytes in their own table (see `AiImage`). No `.upgrade()`: reading a Blob
+    // needs a non-IndexedDB promise, which would end the upgrade transaction; `migrateLegacyImages`
+    // moves old queue photos at runtime instead. Meal photos keep their table (`bytes` needs no index).
+    this.version(4).stores({ aiImages: 'localId' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

@@ -1,5 +1,6 @@
 import { uuidv7, type AiAnalysisResult, type Food, type MealItem } from '@ft/shared';
-import { describe, expect, it } from 'vitest';
+import { Blob as NodeBlob } from 'node:buffer';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addFoodToDraft,
   currentDraft,
@@ -11,7 +12,14 @@ import {
 } from '@/db/aiDraft';
 import { UserDb, type AiDraft } from '@/db/dexie';
 import { addItemToMeal, updateMealItem } from '@/db/entries';
-import { loadPhoto, storePhoto, uploadPendingPhotos } from '@/db/photos';
+import { loadPhoto, photoBlob, storePhoto, uploadPendingPhotos } from '@/db/photos';
+import {
+  discardQueueItem,
+  enqueuePhoto,
+  loadQueueImage,
+  migrateLegacyImages,
+  processQueue,
+} from '@/features/ai/queue';
 import { saveRecord } from '@/db/write';
 import { parseInto, formatInto, returnFromInto, rememberIntoStart } from '@/lib/into';
 
@@ -136,8 +144,127 @@ describe('AI review draft', () => {
   });
 });
 
+/**
+ * Blob as written by older app versions. fake-indexeddb clones values with Node's structuredClone,
+ * which keeps Node Blobs but not jsdom ones, so legacy records are built from Node's Blob.
+ */
+const legacyBlob = (bytes: number[]) =>
+  new NodeBlob([new Uint8Array(bytes)], { type: 'image/jpeg' }) as unknown as Blob;
+const isArrayBuffer = (v: unknown) => Object.prototype.toString.call(v) === '[object ArrayBuffer]';
+const bytesOf = async (b: Blob | null) => (b ? [...new Uint8Array(await b.arrayBuffer())] : null);
+
+describe('AI queue photos', () => {
+  const jpeg = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 9])], { type: 'image/jpeg' });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps the photo as bytes in aiImages, apart from the queue item', async () => {
+    const d = db();
+    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: 'halbe Portion' }, jpeg());
+    const item = (await d.aiQueue.get(id))!;
+    expect(item).toMatchObject({ status: 'pending', text: 'halbe Portion' });
+    expect('image' in item).toBe(false);
+    const row = (await d.aiImages.get(id))!;
+    expect(isArrayBuffer(row.bytes)).toBe(true);
+    expect(row.type).toBe('image/jpeg');
+    // Rewriting the queue item (status, review draft) leaves the photo row alone.
+    await d.aiQueue.update(id, { status: 'done' });
+    const image = await loadQueueImage(d, (await d.aiQueue.get(id))!);
+    expect(image).toMatchObject({ size: 4, type: 'image/jpeg' });
+    expect(await bytesOf(image)).toEqual([0xff, 0xd8, 0xff, 9]);
+  });
+
+  it('reads the inline photo of items from older app versions', async () => {
+    const d = db();
+    const localId = (await d.aiQueue.add({
+      createdAt: 1,
+      date: '2026-10-07',
+      meal: 0,
+      text: '',
+      image: legacyBlob([0xff, 0xd8, 0xff, 9]),
+      status: 'done',
+    })) as number;
+    expect(await bytesOf(await loadQueueImage(d, (await d.aiQueue.get(localId))!))).toEqual([
+      0xff, 0xd8, 0xff, 9,
+    ]);
+  });
+
+  it('discards the item and its photo together', async () => {
+    const d = db();
+    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    await discardQueueItem(d, id);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.aiImages.count()).toBe(0);
+  });
+
+  it('migrates inline photos once and removes orphaned ones', async () => {
+    const d = db();
+    const legacy = (await d.aiQueue.add({
+      createdAt: 1,
+      date: '2026-10-07',
+      meal: 0,
+      text: '',
+      image: legacyBlob([0xff, 0xd8, 0xff, 9]),
+      status: 'done',
+    })) as number;
+    await d.aiImages.put({ localId: 999, bytes: new ArrayBuffer(1), type: 'image/jpeg' });
+    await migrateLegacyImages(d);
+    const item = (await d.aiQueue.get(legacy))!;
+    expect('image' in item).toBe(false);
+    expect(item.status).toBe('done');
+    expect(await bytesOf(await loadQueueImage(d, item))).toEqual([0xff, 0xd8, 0xff, 9]);
+    expect(await d.aiImages.get(999)).toBeUndefined();
+    // Idempotent.
+    await migrateLegacyImages(d);
+    expect(await d.aiImages.count()).toBe(1);
+  });
+
+  it('fails an unanalyzed item whose photo is gone instead of retrying forever', async () => {
+    const d = db();
+    const id = (await d.aiQueue.add({
+      createdAt: 1,
+      date: '2026-10-07',
+      meal: 0,
+      text: '',
+      status: 'pending',
+    })) as number;
+    const fetchFn = vi.fn();
+    vi.stubGlobal('fetch', fetchFn);
+    await processQueue(d);
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'failed', error: 'Foto nicht mehr vorhanden' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
 describe('photos', () => {
   const blob = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3])], { type: 'image/jpeg' });
+
+  it('stores photos as bytes and reads legacy Blob records', async () => {
+    const d = db();
+    const id = await storePhoto(d, blob());
+    const p = (await d.photos.get(id))!;
+    expect(isArrayBuffer(p.bytes)).toBe(true);
+    expect(p).toMatchObject({ type: 'image/jpeg', uploaded: 0 });
+    expect(p.blob).toBeUndefined();
+    expect(await bytesOf(photoBlob(p))).toEqual([0xff, 0xd8, 0xff, 1, 2, 3]);
+    // Records written by older app versions hold a Blob.
+    await d.photos.put({
+      id: 'old',
+      blob: legacyBlob([0xff, 0xd8, 0xff, 1, 2, 3]),
+      uploaded: 1,
+      createdAt: 1,
+    });
+    expect(await bytesOf(await loadPhoto(d, 'old', async () => new Response(null, { status: 500 })))).toEqual(
+      [0xff, 0xd8, 0xff, 1, 2, 3],
+    );
+    // Uploads send the bytes with their type.
+    let sent: { type: string | null; body: unknown } | null = null;
+    await uploadPendingPhotos(d, async (_path, init) => {
+      sent = { type: new Headers(init?.headers).get('content-type'), body: init?.body };
+      return new Response(null, { status: 200 });
+    });
+    expect(sent!.type).toBe('image/jpeg');
+    expect(isArrayBuffer(sent!.body)).toBe(true);
+  });
 
   it('uploads pending photos once and survives permanent server refusals', async () => {
     const d = db();
@@ -179,6 +306,7 @@ describe('photos', () => {
     expect(await loadPhoto(d, 'remote-1', fetchFn)).toMatchObject({ size: 4, type: 'image/jpeg' });
     expect(await loadPhoto(d, 'remote-1', fetchFn)).toMatchObject({ size: 4 });
     expect(gets).toBe(1);
+    expect(isArrayBuffer((await d.photos.get('remote-1'))!.bytes)).toBe(true);
     expect(await loadPhoto(d, 'gone', async () => new Response(null, { status: 404 }))).toBeNull();
   });
 });

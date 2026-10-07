@@ -270,6 +270,20 @@ test('AI result "Nur eintragen" logs a named group without a saved meal', async 
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   await page.getByLabel('Name des Meals').fill('Mittag vom Foto');
+  // Regression (WebKit, broken thumbnails): many review writes, a reload, the photo still shows.
+  const grams = page.getByLabel('Gramm').first();
+  for (const g of ['210', '220', '230', '240', '200']) await grams.fill(g);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toHaveJSProperty('complete', true);
+  await expect
+    .poll(() => page.getByRole('img', { name: 'Analysiertes Foto' }).evaluate((i: HTMLImageElement) => i.naturalWidth))
+    .toBe(192);
+  await expect(page.getByLabel('Name des Meals')).toHaveValue('Mittag vom Foto');
+  await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
+  const thumb = page.locator('section', { hasText: 'Analysen' }).locator('img');
+  await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
+  await page.getByRole('button', { name: /Lebensmittel erkannt/ }).click();
   await expect(page.getByRole('button', { name: 'Als Meal speichern & eintragen' })).toBeVisible();
   await page.getByRole('button', { name: 'Nur eintragen' }).click();
 
