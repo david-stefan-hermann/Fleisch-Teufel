@@ -32,3 +32,4 @@ test-results
 
 # internal planning notes (contain infrastructure details)
 PLAN.md
+*.tmp.mjs

@@ -113,6 +113,9 @@ export function periodStats(rows: readonly DailyRow[]): PeriodStats {
     totalExerciseMinutes: rows.reduce((s, r) => s + r.exerciseMinutes, 0),
     weightStart,
     weightEnd,
-    weightChange: weightStart !== null && weightEnd !== null ? round(weightEnd - weightStart, 2) : null,
+    weightChange:
+      weights.length >= 2 && weightStart !== null && weightEnd !== null
+        ? round(weightEnd - weightStart, 2)
+        : null,
   };
 }

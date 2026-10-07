@@ -30,7 +30,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
       contentSecurityPolicy: {
         defaultSrc: ["'self'"],
         imgSrc: ["'self'", 'data:', 'blob:', 'https://images.openfoodfacts.org'],
-        connectSrc: ["'self'"],
+        connectSrc: ["'self'", 'https://images.openfoodfacts.org'],
         scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         workerSrc: ["'self'", 'blob:'],
@@ -94,7 +94,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
 
   const dist = opts.webDist;
   if (dist && existsSync(join(dist, 'index.html'))) {
-    const indexHtml = readFileSync(join(dist, 'index.html'), 'utf8');
+    const indexPath = join(dist, 'index.html');
     // Hashed build assets never change; everything else (sw.js, manifest, data) must revalidate.
     app.use('*', async (c, next) => {
       await next();
@@ -107,7 +107,8 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
     app.get('*', (c) => {
       if (/\.\w{2,5}$/.test(c.req.path)) return c.notFound();
       c.header('Cache-Control', 'no-cache');
-      return c.html(indexHtml);
+      // Read per request: tiny, OS-cached, and always matches the deployed asset hashes.
+      return c.html(readFileSync(indexPath, 'utf8'));
     });
   }
 

@@ -1,0 +1,112 @@
+import { Link } from '@tanstack/react-router';
+import {
+  ChevronRight,
+  Database,
+  Info,
+  ListOrdered,
+  Salad,
+  Target,
+  User,
+  UserCog,
+  UtensilsCrossed,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
+import { useSession } from '@/app/session';
+import { Page, Section } from '@/components/Page';
+import { syncLabel, useSyncState } from '@/components/SyncIndicator';
+import { Switch } from '@/components/ui/switch';
+import { patchRecord, saveRecord } from '@/db/write';
+import { useSettings } from '@/hooks/data';
+
+function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: string; hint?: string }) {
+  return (
+    <li>
+      <Link
+        to={to}
+        className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none [&>svg:first-child]:size-5 [&>svg:first-child]:text-muted-foreground"
+      >
+        {icon}
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">{label}</div>
+          {hint && <div className="truncate text-xs text-muted-foreground">{hint}</div>}
+        </div>
+        <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+      </Link>
+    </li>
+  );
+}
+
+export function MorePage() {
+  const { db, user } = useSession();
+  const settings = useSettings();
+  const sync = useSyncState();
+  return (
+    <Page title="Mehr">
+      <Section>
+        <ul className="divide-y divide-border/70">
+          <Row
+            to="/goals"
+            icon={<Target aria-hidden />}
+            label="Ziele"
+            hint="Kalorien, Makros je Wochentag, Nährstoffe"
+          />
+          <Row
+            to="/settings/profile"
+            icon={<User aria-hidden />}
+            label="Profil"
+            hint="Körperdaten, Aktivität, Zielgewicht"
+          />
+          <Row
+            to="/settings/meals"
+            icon={<ListOrdered aria-hidden />}
+            label="Mahlzeiten"
+            hint={settings?.mealNames.join(' · ')}
+          />
+        </ul>
+      </Section>
+      <Section>
+        <ul className="divide-y divide-border/70">
+          <Row to="/custom-foods" icon={<Salad aria-hidden />} label="Eigene Lebensmittel" />
+          <Row to="/meals" icon={<UtensilsCrossed aria-hidden />} label="Gespeicherte Meals" />
+        </ul>
+      </Section>
+      <Section>
+        <div className="flex min-h-14 items-center gap-3 px-4 py-2">
+          <label htmlFor="exercise-credit" className="min-w-0 flex-1">
+            <div className="font-medium">Trainingskalorien anrechnen</div>
+            <div className="text-xs text-muted-foreground">
+              Erhöht das Tagesziel um den Trainingsverbrauch
+            </div>
+          </label>
+          <Switch
+            id="exercise-credit"
+            checked={settings?.addExerciseCalories ?? true}
+            onCheckedChange={async (v) => {
+              if (!settings) return;
+              if (settings.updatedAt === 0)
+                await saveRecord(db, 'settings', { ...settings, addExerciseCalories: v });
+              else await patchRecord(db, 'settings', settings.id, { addExerciseCalories: v });
+            }}
+          />
+        </div>
+      </Section>
+      <Section>
+        <ul className="divide-y divide-border/70">
+          <Row
+            to="/settings/data"
+            icon={<Database aria-hidden />}
+            label="Daten & Synchronisation"
+            hint={syncLabel(sync)}
+          />
+          <Row to="/settings/account" icon={<UserCog aria-hidden />} label="Konto" hint={user.email} />
+          <Row
+            to="/about"
+            icon={<Info aria-hidden />}
+            label="Über Fleisch-Teufel"
+            hint="Quellen, Lizenzen, Version"
+          />
+        </ul>
+      </Section>
+    </Page>
+  );
+}
