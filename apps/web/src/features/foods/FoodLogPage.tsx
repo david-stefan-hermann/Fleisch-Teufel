@@ -1,25 +1,21 @@
 import {
   addDays,
   computeItem,
-  DISPLAY_NUTRIENTS,
-  get,
-  N,
   portionsFor,
+  targetsForDate,
   today,
   uuidv7,
   type Food,
   type FoodEntry,
-  type NutrientInfo,
   type Portion,
 } from '@ft/shared';
-import catalog from '@ft/shared/nutrients-catalog.json';
 import { Link, useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CalendarPlus, ChevronDown, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarPlus, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { MacroSplitBar } from '@/components/MacroBars';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
@@ -40,12 +36,10 @@ import { addFoodToDraft } from '@/db/aiDraft';
 import { addItemToMeal, logFoodEntry } from '@/db/entries';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
-import { useSettings } from '@/hooks/data';
-import { fmt0, fmt1, fmtDayShort, fmtGrams, NO_VALUE } from '@/lib/format';
+import { useGoals, useSettings } from '@/hooks/data';
+import { fmtDayShort, fmtGrams } from '@/lib/format';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { cn } from '@/lib/utils';
-
-const CATALOG = catalog as NutrientInfo[];
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
 export function FoodLogPage() {
@@ -195,14 +189,15 @@ function FoodLogEditor({
     [db, into?.kind === 'meal' ? into.mealId : null],
   );
   const settings = useSettings();
+  const goals = useGoals();
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
   const date = entry?.date ?? defaultDate ?? today();
+  const targets = targetsForDate(goals ?? [], date);
   const [meal, setMeal] = useState(entry?.meal ?? defaultMeal ?? 0);
   const [portion, setPortion] = useState<Portion | null>(initial.portion);
   const [quantity, setQuantity] = useState<number | null>(initial.quantity);
   const [extraDays, setExtraDays] = useState<string[]>([]);
   const [showDays, setShowDays] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [portionDialog, setPortionDialog] = useState(false);
 
   const effectivePortion = portion ?? portions[0] ?? { label: '100 g', grams: 100 };
@@ -285,10 +280,6 @@ function FoodLogEditor({
     });
     await navigate({ to: '/', search: { date: entry.date } });
   }
-
-  const per = unit === 'ml' ? '100 ml' : '100 g';
-  const micros = DISPLAY_NUTRIENTS.slice(4);
-  const allRows = CATALOG.filter((c) => food.nutrients[c.code] !== undefined);
 
   return (
     <Page
@@ -449,61 +440,7 @@ function FoodLogEditor({
       </Section>
 
       <Section title="Nährwerte dieser Menge">
-        <div className="px-4 pb-4">
-          <div className="flex items-baseline justify-between">
-            <span className="tabular text-3xl font-bold">{fmt0(get(nutrients, N.kcal))}</span>
-            <span className="text-sm text-muted-foreground">kcal</span>
-          </div>
-          <div className="my-3">
-            <MacroSplitBar
-              protein={get(nutrients, N.protein)}
-              carbs={get(nutrients, N.carbs)}
-              fat={get(nutrients, N.fat)}
-            />
-          </div>
-          <dl className="tabular grid grid-cols-3 gap-2 text-sm">
-            <Macro label="Protein" value={get(nutrients, N.protein)} className="bg-protein" />
-            <Macro label="Kohlenhydrate" value={get(nutrients, N.carbs)} className="bg-carbs" />
-            <Macro label="Fett" value={get(nutrients, N.fat)} className="bg-fat" />
-          </dl>
-          <dl className="tabular mt-3 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border/70 pt-3 text-sm">
-            {micros.map((m) => (
-              <div key={m.code} className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">{m.de}</dt>
-                <dd>{nutrients[m.code] !== undefined ? fmtGrams(nutrients[m.code]!) : NO_VALUE}</dd>
-              </div>
-            ))}
-          </dl>
-          {allRows.length > 12 && (
-            <button
-              type="button"
-              aria-expanded={showAll}
-              onClick={() => setShowAll(!showAll)}
-              className="mt-3 flex items-center gap-1 text-sm text-primary hover:underline focus-visible:underline focus-visible:outline-none"
-            >
-              Alle {allRows.length} Nährstoffe pro {per}
-              <ChevronDown
-                className={cn(
-                  'size-4 transition-transform motion-reduce:transition-none',
-                  showAll && 'rotate-180',
-                )}
-                aria-hidden
-              />
-            </button>
-          )}
-          {showAll && (
-            <dl className="tabular mt-2 grid gap-y-1 text-xs">
-              {allRows.map((c) => (
-                <div key={c.code} className="flex justify-between gap-2 border-b border-border/40 py-1">
-                  <dt className="text-muted-foreground">{c.de}</dt>
-                  <dd className="shrink-0">
-                    {fmt1(food.nutrients[c.code]!)} {c.unit}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
+        <NutrientBreakdown className="px-4 pb-3" nutrients={nutrients} targets={targets} />
       </Section>
 
       {food.source === 'bls' && (
@@ -550,18 +487,6 @@ function FoodLogEditor({
 
 function stepFor(p: Portion): number {
   return p.grams <= 1 ? 10 : p.grams === 100 ? 0.5 : 1;
-}
-
-function Macro({ label, value, className }: { label: string; value: number; className?: string }) {
-  return (
-    <div>
-      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span className={cn('size-2 rounded-full', className)} aria-hidden />
-        {label}
-      </dt>
-      <dd className="font-semibold">{fmtGrams(value)}</dd>
-    </div>
-  );
 }
 
 function NewPortionDialog({

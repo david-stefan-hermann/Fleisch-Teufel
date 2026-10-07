@@ -8,8 +8,18 @@ import {
   type NutrientMap,
 } from '@ft/shared';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Camera, ChevronDown, Copy, EllipsisVertical, ListPlus, Plus, Save, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  Camera,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  EllipsisVertical,
+  ListPlus,
+  Plus,
+  Save,
+  Trash2,
+} from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { useAddSheet } from '@/components/AddSheet';
@@ -34,11 +44,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { UserDb } from '@/db/dexie';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
-import { fmt0, fmt1, fmtGrams } from '@/lib/format';
+import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { DraggableRow, useDiaryDrag, useMealDropZone } from './DiaryDnd';
+import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
 
 export function entryAmountLabel(
   e: Pick<FoodEntry, 'source' | 'quantity' | 'portionLabel' | 'portionGrams' | 'grams'>,
@@ -57,14 +68,12 @@ export function MealCard({
   name,
   entries,
   totals,
-  showMicros,
 }: {
   date: ISODate;
   meal: number;
   name: string;
   entries: FoodEntry[];
   totals: NutrientMap;
-  showMicros: boolean;
 }) {
   const db = useDb();
   const navigate = useNavigate();
@@ -72,21 +81,6 @@ export function MealCard({
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
   const [saveOpen, setSaveOpen] = useState(false);
   const kcal = get(totals, N.kcal);
-
-  const rows = groupDiaryEntries(entries);
-  const mealInfo = useMealInfo(rows.map((r) => (r.kind === 'group' ? r.mealId : null)));
-
-  /** Soft-deletes entries with an undo toast. */
-  async function removeEntries(list: FoodEntry[], message?: string) {
-    const ids = list.map((e) => e.id);
-    for (const id of ids) await deleteRecord(db, 'foodEntries', id);
-    toast(message ?? (list.length === 1 ? `${list[0]!.name} gelöscht` : `${list.length} Einträge gelöscht`), {
-      action: {
-        label: 'Rückgängig',
-        onClick: () => void Promise.all(ids.map((id) => restoreRecord(db, 'foodEntries', id))),
-      },
-    });
-  }
 
   return (
     <Section
@@ -96,12 +90,22 @@ export function MealCard({
         dropOver && 'bg-primary/5 ring-2 ring-primary/60',
       )}
       title={
-        <span className="flex items-baseline gap-2">
-          {name}
-          {kcal > 0 && (
-            <span className="tabular text-sm font-normal text-muted-foreground">{fmt0(kcal)} kcal</span>
-          )}
-        </span>
+        // The meal's own page: nutrient overview and its entries.
+        <Link
+          to="/diary-meal"
+          search={{ date, meal }}
+          className="-mx-2 flex min-h-11 items-center gap-2 rounded-lg px-2 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate">{name}</span>
+            {kcal > 0 && (
+              <span className="tabular shrink-0 text-sm font-normal text-muted-foreground">
+                {fmt0(kcal)} kcal
+              </span>
+            )}
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
       }
       action={
         <div className="flex items-center">
@@ -125,7 +129,7 @@ export function MealCard({
               <DropdownMenuItem
                 variant="destructive"
                 disabled={entries.length === 0}
-                onSelect={() => void removeEntries(entries, `${name} geleert`)}
+                onSelect={() => void removeEntriesWithUndo(db, entries, `${name} geleert`)}
               >
                 <Trash2 aria-hidden /> Alle Einträge löschen
               </DropdownMenuItem>
@@ -154,46 +158,8 @@ export function MealCard({
           {dragActive ? 'Hier ablegen' : 'Lebensmittel hinzufügen'}
         </button>
       ) : (
-        <ul className="divide-y divide-border/70">
-          {rows.map((row) =>
-            row.kind === 'entry' ? (
-              <li key={row.entry.id}>
-                <DraggableRow
-                  id={row.entry.id}
-                  data={{
-                    ids: [row.entry.id],
-                    meal,
-                    name: row.entry.name,
-                    detail: entryAmountLabel(row.entry),
-                    nutrients: row.entry.nutrients,
-                  }}
-                >
-                  <EntryRow
-                    entry={row.entry}
-                    date={date}
-                    meal={meal}
-                    onDelete={() => void removeEntries([row.entry])}
-                  />
-                </DraggableRow>
-              </li>
-            ) : (
-              <li key={row.groupId}>
-                <GroupRow
-                  groupId={row.groupId}
-                  name={(row.mealId && mealInfo?.get(row.mealId)?.name) || row.groupName || 'Meal'}
-                  photoId={(row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
-                  entries={row.entries}
-                  nutrients={row.nutrients}
-                  date={date}
-                  meal={meal}
-                  onDelete={(list) => void removeEntries(list)}
-                />
-              </li>
-            ),
-          )}
-        </ul>
+        <DiaryRows entries={entries} date={date} meal={meal} draggable />
       )}
-      {showMicros && entries.length > 0 && <MealMicros totals={totals} />}
       <SaveMealDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
@@ -201,6 +167,99 @@ export function MealCard({
         entries={entries}
       />
     </Section>
+  );
+}
+
+/** Soft-deletes diary entries with an undo toast. */
+export async function removeEntriesWithUndo(db: UserDb, list: FoodEntry[], message?: string): Promise<void> {
+  const ids = list.map((e) => e.id);
+  for (const id of ids) await deleteRecord(db, 'foodEntries', id);
+  toast(message ?? (list.length === 1 ? `${list[0]!.name} gelöscht` : `${list.length} Einträge gelöscht`), {
+    action: {
+      label: 'Rückgängig',
+      onClick: () => void Promise.all(ids.map((id) => restoreRecord(db, 'foodEntries', id))),
+    },
+  });
+}
+
+/**
+ * Rows of one diary meal (single entries and groups, see `groupDiaryEntries`), swipe to delete.
+ * `draggable`: long press moves a row to another meal (diary only, inside `DiaryDnd`).
+ */
+export function DiaryRows({
+  entries,
+  date,
+  meal,
+  draggable = false,
+}: {
+  entries: FoodEntry[];
+  date: ISODate;
+  meal: number;
+  draggable?: boolean;
+}) {
+  const db = useDb();
+  const rows = groupDiaryEntries(entries);
+  const mealInfo = useMealInfo(rows.map((r) => (r.kind === 'group' ? r.mealId : null)));
+  return (
+    <ul className="divide-y divide-border/70">
+      {rows.map((row) =>
+        row.kind === 'entry' ? (
+          <li key={row.entry.id}>
+            <MaybeDraggable
+              enabled={draggable}
+              id={row.entry.id}
+              data={{
+                ids: [row.entry.id],
+                meal,
+                name: row.entry.name,
+                detail: entryAmountLabel(row.entry),
+                nutrients: row.entry.nutrients,
+              }}
+            >
+              <EntryRow
+                entry={row.entry}
+                date={date}
+                meal={meal}
+                onDelete={() => void removeEntriesWithUndo(db, [row.entry])}
+              />
+            </MaybeDraggable>
+          </li>
+        ) : (
+          <li key={row.groupId}>
+            <GroupRow
+              groupId={row.groupId}
+              name={(row.mealId && mealInfo?.get(row.mealId)?.name) || row.groupName || 'Meal'}
+              photoId={(row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
+              entries={row.entries}
+              nutrients={row.nutrients}
+              date={date}
+              meal={meal}
+              draggable={draggable}
+              onDelete={(list) => void removeEntriesWithUndo(db, list)}
+            />
+          </li>
+        ),
+      )}
+    </ul>
+  );
+}
+
+function MaybeDraggable({
+  enabled,
+  id,
+  data,
+  children,
+}: {
+  enabled: boolean;
+  id: string;
+  data: DragRowData;
+  children: ReactNode;
+}) {
+  if (!enabled) return <>{children}</>;
+  return (
+    <DraggableRow id={id} data={data}>
+      {children}
+    </DraggableRow>
   );
 }
 
@@ -266,6 +325,7 @@ function GroupRow({
   nutrients,
   date,
   meal,
+  draggable,
   onDelete,
 }: {
   groupId: string;
@@ -275,6 +335,7 @@ function GroupRow({
   nutrients: NutrientMap;
   date: ISODate;
   meal: number;
+  draggable: boolean;
   onDelete: (entries: FoodEntry[]) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -283,9 +344,16 @@ function GroupRow({
   return (
     <>
       {/* Only the group row is draggable (the whole meal moves), not its expanded ingredients. */}
-      <DraggableRow
+      <MaybeDraggable
+        enabled={draggable}
         id={`group:${groupId}`}
-        data={{ ids: entries.map((e) => e.id), meal, name, detail: `${entries.length} Zutaten`, nutrients }}
+        data={{
+          ids: entries.map((e) => e.id),
+          meal,
+          name,
+          detail: fmtIngredients(entries.length),
+          nutrients,
+        }}
       >
         <SwipeToDelete label={`${name} löschen`} onDelete={() => onDelete(entries)} disabled={dragging}>
           <button
@@ -307,7 +375,7 @@ function GroupRow({
                 <span className="truncate">{name}</span>
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                {entries.length} Zutaten
+                {fmtIngredients(entries.length)}
                 <ChevronDown
                   className={cn(
                     'size-3.5 transition-transform motion-reduce:transition-none',
@@ -320,7 +388,7 @@ function GroupRow({
             <NutrientSummary nutrients={nutrients} />
           </button>
         </SwipeToDelete>
-      </DraggableRow>
+      </MaybeDraggable>
       {expanded && (
         <ul className="border-t border-border/70 bg-muted/40" aria-label={`Zutaten von ${name}`}>
           {entries.map((e) => (
@@ -337,25 +405,6 @@ function GroupRow({
         </ul>
       )}
     </>
-  );
-}
-
-function MealMicros({ totals }: { totals: NutrientMap }) {
-  const items = [
-    ['Ballaststoffe', N.fiber],
-    ['Zucker', N.sugar],
-    ['Ges. Fett', N.satFat],
-    ['Salz', N.salt],
-  ] as const;
-  return (
-    <dl className="tabular grid grid-cols-4 gap-2 border-t border-border/70 px-4 py-2 text-[11px] text-muted-foreground">
-      {items.map(([label, key]) => (
-        <div key={key}>
-          <dt>{label}</dt>
-          <dd className="font-medium text-foreground">{fmtGrams(get(totals, key))}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 

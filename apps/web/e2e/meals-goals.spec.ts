@@ -69,18 +69,50 @@ test('account page fits, toasts sit at the bottom, swipe action fills the card c
   expect(t.y).toBeGreaterThan(page.viewportSize()!.height / 2);
 });
 
-test('nutrients are details of the overview, opened by tapping it', async ({ page }) => {
+test('day overview: "Nährstoffe" swaps the target bars for the nutrient overview', async ({ page }) => {
   await register(page);
+  await quickAdd(page, 0, 'Müsli', '350');
   await page.goto('/');
   const overview = page.getByRole('region', { name: 'Kalorien heute' });
+  const targetBars = overview.getByRole('meter', { name: 'Protein' });
+  await expect(targetBars).toHaveCount(1);
   await expect(overview.getByText('Ballaststoffe')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Nährstoffe' })).toHaveCount(0);
-  await overview.getByText('kcal übrig').click();
-  await expect(overview.getByText('Ballaststoffe')).toBeVisible();
-  const toggle = overview.getByRole('button', { name: 'Weniger' });
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  const toggle = overview.getByRole('button', { name: 'Nährstoffe' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
+  // The overview replaces the three target bars: one protein meter (in the overview), no kcal switch.
+  await expect(overview.getByRole('img', { name: /^Energieverteilung/ })).toBeVisible();
+  await expect(overview.getByText(/350\s\/\s2\.000/)).toBeVisible();
+  await expect(overview.getByRole('button', { name: /Anteil am Tagesziel/ })).toHaveCount(0);
+  await expect(overview.getByRole('meter', { name: 'Protein' })).toHaveCount(1);
+  // "Weitere Nährstoffe" is open in the day overview, with the daily targets.
+  await expect(overview.getByText('Ballaststoffe')).toBeVisible();
+  await expect(overview.getByText(/von mind\.\s30\sg/)).toBeVisible();
+  await overview.getByRole('button', { name: 'Woher kommen die Zielwerte?' }).click();
+  await expect(overview.getByText('DGE-Referenzwert: mind. 30 g/Tag')).toBeVisible();
+
+  const less = overview.getByRole('button', { name: 'Weniger' });
+  await expect(less).toHaveAttribute('aria-expanded', 'true');
+  await less.click();
   await expect(overview.getByText('Ballaststoffe')).toHaveCount(0);
+  await expect(overview.getByRole('img', { name: /^Energieverteilung/ })).toHaveCount(0);
+  await expect(targetBars).toBeVisible();
+
+  // The meal header opens the meal's own page: overview with "Summe" and its entries.
+  await page.getByRole('link', { name: /^Frühstück/ }).click();
+  await expect(page).toHaveURL(/\/diary-meal\?.*meal=0/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Frühstück');
+  await expect(page.getByText('Summe')).toBeVisible();
+  const kcal = page.getByRole('button', { name: /Anteil am Tagesziel/ });
+  await kcal.click();
+  await expect(kcal).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByText('Anteil am Tagesziel', { exact: true })).toBeVisible();
+  const entries = page.locator('section', { has: page.getByRole('heading', { name: 'Einträge' }) });
+  await expect(entries.getByText('Müsli', { exact: true })).toBeVisible();
+  // Rows behave as in the diary: a tap edits the entry.
+  await entries.getByText('Müsli', { exact: true }).click();
+  await expect(page).toHaveURL(/quick-add/);
 });
 
 test('edit a saved meal: add an ingredient via search, change an amount, add a photo', async ({ page }) => {
@@ -277,7 +309,9 @@ test('AI result "Nur eintragen" logs a named group without a saved meal', async 
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toHaveJSProperty('complete', true);
   await expect
-    .poll(() => page.getByRole('img', { name: 'Analysiertes Foto' }).evaluate((i: HTMLImageElement) => i.naturalWidth))
+    .poll(() =>
+      page.getByRole('img', { name: 'Analysiertes Foto' }).evaluate((i: HTMLImageElement) => i.naturalWidth),
+    )
     .toBe(192);
   await expect(page.getByLabel('Name des Meals')).toHaveValue('Mittag vom Foto');
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();

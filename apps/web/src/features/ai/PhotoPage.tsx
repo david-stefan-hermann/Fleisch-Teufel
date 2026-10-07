@@ -1,4 +1,4 @@
-import { computeItem, get, N, sumNutrients, type AiAnalysisResult } from '@ft/shared';
+import { computeItem, get, N, sumNutrients, targetsForDate, type AiAnalysisResult } from '@ft/shared';
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -23,8 +23,8 @@ import {
   type ScannerError,
   type TorchState,
 } from '@/components/BarcodeScanner';
-import { MacroSplitBar } from '@/components/MacroBars';
 import { MealPhoto, useObjectUrl } from '@/components/MealPhoto';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +37,7 @@ import { currentDraft, patchRow, rowGrams, scaleDraft, type RowGrams } from '@/d
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { logAiItems, saveAiMeal } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
-import { useSettings } from '@/hooks/data';
+import { useGoals, useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
@@ -416,6 +416,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
   const navigate = useNavigate();
   const router = useRouter();
   const settings = useSettings();
+  const goals = useGoals();
   const result = item.result as AiAnalysisResult;
   const image = useAiImage(item);
   const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
@@ -643,14 +644,10 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
               />
             </div>
           )}
-          <div className="flex items-baseline justify-between">
-            <span className="font-semibold">Summe</span>
-            <span className="tabular text-2xl font-bold">{fmt0(get(totals, N.kcal))} kcal</span>
-          </div>
-          <MacroSplitBar
-            protein={get(totals, N.protein)}
-            carbs={get(totals, N.carbs)}
-            fat={get(totals, N.fat)}
+          <NutrientBreakdown
+            title="Summe"
+            nutrients={totals}
+            targets={targetsForDate(goals ?? [], item.date)}
           />
           <div className="grid gap-1.5">
             <Label htmlFor="result-meal">Mahlzeit</Label>

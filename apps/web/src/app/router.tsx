@@ -164,6 +164,11 @@ export const routes = {
       clean({ date: dateParam(s.date), meal: s.meal === undefined ? undefined : mealParam(s.meal) }),
     component: lazyRouteComponent(() => import('@/features/meals/MealPage'), 'MealPage'),
   }),
+  diaryMeal: createRoute({
+    ...r('/diary-meal'),
+    validateSearch: validateMeal,
+    component: lazyRouteComponent(() => import('@/features/diary/DiaryMealPage'), 'DiaryMealPage'),
+  }),
   copyMeal: createRoute({
     ...r('/copy-meal'),
     validateSearch: validateMeal,

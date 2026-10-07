@@ -1,8 +1,8 @@
 import { dateRange, type ISODate } from './dates.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
-import { get, round, sumNutrients } from './nutrition.js';
-import type { ExerciseEntry, FoodEntry, Goal, WeightEntry } from './schemas.js';
+import { get, multiplyNutrients, round, sumNutrients } from './nutrition.js';
+import type { DayTarget, ExerciseEntry, FoodEntry, Goal, WeightEntry } from './schemas.js';
 
 export interface DailyRow {
   date: ISODate;
@@ -76,6 +76,10 @@ export interface PeriodStats {
     salt: number;
   };
   avgTargetKcal: number;
+  /** Average per logged day of every nutrient code (input of the nutrient overview, "Ø pro Tag"). */
+  avgNutrients: NutrientMap;
+  /** Average daily targets over the logged days (kcal and macro grams). */
+  avgTargets: DayTarget;
   daysUnderGoal: number;
   totalExerciseKcal: number;
   totalExerciseMinutes: number;
@@ -105,6 +109,13 @@ export function periodStats(rows: readonly DailyRow[]): PeriodStats {
       salt: avgOf(N.salt),
     },
     avgTargetKcal: round(logged.reduce((s, r) => s + r.targetKcal, 0) / n, 0),
+    avgNutrients: logged.length ? multiplyNutrients(sumNutrients(logged.map((r) => r.nutrients)), 1 / n) : {},
+    avgTargets: {
+      kcal: round(logged.reduce((s, r) => s + r.targetKcal, 0) / n, 0),
+      proteinG: round(logged.reduce((s, r) => s + r.targetProteinG, 0) / n, 1),
+      fatG: round(logged.reduce((s, r) => s + r.targetFatG, 0) / n, 1),
+      carbsG: round(logged.reduce((s, r) => s + r.targetCarbsG, 0) / n, 1),
+    },
     daysUnderGoal: logged.filter((r) => get(r.nutrients, N.kcal) <= r.targetKcal + r.exerciseKcal).length,
     totalExerciseKcal: round(
       rows.reduce((s, r) => s + r.exerciseKcal, 0),

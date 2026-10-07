@@ -3,9 +3,9 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { fmt0 } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { NutrientList } from './NutrientCard';
 
 export function CalorieCard({
   summary,
@@ -48,21 +48,30 @@ export function CalorieCard({
           </div>
         </dl>
       </div>
-      <MacroBars
-        className="mt-4"
-        macros={[
-          { key: 'protein', label: 'Protein', value: get(summary.food, N.protein), target: t.proteinG },
-          { key: 'carbs', label: 'Kohlenhydrate', value: get(summary.food, N.carbs), target: t.carbsG },
-          { key: 'fat', label: 'Fett', value: get(summary.food, N.fat), target: t.fatG },
-        ]}
-      />
+      {/* Closed: the three target bars. Open: the nutrient overview replaces them. */}
+      {!open && (
+        <MacroBars
+          className="mt-4"
+          macros={[
+            { key: 'protein', label: 'Protein', value: get(summary.food, N.protein), target: t.proteinG },
+            { key: 'carbs', label: 'Kohlenhydrate', value: get(summary.food, N.carbs), target: t.carbsG },
+            { key: 'fat', label: 'Fett', value: get(summary.food, N.fat), target: t.fatG },
+          ]}
+        />
+      )}
       {open && (
-        <div id="day-details" className="mt-4 cursor-auto border-t border-border/70 pt-4">
-          <NutrientList summary={summary} showSources={sources} />
+        <div id="day-details" className="mt-4 cursor-auto border-t border-border/70 pt-3.5">
+          <NutrientBreakdown
+            variant="day"
+            nutrients={summary.food}
+            targets={t}
+            showMicroSources={sources}
+            defaultMicrosOpen
+          />
           <button
             type="button"
             onClick={() => setSources(!sources)}
-            className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+            className="mt-1 min-h-8 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             {sources ? 'Quellen ausblenden' : 'Woher kommen die Zielwerte?'}
           </button>
@@ -75,7 +84,7 @@ export function CalorieCard({
         onClick={() => setOpen(!open)}
         className="-mb-2 mt-2 flex h-9 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
       >
-        {open ? 'Weniger' : 'Nährstoffe & Details'}
+        {open ? 'Weniger' : 'Nährstoffe'}
         <ChevronDown
           className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')}
           aria-hidden

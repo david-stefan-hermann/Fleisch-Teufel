@@ -105,7 +105,6 @@ export function DiaryPage() {
                 name={settings.mealNames[m] ?? `Mahlzeit ${m + 1}`}
                 entries={entries.filter((e) => e.meal === m)}
                 totals={summary.perMeal[m] ?? {}}
-                showMicros={false}
               />
             ))}
           </DiaryDnd>

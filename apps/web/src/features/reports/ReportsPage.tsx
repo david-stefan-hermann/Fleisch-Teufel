@@ -7,6 +7,7 @@ import {
   periodStats,
   startOfMonth,
   startOfWeek,
+  targetsForDate,
   type DailyRow,
 } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
@@ -16,6 +17,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Chart, xOf, type ChartSeries } from '@/components/Chart';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -165,7 +167,7 @@ export function ReportsPage() {
 
       {stats && (
         <Section>
-          <dl className="tabular grid grid-cols-3 gap-y-4 p-4 text-center">
+          <dl className="tabular grid grid-cols-2 gap-x-2 gap-y-4 p-4 pb-3.5 text-center">
             <Stat
               label="Ø kcal"
               value={stats.loggedDays ? fmt0(stats.avg.kcal) : NO_VALUE}
@@ -185,18 +187,22 @@ export function ReportsPage() {
               }
               sub={stats.weightEnd !== null ? `${fmt1(stats.weightEnd)} kg` : 'keine Werte'}
             />
-            <Stat label="Ø Protein" value={stats.loggedDays ? g(stats.avg.protein) : NO_VALUE} />
-            <Stat label="Ø Kohlenh." value={stats.loggedDays ? g(stats.avg.carbs) : NO_VALUE} />
-            <Stat label="Ø Fett" value={stats.loggedDays ? g(stats.avg.fat) : NO_VALUE} />
-            <Stat label="Ø Ballaststoffe" value={stats.loggedDays ? g(stats.avg.fiber) : NO_VALUE} />
-            <Stat label="Ø Salz" value={stats.loggedDays ? g(stats.avg.salt) : NO_VALUE} />
             <Stat
               label="Training"
               value={`${fmt0(stats.totalExerciseMinutes)} Min.`}
               sub={k(stats.totalExerciseKcal)}
             />
           </dl>
-          <p className="px-4 pb-3 text-xs text-muted-foreground">
+          {stats.loggedDays > 0 && (
+            <NutrientBreakdown
+              variant="day"
+              className="mx-4 border-t border-border/70 pt-3.5"
+              title="Ø pro Tag"
+              nutrients={stats.avgNutrients}
+              targets={{ ...stats.avgTargets, micros: targetsForDate(goals ?? [], p.to).micros }}
+            />
+          )}
+          <p className="px-4 pt-2.5 pb-3 text-xs text-muted-foreground">
             Durchschnitte nur über Tage mit Einträgen.
           </p>
         </Section>

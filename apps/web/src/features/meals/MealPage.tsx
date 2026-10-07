@@ -1,12 +1,21 @@
-import { get, N, rescaleItem, sumNutrients, today, type Meal, type MealItem } from '@ft/shared';
+import {
+  get,
+  N,
+  rescaleItem,
+  sumNutrients,
+  targetsForDate,
+  today,
+  type Meal,
+  type MealItem,
+} from '@ft/shared';
 import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { MacroSplitBar } from '@/components/MacroBars';
 import { MealPhoto } from '@/components/MealPhoto';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -28,7 +37,7 @@ import { storePhoto } from '@/db/photos';
 import { deleteRecord, patchRecord, restoreRecord } from '@/db/write';
 import { compressImage } from '@/features/ai/image';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { useSettings } from '@/hooks/data';
+import { useGoals, useSettings } from '@/hooks/data';
 import { fmt0, fmtGrams, fmtIngredients } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { logItems } from './logMeal';
@@ -43,6 +52,7 @@ export function MealPage() {
   const navigate = useNavigate();
   const router = useRouter();
   const settings = useSettings();
+  const goals = useGoals();
   const meal = useLiveQuery(async () => (await db.meals.get(mealId)) ?? null, [db, mealId]);
   const [name, setName] = useState<string | null>(null);
   const [factor, setFactor] = useState(1);
@@ -112,14 +122,7 @@ export function MealPage() {
           />
         </div>
       </Section>
-      <Section title={`Zutaten · ${fmt0(get(totals, N.kcal))} kcal`}>
-        <div className="px-4 pb-2">
-          <MacroSplitBar
-            protein={get(totals, N.protein)}
-            carbs={get(totals, N.carbs)}
-            fat={get(totals, N.fat)}
-          />
-        </div>
+      <Section title="Zutaten">
         <ul className="divide-y divide-border/70 border-t border-border/70">
           {meal.items.map((i, idx) => (
             <li key={`${idx}-${i.name}`}>
@@ -154,6 +157,13 @@ export function MealPage() {
             Einträge. Bereits eingetragene Tage bleiben, wie sie sind.
           </p>
         </div>
+      </Section>
+      <Section title="Nährwerte">
+        <NutrientBreakdown
+          className="px-4 pb-3"
+          nutrients={totals}
+          targets={targetsForDate(goals ?? [], date)}
+        />
       </Section>
       <Section title="Eintragen">
         <div className="grid gap-4 px-4 pb-4">

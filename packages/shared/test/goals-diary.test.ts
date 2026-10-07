@@ -132,5 +132,35 @@ describe('day summary & reports', () => {
     expect(st.daysUnderGoal).toBe(2);
     expect(st.weightChange).toBe(-0.6);
     expect(st.totalExerciseMinutes).toBe(30);
+    // Averages of all codes over the two logged days, and the average daily targets.
+    expect(st.avgNutrients).toEqual({ ENERCC: 1050 });
+    expect(st.avgTargets).toEqual({ kcal: 2000, proteinG: 150, fatG: 70, carbsG: 200 });
+  });
+
+  it('averages every nutrient code and the weekday targets of logged days', () => {
+    const rows = dailyRows({
+      from: '2026-10-09',
+      to: '2026-10-11',
+      entries: [
+        entry('2026-10-09', 0, 1000, { PROT625: 60, FIBT: 20, VITC: 50 }),
+        entry('2026-10-10', 0, 3000, { PROT625: 140, FIBT: 30 }),
+      ],
+      exercises: [],
+      weights: [],
+      // Weekend (Saturday 10th) has more kcal, the unlogged Sunday does not count.
+      goals: [goal('2026-10-01', 2000, 2600)],
+    });
+    const st = periodStats(rows);
+    expect(st.avgNutrients).toEqual({ ENERCC: 2000, PROT625: 100, FIBT: 25, VITC: 25 });
+    expect(st.avgTargets.kcal).toBe(2300);
+    expect(st.avgTargets.proteinG).toBe(150);
+  });
+
+  it('has empty averages without logged days', () => {
+    const st = periodStats(
+      dailyRows({ from: '2026-10-09', to: '2026-10-10', entries: [], exercises: [], weights: [], goals: [] }),
+    );
+    expect(st.avgNutrients).toEqual({});
+    expect(st.avgTargets).toEqual({ kcal: 0, proteinG: 0, fatG: 0, carbsG: 0 });
   });
 });

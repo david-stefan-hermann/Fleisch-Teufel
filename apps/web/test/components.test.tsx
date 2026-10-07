@@ -1,14 +1,16 @@
-import { uuidv7 } from '@ft/shared';
+import { targetsForDate, uuidv7 } from '@ft/shared';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BarcodeScanner, TorchButton, type TorchState } from '@/components/BarcodeScanner';
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
+import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { UserDb } from '@/db/dexie';
+import { NO_VALUE } from '@/lib/format';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
@@ -65,10 +67,177 @@ describe('CalorieRing', () => {
 });
 
 describe('MacroBars', () => {
+  const width = (el: Element | null) => Number.parseFloat((el as HTMLElement).style.width);
+
   it('exposes values as accessible meters', () => {
     render(<MacroBars macros={[{ key: 'protein', label: 'Protein', value: 80, target: 150 }]} />);
     const meter = screen.getByRole('meter', { name: 'Protein' });
     expect(meter.getAttribute('aria-valuenow')).toBe('80');
+    expect(width(meter.querySelector('[data-part=fill]'))).toBeCloseTo(53.3, 1);
+    expect(meter.querySelector('[data-part=excess]')).toBeNull();
+  });
+
+  it('lays the excess over a full bar in red', () => {
+    render(<MacroBars macros={[{ key: 'fat', label: 'Fett', value: 76, target: 55 }]} />);
+    const meter = screen.getByRole('meter', { name: 'Fett' });
+    expect(width(meter.querySelector('[data-part=fill]'))).toBe(100);
+    const excess = meter.querySelector('[data-part=excess]')!;
+    expect(excess.className).toContain('bg-over');
+    expect(width(excess)).toBeCloseTo(38.2, 1);
+    expect(screen.getByText('76').className).toContain('text-over');
+  });
+
+  it('caps the excess at the full width and ignores rounding noise', () => {
+    render(
+      <MacroBars
+        macros={[
+          { key: 'carbs', label: 'Kohlenhydrate', value: 400, target: 100 },
+          { key: 'protein', label: 'Protein', value: 55.3, target: 55 },
+        ]}
+      />,
+    );
+    const carbs = screen.getByRole('meter', { name: 'Kohlenhydrate' });
+    expect(width(carbs.querySelector('[data-part=excess]'))).toBe(100);
+    // "55 / 55 g" is on target, not over.
+    expect(screen.getByRole('meter', { name: 'Protein' }).querySelector('[data-part=excess]')).toBeNull();
+  });
+});
+
+describe('NutrientBreakdown', () => {
+  const targets = {
+    kcal: 1700,
+    proteinG: 130,
+    carbsG: 170,
+    fatG: 55,
+    micros: targetsForDate([], '2026-10-07').micros,
+  };
+  const meters = () =>
+    ['Protein', 'Kohlenhydrate', 'Fett'].map((name) => screen.getByRole('meter', { name }));
+  const macroLine = (key: string) => document.querySelector(`[data-macro=${key}] > div`)!.textContent!;
+  const norm = (t: string) => t.replace(/\u00a0/g, ' ');
+
+  it('splits the energy into whole percents that sum to 100', () => {
+    render(<NutrientBreakdown nutrients={{ ENERCC: 200, PROT625: 10, CHO: 20, FAT: 5 }} targets={targets} />);
+    const now = meters().map((m) => Number(m.getAttribute('aria-valuenow')));
+    expect(now).toEqual([24, 49, 27]);
+    expect(now.reduce((a, b) => a + b, 0)).toBe(100);
+    expect(meters()[0]!.getAttribute('aria-valuetext')).toBe('24\u00a0% der Energie, 40 kcal');
+    expect(screen.getByRole('img', { name: /^Energieverteilung: Protein 24/ })).toBeTruthy();
+    expect(norm(macroLine('protein'))).toBe('Protein10 g · 24 % · 40 kcal');
+  });
+
+  it('gives a single macro the whole bar', () => {
+    render(<NutrientBreakdown nutrients={{ ENERCC: 100, CHO: 25 }} targets={targets} />);
+    expect(meters().map((m) => m.getAttribute('aria-valuenow'))).toEqual(['0', '100', '0']);
+    const bar = screen.getByRole('img', { name: /Energieverteilung/ });
+    expect([...bar.children].map((c) => (c as HTMLElement).style.width)).toEqual(['0%', '100%', '0%']);
+  });
+
+  it('shows zeros and placeholders for an empty map, never NaN', async () => {
+    render(<NutrientBreakdown nutrients={{}} targets={targets} />);
+    expect(document.body.textContent).not.toContain('NaN');
+    expect(
+      screen.getByRole('img', { name: 'Energieverteilung: keine Makronährstoffe' }).children,
+    ).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Weitere Nährstoffe' }));
+    const fiber = await screen.findByRole('meter', { name: 'Ballaststoffe' });
+    expect(fiber.getAttribute('aria-valuetext')).toBe('keine Angabe');
+    expect(fiber.parentElement!.textContent).toContain(NO_VALUE);
+    expect(document.body.textContent).not.toContain('NaN');
+  });
+
+  it('switches to the share of the daily target on a tap on the kcal number, and back', () => {
+    render(
+      <NutrientBreakdown
+        title="Summe"
+        nutrients={{ ENERCC: 620, PROT625: 35, CHO: 60, FAT: 25 }}
+        targets={targets}
+      />,
+    );
+    const kcal = screen.getByRole('button', { name: /Anteil am Tagesziel/ });
+    expect(kcal.getAttribute('aria-pressed')).toBe('false');
+    expect(kcal.textContent).not.toContain('/');
+    expect(norm(macroLine('protein'))).toBe('Protein35 g · 23 % · 140 kcal');
+    fireEvent.click(kcal);
+    expect(kcal.getAttribute('aria-pressed')).toBe('true');
+    expect(norm(kcal.textContent!)).toBe('620 / 1.700 kcal');
+    expect(screen.getByText('Anteil am Tagesziel')).toBeTruthy();
+    expect(norm(macroLine('protein'))).toBe('Protein35 g / 130 g · 27 %');
+    // Bars now measure against the daily target.
+    const protein = screen.getByRole('meter', { name: 'Protein' });
+    expect(protein.getAttribute('aria-valuemax')).toBe('130');
+    expect(protein.getAttribute('aria-valuenow')).toBe('35');
+    // The energy split bar stays.
+    expect(screen.getByRole('img', { name: /Energieverteilung: Protein 23/ })).toBeTruthy();
+    fireEvent.click(kcal);
+    expect(kcal.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByText('Anteil am Tagesziel')).toBeNull();
+  });
+
+  it('day variant: no switch, target in the head, bars against the target with excess', () => {
+    render(
+      <NutrientBreakdown
+        variant="day"
+        nutrients={{ ENERCC: 1640, PROT625: 110, CHO: 168, FAT: 76 }}
+        targets={targets}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Anteil am Tagesziel/ })).toBeNull();
+    expect(norm(document.body.textContent!)).toContain('1.640 / 1.700 kcal');
+    expect(norm(macroLine('fat'))).toBe('Fett76 g / 55 g · 38 % · 684 kcal');
+    const fat = screen.getByRole('meter', { name: 'Fett' });
+    expect(fat.querySelector('[data-part=excess]')).not.toBeNull();
+    expect(screen.getByText('76 g').className).toContain('text-over');
+  });
+
+  it('shows micros with their daily target only after opening "Weitere Nährstoffe"', async () => {
+    render(<NutrientBreakdown nutrients={{ ENERCC: 620, FIBT: 6.2, NACL: 1.8 }} targets={targets} />);
+    expect(screen.queryByText('Ballaststoffe')).toBeNull();
+    const toggle = screen.getByRole('button', { name: 'Weitere Nährstoffe' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    const fiber = await screen.findByRole('meter', { name: 'Ballaststoffe' });
+    expect(norm(fiber.parentElement!.firstElementChild!.textContent!)).toBe(
+      'Ballaststoffe6,2 g von mind. 30 g',
+    );
+    expect(norm(screen.getByRole('meter', { name: 'Salz' }).parentElement!.textContent!)).toContain(
+      '1,8 g von max. 6 g',
+    );
+    // Only a few catalog codes: no "Alle N Nährstoffe".
+    expect(screen.queryByRole('button', { name: /^Alle \d+ Nährstoffe$/ })).toBeNull();
+  });
+
+  it('lists all catalog nutrients of the shown amount when there are more than the main ones', async () => {
+    const full = Object.fromEntries(
+      ['ENERCC', 'ENERCJ', 'PROT625', 'FAT', 'CHO', 'FIBT', 'SUGAR', 'FASAT', 'NACL', 'VITC', 'CA'].map(
+        (c, i) => [c, i + 1],
+      ),
+    );
+    render(<NutrientBreakdown nutrients={full} targets={targets} defaultMicrosOpen />);
+    const all = await screen.findByRole('button', { name: 'Alle 11 Nährstoffe' });
+    fireEvent.click(all);
+    expect(await screen.findByText('Vitamin C')).toBeTruthy();
+  });
+
+  it('can be controlled and shows target sources', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <NutrientBreakdown nutrients={{}} targets={targets} microsOpen={false} onMicrosOpenChange={onChange} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Weitere Nährstoffe' }));
+    expect(onChange).toHaveBeenCalledWith(true);
+    expect(screen.queryByRole('meter', { name: 'Ballaststoffe' })).toBeNull();
+    rerender(
+      <NutrientBreakdown
+        nutrients={{}}
+        targets={targets}
+        microsOpen
+        onMicrosOpenChange={onChange}
+        showMicroSources
+      />,
+    );
+    expect(screen.getByRole('meter', { name: 'Ballaststoffe' })).toBeTruthy();
+    expect(screen.getByText('DGE-Referenzwert: mind. 30 g/Tag')).toBeTruthy();
   });
 });
 
