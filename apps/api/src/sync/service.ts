@@ -4,7 +4,7 @@
  * Push: records are validated with the shared Zod schemas, compared with the stored version
  * using the shared `incomingWins` rule and upserted; every stored write gets a fresh value from
  * the global `sync_seq` sequence. A per-user advisory lock serializes pushes of one user so
- * sequence values become visible in commit order — a puller can never skip a lower value that
+ * sequence values become visible in commit order, so a puller can never skip a lower value that
  * commits later.
  *
  * Pull: returns records with change_seq > cursor across all tables, merged in sequence order.

@@ -8,6 +8,7 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
+import { AddSheetProvider } from '@/components/AddSheet';
 import { TabBar } from '@/components/TabBar';
 import { intoParam } from '@/lib/into';
 import { useSessionContext } from './session';
@@ -62,18 +63,21 @@ function RootLayout() {
   return <Outlet />;
 }
 
-/** Signed-in area. Pages render their own header; the tab bar sits on the main tabs. */
+/**
+ * Signed-in area. Pages render their own header; the tab bar sits on the main tabs. The add sheet
+ * belongs to the layout so the tab bar "+" and the meal card "+" open the same menu.
+ */
 function AuthedLayout() {
   const { session } = useSessionContext();
   const path = useRouterState({ select: (s) => s.location.pathname });
   if (!session) return <Navigate to="/login" />;
   const showTabs = ['/', '/progress', '/reports', '/more'].includes(path);
   return (
-    <>
+    <AddSheetProvider>
       <AppBanners />
       <Outlet />
       {showTabs && <TabBar />}
-    </>
+    </AddSheetProvider>
   );
 }
 
@@ -115,7 +119,7 @@ export const routes = {
   }),
   scan: createRoute({
     ...r('/scan'),
-    // `code`: a barcode already read elsewhere (photo page) – looked up immediately, camera stays idle.
+    // `code`: a barcode already read elsewhere (photo page), looked up immediately, camera stays idle.
     validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { code?: string } => ({
       ...validateMeal(s),
       ...clean({ into: intoParam(s.into), code: strParam(s.code)?.replace(/\D/g, '') || undefined }),

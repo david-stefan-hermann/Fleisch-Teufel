@@ -187,7 +187,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
       )}
 
       {step === 1 && (
-        <Section title="Wie aktiv ist dein Alltag – ohne Sport?">
+        <Section title="Wie aktiv ist dein Alltag, ohne Sport?">
           <div className="grid gap-2 px-4 pb-4" role="radiogroup" aria-label="Aktivität">
             {(Object.keys(ACTIVITY_LABELS_DE) as ActivityLevel[]).map((a) => (
               <button
@@ -206,7 +206,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
               </button>
             ))}
             <p className="mt-1 text-xs text-muted-foreground">
-              Training trägst du separat ein – es wird dann zusätzlich angerechnet.
+              Training trägst du separat ein, es wird dann zusätzlich angerechnet.
             </p>
           </div>
         </Section>
@@ -299,7 +299,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                 Math.abs(kcalFromMacros({ proteinG: protein, fatG: fat, carbsG: carbs }) - kcal) > 50 && (
                   <p className="text-xs text-warn">
                     Die Makros ergeben {fmt0(kcalFromMacros({ proteinG: protein, fatG: fat, carbsG: carbs }))}{' '}
-                    kcal – passe sie an dein Kalorienziel an.
+                    kcal. Passe sie an dein Kalorienziel an.
                   </p>
                 )}
               <p className="text-xs text-muted-foreground">

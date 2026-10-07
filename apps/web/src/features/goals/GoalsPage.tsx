@@ -92,7 +92,7 @@ function GoalsForm({
         perDay && i !== idx ? d : { ...d, ...macrosForPlan(d.kcal, weightKg, plan), kcal: d.kcal },
       ),
     );
-    toast.success('Makros nach Vorlage berechnet – speichern nicht vergessen');
+    toast.success('Makros nach Vorlage berechnet. Speichern nicht vergessen');
   }
 
   async function save() {
@@ -103,7 +103,7 @@ function GoalsForm({
       days: perDay ? days : uniformWeek(days[0]!),
       micros,
     });
-    toast.success('Ziele gespeichert – gelten ab heute');
+    toast.success('Ziele gespeichert, gelten ab heute');
   }
 
   return (
@@ -263,7 +263,7 @@ function GoalsForm({
                 <span>ab {fmtDate(g.validFrom)}</span>
                 <span className="text-muted-foreground">
                   {new Set(g.days.map((d) => d.kcal)).size > 1
-                    ? `${fmt0(Math.min(...g.days.map((d) => d.kcal)))}–${fmt0(Math.max(...g.days.map((d) => d.kcal)))} kcal`
+                    ? `${fmt0(Math.min(...g.days.map((d) => d.kcal)))} bis ${fmt0(Math.max(...g.days.map((d) => d.kcal)))} kcal`
                     : `${fmt0(g.days[0]!.kcal)} kcal`}
                 </span>
               </li>

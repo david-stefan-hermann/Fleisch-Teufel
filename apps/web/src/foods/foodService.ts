@@ -47,16 +47,42 @@ export interface SearchHit {
   score: number;
 }
 
-/** Local search: BLS + own foods + cached products. Own foods and used products get a boost. */
-export async function searchLocal(db: UserDb, query: string, limit = 40): Promise<SearchHit[]> {
+/** How often (and when last) each food was logged, from `recentAndFrequent`. */
+export type FoodUsage = Map<string, { count: number; lastLoggedAt: number }>;
+
+/**
+ * Ranking boost for foods the user logged before: enough to put a used "Brötchen, Weizen" above an
+ * unused exact match "Brötchen" (≈ 40 points apart), growing a little with the number of entries.
+ */
+export function usageBoost(usage: FoodUsage | undefined, foodId: string): number {
+  const used = usage?.get(foodId);
+  return used ? 60 + Math.min(30, used.count * 6) : 0;
+}
+
+/**
+ * Local search: BLS + own foods + cached products. Own foods and cached products get a boost, and
+ * with `usage` everything logged before ranks first. Only matches are boosted (`search` skips
+ * non-matching items), so usage never brings in unrelated foods.
+ */
+export async function searchLocal(
+  db: UserDb,
+  query: string,
+  limit = 40,
+  usage?: FoodUsage,
+): Promise<SearchHit[]> {
   const [bls, custom, cached] = await Promise.all([
     loadBls().catch(() => null),
     db.customFoods.filter((f) => !f.deleted).toArray(),
     db.foodCache.where('id').startsWith('off:').toArray(),
   ]);
   const own = [...custom.map(customToFood), ...cached].map(indexItem);
-  const ownHits = search(own, query, limit, (f) => (f.source === 'custom' ? 40 : 15));
-  const blsHits = bls ? search(bls.index, query, limit) : [];
+  const ownHits = search(
+    own,
+    query,
+    limit,
+    (f) => (f.source === 'custom' ? 40 : 15) + usageBoost(usage, f.id),
+  );
+  const blsHits = bls ? search(bls.index, query, limit, (f) => usageBoost(usage, f.id)) : [];
   const seen = new Set<string>();
   return [...ownHits, ...blsHits]
     .sort((a, b) => b.score - a.score)
@@ -148,12 +174,13 @@ export interface RecentFood {
 
 /**
  * "Kürzlich" (most recent first) and "Häufig" (most logged in the last 90 days), derived from
- * the diary so they sync across devices for free.
+ * the diary so they sync across devices for free. `usage` covers every food of that period (also
+ * those logged once) and feeds the search ranking.
  */
 export async function recentAndFrequent(
   db: UserDb,
   today: string,
-): Promise<{ recent: RecentFood[]; frequent: RecentFood[] }> {
+): Promise<{ recent: RecentFood[]; frequent: RecentFood[]; usage: FoodUsage }> {
   const from = addDays(today, -90);
   const entries = await db.foodEntries
     .where('date')
@@ -170,7 +197,11 @@ export async function recentAndFrequent(
     }
   }
   const all = [...byFood.values()];
+  const usage: FoodUsage = new Map(
+    all.map((r) => [r.foodId, { count: r.count, lastLoggedAt: r.last.loggedAt }]),
+  );
   return {
+    usage,
     recent: [...all].sort((a, b) => b.last.loggedAt - a.last.loggedAt).slice(0, 40),
     frequent: all
       .filter((r) => r.count >= 2)

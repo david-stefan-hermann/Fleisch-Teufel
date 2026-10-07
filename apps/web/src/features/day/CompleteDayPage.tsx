@@ -70,7 +70,7 @@ export function CompleteDayPage() {
       {empty ? (
         <Section>
           <p className="p-4 text-sm text-muted-foreground">
-            An diesem Tag ist noch nichts eingetragen – die Prognose wäre nicht aussagekräftig.
+            An diesem Tag ist noch nichts eingetragen, die Prognose wäre nicht aussagekräftig.
           </p>
         </Section>
       ) : forecast ? (

@@ -1,6 +1,6 @@
 import { useRouter } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -45,7 +45,12 @@ export function Page({
           <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight text-balance">
             {title}
           </h1>
-          {actions && <div className="flex items-center gap-1">{actions}</div>}
+          {actions && (
+            // Header icons are 24 px (the button default is 16 px); an explicit size- class still wins.
+            <div className="flex items-center gap-1 [&_:is(button,a)_svg:not([class*='size-'])]:size-6">
+              {actions}
+            </div>
+          )}
         </div>
         {headerExtra && <div className="mx-auto w-full max-w-xl px-4 pb-3">{headerExtra}</div>}
       </header>
@@ -71,14 +76,17 @@ export function Section({
   action,
   children,
   className,
+  ref,
 }: {
   title?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  ref?: Ref<HTMLElement>;
 }) {
   return (
     <section
+      ref={ref}
       className={cn(
         // overflow-hidden: full-bleed rows (swipe actions, hover backgrounds) follow the rounded corners.
         'mb-4 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]',

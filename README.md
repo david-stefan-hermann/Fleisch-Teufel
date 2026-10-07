@@ -1,6 +1,6 @@
 # Fleisch-Teufel
 
-Ein selbst gehostetes Ernährungstagebuch nach dem Vorbild von MyFitnessPal – als **Progressive Web App
+Ein selbst gehostetes Ernährungstagebuch nach dem Vorbild von MyFitnessPal, als **Progressive Web App
 fürs iPhone**, die **offline** funktioniert und sich mit deinem eigenen Server synchronisiert.
 Lebensmitteldaten kommen aus dem **Bundeslebensmittelschlüssel (BLS 4.0)** und **Open Food Facts**;
 Mahlzeiten lassen sich zusätzlich **per Foto mit KI** erfassen.
@@ -18,21 +18,21 @@ Mahlzeiten lassen sich zusätzlich **per Foto mit KI** erfassen.
 
 ## Funktionen
 
-|     | Funktion                                                                                                                                                                                                                                                                                                                                                                                        |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 📒  | **Tagebuch** mit vier (umbenennbaren) Mahlzeiten, Wochenleiste, Datumswahl per Tipp auf den Tag, Kalorienring „Ziel − Essen + Training“, Makro-Balken, Einträge bearbeiten oder per Wischen löschen (mit Rückgängig), Meals als aufklappbare Zeile                                                                                                                                              |
-| 🔎  | **Lebensmittelsuche** offline über 7.140 BLS-Lebensmittel (umlaut-tolerant: „Kaese“ findet „Käse“) plus Markenprodukte von Open Food Facts; Tabs Kürzlich/Häufig/Meine/Meals                                                                                                                                                                                                                    |
-| ⚖️  | **Portionen**: Gramm, Haushaltsmaße, Portionen von der Verpackung, eigene Portionen je Lebensmittel; Anzahl frei wählbar; **an mehreren Tagen gleichzeitig eintragen**                                                                                                                                                                                                                          |
-| 📷  | **Barcode-Scanner** mit der iPhone-Kamera (ZXing-WebAssembly, funktioniert auch ohne nativen BarcodeDetector)                                                                                                                                                                                                                                                                                   |
-| ✨  | **KI-Foto-Logging**: Foto + optionaler Hinweis → Claude erkennt Lebensmittel und schätzt Gramm → Zuordnung zu BLS/Open Food Facts → du korrigierst und ergänzt fehlende Zutaten → **gespeichertes Meal mit Foto** (z. B. „Spaghetti Bolognese“), jederzeit wieder eintragbar. Nährwerte kommen **immer aus der Datenbank**, nie vom Modell. Offline aufgenommene Fotos werden später analysiert |
-| ⚡  | **Schnell hinzufügen** (kcal + Makros), **eigene Lebensmittel** (Eingabe pro 100 g oder pro Portion), **gespeicherte Meals** mit Foto, nachträglich bearbeitbar (Zutaten, Mengen, Foto; 0,5×–2× eintragen), **Mahlzeit von anderem Tag kopieren**                                                                                                                                               |
-| 🎯  | **Onboarding** mit Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor, Zielgewicht und Wochentempo; **Makro-Vorlagen** (Ausgewogen, Proteinreich, Diät/Muskelerhalt, Low Carb oder eigene g Eiweiß/kg) und **Makroziele in Gramm je Wochentag**; Ziel-Historie, damit alte Tage korrekt bewertet bleiben                                                                                        |
-| 🥦  | **Nährstoffe**: Ballaststoffe, Zucker, gesättigte Fettsäuren und Salz je Tag (aufklappbar in der Tagesübersicht) und Mahlzeit, mit DGE-Orientierungswerten (eigene Ziele möglich). Alle 138 BLS-Nährstoffe werden gespeichert                                                                                                                                                                   |
-| 📉  | **Gewicht** mit Chart, 7-Tage-Mittel, Trend pro Woche und Zielgewichtslinie                                                                                                                                                                                                                                                                                                                     |
-| 🏃  | **Training (einfach)**: 38 Sportarten mit MET-Werten (Compendium of Physical Activities) oder eigene; Verbrauch = (MET − 1) × kg × h, optional aufs Tagesziel angerechnet; Notiz (z. B. Übungen/Sätze), **Vorlagen** und Schnellauswahl der letzten 5 Trainings                                                                                                                                 |
-| 📝  | **Tagesnotiz** und **„Tag abschließen“** mit 5-Wochen-Gewichtsprognose                                                                                                                                                                                                                                                                                                                          |
-| 📊  | **Berichte** für Woche/Monat/90 Tage (kcal, Makros, Gewicht, Nährstoffe) und **CSV-Export** (Excel-tauglich oder Standard) sowie JSON-Sicherung                                                                                                                                                                                                                                                 |
-| 📴  | **Offline-first**: Alles läuft ohne Verbindung; Sync beim Öffnen, beim Wechsel in den Hintergrund und wenn das Netz zurückkommt                                                                                                                                                                                                                                                                 |
+|     | Funktion                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 📒  | **Tagebuch** mit vier (umbenennbaren) Mahlzeiten, Wochenleiste, Datumswahl per Tipp auf den Tag, Kalorienring „Ziel − Essen + Training“, Makro-Balken, Einträge bearbeiten, per Wischen löschen oder per langem Druck in eine andere Mahlzeit ziehen (beides mit Rückgängig), Meals als aufklappbare Zeile; das „+“ einer Mahlzeit öffnet das Hinzufügen-Menü für genau diese Mahlzeit                                                                  |
+| 🔎  | **Lebensmittelsuche** offline über 7.140 BLS-Lebensmittel (umlaut-tolerant: „Kaese“ findet „Käse“) plus Markenprodukte von Open Food Facts; bereits gegessene Lebensmittel stehen in den Treffern oben; Tabs Häufig/Kürzlich/Eigene (mit aufklappbaren Meals)                                                                                                                                                                                           |
+| ⚖️  | **Portionen**: Gramm, Haushaltsmaße, Portionen von der Verpackung, eigene Portionen je Lebensmittel; Anzahl frei wählbar; **an mehreren Tagen gleichzeitig eintragen**                                                                                                                                                                                                                                                                                  |
+| 📷  | **Barcode-Scanner** mit der iPhone-Kamera (ZXing-WebAssembly, funktioniert auch ohne nativen BarcodeDetector), Taschenlampe, sofern das Gerät sie freigibt                                                                                                                                                                                                                                                                                              |
+| ✨  | **KI-Foto-Logging**: Foto + optionaler Hinweis → Claude erkennt Lebensmittel und schätzt Gramm → Zuordnung zu BLS/Open Food Facts → du korrigierst (einzeln oder alle Mengen auf einmal per „Gesamtmenge“) und ergänzt fehlende Zutaten → **gespeichertes Meal mit Foto** (z. B. „Spaghetti Bolognese“), jederzeit wieder eintragbar. Nährwerte kommen **immer aus der Datenbank**, nie vom Modell. Offline aufgenommene Fotos werden später analysiert |
+| ⚡  | **Schnell hinzufügen** (kcal + Makros), **eigene Lebensmittel** (Eingabe pro 100 g oder pro Portion), **gespeicherte Meals** mit Foto, nachträglich bearbeitbar (Zutaten, Mengen, Foto; 0,5× bis 2× eintragen), **Mahlzeit von anderem Tag kopieren**                                                                                                                                                                                                   |
+| 🎯  | **Onboarding** mit Grundumsatz nach Mifflin-St Jeor, Aktivitätsfaktor, Zielgewicht und Wochentempo; **Makro-Vorlagen** (Ausgewogen, Proteinreich, Diät/Muskelerhalt, Low Carb oder eigene g Eiweiß/kg) und **Makroziele in Gramm je Wochentag**; Ziel-Historie, damit alte Tage korrekt bewertet bleiben                                                                                                                                                |
+| 🥦  | **Nährstoffe**: Ballaststoffe, Zucker, gesättigte Fettsäuren und Salz je Tag (aufklappbar in der Tagesübersicht) und Mahlzeit, mit DGE-Orientierungswerten (eigene Ziele möglich). Alle 138 BLS-Nährstoffe werden gespeichert                                                                                                                                                                                                                           |
+| 📉  | **Gewicht** mit Chart, 7-Tage-Mittel, Trend pro Woche und Zielgewichtslinie                                                                                                                                                                                                                                                                                                                                                                             |
+| 🏃  | **Training (einfach)**: 38 Sportarten mit MET-Werten (Compendium of Physical Activities) oder eigene; Verbrauch = (MET − 1) × kg × h, optional aufs Tagesziel angerechnet; Notiz (z. B. Übungen/Sätze), **Vorlagen** und Schnellauswahl der letzten 5 Trainings                                                                                                                                                                                         |
+| 📝  | **Tagesnotiz** und **„Tag abschließen“** mit 5-Wochen-Gewichtsprognose                                                                                                                                                                                                                                                                                                                                                                                  |
+| 📊  | **Berichte** für Woche/Monat/90 Tage (kcal, Makros, Gewicht, Nährstoffe) und **CSV-Export** (Excel-tauglich oder Standard) sowie JSON-Sicherung                                                                                                                                                                                                                                                                                                         |
+| 📴  | **Offline-first**: Alles läuft ohne Verbindung; Sync beim Öffnen, beim Wechsel in den Hintergrund und wenn das Netz zurückkommt                                                                                                                                                                                                                                                                                                                         |
 
 Bewusst **nicht** enthalten: Wasser, Streaks/Erinnerungen, Fasten, Rezepte, Community, Meal-Pläne,
 Health-Sync, Widgets.
@@ -58,19 +58,19 @@ tools/bls-import  BLS-4.0-XLSX → JSON (voll für den Server, kompakt für die 
 
 ## Datenquellen & Lizenzen
 
-- **BLS 4.0** – Max Rubner-Institut (2025): Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.
+- **BLS 4.0**: Max Rubner-Institut (2025): Bundeslebensmittelschlüssel (BLS), Version 4.0. Karlsruhe.
   Kostenfrei und ohne Lizenzbarrieren bereitgestellt ([blsdb.de](https://www.blsdb.de)). Die aufbereiteten
   Dateien liegen in `apps/api/data/` und `apps/web/public/data/` und werden mit `pnpm bls:import` neu erzeugt.
-- **Open Food Facts** – Produktdaten © Open-Food-Facts-Mitwirkende, [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
+- **Open Food Facts**: Produktdaten © Open-Food-Facts-Mitwirkende, [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
   Abfragen laufen über den Server (Cache, Rate-Limits 15/min Produkt, 10/min Suche, eigener User-Agent).
-- **MET-Werte** – Compendium of Physical Activities (Ainsworth et al. 2011; Herrmann et al. 2024), gerundet.
-- **DGE** – Orientierungswerte für Ballaststoffe, Salz, Zucker und gesättigte Fettsäuren (Quellen im Code,
+- **MET-Werte**: Compendium of Physical Activities (Ainsworth et al. 2011; Herrmann et al. 2024), gerundet.
+- **DGE**: Orientierungswerte für Ballaststoffe, Salz, Zucker und gesättigte Fettsäuren (Quellen im Code,
   `packages/shared/src/goals.ts`).
 - **Schrift** Inter (SIL Open Font License 1.1). **Code**: [MIT](LICENSE).
 
 ## Entwicklung
 
-Voraussetzungen: Node 22, pnpm (`corepack enable`). Kein Docker nötig – die Entwicklungsdatenbank ist ein
+Voraussetzungen: Node 22, pnpm (`corepack enable`). Kein Docker nötig, die Entwicklungsdatenbank ist ein
 eingebettetes PostgreSQL 17.
 
 ```bash
@@ -98,7 +98,7 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 
 1. **Datenverzeichnis** anlegen (einmalig): `/mnt/tank/applications/fleisch-teufel/postgres`.
 2. In Dockge **„+ Compose“**, Name `fleisch-teufel`, Inhalt von [`deploy/docker-compose.yml`](deploy/docker-compose.yml) einfügen.
-3. Im **.env-Editor** des Stacks die Variablen aus [`deploy/.env.example`](deploy/.env.example) setzen –
+3. Im **.env-Editor** des Stacks die Variablen aus [`deploy/.env.example`](deploy/.env.example) setzen:
    mindestens `POSTGRES_PASSWORD` (lang, zufällig), `ANTHROPIC_API_KEY` (optional) und `OFF_CONTACT_EMAIL`.
 4. **Deploy**. Nach ~30 s liefert `http://<nas>:30300/health` `{"ok":true,…}`.
 5. Reverse Proxy (Nginx Proxy Manager): Host → `http://<nas-ip>:30300`, SSL erzwingen, Websockets an,
@@ -106,7 +106,7 @@ Smoke-Test gegen PostgreSQL bestanden hat.
    Sitzungs-Cookie dann als `Secure`.
 6. App öffnen, **erstes Konto registrieren** (das erste Konto ist immer erlaubt; danach bleibt die
    Registrierung mit `ALLOW_REGISTRATION=false` geschlossen).
-7. **Updates**: in Dockge „Update“ drücken – zieht das neue `:latest` und startet neu; Migrationen laufen
+7. **Updates**: in Dockge „Update“ drücken. Das zieht das neue `:latest` und startet neu; Migrationen laufen
    automatisch.
 
 **Backup**: Das PostgreSQL-Verzeichnis per ZFS-Snapshot sichern; zusätzlich kann jedes Gerät unter
@@ -116,12 +116,16 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 
 1. Seite in **Safari** öffnen und anmelden.
 2. **Teilen → „Zum Home-Bildschirm“**. Erst als Home-Bildschirm-App sind die Offline-Daten dauerhaft
-   (Safari löscht sonst Website-Daten nach 7 Tagen ohne Nutzung – die App weist darauf hin).
+   (Safari löscht sonst Website-Daten nach 7 Tagen ohne Nutzung, die App weist darauf hin).
 3. Kamera erlauben, wenn der Barcode-Scanner das erste Mal startet.
+
+Grenzen von iOS: Der Mediathek-Knopf auf der Foto-Seite öffnet das iOS-Auswahlblatt (Fotomediathek,
+Foto aufnehmen, Datei auswählen); eine Web-App kann die Mediathek nicht direkt öffnen. Die Taschenlampe
+erscheint nur, wenn Safari sie für die Kamera meldet, was nicht auf jedem iPhone der Fall ist.
 
 ## KI-Genauigkeit messen
 
-Mengenschätzung aus Fotos ist prinzipiell ungenau (typisch ±20–40 %). So misst du es mit deinem Essen:
+Mengenschätzung aus Fotos ist prinzipiell ungenau (typisch ±20 bis 40 %). So misst du es mit deinem Essen:
 
 1. ~10 Teller fotografieren und die Bestandteile vorher **wiegen**.
 2. Ordner mit den Fotos und einer `truth.json` anlegen:
@@ -137,7 +141,7 @@ Mengenschätzung aus Fotos ist prinzipiell ungenau (typisch ±20–40 %). So mis
      }
    ]
    ```
-3. `ANTHROPIC_API_KEY=… pnpm --filter @ft/api ai:eval ./mein-testset` – gibt je Foto die Abweichung bei
+3. `ANTHROPIC_API_KEY=… pnpm --filter @ft/api ai:eval ./mein-testset` gibt je Foto die Abweichung bei
    Gramm und kcal aus und schreibt `report.json` (Kosten ≈ 0,03 $ pro Foto mit `claude-opus-5-5`).
 
 Modell und Denkaufwand sind per `AI_MODEL` / `AI_EFFORT` einstellbar. Abgelehnte Anfragen werden serverseitig
@@ -145,4 +149,4 @@ automatisch an das von Anthropic empfohlene Ausweichmodell weitergereicht.
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE). Kein Medizinprodukt.
+MIT, siehe [LICENSE](LICENSE). Kein Medizinprodukt.

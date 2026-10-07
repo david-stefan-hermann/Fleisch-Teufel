@@ -135,7 +135,7 @@ export function DataPage() {
       <Section title="Sicherung">
         <div className="grid gap-2 px-4 pb-4">
           <p className="text-sm text-muted-foreground">
-            Alle deine Daten als JSON – zusätzlich zur Synchronisation mit dem Server. CSV-Exporte findest du
+            Alle deine Daten als JSON, zusätzlich zur Synchronisation mit dem Server. CSV-Exporte findest du
             unter Berichte.
           </p>
           <Button

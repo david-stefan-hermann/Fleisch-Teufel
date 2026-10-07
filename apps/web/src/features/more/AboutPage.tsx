@@ -62,7 +62,7 @@ export function AboutPage() {
             <h3 className="font-medium">MET-Werte für Training</h3>
             <p className="text-muted-foreground">
               Compendium of Physical Activities: Ainsworth BE et al. (2011), Med Sci Sports Exerc
-              43(8):1575–1581; Herrmann SD et al. (2024), J Sport Health Sci 13(1):6–12. Werte gerundet.
+              43(8):1575-1581; Herrmann SD et al. (2024), J Sport Health Sci 13(1):6-12. Werte gerundet.
             </p>
           </div>
           <div>

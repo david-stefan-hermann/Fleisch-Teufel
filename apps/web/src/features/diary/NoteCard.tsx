@@ -53,7 +53,7 @@ export function NoteCard({ date }: { date: ISODate }) {
             params={{ date }}
             className="flex items-center gap-2 text-sm text-good hover:underline"
           >
-            <CheckCircle2 className="size-4" aria-hidden /> Tag abgeschlossen um {fmtTime(note.completedAt)} –
+            <CheckCircle2 className="size-4" aria-hidden /> Tag abgeschlossen um {fmtTime(note.completedAt)}.
             Prognose ansehen
           </Link>
         ) : (

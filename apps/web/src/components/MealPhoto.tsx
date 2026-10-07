@@ -1,39 +1,108 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ImageOff, Utensils } from 'lucide-react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
+import type { UserDb } from '@/db/dexie';
 import { loadPhoto } from '@/db/photos';
 import { cn } from '@/lib/utils';
 
-/** Downloads currently running (or failed this session) – one attempt per photo and app start. */
-const requested = new Set<string>();
+/** A failed download (offline, server error, not uploaded yet) is retried after this long. */
+export const PHOTO_RETRY_MS = 30_000;
 
-/** The photo blob from the device, fetched once from the server when another device took it. */
+/**
+ * Start time of the last download attempt per photo id, shared by all components showing the same
+ * photo: one request at a time, a failed one is retried after `PHOTO_RETRY_MS` or when the device
+ * comes back online. A successful download removes the entry (the photo is then on the device).
+ */
+const lastAttempt = new Map<string, number>();
+
+type Fetch = (path: string, init?: RequestInit) => Promise<Response>;
+const sameOriginFetch: Fetch = (path, init) => fetch(path, { credentials: 'same-origin', ...init });
+
+/** The photo blob from the device, downloaded from the server when another device took it. */
 export function usePhotoBlob(id: string | null): Blob | null | undefined {
-  const db = useDb();
+  return usePhotoBlobFrom(useDb(), id, sameOriginFetch);
+}
+
+/** `usePhotoBlob` with an explicit database and fetch (tests). */
+export function usePhotoBlobFrom(db: UserDb, id: string | null, fetchFn: Fetch): Blob | null | undefined {
   const local = useLiveQuery(async () => (id ? ((await db.photos.get(id))?.blob ?? null) : null), [db, id]);
+  // Bumped to re-run the download effect (retry timer, `online` event).
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    if (!id || local !== null || requested.has(id)) return;
-    requested.add(id);
-    void loadPhoto(db, id, (p, init) => fetch(p, { credentials: 'same-origin', ...init })).then(
-      (blob) => blob && requested.delete(id),
-      () => {},
-    );
-  }, [db, id, local]);
+    if (!id || local !== null) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const retryIn = (ms: number) => {
+      timer = setTimeout(() => alive && setAttempt((n) => n + 1), Math.max(0, ms));
+    };
+    const due = (lastAttempt.get(id) ?? -Infinity) + PHOTO_RETRY_MS - Date.now();
+    if (due > 0) {
+      // Another component (or the previous run of this effect) tried recently.
+      retryIn(due);
+    } else {
+      lastAttempt.set(id, Date.now());
+      void loadPhoto(db, id, fetchFn).then(
+        (blob) => {
+          if (blob) lastAttempt.delete(id);
+          else if (alive) retryIn(PHOTO_RETRY_MS);
+        },
+        () => alive && retryIn(PHOTO_RETRY_MS),
+      );
+    }
+    const onOnline = () => {
+      lastAttempt.delete(id);
+      setAttempt((n) => n + 1);
+    };
+    window.addEventListener('online', onOnline);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [db, id, local, fetchFn, attempt]);
   return local;
 }
 
-/** Object URL for a blob, revoked when the blob changes or the component unmounts. */
-export function useObjectUrl(blob: Blob | null | undefined): string | null {
-  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
-  useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
-  return url;
+/**
+ * Object URL for a blob, revoked when the blob changes or the component unmounts. The URL is
+ * created in an effect, so StrictMode's mount/unmount/mount cycle cannot leave a revoked URL behind.
+ *
+ * Blobs read from IndexedDB are new objects on every live query run (e.g. each status change of an
+ * AI analysis). With a `key` that identifies the content (photo id, queue id), a blob with the same
+ * key, size and type counts as unchanged, so the image is neither re-created nor re-decoded.
+ */
+export function useObjectUrl(blob: Blob | null | undefined, key?: string): string | null {
+  const next = blob ?? null;
+  const [held, setHeld] = useState<{ blob: Blob | null; key: string | undefined }>({ blob: next, key });
+  const unchanged =
+    next === held.blob ||
+    (next !== null &&
+      held.blob !== null &&
+      key !== undefined &&
+      key === held.key &&
+      next.size === held.blob.size &&
+      next.type === held.blob.type);
+  if (!unchanged) setHeld({ blob: next, key });
+  const current = unchanged ? held.blob : next;
+
+  const [url, setUrl] = useState<{ blob: Blob; url: string } | null>(null);
+  useEffect(() => {
+    if (!current) return;
+    const created = URL.createObjectURL(current);
+    // Syncing an external resource (the object URL) into state is what this effect is for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUrl({ blob: current, url: created });
+    return () => URL.revokeObjectURL(created);
+  }, [current]);
+  return current && url?.blob === current ? url.url : null;
 }
 
 /** Meal photo with a neutral placeholder while loading or when there is none. */
 export function MealPhoto({
   photoId,
   blob,
+  blobKey,
   alt,
   className,
   placeholder = true,
@@ -41,12 +110,14 @@ export function MealPhoto({
   photoId?: string | null;
   /** A local blob (e.g. the photo being analysed) instead of a stored photo. */
   blob?: Blob | null;
+  /** Stable identity of `blob` across re-reads from IndexedDB (see `useObjectUrl`). */
+  blobKey?: string;
   alt: string;
   className?: string;
   placeholder?: boolean;
 }) {
   const stored = usePhotoBlob(blob ? null : (photoId ?? null));
-  const url = useObjectUrl(blob ?? stored);
+  const url = useObjectUrl(blob ?? stored, blob ? blobKey : (photoId ?? undefined));
   if (url) return <img src={url} alt={alt} className={cn('object-cover', className)} draggable={false} />;
   if (!placeholder) return null;
   return (

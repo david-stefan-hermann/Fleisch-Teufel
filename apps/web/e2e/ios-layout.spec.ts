@@ -26,7 +26,7 @@ test('onboarding date input fits the iPhone screen', async ({ page }, info) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath('onboarding-iphone.png') });
 
-  // Profile: date field next to a number field – both inputs start at the same height and the date
+  // Profile: date field next to a number field: both inputs start at the same height and the date
   // value is vertically centred like the number.
   await page.goto('/settings/profile');
   const pBirth = page.getByLabel('Geburtsdatum');

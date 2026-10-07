@@ -66,3 +66,25 @@ export async function addFoodToDraft(db: UserDb, localId: number, food: Food, gr
     ],
   }));
 }
+
+/** Grams per row key, the reference point of the "Gesamtmenge" slider. */
+export type RowGrams = Record<string, number | null>;
+
+export function rowGrams(d: AiDraft): RowGrams {
+  return Object.fromEntries(d.rows.map((r) => [r.key, r.grams]));
+}
+
+/**
+ * Scales every row to `factor` × its grams in `base` (whole grams). Scaling always starts from the
+ * base, not from the previous step, so moving the slider back and forth does not accumulate
+ * rounding errors. Rows without amount (or missing from `base`) stay as they are.
+ */
+export function scaleDraft(d: AiDraft, base: RowGrams, factor: number): AiDraft {
+  return {
+    ...d,
+    rows: d.rows.map((r) => {
+      const g = base[r.key];
+      return g == null ? r : { ...r, grams: Math.max(0, Math.round(g * factor)) };
+    }),
+  };
+}

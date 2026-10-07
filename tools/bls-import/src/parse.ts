@@ -82,7 +82,7 @@ export interface BlsFood {
 
 export function parseRow(row: readonly unknown[], header: ParsedHeader): BlsFood | null {
   const code = typeof row[header.codeIndex] === 'string' ? (row[header.codeIndex] as string).trim() : '';
-  // "mostly [letter][6 digits]" (BLS docs) — some codes contain letters, e.g. M5B1600.
+  // "mostly [letter][6 digits]" (BLS docs); some codes contain letters, e.g. M5B1600.
   if (!/^[A-Z][0-9A-Z]{6}$/.test(code)) return null;
   const nutrients: Record<string, number> = {};
   for (const col of header.values) {

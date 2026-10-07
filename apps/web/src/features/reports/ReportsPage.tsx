@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
-import { fmt0, fmt1, fmtDate, fmtMonth } from '@/lib/format';
+import { fmt0, fmt1, fmtDate, fmtMonth, NO_VALUE } from '@/lib/format';
 import { dailyCsv, downloadText, entriesCsv, exerciseCsv, weightsCsv } from './export';
 
 type Range = 'week' | 'month' | '90';
@@ -49,7 +49,7 @@ function period(
     return {
       from,
       to,
-      label: `${fmtDate(from)} – ${fmtDate(to)}`,
+      label: `${fmtDate(from)} bis ${fmtDate(to)}`,
       prev: addDays(from, -1),
       next: addDays(to, 7),
     };
@@ -63,7 +63,7 @@ function period(
   return {
     from,
     to: end,
-    label: `${fmtDate(from)} – ${fmtDate(end)}`,
+    label: `${fmtDate(from)} bis ${fmtDate(end)}`,
     prev: addDays(end, -90),
     next: addDays(end, 90),
   };
@@ -168,7 +168,7 @@ export function ReportsPage() {
           <dl className="tabular grid grid-cols-3 gap-y-4 p-4 text-center">
             <Stat
               label="Ø kcal"
-              value={stats.loggedDays ? fmt0(stats.avg.kcal) : '–'}
+              value={stats.loggedDays ? fmt0(stats.avg.kcal) : NO_VALUE}
               sub={`Ziel Ø ${fmt0(stats.avgTargetKcal)}`}
             />
             <Stat
@@ -180,16 +180,16 @@ export function ReportsPage() {
               label="Gewicht"
               value={
                 stats.weightChange === null
-                  ? '–'
+                  ? NO_VALUE
                   : `${stats.weightChange > 0 ? '+' : ''}${fmt1(stats.weightChange)} kg`
               }
               sub={stats.weightEnd !== null ? `${fmt1(stats.weightEnd)} kg` : 'keine Werte'}
             />
-            <Stat label="Ø Protein" value={stats.loggedDays ? g(stats.avg.protein) : '–'} />
-            <Stat label="Ø Kohlenh." value={stats.loggedDays ? g(stats.avg.carbs) : '–'} />
-            <Stat label="Ø Fett" value={stats.loggedDays ? g(stats.avg.fat) : '–'} />
-            <Stat label="Ø Ballaststoffe" value={stats.loggedDays ? g(stats.avg.fiber) : '–'} />
-            <Stat label="Ø Salz" value={stats.loggedDays ? g(stats.avg.salt) : '–'} />
+            <Stat label="Ø Protein" value={stats.loggedDays ? g(stats.avg.protein) : NO_VALUE} />
+            <Stat label="Ø Kohlenh." value={stats.loggedDays ? g(stats.avg.carbs) : NO_VALUE} />
+            <Stat label="Ø Fett" value={stats.loggedDays ? g(stats.avg.fat) : NO_VALUE} />
+            <Stat label="Ø Ballaststoffe" value={stats.loggedDays ? g(stats.avg.fiber) : NO_VALUE} />
+            <Stat label="Ø Salz" value={stats.loggedDays ? g(stats.avg.salt) : NO_VALUE} />
             <Stat
               label="Training"
               value={`${fmt0(stats.totalExerciseMinutes)} Min.`}

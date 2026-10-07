@@ -31,7 +31,7 @@ export default defineConfig({
         id: '/',
         name: 'Fleisch-Teufel',
         short_name: 'Fleisch-Teufel',
-        description: 'Ernährungstagebuch: Kalorien, Makros, Gewicht – offline-fähig, selbst gehostet.',
+        description: 'Ernährungstagebuch: Kalorien, Makros, Gewicht. Offline-fähig, selbst gehostet.',
         lang: 'de',
         dir: 'ltr',
         start_url: '/',

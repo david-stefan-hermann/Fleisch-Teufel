@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import uPlot, { type AlignedData, type Options, type Series } from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import { NO_VALUE } from '@/lib/format';
 
 export interface ChartSeries {
   label: string;
@@ -69,7 +70,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
     const ink = cssVar('--muted-foreground', el);
     const grid = cssVar('--border', el);
     const s: Series[] = [
-      { label: 'Datum', value: (_u, v) => (v == null ? '–' : dateLong.format(new Date(v * 1000))) },
+      { label: 'Datum', value: (_u, v) => (v == null ? NO_VALUE : dateLong.format(new Date(v * 1000))) },
       ...series.map((cfg): Series => {
         const color = cssVar(cfg.color, el);
         const base: Series = {
@@ -78,7 +79,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
           width: cfg.width ?? 2,
           dash: cfg.dash,
           spanGaps: cfg.kind !== 'bars',
-          value: (_u, v) => (v == null ? '–' : (cfg.format?.(v) ?? String(Math.round(v)))),
+          value: (_u, v) => (v == null ? NO_VALUE : (cfg.format?.(v) ?? String(Math.round(v)))),
           points: {
             show: cfg.kind === 'points',
             size: 7,
@@ -173,7 +174,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
                 <td>{dateLong.format(new Date(x * 1000))}</td>
                 {series.map((s, si) => {
                   const v = (data[si + 1] as (number | null)[])[i];
-                  return <td key={s.label}>{v == null ? '–' : (s.format?.(v) ?? Math.round(v))}</td>;
+                  return <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v) ?? Math.round(v))}</td>;
                 })}
               </tr>
             );

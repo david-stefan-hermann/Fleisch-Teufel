@@ -100,7 +100,10 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
 
   await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Zutat hinzufügen' })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'Meals' })).toHaveCount(0);
+  // Saved meals cannot go into a saved meal: "Eigene" has no meals section here.
+  await page.getByRole('tab', { name: 'Eigene' }).click();
+  await expect(page.getByRole('heading', { name: 'Eigene Lebensmittel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Meals/ })).toHaveCount(0);
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await page.getByLabel('Portion', { exact: true }).click();
@@ -194,6 +197,22 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   await expect(page.getByText('von dir hinzugefügt')).toBeVisible();
   await expect(page.getByLabel('Gramm').first()).toHaveValue('180');
+
+  // "Gesamtmenge" scales every ingredient; a manual change becomes the new 100 %.
+  const scale = page.getByRole('slider', { name: 'Gesamtmenge skalieren' });
+  const summary = page.locator('section').filter({ hasText: 'Summe' });
+  const before = Number((await page.getByLabel('Gramm').nth(1).inputValue()) || '0');
+  await scale.focus();
+  for (let i = 0; i < 10; i++) await scale.press('ArrowRight');
+  await expect(summary.getByText('150 %')).toBeVisible();
+  await expect(page.getByLabel('Gramm').first()).toHaveValue('270');
+  await expect(page.getByLabel('Gramm').nth(1)).toHaveValue(String(Math.round(before * 1.5)));
+  for (let i = 0; i < 4; i++) await scale.press('ArrowLeft');
+  await expect(summary.getByText('130 %')).toBeVisible();
+  await expect(page.getByLabel('Gramm').first()).toHaveValue('234');
+  await page.getByLabel('Gramm').first().fill('200');
+  await expect(summary.getByText('100 %')).toBeVisible();
+  await expect(page.getByLabel('Gramm').nth(1)).toHaveValue(String(Math.round(before * 1.3)));
   await page.getByRole('button', { name: 'Als Meal speichern & eintragen' }).click();
 
   await expect(page.getByRole('button', { name: /Nudeln mit Soße/ })).toBeVisible();

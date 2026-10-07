@@ -2,7 +2,7 @@ import { uuidv7, type Food } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import { saveRecord } from '@/db/write';
-import { getFood, lookupBarcode, recentAndFrequent, searchLocal } from '@/foods/foodService';
+import { getFood, lookupBarcode, recentAndFrequent, searchLocal, usageBoost } from '@/foods/foodService';
 
 const compact = {
   version: 't1',
@@ -10,6 +10,8 @@ const compact = {
   rows: [
     ['C133000', 'Hafer Flocken', 'Oat flakes', 348, 1465, 13.2, 6.7, 53.3, 11, 0.7, 1.3, 0, 2, 0],
     ['F503100', 'Apfel roh', 'Apple raw', 54, 228, 0.3, 0.2, 12, 2, 10, 0, 0, 1, 0],
+    ['B101000', 'Brötchen', 'Bread roll', 270, 1130, 9, 1.5, 54, 3, 2, 0.3, 1.2, 480, 0],
+    ['B102000', 'Brötchen Weizen hell', 'Wheat roll', 260, 1090, 8.5, 1.2, 53, 3, 2, 0.3, 1.2, 470, 0],
   ],
 };
 const offFood: Food = {
@@ -93,7 +95,7 @@ describe('food service', () => {
       status: 'found',
       food: { name: 'Nugat' },
     });
-    // Cached now — works without the server.
+    // Cached now, works without the server.
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => Promise.reject(new TypeError('offline'))),
@@ -156,5 +158,51 @@ describe('food service', () => {
     const r = await recentAndFrequent(db, '2026-10-07');
     expect(r.recent.map((x) => x.name)).toEqual(['B', 'A']);
     expect(r.frequent.map((x) => [x.name, x.count])).toEqual([['A', 2]]);
+    // Usage covers every food of the last 90 days, also those logged once.
+    expect(Object.fromEntries(r.usage)).toEqual({
+      'bls:A': { count: 2, lastLoggedAt: 2 },
+      'bls:B': { count: 1, lastLoggedAt: 3 },
+    });
+  });
+
+  it('ranks previously logged foods first', async () => {
+    const plain = (await searchLocal(db, 'brötchen')).map((h) => h.food.name);
+    expect(plain).toEqual(['Brötchen', 'Brötchen Weizen hell']);
+
+    await saveRecord(db, 'foodEntries', {
+      id: uuidv7(),
+      date: '2026-10-06',
+      meal: 0,
+      loggedAt: 1,
+      foodId: 'bls:B102000',
+      source: 'bls',
+      name: 'Brötchen Weizen hell',
+      brand: null,
+      grams: 60,
+      portionLabel: '1 g',
+      portionGrams: 1,
+      quantity: 60,
+      per100: null,
+      nutrients: { ENERCC: 156 },
+      mealId: null,
+      aiAnalysisId: null,
+      groupId: null,
+    });
+    const { usage } = await recentAndFrequent(db, '2026-10-07');
+    const ranked = await searchLocal(db, 'brötchen', 40, usage);
+    expect(ranked.map((h) => h.food.name)).toEqual(['Brötchen Weizen hell', 'Brötchen']);
+    // Usage only reorders matches, it never adds unrelated foods.
+    expect((await searchLocal(db, 'apfel', 40, usage)).map((h) => h.food.name)).toEqual(['Apfel roh']);
+  });
+
+  it('boosts by usage count, capped', () => {
+    const usage = new Map([
+      ['a', { count: 1, lastLoggedAt: 0 }],
+      ['b', { count: 50, lastLoggedAt: 0 }],
+    ]);
+    expect(usageBoost(usage, 'a')).toBe(66);
+    expect(usageBoost(usage, 'b')).toBe(90);
+    expect(usageBoost(usage, 'c')).toBe(0);
+    expect(usageBoost(undefined, 'a')).toBe(0);
   });
 });

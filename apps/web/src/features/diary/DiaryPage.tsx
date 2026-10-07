@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useDayEntries, useDayExercises, useDaySummary, useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
 import { CalorieCard } from './CalorieCard';
+import { DiaryDnd } from './DiaryDnd';
 import { ExerciseCard } from './ExerciseCard';
 import { MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
@@ -68,11 +69,7 @@ export function DiaryPage() {
           </Button>
         </span>
       }
-      actions={
-        <>
-          <SyncIndicator />
-        </>
-      }
+      actions={<SyncIndicator />}
       headerExtra={<WeekStrip date={date} today={today} />}
     >
       {goals && goals.length === 0 && (
@@ -98,17 +95,20 @@ export function DiaryPage() {
       ) : (
         <>
           <CalorieCard summary={summary} exerciseCredited={settings.addExerciseCalories} />
-          {Array.from({ length: MEAL_COUNT }, (_, m) => (
-            <MealCard
-              key={m}
-              date={date}
-              meal={m}
-              name={settings.mealNames[m] ?? `Mahlzeit ${m + 1}`}
-              entries={entries.filter((e) => e.meal === m)}
-              totals={summary.perMeal[m] ?? {}}
-              showMicros={false}
-            />
-          ))}
+          {/* Long press on an entry, then drop it on another meal to move it there. */}
+          <DiaryDnd mealNames={settings.mealNames}>
+            {Array.from({ length: MEAL_COUNT }, (_, m) => (
+              <MealCard
+                key={m}
+                date={date}
+                meal={m}
+                name={settings.mealNames[m] ?? `Mahlzeit ${m + 1}`}
+                entries={entries.filter((e) => e.meal === m)}
+                totals={summary.perMeal[m] ?? {}}
+                showMicros={false}
+              />
+            ))}
+          </DiaryDnd>
           <ExerciseCard date={date} exercises={exercises} credited={settings.addExerciseCalories} />
           <NoteCard key={date} date={date} />
         </>

@@ -5,7 +5,10 @@
  */
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Flashlight, FlashlightOff } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 prepareZXingModule({
   overrides: {
@@ -57,6 +60,27 @@ export async function detectBarcodeInImage(blob: Blob): Promise<string | null> {
 /** Takes a still from the live camera (full sensor resolution of the stream) as JPEG. */
 export type CaptureFn = () => Promise<Blob | null>;
 
+/** Torch of the running camera; null while there is none (iOS rarely reports `torch`). */
+export type TorchState = { on: boolean; toggle: () => void } | null;
+
+/** Icon button for the torch, styled for the dark camera overlay. */
+export function TorchButton({ torch, className }: { torch: NonNullable<TorchState>; className?: string }) {
+  const Icon = torch.on ? FlashlightOff : Flashlight;
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="icon-lg"
+      className={cn('rounded-xl bg-black/55 text-white hover:bg-black/70', className)}
+      aria-label={torch.on ? 'Licht ausschalten' : 'Licht einschalten'}
+      aria-pressed={torch.on}
+      onClick={torch.toggle}
+    >
+      <Icon className="size-6" aria-hidden />
+    </Button>
+  );
+}
+
 export function BarcodeScanner({
   onDetected,
   onError,
@@ -64,6 +88,7 @@ export function BarcodeScanner({
   captureRef,
   children,
   frame = 'barcode',
+  onTorchState,
 }: {
   onDetected: (code: string) => void;
   onError: (e: ScannerError) => void;
@@ -74,6 +99,11 @@ export function BarcodeScanner({
   children?: ReactNode;
   /** 'barcode': dimmed frame for scanning; 'photo': light corner marks only. */
   frame?: 'barcode' | 'photo';
+  /**
+   * Reports the torch to the parent, which renders the toggle itself (e.g. in its own overlay).
+   * Without it the scanner shows its own toggle top right. Pass a state setter (stable identity).
+   */
+  onTorchState?: (s: TorchState) => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   useEffect(() => {
@@ -93,6 +123,17 @@ export function BarcodeScanner({
   }, [captureRef]);
   const [torch, setTorch] = useState<MediaStreamTrack | null>(null);
   const [torchOn, setTorchOn] = useState(false);
+  const toggleTorch = useCallback(() => {
+    if (!torch) return;
+    const on = !torchOn;
+    void torch.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] }).catch(() => {});
+    setTorchOn(on);
+  }, [torch, torchOn]);
+  useEffect(() => {
+    onTorchState?.(torch ? { on: torchOn, toggle: toggleTorch } : null);
+  }, [torch, torchOn, toggleTorch, onTorchState]);
+  // The parent's toggle must not outlive the camera.
+  useEffect(() => () => onTorchState?.(null), [onTorchState]);
   const pausedRef = useRef(paused);
   const onDetectedRef = useRef(onDetected);
   useEffect(() => {
@@ -192,20 +233,8 @@ export function BarcodeScanner({
           ))}
         </div>
       )}
-      {torch && (
-        <button
-          type="button"
-          onClick={async () => {
-            await torch
-              .applyConstraints({ advanced: [{ torch: !torchOn } as MediaTrackConstraintSet] })
-              .catch(() => {});
-            setTorchOn(!torchOn);
-          }}
-          className="absolute top-3 right-3 rounded-full bg-black/60 px-4 py-2 text-sm text-white focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none"
-          aria-pressed={torchOn}
-        >
-          {torchOn ? 'Licht aus' : 'Licht an'}
-        </button>
+      {torch && !onTorchState && (
+        <TorchButton torch={{ on: torchOn, toggle: toggleTorch }} className="absolute top-3 right-3" />
       )}
       {children}
     </div>

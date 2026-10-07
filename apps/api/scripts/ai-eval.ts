@@ -10,7 +10,7 @@
  *
  * For every photo the real pipeline runs (Claude + BLS/OFF matching with the first candidate),
  * then total grams and kcal are compared. Prints a table and writes `report.json` into the folder.
- * Costs real API tokens (≈ $0.03 per photo with the default model) — needs ANTHROPIC_API_KEY.
+ * Costs real API tokens (≈ $0.03 per photo with the default model); needs ANTHROPIC_API_KEY.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';

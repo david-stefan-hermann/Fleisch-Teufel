@@ -63,7 +63,8 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
     name: !name.trim() ? 'Bitte einen Namen eingeben.' : null,
     kcal: values[N.kcal] === null || values[N.kcal] === undefined ? 'Kalorien sind Pflicht.' : null,
     serving: mode === 'perPortion' && !factor ? 'Portionsgröße angeben.' : null,
-    barcode: barcodeClean && (barcodeClean.length < 6 || barcodeClean.length > 14) ? '6–14 Ziffern.' : null,
+    barcode:
+      barcodeClean && (barcodeClean.length < 6 || barcodeClean.length > 14) ? '6 bis 14 Ziffern.' : null,
   };
   const valid = !Object.values(errors).some(Boolean);
 

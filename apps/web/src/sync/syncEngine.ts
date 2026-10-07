@@ -3,7 +3,7 @@
  *
  *   push: send outbox records (≤ 500 per request); afterwards drop outbox entries whose record
  *         did not change meanwhile. Records the server rejects or already has newer are dropped
- *         from the outbox too — the newer server version arrives with the next pull.
+ *         from the outbox too; the newer server version arrives with the next pull.
  *   pull: fetch changes after the stored cursor and apply them with the shared LWW rule.
  *         A local version that is newer than the incoming one (pending upload) is kept.
  *

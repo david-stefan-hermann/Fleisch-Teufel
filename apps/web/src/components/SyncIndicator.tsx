@@ -17,7 +17,7 @@ export function syncLabel(s: SyncState): string {
     case 'syncing':
       return 'Synchronisiere…';
     case 'offline':
-      return s.pending ? `Offline – ${s.pending} Änderung(en) warten` : 'Offline – Daten sind auf dem Gerät';
+      return s.pending ? `Offline: ${s.pending} Änderung(en) warten` : 'Offline. Daten sind auf dem Gerät';
     case 'error':
       return s.error ?? 'Sync-Fehler';
     case 'unauthorized':
@@ -50,7 +50,7 @@ export function SyncIndicator() {
       className={s.status === 'error' || s.status === 'unauthorized' ? 'text-warn' : 'text-muted-foreground'}
     >
       <Icon
-        className={`size-5 ${s.status === 'syncing' ? 'animate-spin motion-reduce:animate-none' : ''}`}
+        className={`size-6 ${s.status === 'syncing' ? 'animate-spin motion-reduce:animate-none' : ''}`}
         aria-hidden
       />
     </Button>

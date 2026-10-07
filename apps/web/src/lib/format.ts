@@ -58,3 +58,10 @@ export function fmtAgo(ms: number, now = Date.now()): string {
   if (Math.abs(h) < 24) return rtf.format(h, 'hour');
   return rtf.format(Math.round(h / 24), 'day');
 }
+
+/** Placeholder for a missing value in tables, stats and chart legends (the only dash the UI uses). */
+export const NO_VALUE = '–';
+
+const pct0 = new Intl.NumberFormat('de-DE', { style: 'percent', maximumFractionDigits: 0 });
+/** Share as percent: 1.2 → "120 %". */
+export const fmtPercent = (share: number) => pct0.format(share);

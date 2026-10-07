@@ -1,13 +1,14 @@
-import { get, N, uuidv7, type Food } from '@ft/shared';
+import { get, N, uuidv7, type Food, type Meal } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, Flame, Globe, LoaderCircle, Plus, ScanBarcode, Search, WifiOff } from 'lucide-react';
+import { Camera, ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addFoodToDraft } from '@/db/aiDraft';
@@ -26,17 +27,32 @@ import { useSettings, useToday } from '@/hooks/data';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { parseInto, type Into } from '@/lib/into';
-import { cn } from '@/lib/utils';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 
-type Tab = 'all' | 'recent' | 'frequent' | 'mine' | 'meals';
+type Tab = 'frequent' | 'recent' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'all', label: 'Alle' },
-  { id: 'recent', label: 'Kürzlich' },
   { id: 'frequent', label: 'Häufig' },
-  { id: 'mine', label: 'Meine' },
-  { id: 'meals', label: 'Meals' },
+  { id: 'recent', label: 'Kürzlich' },
+  { id: 'mine', label: 'Eigene' },
 ];
+const DEFAULT_TAB: Tab = 'frequent';
+
+/** Remembers whether the "Meals" section under "Eigene" is open (per device, default open). */
+const MEALS_OPEN_KEY = 'ft:addfood:mealsOpen';
+function readMealsOpen(): boolean {
+  try {
+    return localStorage.getItem(MEALS_OPEN_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+function writeMealsOpen(open: boolean) {
+  try {
+    localStorage.setItem(MEALS_OPEN_KEY, open ? '1' : '0');
+  } catch {
+    /* private mode: just not remembered */
+  }
+}
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -57,19 +73,25 @@ export function AddFoodPage() {
   const into = parseInto(search.into);
   /** Search params for links to the food page / scanner: keep the target (diary meal or `into`). */
   const linkSearch: FoodLinkSearch = { date, meal, ...(search.into ? { into: search.into } : {}) };
-  const tabs = into ? TABS.filter((t) => t.id !== 'meals') : TABS;
-  const tab = (tabs.some((t) => t.id === search.tab) ? search.tab : 'all') as Tab;
+  const tab = TABS.find((t) => t.id === search.tab)?.id ?? DEFAULT_TAB;
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
   const qOnline = useDebounced(query.trim(), 600);
+  // From 2 characters on, the search results replace the tab content (whatever tab is selected).
+  const searching = q.length >= 2;
 
-  const local = useLiveQuery(async () => (q.length >= 2 ? searchLocal(db, q) : null), [db, q]);
+  const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
+  // Waits for the history so that previously logged foods rank first from the first result on.
+  const local = useLiveQuery(
+    async () => (searching && history ? searchLocal(db, q, 40, history.usage) : null),
+    [db, q, searching, history],
+  );
   const [result, setResult] = useState<{
     q: string;
     foods: Food[];
     state: 'done' | 'offline' | 'limited' | 'error';
   } | null>(null);
-  const wantsOnline = qOnline.length >= 3 && tab === 'all';
+  const wantsOnline = searching && qOnline.length >= 3;
   // Results belong to the query they were fetched for; anything else is still loading.
   const online: {
     q: string;
@@ -97,7 +119,6 @@ export function AddFoodPage() {
     return () => ctrl.abort();
   }, [qOnline, wantsOnline]);
 
-  const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
   const custom = useLiveQuery(() => db.customFoods.filter((f) => !f.deleted).sortBy('name'), [db]);
   const meals = useLiveQuery(() => db.meals.filter((m) => !m.deleted).sortBy('name'), [db]);
 
@@ -105,8 +126,20 @@ export function AddFoodPage() {
   const onlineFoods = (online?.q === qOnline ? online.foods : []).filter((f) => !localIds.has(f.id));
   const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
 
-  const setTab = (t: Tab) =>
-    void navigate({ search: (s) => ({ ...s, tab: t === 'all' ? undefined : t }), replace: true });
+  const [mealsOpen, setMealsOpen] = useState(readMealsOpen);
+  const toggleMeals = (open: boolean) => {
+    setMealsOpen(open);
+    writeMealsOpen(open);
+  };
+
+  const setTab = (t: Tab) => {
+    // Picking a tab while search results are shown leaves the search.
+    setQuery('');
+    void navigate({
+      search: (s) => ({ ...s, q: undefined, tab: t === DEFAULT_TAB ? undefined : t }),
+      replace: true,
+    });
+  };
 
   async function quickRelog(r: RecentFood) {
     if (into) {
@@ -134,27 +167,20 @@ export function AddFoodPage() {
       back
       withTabBar={false}
       actions={
-        <>
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/scan" search={linkSearch} aria-label="Barcode scannen">
-              <ScanBarcode aria-hidden />
-            </Link>
-          </Button>
-          {!into && (
-            <>
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/photo" search={{ date, meal }} aria-label="Foto analysieren">
-                  <Camera aria-hidden />
-                </Link>
-              </Button>
-              <Button variant="ghost" size="icon" asChild>
-                <Link to="/quick-add" search={{ date, meal }} aria-label="Schnell hinzufügen">
-                  <Flame aria-hidden />
-                </Link>
-              </Button>
-            </>
-          )}
-        </>
+        into ? undefined : (
+          <>
+            <Button variant="ghost" size="icon" asChild>
+              <Link to="/photo" search={{ date, meal }} aria-label="Foto analysieren">
+                <Camera className="size-6" aria-hidden />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link to="/quick-add" search={{ date, meal }} aria-label="Schnell hinzufügen">
+                <Zap className="size-6" aria-hidden />
+              </Link>
+            </Button>
+          </>
+        )
       }
       headerExtra={
         <div className="grid gap-3">
@@ -172,17 +198,21 @@ export function AddFoodPage() {
               aria-label="Lebensmittel suchen"
               placeholder="Lebensmittel suchen, z. B. Haferflocken…"
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                if (tab !== 'all' && e.target.value) setTab('all');
-              }}
+              onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-            <TabsList className={cn('grid w-full', into ? 'grid-cols-4' : 'grid-cols-5')}>
-              {tabs.map((t) => (
-                <TabsTrigger key={t.id} value={t.id} className="px-1 text-xs">
+          {/* No tab is active while search results are shown; tapping one returns to it. */}
+          <Tabs value={searching ? '' : tab} onValueChange={(v) => setTab(v as Tab)}>
+            <TabsList className="grid w-full grid-cols-3">
+              {TABS.map((t) => (
+                <TabsTrigger
+                  key={t.id}
+                  value={t.id}
+                  // Radix ignores a click on the active tab; while searching none is active.
+                  onClick={() => searching && t.id === tab && setTab(t.id)}
+                  className="px-1 text-xs"
+                >
                   {t.label}
                 </TabsTrigger>
               ))}
@@ -191,14 +221,7 @@ export function AddFoodPage() {
         </div>
       }
     >
-      {tab === 'all' && q.length < 2 && (
-        <>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Kürzlich gegessen</h2>
-          <RecentList items={history?.recent.slice(0, 15)} search={linkSearch} onQuick={quickRelog} />
-        </>
-      )}
-
-      {tab === 'all' && q.length >= 2 && (
+      {searching && (
         <>
           {local && local.length > 0 && (
             <ul className="-mx-4 divide-y divide-border/70">
@@ -233,13 +256,13 @@ export function AddFoodPage() {
             </h2>
             {online?.state === 'offline' && (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <WifiOff className="size-4" aria-hidden /> Offline – nur lokale Ergebnisse. Barcode-Scan
+                <WifiOff className="size-4" aria-hidden /> Offline: nur lokale Ergebnisse. Barcode-Scan
                 funktioniert, sobald du wieder verbunden bist.
               </p>
             )}
             {online?.state === 'limited' && (
               <p className="mb-2 text-xs text-muted-foreground">
-                Open Food Facts ist ausgelastet – zeige zwischengespeicherte Produkte.
+                Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.
               </p>
             )}
             {online?.state === 'error' && (
@@ -262,13 +285,37 @@ export function AddFoodPage() {
         </>
       )}
 
-      {tab === 'recent' && <RecentList items={history?.recent} search={linkSearch} onQuick={quickRelog} />}
-      {tab === 'frequent' && (
-        <RecentList items={history?.frequent} search={linkSearch} onQuick={quickRelog} showCount />
+      {!searching && tab === 'recent' && (
+        <RecentList items={history?.recent} search={linkSearch} onQuick={quickRelog} />
+      )}
+      {!searching && tab === 'frequent' && (
+        <RecentList
+          items={history?.frequent}
+          search={linkSearch}
+          onQuick={quickRelog}
+          showCount
+          empty="Was du mindestens zweimal einträgst, erscheint hier zum schnellen Wiederverwenden."
+        />
       )}
 
-      {tab === 'mine' && (
+      {!searching && tab === 'mine' && (
         <>
+          {/* Saved meals cannot be part of a saved meal or an AI review. */}
+          {!into && (
+            <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
+              <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+                <span>Meals{meals ? ` (${meals.length})` : ''}</span>
+                <ChevronDown
+                  className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                  aria-hidden
+                />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <MealList meals={meals} date={date} meal={meal} />
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
           <Button variant="outline" className="mb-3 w-full" asChild>
             <Link to="/custom-food/$id" params={{ id: 'new' }} search={linkSearch}>
               <Plus aria-hidden /> Eigenes Lebensmittel anlegen
@@ -282,40 +329,6 @@ export function AddFoodPage() {
           <ul className="-mx-4 divide-y divide-border/70">
             {custom?.map((c) => (
               <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
-            ))}
-          </ul>
-        </>
-      )}
-
-      {tab === 'meals' && (
-        <>
-          {meals && meals.length === 0 && (
-            <EmptyState title="Noch keine gespeicherten Meals">
-              Speichere eine Mahlzeit im Tagebuch über das ⋮-Menü „Als Meal speichern“, um sie mit einem Tipp
-              erneut einzutragen.
-            </EmptyState>
-          )}
-          <ul className="-mx-4 divide-y divide-border/70">
-            {meals?.map((m) => (
-              <li key={m.id}>
-                <Link
-                  to="/meals/$mealId"
-                  params={{ mealId: m.id }}
-                  search={{ date, meal }}
-                  className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-                >
-                  <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{m.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {m.items.map((i) => i.name).join(', ')}
-                    </div>
-                  </div>
-                  <div className="tabular font-semibold">
-                    {fmt0(m.items.reduce((s, i) => s + get(i.nutrients, N.kcal), 0))}
-                  </div>
-                </Link>
-              </li>
             ))}
           </ul>
         </>
@@ -380,24 +393,57 @@ function FoodRow({ food, search }: { food: Food; search: FoodLinkSearch }) {
   );
 }
 
+function MealList({ meals, date, meal }: { meals: Meal[] | undefined; date: string; meal: number }) {
+  if (!meals) return null;
+  if (meals.length === 0)
+    return (
+      <p className="py-2 text-sm text-muted-foreground text-pretty">
+        Noch keine gespeicherten Meals. Speichere eine Mahlzeit im Tagebuch über das ⋮-Menü „Als Meal
+        speichern“, um sie mit einem Tipp erneut einzutragen.
+      </p>
+    );
+  return (
+    <ul className="-mx-4 divide-y divide-border/70">
+      {meals.map((m) => (
+        <li key={m.id}>
+          <Link
+            to="/meals/$mealId"
+            params={{ mealId: m.id }}
+            search={{ date, meal }}
+            className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+          >
+            <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">{m.name}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {m.items.map((i) => i.name).join(', ')}
+              </div>
+            </div>
+            <div className="tabular font-semibold">
+              {fmt0(m.items.reduce((s, i) => s + get(i.nutrients, N.kcal), 0))}
+            </div>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function RecentList({
   items,
   search,
   onQuick,
   showCount,
+  empty = 'Was du einträgst, erscheint hier zum schnellen Wiederverwenden.',
 }: {
   items: RecentFood[] | undefined;
   search: FoodLinkSearch;
   onQuick: (r: RecentFood) => void;
   showCount?: boolean;
+  empty?: string;
 }) {
   if (!items) return null;
-  if (items.length === 0)
-    return (
-      <EmptyState title="Noch keine Einträge">
-        Was du einträgst, erscheint hier zum schnellen Wiederverwenden.
-      </EmptyState>
-    );
+  if (items.length === 0) return <EmptyState title="Noch keine Einträge">{empty}</EmptyState>;
   return (
     <ul className="-mx-4 divide-y divide-border/70">
       {items.map((r) => (

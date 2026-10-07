@@ -31,7 +31,7 @@ test-results
 .claude/settings.local.json
 
 # internal planning notes (contain infrastructure details)
-PLAN.md
+PLAN*.md
 *.tmp.mjs
 
 # User-provided screenshots and notes (local only)

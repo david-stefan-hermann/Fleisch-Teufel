@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validGtin } from '@/components/BarcodeScanner';
-import { fmtGrams, fmtRelativeDay, parseDecimal } from '@/lib/format';
+import { fmtGrams, fmtPercent, fmtRelativeDay, NO_VALUE, parseDecimal } from '@/lib/format';
 import { defaultMealForNow } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
@@ -18,6 +18,12 @@ describe('format', () => {
     expect(fmtGrams(230.4)).toBe('230 g');
     expect(fmtGrams(12.34)).toBe('12,3 g');
     expect(fmtGrams(0.456)).toBe('0,46 g');
+  });
+
+  it('formats percentages and the missing-value placeholder', () => {
+    expect(fmtPercent(1.2)).toBe('120\u00a0%');
+    expect(fmtPercent(0.25)).toBe('25\u00a0%');
+    expect(NO_VALUE).toBe('\u2013');
   });
 
   it('names relative days', () => {

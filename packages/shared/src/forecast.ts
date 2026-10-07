@@ -10,7 +10,7 @@ export interface WeightPoint {
  * "Complete day" forecast (feature #10), as MyFitnessPal does it: if every day for the next
  * five weeks looked like today, weight changes by (goal − net intake) × 35 / 7700 kg.
  * `netKcal` is food minus credited exercise; `goalKcal` is the maintenance-adjusted target;
- * `maintenanceKcal` is the TDEE (goal minus planned deficit) — the energy balance reference.
+ * `maintenanceKcal` is the TDEE (goal minus planned deficit), the energy balance reference.
  */
 export function fiveWeekForecast(params: {
   currentWeightKg: number;

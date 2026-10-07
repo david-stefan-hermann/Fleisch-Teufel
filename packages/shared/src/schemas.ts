@@ -121,7 +121,7 @@ export const foodPortionSchema = z.object({
 });
 export type FoodPortion = z.infer<typeof foodPortionSchema>;
 
-/** One logged item — shared by diary entries and saved meals. Nutrients are copied at log time. */
+/** One logged item, shared by diary entries and saved meals. Nutrients are copied at log time. */
 export const loggedItemShape = {
   foodId: idSchema.nullable(),
   source: entrySourceSchema,
@@ -132,7 +132,7 @@ export const loggedItemShape = {
   portionLabel: z.string().max(80).nullable(),
   portionGrams: z.number().positive().max(100_000).nullable(),
   quantity: z.number().min(0).max(10_000),
-  /** Per-100 g values of the food (null for quick add) — allows re-scaling when edited. */
+  /** Per-100 g values of the food (null for quick add); allows re-scaling when edited. */
   per100: nutrientMapSchema.nullable(),
   /** Absolute nutrients of this item. */
   nutrients: nutrientMapSchema,

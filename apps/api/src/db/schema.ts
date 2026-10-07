@@ -277,7 +277,7 @@ export const appMeta = pgTable('app_meta', {
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
 
 /**
- * Meal photos (immutable: a changed photo gets a new id). Not part of the LWW sync – records only
+ * Meal photos (immutable: a changed photo gets a new id). Not part of the LWW sync: records only
  * reference them by `photoId`; devices upload/download them via `/api/photos/:id`.
  */
 export const photos = pgTable(

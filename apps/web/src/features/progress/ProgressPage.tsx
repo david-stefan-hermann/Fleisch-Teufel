@@ -22,7 +22,7 @@ import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useSettings, useToday, useWeights } from '@/hooks/data';
-import { fmt1, fmtDate, fmtRelativeDay } from '@/lib/format';
+import { fmt1, fmtDate, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
 const RANGES = [
   { id: '7', label: '7 T', days: 7 },
@@ -94,7 +94,7 @@ export function ProgressPage() {
     >
       {weights && weights.length === 0 ? (
         <EmptyState icon={<Scale />} title="Noch kein Gewicht eingetragen">
-          <p>Wiege dich am besten morgens nach dem Aufstehen – der Trend zählt, nicht der einzelne Wert.</p>
+          <p>Wiege dich am besten morgens nach dem Aufstehen. Der Trend zählt, nicht der einzelne Wert.</p>
           <Button className="mt-4" onClick={() => setLogOpen(true)}>
             Gewicht eintragen
           </Button>
@@ -105,13 +105,13 @@ export function ProgressPage() {
             <dl className="tabular grid grid-cols-3 gap-2 p-4 text-center">
               <div>
                 <dt className="text-xs text-muted-foreground">Aktuell</dt>
-                <dd className="text-xl font-bold">{latest ? kg(latest.kg) : '–'}</dd>
+                <dd className="text-xl font-bold">{latest ? kg(latest.kg) : NO_VALUE}</dd>
                 {latest && <dd className="text-[11px] text-muted-foreground">{fmtDate(latest.date)}</dd>}
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Trend / Woche</dt>
                 <dd className="text-xl font-bold">
-                  {weekly === null ? '–' : `${weekly > 0 ? '+' : ''}${fmt1(weekly)}`}
+                  {weekly === null ? NO_VALUE : `${weekly > 0 ? '+' : ''}${fmt1(weekly)}`}
                 </dd>
                 <dd className="text-[11px] text-muted-foreground">letzte 30 Tage</dd>
               </div>
@@ -123,7 +123,7 @@ export function ProgressPage() {
                   {target !== null && latest
                     ? kg(round(latest.kg - target, 1))
                     : change(30) === null
-                      ? '–'
+                      ? NO_VALUE
                       : `${change(30)! > 0 ? '+' : ''}${fmt1(change(30)!)}`}
                 </dd>
                 {target !== null && <dd className="text-[11px] text-muted-foreground">Ziel {kg(target)}</dd>}
@@ -230,6 +230,9 @@ export function ProgressPage() {
   );
 }
 
+/** The weight slider spans this many kilograms below and above the starting weight. */
+const WEIGHT_SLIDER_RANGE_KG = 10;
+
 function WeightDialog({
   open,
   onOpenChange,
@@ -257,10 +260,10 @@ function WeightDialog({
     setValue(entry?.kg ?? last);
   }
   const valid = value !== null && value >= 20 && value <= 400;
-  // The slider covers ±12 kg around the starting weight; the number field still takes anything.
+  // The slider covers a fixed window around the starting weight; the number field still takes anything.
   const base = entry?.kg ?? last ?? 80;
-  const sliderMin = Math.max(20, Math.floor(base - 12));
-  const sliderMax = Math.min(400, Math.ceil(base + 12));
+  const sliderMin = Math.max(20, Math.floor(base - WEIGHT_SLIDER_RANGE_KG));
+  const sliderMax = Math.min(400, Math.ceil(base + WEIGHT_SLIDER_RANGE_KG));
   const sliderValue = value === null ? base : Math.min(sliderMax, Math.max(sliderMin, value));
   const nudge = (delta: number) => setValue(round(Math.min(400, Math.max(20, (value ?? base) + delta)), 1));
   return (
@@ -269,13 +272,13 @@ function WeightDialog({
         <DialogHeader>
           <DialogTitle>{entry ? 'Gewicht ändern' : 'Gewicht eintragen'}</DialogTitle>
           <DialogDescription>
-            Ein Wert pro Tag – ein neuer Eintrag ersetzt den des gleichen Tages.
+            Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
           <div className="tabular text-center">
             <output htmlFor="w-slider" className="text-4xl font-bold">
-              {value === null ? '–' : fmt1(value)}
+              {value === null ? NO_VALUE : fmt1(value)}
             </output>
             <span className="ml-1 text-lg text-muted-foreground">kg</span>
           </div>

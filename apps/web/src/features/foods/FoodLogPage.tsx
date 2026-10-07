@@ -41,7 +41,7 @@ import { addItemToMeal, logFoodEntry } from '@/db/entries';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useSettings } from '@/hooks/data';
-import { fmt0, fmt1, fmtDayShort, fmtGrams } from '@/lib/format';
+import { fmt0, fmt1, fmtDayShort, fmtGrams, NO_VALUE } from '@/lib/format';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { cn } from '@/lib/utils';
 
@@ -470,7 +470,7 @@ function FoodLogEditor({
             {micros.map((m) => (
               <div key={m.code} className="flex justify-between gap-2">
                 <dt className="text-muted-foreground">{m.de}</dt>
-                <dd>{nutrients[m.code] !== undefined ? fmtGrams(nutrients[m.code]!) : '–'}</dd>
+                <dd>{nutrients[m.code] !== undefined ? fmtGrams(nutrients[m.code]!) : NO_VALUE}</dd>
               </div>
             ))}
           </dl>

@@ -1,7 +1,15 @@
 import { uuidv7, type AiAnalysisResult, type Food, type MealItem } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
-import { addFoodToDraft, currentDraft, draftFromResult, patchRow, updateDraft } from '@/db/aiDraft';
-import { UserDb } from '@/db/dexie';
+import {
+  addFoodToDraft,
+  currentDraft,
+  draftFromResult,
+  patchRow,
+  rowGrams,
+  scaleDraft,
+  updateDraft,
+} from '@/db/aiDraft';
+import { UserDb, type AiDraft } from '@/db/dexie';
 import { addItemToMeal, updateMealItem } from '@/db/entries';
 import { loadPhoto, storePhoto, uploadPendingPhotos } from '@/db/photos';
 import { saveRecord } from '@/db/write';
@@ -101,6 +109,30 @@ describe('AI review draft', () => {
       ['Nudeln', 150, 'high'],
       ['Parmesan', 12, null],
     ]);
+  });
+
+  it('scales all ingredients from the reference amounts without drift', () => {
+    const draft: AiDraft = {
+      ...draftFromResult({ meal: 0, result }),
+      rows: [
+        { key: 'a', name: 'Nudeln', grams: 200, confidence: 'high', candidates: [], foodId: null },
+        { key: 'b', name: 'Soße', grams: 33, confidence: 'low', candidates: [], foodId: null },
+        { key: 'c', name: 'Öl', grams: null, confidence: 'low', candidates: [], foodId: null },
+      ],
+    };
+    const base = rowGrams(draft);
+    expect(base).toEqual({ a: 200, b: 33, c: null });
+    const up = scaleDraft(draft, base, 1.5);
+    expect(up.rows.map((r) => r.grams)).toEqual([300, 50, null]);
+    // Back and forth always starts from the base: no accumulated rounding.
+    let moved = draft;
+    for (const f of [1.05, 0.35, 2.95, 0.25, 1]) moved = scaleDraft(moved, base, f);
+    expect(moved.rows.map((r) => r.grams)).toEqual([200, 33, null]);
+    expect(scaleDraft(draft, base, 0.25).rows.map((r) => r.grams)).toEqual([50, 8, null]);
+    // Rows that were added after the base was taken keep their amount.
+    const added = { ...draft, rows: [...draft.rows, { ...draft.rows[0]!, key: 'd', grams: 70 }] };
+    expect(scaleDraft(added, base, 2).rows.map((r) => r.grams)).toEqual([400, 66, null, 70]);
+    expect(up.mealName).toBe(draft.mealName);
   });
 });
 

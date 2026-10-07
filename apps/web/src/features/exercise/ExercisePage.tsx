@@ -38,7 +38,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveExercise, saveExerciseTemplate } from '@/db/entries';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useCurrentWeight, useSettings } from '@/hooks/data';
-import { fmt0, fmt1, fmtDate, fmtDayLong } from '@/lib/format';
+import { fmt0, fmt1, fmtDate, fmtDayLong, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 interface TypeOption {
@@ -309,11 +309,11 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
               <span className="tabular text-2xl font-bold text-exercise">{fmt0(kcal)} kcal</span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              (MET {met ? fmt1(met) : '–'} − 1) × {fmt1(usedWeight)} kg × {minutes ? fmt1(minutes / 60) : '–'}{' '}
-              h
+              (MET {met ? fmt1(met) : NO_VALUE} − 1) × {fmt1(usedWeight)} kg ×{' '}
+              {minutes ? fmt1(minutes / 60) : NO_VALUE} h
               {weight === undefined &&
                 !entry &&
-                ' · Standardgewicht – trage dein Gewicht ein für genauere Werte.'}
+                ' · Standardgewicht. Trage dein Gewicht ein für genauere Werte.'}
               {settings?.addExerciseCalories === false &&
                 ' · Wird laut Einstellung nicht aufs Tagesziel angerechnet.'}
             </p>
@@ -336,7 +336,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         <TemplateDialog
           open={templateOpen}
           onOpenChange={setTemplateOpen}
-          defaultName={setup.note ? `${type.name} – ${setup.note.split('\n')[0]!.slice(0, 40)}` : type.name}
+          defaultName={setup.note ? `${type.name}: ${setup.note.split('\n')[0]!.slice(0, 40)}` : type.name}
           data={{ typeKey: type.key, typeName: type.name, minutes, intensity, note: setup.note }}
         />
       )}

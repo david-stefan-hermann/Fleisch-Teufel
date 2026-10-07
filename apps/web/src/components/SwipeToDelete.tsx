@@ -20,24 +20,33 @@ interface Gesture {
  * with the browser (`touch-action: pan-y`); a swipe never triggers the row's own link or button,
  * and tapping an open row (or anywhere else) closes it again. Keyboard users delete from the
  * detail screen, so the hidden button is not focusable while closed.
+ *
+ * `disabled` (e.g. while the row is dragged to another meal) ignores all gestures and closes an
+ * open row.
  */
 export function SwipeToDelete({
   children,
   onDelete,
   label,
   className,
+  disabled = false,
 }: {
   children: ReactNode;
   onDelete: () => void;
   /** Accessible name of the delete button, e.g. "Haferflocken löschen". */
   label: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const gesture = useRef<Gesture | null>(null);
   const swallowClick = useRef(false);
   const root = useRef<HTMLDivElement>(null);
+  if (disabled && (offset !== 0 || dragging)) {
+    setOffset(0);
+    setDragging(false);
+  }
   const open = offset < 0 && !dragging;
 
   // Close when the user touches anything outside this row.
@@ -77,13 +86,17 @@ export function SwipeToDelete({
         )}
         style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
         onPointerDown={(e) => {
-          if (e.pointerType === 'mouse' && e.button !== 0) return;
+          if (disabled || (e.pointerType === 'mouse' && e.button !== 0)) return;
           gesture.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, base: offset, axis: null };
           swallowClick.current = false;
         }}
         onPointerMove={(e) => {
           const g = gesture.current;
           if (!g || g.pointerId !== e.pointerId) return;
+          if (disabled) {
+            gesture.current = null;
+            return;
+          }
           const dx = e.clientX - g.x;
           const dy = e.clientY - g.y;
           if (!g.axis) {
@@ -102,7 +115,7 @@ export function SwipeToDelete({
         onPointerUp={(e) => {
           const g = gesture.current;
           gesture.current = null;
-          if (!g || g.pointerId !== e.pointerId) return;
+          if (!g || g.pointerId !== e.pointerId || disabled) return;
           if (g.axis === 'x') {
             setDragging(false);
             setOffset((o) => (o < -ACTION_WIDTH / 2 ? -ACTION_WIDTH : 0));

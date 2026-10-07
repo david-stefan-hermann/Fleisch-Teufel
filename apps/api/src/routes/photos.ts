@@ -13,7 +13,7 @@ import type { AppEnv, Deps } from '../types.js';
 export const MAX_PHOTO_BYTES = 1.5 * 1024 * 1024;
 const ID = /^[A-Za-z0-9_-]{8,64}$/;
 
-/** Detects the format from the file signature – the declared content type is not trusted. */
+/** Detects the format from the file signature; the declared content type is not trusted. */
 export function sniffImage(buf: Uint8Array): 'image/jpeg' | 'image/webp' | 'image/png' | null {
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg';
   if (buf.length > 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)

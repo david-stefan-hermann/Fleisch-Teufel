@@ -97,7 +97,7 @@ export function ScanPage() {
               <PackageSearch className="size-5" aria-hidden /> Produkt {state.code} unbekannt
             </p>
             <p className="text-sm text-muted-foreground">
-              Lege es einmal selbst an – danach findest du es beim nächsten Scan sofort.
+              Lege es einmal selbst an, danach findest du es beim nächsten Scan sofort.
             </p>
             <div className="flex gap-2">
               <Button

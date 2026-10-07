@@ -124,7 +124,7 @@ export type DiaryRow =
 /**
  * Groups entries that share a `groupId` (logged in one action from a saved meal) into one row.
  * Rows keep the order of their first entry (`entries` must be sorted by `loggedAt`); entries
- * without `groupId` – quick adds, single foods, records from older app versions – stay single.
+ * without `groupId` (quick adds, single foods, records from older app versions) stay single.
  * A group with only one remaining entry (the others were deleted) is shown as a plain entry.
  */
 export function groupDiaryEntries(entries: FoodEntry[]): DiaryRow[] {

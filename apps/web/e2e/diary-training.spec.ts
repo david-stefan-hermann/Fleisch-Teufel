@@ -100,12 +100,141 @@ test('add menu stays compact on a desktop screen', async ({ browser }) => {
   const page = await context.newPage();
   await register(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hinzufügen' }).click();
-  const sheet = page.getByRole('dialog', { name: 'Hinzufügen' });
+  // (exact: the meal cards have "Zu … hinzufügen" buttons as well)
+  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Hinzufügen', exact: true });
   await expect(sheet).toBeVisible();
   const box = (await sheet.boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(460);
   expect(box.height).toBeLessThan(450);
   expect(Math.abs(box.x + box.width / 2 - 720)).toBeLessThan(4);
   await context.close();
+});
+
+async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
+  await page.goto(`/quick-add?meal=${meal}`);
+  await page.getByLabel('Bezeichnung').fill(name);
+  await page.getByLabel('Kalorien').fill(kcal);
+  await page.locator('button[type=submit]').click();
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+}
+
+const mealCard = (page: Page, name: string) =>
+  page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name }) });
+
+test('the "+" of a meal opens the add sheet for that meal', async ({ page }) => {
+  await register(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Zu Mittagessen hinzufügen' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Zu Mittagessen hinzufügen' });
+  await expect(sheet).toBeVisible();
+  // The photo tile is the highlighted one.
+  const photo = sheet.getByRole('button', { name: 'Foto / Scan' });
+  const search = sheet.getByRole('button', { name: 'Lebensmittel suchen' });
+  const bg = (el: typeof photo) => el.evaluate((e) => getComputedStyle(e).backgroundColor);
+  expect(await bg(photo)).not.toBe(await bg(search));
+  await photo.click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=1/);
+
+  // The empty state of a meal opens the same sheet; the tab bar "+" one without a meal.
+  await page.goto('/');
+  await mealCard(page, 'Abendessen').getByRole('button', { name: 'Lebensmittel hinzufügen' }).click();
+  await page
+    .getByRole('dialog', { name: 'Zu Abendessen hinzufügen' })
+    .getByRole('button', { name: 'Lebensmittel suchen' })
+    .click();
+  await expect(page).toHaveURL(/\/add\?.*meal=2/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Zu Abendessen' })).toBeVisible();
+});
+
+test('drag an entry to another meal, with undo', async ({ page }) => {
+  await register(page);
+  await quickAdd(page, 0, 'Banane', '105');
+  const row = page.getByText('Banane', { exact: true });
+  await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const from = (await row.boundingBox())!;
+  const target = (await mealCard(page, 'Mittagessen').boundingBox())!;
+
+  // Long press (300 ms) lifts the row, then it follows the pointer to the other meal.
+  await page.mouse.move(from.x + 20, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(450);
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) {
+    await page.mouse.move(
+      from.x + 20,
+      from.y + from.height / 2 + ((target.y + target.height / 2 - from.y - from.height / 2) * i) / steps,
+    );
+  }
+  await expect(mealCard(page, 'Mittagessen')).toHaveClass(/ring-2/);
+  await page.mouse.up();
+
+  await expect(page.getByText('Nach Mittagessen verschoben')).toBeVisible();
+  await expect(mealCard(page, 'Mittagessen').getByText('Banane', { exact: true })).toBeVisible();
+  await expect(mealCard(page, 'Frühstück').getByText('Banane', { exact: true })).toHaveCount(0);
+  // The drop did not open the entry, and no delete button was revealed on the way.
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  // (the closed delete button is aria-hidden, so it is found by its label, not its role)
+  await expect(page.locator('button[aria-label="Banane löschen"]')).toHaveAttribute('tabindex', '-1');
+
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(mealCard(page, 'Frühstück').getByText('Banane', { exact: true })).toBeVisible();
+  await expect(mealCard(page, 'Mittagessen').getByText('Banane', { exact: true })).toHaveCount(0);
+
+  // A quick swipe is still a delete gesture, not a drag.
+  await swipeLeft(page, 'Banane');
+  await expect(page.getByRole('button', { name: 'Banane löschen' })).toHaveAttribute('tabindex', '0');
+});
+
+test('touch: long press drags a whole saved meal to another meal', async ({ page }) => {
+  await register(page);
+  await quickAdd(page, 0, 'Joghurt', '150');
+  await quickAdd(page, 0, 'Beeren', '50');
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
+  await page.getByLabel('Name').fill('Bowl');
+  await page.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Bowl“ gespeichert')).toBeVisible();
+  await page.goto('/meals?meal=1');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('button', { name: '200 kcal eintragen' }).click();
+  const group = mealCard(page, 'Mittagessen').getByRole('button', { name: /Bowl/ });
+  await expect(group).toBeVisible();
+
+  // Real touch events (CDP): the touch sensor is what iOS uses.
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x = 0, y = 0) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  await group.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const from = (await group.boundingBox())!;
+  const target = (await mealCard(page, 'Snacks').boundingBox())!;
+  const x = from.x + 40;
+  const y0 = from.y + from.height / 2;
+  const y1 = Math.min(target.y + 30, page.viewportSize()!.height - 10);
+  await touch('touchStart', x, y0);
+  await page.waitForTimeout(450);
+  for (let i = 1; i <= 10; i++) await touch('touchMove', x, y0 + ((y1 - y0) * i) / 10);
+  await touch('touchEnd');
+
+  await expect(page.getByText('Nach Snacks verschoben')).toBeVisible();
+  const moved = mealCard(page, 'Snacks').getByRole('button', { name: /Bowl/ });
+  await expect(moved).toBeVisible();
+  // Both ingredients moved as one row; the drop did not expand the group.
+  await expect(moved).toHaveAttribute('aria-expanded', 'false');
+  await expect(moved).toContainText('2 Zutaten');
+  await expect(mealCard(page, 'Mittagessen').getByRole('button', { name: /Bowl/ })).toHaveCount(0);
+  // The single entries in breakfast stayed where they were.
+  await expect(mealCard(page, 'Frühstück').getByText('Joghurt', { exact: true })).toBeVisible();
+});
+
+test('weight slider spans ±10 kg around the last weight', async ({ page }) => {
+  await register(page);
+  await page.goto('/progress');
+  await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
+  await dialog.getByLabel('Genauer Wert').fill('84,5');
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
+  await expect(dialog.getByText('74 kg', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('95 kg', { exact: true })).toBeVisible();
 });

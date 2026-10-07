@@ -61,7 +61,7 @@ export function LoginPage() {
         <p className="text-sm text-muted-foreground text-pretty">
           {needsReauth
             ? 'Melde dich erneut an, um weiter zu synchronisieren.'
-            : 'Dein Ernährungstagebuch – offline auf dem Gerät, synchron auf deinem Server.'}
+            : 'Dein Ernährungstagebuch: offline auf dem Gerät, synchron auf deinem Server.'}
         </p>
       </div>
       <form onSubmit={submit} className="grid gap-4" noValidate>

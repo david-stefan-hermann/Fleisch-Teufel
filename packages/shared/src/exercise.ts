@@ -2,8 +2,8 @@
  * Simple training log (feature #9): type + duration → kcal = MET × body weight (kg) × hours.
  *
  * MET values are rounded from the Compendium of Physical Activities
- * (Ainsworth et al. 2011, Med Sci Sports Exerc 43(8):1575–81; updated by Herrmann et al. 2024,
- * J Sport Health Sci 13(1):6–12, https://pacompendium.com). MET values are measured facts;
+ * (Ainsworth et al. 2011, Med Sci Sports Exerc 43(8):1575-81; updated by Herrmann et al. 2024,
+ * J Sport Health Sci 13(1):6-12, https://pacompendium.com). MET values are measured facts;
  * the activity selection and German labels are our own. Activity codes are given for traceability.
  *
  * The gross MET formula includes resting metabolism (1 MET) for the workout period. Since the
@@ -70,7 +70,7 @@ export const EXERCISE_TYPES: readonly ExerciseType[] = [
     name: 'Ergometer / Indoor-Bike',
     category: 'cardio',
     met: { light: 3.5, moderate: 6.8, vigorous: 8.8 },
-    compendium: '02011–02014',
+    compendium: '02011-02014',
   },
   {
     key: 'spinning',
@@ -91,7 +91,7 @@ export const EXERCISE_TYPES: readonly ExerciseType[] = [
     name: 'Rudergerät',
     category: 'cardio',
     met: { light: 4.8, moderate: 7.0, vigorous: 8.5 },
-    compendium: '02071–02073',
+    compendium: '02071-02073',
   },
   {
     key: 'elliptical',
@@ -112,7 +112,7 @@ export const EXERCISE_TYPES: readonly ExerciseType[] = [
     name: 'Seilspringen',
     category: 'cardio',
     met: { light: 8.8, moderate: 11.8, vigorous: 12.3 },
-    compendium: '15551–15552',
+    compendium: '15551-15552',
   },
   {
     key: 'hiit',

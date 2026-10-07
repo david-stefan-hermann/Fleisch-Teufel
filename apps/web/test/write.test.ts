@@ -1,7 +1,14 @@
 import { dayId, uuidv7 } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
-import { logFoodEntry, logItems, saveAiMeal, saveExercise, saveExerciseTemplate } from '@/db/entries';
+import {
+  logFoodEntry,
+  logItems,
+  moveEntriesToMeal,
+  saveAiMeal,
+  saveExercise,
+  saveExerciseTemplate,
+} from '@/db/entries';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -135,6 +142,56 @@ describe('local writes', () => {
     expect(new Set(groups.filter(Boolean)).size).toBe(2);
     expect(groups.filter((g) => g === null)).toHaveLength(1);
     expect(await d.foodEntries.filter((e) => e.quantity === 2).count()).toBe(2);
+  });
+
+  it('moves entries to another meal and keeps loggedAt/groupId', async () => {
+    const d = db();
+    const item = {
+      foodId: null,
+      source: 'quick' as const,
+      name: 'Kaffee',
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 5 },
+    };
+    await logItems(d, [item, item], { date: '2026-10-07', meal: 0 }, { mealId: 'm1' });
+    await logItems(d, [item], { date: '2026-10-07', meal: 0 });
+    const before = await d.foodEntries.orderBy('loggedAt').toArray();
+    const group = before.filter((e) => e.groupId);
+    await d.outbox.clear();
+
+    await moveEntriesToMeal(
+      d,
+      group.map((e) => e.id),
+      2,
+    );
+    const after = await d.foodEntries.orderBy('loggedAt').toArray();
+    expect(after.map((e) => e.meal)).toEqual([2, 2, 0]);
+    expect(after.map((e) => [e.loggedAt, e.groupId, e.date])).toEqual(
+      before.map((e) => [e.loggedAt, e.groupId, e.date]),
+    );
+    expect(after[0]!.updatedAt).toBeGreaterThan(before[0]!.updatedAt);
+    // Both moved entries are queued for sync, the untouched one is not.
+    expect((await d.outbox.toArray()).map((o) => o.id).sort()).toEqual(group.map((e) => e.id).sort());
+
+    // Undo moves them back; moving to the meal they are in, or a deleted entry, writes nothing.
+    await moveEntriesToMeal(
+      d,
+      group.map((e) => e.id),
+      0,
+    );
+    expect((await d.foodEntries.toArray()).every((e) => e.meal === 0)).toBe(true);
+    await d.outbox.clear();
+    await moveEntriesToMeal(d, [group[0]!.id], 0);
+    await deleteRecord(d, 'foodEntries', group[1]!.id);
+    await d.outbox.clear();
+    await moveEntriesToMeal(d, [group[1]!.id, 'missing'], 3);
+    expect(await d.outbox.count()).toBe(0);
+    expect((await d.foodEntries.get(group[1]!.id))!.meal).toBe(0);
   });
 
   it('saves training templates', async () => {

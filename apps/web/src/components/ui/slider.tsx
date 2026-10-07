@@ -9,6 +9,8 @@ function Slider({
   min = 0,
   max = 100,
   'aria-label': ariaLabel,
+  'aria-valuetext': ariaValueText,
+  'aria-describedby': ariaDescribedBy,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
   const _values = React.useMemo(
@@ -48,6 +50,8 @@ function Slider({
           key={index}
           // The label belongs on the focusable thumb (role="slider"), not on the container.
           aria-label={ariaLabel}
+          aria-valuetext={ariaValueText}
+          aria-describedby={ariaDescribedBy}
           // 16 px thumb with a 40 px touch target.
           className="relative block size-4 shrink-0 after:absolute after:-inset-3 after:content-[''] rounded-full border border-primary bg-white shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
         />

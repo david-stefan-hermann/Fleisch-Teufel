@@ -49,7 +49,7 @@ export function AccountPage() {
             setBusy(true);
             try {
               await endpoints.changePassword(current, next);
-              toast.success('Passwort geändert – andere Geräte wurden abgemeldet');
+              toast.success('Passwort geändert. Andere Geräte wurden abgemeldet');
               setCurrent('');
               setNext('');
             } catch (err) {

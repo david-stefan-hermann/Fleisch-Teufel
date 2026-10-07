@@ -79,7 +79,7 @@ export interface MacroGrams {
 }
 
 export interface MacroSplitOptions {
-  /** Protein per kg body weight. Default 1.8 g/kg (ISSN position stand: 1.4–2.0 g/kg for active people). */
+  /** Protein per kg body weight. Default 1.8 g/kg (ISSN position stand: 1.4 to 2.0 g/kg for active people). */
   proteinPerKg?: number;
   /** Fat share of energy in percent. Default 30 % (DGE guideline value for adults: 30 %). */
   fatPct?: number;
@@ -92,7 +92,7 @@ export interface MacroSplitOptions {
 
 /**
  * Default macro split: protein by body weight (capped at 35 % of energy), fat by energy share,
- * carbohydrates fill the rest – or, with `carbsPct`, carbohydrates fixed and fat fills the rest.
+ * carbohydrates fill the rest; or, with `carbsPct`, carbohydrates fixed and fat fills the rest.
  */
 export function defaultMacros(kcal: number, weightKg: number, opts: MacroSplitOptions = {}): MacroGrams {
   const proteinPerKg = opts.proteinPerKg ?? 1.8;
@@ -135,7 +135,7 @@ export const MACRO_PRESETS: readonly MacroPreset[] = [
   {
     id: 'balanced',
     label: 'Ausgewogen',
-    hint: '1,0 g Eiweiß/kg · 30 % Fett – nah an den DGE-Empfehlungen',
+    hint: '1,0 g Eiweiß/kg · 30 % Fett, nah an den DGE-Empfehlungen',
     proteinPerKg: 1.0,
     fatPct: 30,
     carbsPct: null,
@@ -143,7 +143,7 @@ export const MACRO_PRESETS: readonly MacroPreset[] = [
   {
     id: 'high_protein',
     label: 'Proteinreich',
-    hint: '1,6 g Eiweiß/kg · 30 % Fett – sättigt besser, gut bei Sport',
+    hint: '1,6 g Eiweiß/kg · 30 % Fett, sättigt besser, gut bei Sport',
     proteinPerKg: 1.6,
     fatPct: 30,
     carbsPct: null,
@@ -151,7 +151,7 @@ export const MACRO_PRESETS: readonly MacroPreset[] = [
   {
     id: 'cut',
     label: 'Diät / Muskelerhalt',
-    hint: '2,0 g Eiweiß/kg · 25 % Fett – schützt Muskeln im Defizit',
+    hint: '2,0 g Eiweiß/kg · 25 % Fett, schützt Muskeln im Defizit',
     proteinPerKg: 2.0,
     fatPct: 25,
     carbsPct: null,

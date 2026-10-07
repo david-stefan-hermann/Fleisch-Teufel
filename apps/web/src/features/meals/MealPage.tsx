@@ -62,7 +62,7 @@ export function MealPage() {
 
   async function removeItem(m: Meal, index: number) {
     if (m.items.length === 1) {
-      toast.error('Ein Meal braucht mindestens eine Zutat – lösche stattdessen das ganze Meal.');
+      toast.error('Ein Meal braucht mindestens eine Zutat. Lösche stattdessen das ganze Meal.');
       return;
     }
     const before = m.items;
@@ -151,7 +151,7 @@ export function MealPage() {
           </Button>
           <p className="px-1 text-xs text-muted-foreground">
             Tippen ändert die Menge, nach links wischen entfernt eine Zutat. Änderungen gelten für künftige
-            Einträge – bereits eingetragene Tage bleiben, wie sie sind.
+            Einträge. Bereits eingetragene Tage bleiben, wie sie sind.
           </p>
         </div>
       </Section>
