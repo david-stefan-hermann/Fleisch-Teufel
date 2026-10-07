@@ -8,7 +8,7 @@ import { EmptyState, Page } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
-import { fmt0 } from '@/lib/format';
+import { fmt0, fmtIngredients } from '@/lib/format';
 import { mealKcal } from './logMeal';
 
 export function MealsPage() {
@@ -52,7 +52,7 @@ export function MealsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{m.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {m.items.length} Zutaten · {m.items.map((i) => i.name).join(', ')}
+                    {fmtIngredients(m.items.length)} · {m.items.map((i) => i.name).join(', ')}
                   </div>
                 </div>
                 <div className="tabular font-semibold">{fmt0(mealKcal(m))}</div>

@@ -34,6 +34,8 @@ const timeShort = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2
 export const fmtDayLong = (d: ISODate) => dayLong.format(parseISODate(d));
 export const fmtDayShort = (d: ISODate) => dayShort.format(parseISODate(d));
 export const fmtDate = (d: ISODate) => dateNumeric.format(parseISODate(d));
+/** Calendar date of a timestamp (e.g. when a record was deleted). */
+export const fmtDateOf = (ms: number) => dateNumeric.format(new Date(ms));
 export const fmtMonth = (d: ISODate) => monthYear.format(parseISODate(d));
 export const fmtTime = (ms: number) => timeShort.format(new Date(ms));
 
@@ -58,6 +60,9 @@ export function fmtAgo(ms: number, now = Date.now()): string {
   if (Math.abs(h) < 24) return rtf.format(h, 'hour');
   return rtf.format(Math.round(h / 24), 'day');
 }
+
+/** "1 Zutat", "3 Zutaten". */
+export const fmtIngredients = (n: number) => `${fmt0(n)}\u00a0${n === 1 ? 'Zutat' : 'Zutaten'}`;
 
 /** Placeholder for a missing value in tables, stats and chart legends (the only dash the UI uses). */
 export const NO_VALUE = '–';

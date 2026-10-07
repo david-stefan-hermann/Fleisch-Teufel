@@ -6,15 +6,18 @@ import {
   ListOrdered,
   Salad,
   Target,
+  Trash2,
   User,
   UserCog,
   UtensilsCrossed,
 } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
 import { useSession } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Switch } from '@/components/ui/switch';
+import { trashCount } from '@/db/trash';
 import { patchRecord, saveRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
 
@@ -40,6 +43,7 @@ export function MorePage() {
   const { db, user } = useSession();
   const settings = useSettings();
   const sync = useSyncState();
+  const trashed = useLiveQuery(() => trashCount(db), [db]);
   return (
     <Page title="Mehr">
       <Section>
@@ -97,6 +101,18 @@ export function MorePage() {
             icon={<Database aria-hidden />}
             label="Daten & Synchronisation"
             hint={syncLabel(sync)}
+          />
+          <Row
+            to="/settings/trash"
+            icon={<Trash2 aria-hidden />}
+            label="Papierkorb"
+            hint={
+              trashed === undefined
+                ? undefined
+                : trashed === 0
+                  ? 'Leer'
+                  : `${trashed} ${trashed === 1 ? 'Eintrag' : 'Einträge'}`
+            }
           />
           <Row to="/settings/account" icon={<UserCog aria-hidden />} label="Konto" hint={user.email} />
           <Row

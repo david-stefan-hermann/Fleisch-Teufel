@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validGtin } from '@/components/BarcodeScanner';
-import { fmtGrams, fmtPercent, fmtRelativeDay, NO_VALUE, parseDecimal } from '@/lib/format';
+import { fmtGrams, fmtIngredients, fmtPercent, fmtRelativeDay, NO_VALUE, parseDecimal } from '@/lib/format';
 import { defaultMealForNow } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
@@ -22,6 +22,8 @@ describe('format', () => {
 
   it('formats percentages and the missing-value placeholder', () => {
     expect(fmtPercent(1.2)).toBe('120\u00a0%');
+    expect(fmtIngredients(1)).toBe('1\u00a0Zutat');
+    expect(fmtIngredients(3)).toBe('3\u00a0Zutaten');
     expect(fmtPercent(0.25)).toBe('25\u00a0%');
     expect(NO_VALUE).toBe('\u2013');
   });

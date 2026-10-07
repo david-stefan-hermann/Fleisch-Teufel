@@ -9,6 +9,7 @@ import {
   saveExercise,
   saveExerciseTemplate,
 } from '@/db/entries';
+import { trashCount, trashedMeals, trashedWeights } from '@/db/trash';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -39,6 +40,38 @@ describe('local writes', () => {
     expect((await d.weightEntries.get(w.id))!.deleted).toBe(true);
     await restoreRecord(d, 'weightEntries', w.id);
     expect((await d.weightEntries.get(w.id))!.deleted).toBe(false);
+  });
+
+  it('lists deleted weights and meals in the trash, newest deletion first', async () => {
+    const d = db();
+    const item = {
+      foodId: null,
+      source: 'quick' as const,
+      name: 'Toast',
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 100 },
+    };
+    for (const date of ['2026-10-01', '2026-10-02', '2026-10-03'])
+      await saveRecord(d, 'weightEntries', { id: dayId.weight(date), date, kg: 80 });
+    const meal = await saveRecord(d, 'meals', { id: uuidv7(), name: 'Toast', items: [item], photoId: null });
+    expect(await trashCount(d)).toBe(0);
+    await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-02'));
+    await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-01'));
+    await deleteRecord(d, 'meals', meal.id);
+    expect((await trashedWeights(d)).map((w) => w.date)).toEqual(['2026-10-01', '2026-10-02']);
+    expect((await trashedMeals(d)).map((m) => m.name)).toEqual(['Toast']);
+    expect(await trashCount(d)).toBe(3);
+    // A new weight on the same day reuses the deterministic id and leaves the trash.
+    await saveRecord(d, 'weightEntries', { id: dayId.weight('2026-10-02'), date: '2026-10-02', kg: 79 });
+    await restoreRecord(d, 'meals', meal.id);
+    expect((await trashedWeights(d)).map((w) => w.date)).toEqual(['2026-10-01']);
+    expect(await trashedMeals(d)).toEqual([]);
+    expect(await trashCount(d)).toBe(1);
   });
 
   it('rejects invalid records without touching the outbox', async () => {

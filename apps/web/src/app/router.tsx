@@ -209,6 +209,10 @@ export const routes = {
     ...r('/settings/data'),
     component: lazyRouteComponent(() => import('@/features/more/DataPage'), 'DataPage'),
   }),
+  trash: createRoute({
+    ...r('/settings/trash'),
+    component: lazyRouteComponent(() => import('@/features/more/TrashPage'), 'TrashPage'),
+  }),
   about: createRoute({
     ...r('/about'),
     component: lazyRouteComponent(() => import('@/features/more/AboutPage'), 'AboutPage'),

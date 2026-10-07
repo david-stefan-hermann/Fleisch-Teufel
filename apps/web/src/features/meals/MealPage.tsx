@@ -29,7 +29,7 @@ import { deleteRecord, patchRecord, restoreRecord } from '@/db/write';
 import { compressImage } from '@/features/ai/image';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useSettings } from '@/hooks/data';
-import { fmt0, fmtGrams } from '@/lib/format';
+import { fmt0, fmtGrams, fmtIngredients } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { logItems } from './logMeal';
 
@@ -192,7 +192,7 @@ export function MealPage() {
             size="lg"
             onClick={async () => {
               const n = await logItems(db, meal.items, { date, meal: target }, { factor, mealId: meal.id });
-              toast.success(`${meal.name}: ${n} Zutaten eingetragen`);
+              toast.success(`${meal.name}: ${fmtIngredients(n)} eingetragen`);
               await navigate({ to: '/', search: { date } });
             }}
           >

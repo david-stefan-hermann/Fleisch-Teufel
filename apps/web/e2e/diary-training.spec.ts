@@ -171,7 +171,7 @@ test('drag an entry to another meal, with undo', async ({ page }) => {
   await expect(mealCard(page, 'Mittagessen')).toHaveClass(/ring-2/);
   await page.mouse.up();
 
-  await expect(page.getByText('Nach Mittagessen verschoben')).toBeVisible();
+  await expect(page.getByText('Nach Mittagessen verschoben', { exact: true })).toBeVisible();
   await expect(mealCard(page, 'Mittagessen').getByText('Banane', { exact: true })).toBeVisible();
   await expect(mealCard(page, 'Frühstück').getByText('Banane', { exact: true })).toHaveCount(0);
   // The drop did not open the entry, and no delete button was revealed on the way.
@@ -218,7 +218,7 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   for (let i = 1; i <= 10; i++) await touch('touchMove', x, y0 + ((y1 - y0) * i) / 10);
   await touch('touchEnd');
 
-  await expect(page.getByText('Nach Snacks verschoben')).toBeVisible();
+  await expect(page.getByText('Nach Snacks verschoben', { exact: true })).toBeVisible();
   const moved = mealCard(page, 'Snacks').getByRole('button', { name: /Bowl/ });
   await expect(moved).toBeVisible();
   // Both ingredients moved as one row; the drop did not expand the group.
@@ -259,6 +259,23 @@ test('weight entries delete by swipe only, with undo', async ({ page }) => {
   await expect(entries).toHaveCount(0);
   await page.getByRole('button', { name: 'Rückgängig' }).click();
   await expect(entries.getByText('84,5 kg', { exact: true })).toBeVisible();
+
+  // Deleted again without undo: the trash under "Mehr" brings it back. (The row sits at the bottom
+  // of a short page, where the leaving toast would catch the swipe.)
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+  await swipeLeft(page, entries.getByText('84,5 kg', { exact: true }));
+  await del.click();
+  await expect(entries).toHaveCount(0);
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Papierkorb.*1 Eintrag/ })).toBeVisible();
+  await page.getByRole('link', { name: /Papierkorb/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Papierkorb' })).toBeVisible();
+  await expect(page.getByText('Keine gelöschten Meals')).toBeVisible();
+  await page.getByRole('button', { name: /^Gewicht vom .* wiederherstellen$/ }).click();
+  await expect(page.getByText(/^Gewicht vom .* wiederhergestellt$/)).toBeVisible();
+  await expect(page.getByText('Keine gelöschten Gewichtseinträge')).toBeVisible();
+  await page.goto('/progress');
+  await expect(entries.getByText('84,5 kg', { exact: true })).toBeVisible();
 });
 
 test('saved meals delete by swipe, with undo', async ({ page }) => {
@@ -277,5 +294,16 @@ test('saved meals delete by swipe, with undo', async ({ page }) => {
   await expect(page.getByText('Müsli-Frühstück gelöscht')).toBeVisible();
   await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toBeVisible();
+
+  // Without undo the meal waits in the trash.
+  await swipeLeft(page, 'Müsli-Frühstück');
+  await page.getByRole('button', { name: 'Müsli-Frühstück löschen' }).click();
+  await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toHaveCount(0);
+  await page.goto('/settings/trash');
+  await expect(page.getByText(/^1\sZutat · gelöscht am/)).toBeVisible();
+  await page.getByRole('button', { name: 'Müsli-Frühstück wiederherstellen' }).click();
+  await expect(page.getByText('„Müsli-Frühstück“ wiederhergestellt')).toBeVisible();
+  await page.goto('/meals');
   await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toBeVisible();
 });
