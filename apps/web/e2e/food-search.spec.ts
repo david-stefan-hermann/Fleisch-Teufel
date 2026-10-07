@@ -37,7 +37,7 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
     expect(icon.width).toBe(24);
   }
 
-  // Typing shows search results whatever tab is selected; no tab is active meanwhile.
+  // Typing in "Häufig" or "Kürzlich" shows search results; no tab is active meanwhile.
   await page.getByLabel('Lebensmittel suchen').fill('brötchen');
   const plain = await resultNames(page);
   expect(plain.length).toBeGreaterThan(3);
@@ -74,4 +74,30 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   // An unknown tab in the URL falls back to "Häufig".
   await page.goto('/add?meal=0&tab=all');
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
+
+  // Typing in "Eigene" filters own foods and meals only: the tab stays active, no catalog, no online search.
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
+  await page.getByLabel('Name').fill('Sonntagsfrühstück');
+  await page.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Sonntagsfrühstück“ gespeichert')).toBeVisible();
+  await page.goto('/add?meal=0&tab=mine');
+  const search = page.getByLabel('Lebensmittel suchen');
+  await expect(search).toHaveAttribute('placeholder', 'Eigene Lebensmittel und Meals suchen…');
+  await search.fill('sonntagsfruhstuck');
+  await expect(page.getByRole('tab', { name: 'Eigene' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('link', { name: /Sonntagsfrühstück/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
+  // Ingredients count as well: the meal contains the logged roll.
+  await search.fill(picked.split(' ')[0]!);
+  await expect(page.getByRole('link', { name: /Sonntagsfrühstück/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /BLS/ })).toHaveCount(0);
+  await search.fill('pizza');
+  await expect(page.getByText('Nichts Eigenes gefunden')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Eigenes Lebensmittel anlegen' })).toHaveAttribute(
+    'href',
+    /custom-food\/new\?.*name=pizza/,
+  );
+  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
 });

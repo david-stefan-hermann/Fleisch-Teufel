@@ -5,7 +5,7 @@
  */
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
-import { Flashlight, FlashlightOff } from 'lucide-react';
+import { Flashlight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -63,20 +63,27 @@ export type CaptureFn = () => Promise<Blob | null>;
 /** Torch of the running camera; null while there is none (iOS rarely reports `torch`). */
 export type TorchState = { on: boolean; toggle: () => void } | null;
 
-/** Icon button for the torch, styled for the dark camera overlay. */
+/**
+ * Icon button for the torch, styled for the dark camera overlay. The icon is always the flashlight;
+ * the state shows in the button itself: dark while off, an inverted white circle while on.
+ */
 export function TorchButton({ torch, className }: { torch: NonNullable<TorchState>; className?: string }) {
-  const Icon = torch.on ? FlashlightOff : Flashlight;
   return (
     <Button
       type="button"
       variant="secondary"
       size="icon-lg"
-      className={cn('rounded-xl bg-black/55 text-white hover:bg-black/70', className)}
+      className={cn(
+        torch.on
+          ? 'rounded-full bg-white text-black hover:bg-white/90'
+          : 'rounded-xl bg-black/55 text-white hover:bg-black/70',
+        className,
+      )}
       aria-label={torch.on ? 'Licht ausschalten' : 'Licht einschalten'}
       aria-pressed={torch.on}
       onClick={torch.toggle}
     >
-      <Icon className="size-6" aria-hidden />
+      <Flashlight className="size-6" aria-hidden />
     </Button>
   );
 }
@@ -126,8 +133,11 @@ export function BarcodeScanner({
   const toggleTorch = useCallback(() => {
     if (!torch) return;
     const on = !torchOn;
-    void torch.applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] }).catch(() => {});
-    setTorchOn(on);
+    // Only flip the state once the camera accepted it, so a refused torch never shows as on.
+    void torch
+      .applyConstraints({ advanced: [{ torch: on } as MediaTrackConstraintSet] })
+      .then(() => setTorchOn(on))
+      .catch(() => {});
   }, [torch, torchOn]);
   useEffect(() => {
     onTorchState?.(torch ? { on: torchOn, toggle: toggleTorch } : null);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /** Registers a fresh account and leaves the onboarding (lands on the diary). */
 async function register(page: Page) {
@@ -13,15 +13,17 @@ async function register(page: Page) {
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 
-async function swipeLeft(page: Page, text: string) {
-  const row = page.getByText(text, { exact: true }).first();
+async function swipeLeft(page: Page, target: string | Locator) {
+  const row = typeof target === 'string' ? page.getByText(target, { exact: true }).first() : target;
   // Centre the row: toasts sit at the bottom and would catch the pointer.
   await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   const box = (await row.boundingBox())!;
   const y = box.y + box.height / 2;
-  await page.mouse.move(box.x + 200, y);
+  // Start inside the card even for right-aligned text (the page has a 16 px gutter).
+  const x = Math.min(box.x + 200, page.viewportSize()!.width - 30);
+  await page.mouse.move(x, y);
   await page.mouse.down();
-  for (const dx of [10, 40, 80, 120, 160]) await page.mouse.move(box.x + 200 - dx, y);
+  for (const dx of [10, 40, 80, 120, 160]) await page.mouse.move(x - dx, y);
   await page.mouse.up();
 }
 
@@ -227,7 +229,7 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   await expect(mealCard(page, 'Frühstück').getByText('Joghurt', { exact: true })).toBeVisible();
 });
 
-test('weight slider spans ±10 kg around the last weight', async ({ page }) => {
+test('weight slider spans ±5 kg around the last weight', async ({ page }) => {
   await register(page);
   await page.goto('/progress');
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
@@ -235,6 +237,45 @@ test('weight slider spans ±10 kg around the last weight', async ({ page }) => {
   await dialog.getByLabel('Genauer Wert').fill('84,5');
   await dialog.getByRole('button', { name: 'Speichern' }).click();
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
-  await expect(dialog.getByText('74 kg', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('95 kg', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('79 kg', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('90 kg', { exact: true })).toBeVisible();
+});
+
+test('weight entries delete by swipe only, with undo', async ({ page }) => {
+  await register(page);
+  await page.goto('/progress');
+  await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
+  await dialog.getByLabel('Genauer Wert').fill('84,5');
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(dialog).toHaveCount(0);
+  const entries = page.locator('section', { has: page.getByRole('heading', { name: 'Einträge' }) });
+  // No trash icon in the row any more; the delete button only appears after a swipe.
+  const del = entries.getByRole('button', { name: /^Eintrag vom .* löschen$/ });
+  await expect(del).toBeHidden();
+  await swipeLeft(page, entries.getByText('84,5 kg', { exact: true }));
+  await del.click();
+  await expect(page.getByText('Gewicht gelöscht')).toBeVisible();
+  await expect(entries).toHaveCount(0);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(entries.getByText('84,5 kg', { exact: true })).toBeVisible();
+});
+
+test('saved meals delete by swipe, with undo', async ({ page }) => {
+  await register(page);
+  await quickAdd(page, 0, 'Müsli', '320');
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
+  await page.getByLabel('Name').fill('Müsli-Frühstück');
+  await page.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Müsli-Frühstück“ gespeichert')).toBeVisible();
+  await page.goto('/meals');
+  // A swipe does not open the meal.
+  await swipeLeft(page, 'Müsli-Frühstück');
+  await expect(page).toHaveURL(/\/meals$/);
+  await page.getByRole('button', { name: 'Müsli-Frühstück löschen' }).click();
+  await expect(page.getByText('Müsli-Frühstück gelöscht')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toBeVisible();
 });

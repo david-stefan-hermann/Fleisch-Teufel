@@ -16,6 +16,7 @@ import type { UserDb } from '@/db/dexie';
 import { addItemToMeal } from '@/db/entries';
 import { saveRecord } from '@/db/write';
 import {
+  filterOwn,
   getFood,
   recentAndFrequent,
   searchLocal,
@@ -77,8 +78,10 @@ export function AddFoodPage() {
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
   const qOnline = useDebounced(query.trim(), 600);
-  // From 2 characters on, the search results replace the tab content (whatever tab is selected).
-  const searching = q.length >= 2;
+  // From 2 characters on, the search results replace the tab content of "Häufig" and "Kürzlich".
+  // "Eigene" stays selected and only filters the user's own foods and meals (no BLS, no online).
+  const searching = q.length >= 2 && tab !== 'mine';
+  const filteringOwn = q.length >= 2 && tab === 'mine';
 
   const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
   // Waits for the history so that previously logged foods rank first from the first result on.
@@ -121,6 +124,11 @@ export function AddFoodPage() {
 
   const custom = useLiveQuery(() => db.customFoods.filter((f) => !f.deleted).sortBy('name'), [db]);
   const meals = useLiveQuery(() => db.meals.filter((m) => !m.deleted).sortBy('name'), [db]);
+
+  const own = useMemo(
+    () => (custom && meals ? filterOwn(filteringOwn ? q : '', custom, into ? [] : meals) : null),
+    [custom, meals, q, filteringOwn, into],
+  );
 
   const localIds = useMemo(() => new Set((local ?? []).map((h) => h.food.id)), [local]);
   const onlineFoods = (online?.q === qOnline ? online.foods : []).filter((f) => !localIds.has(f.id));
@@ -196,13 +204,18 @@ export function AddFoodPage() {
               autoComplete="off"
               spellCheck={false}
               aria-label="Lebensmittel suchen"
-              placeholder="Lebensmittel suchen, z. B. Haferflocken…"
+              placeholder={
+                tab === 'mine'
+                  ? 'Eigene Lebensmittel und Meals suchen…'
+                  : 'Lebensmittel suchen, z. B. Haferflocken…'
+              }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
             />
           </div>
-          {/* No tab is active while search results are shown; tapping one returns to it. */}
+          {/* No tab is active while search results are shown; tapping one returns to it. "Eigene" stays
+              active and filters its own list. */}
           <Tabs value={searching ? '' : tab} onValueChange={(v) => setTab(v as Tab)}>
             <TabsList className="grid w-full grid-cols-3">
               {TABS.map((t) => (
@@ -298,7 +311,43 @@ export function AddFoodPage() {
         />
       )}
 
-      {!searching && tab === 'mine' && (
+      {tab === 'mine' && own && filteringOwn && (
+        <>
+          {own.meals.length > 0 && (
+            <>
+              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Meals ({own.meals.length})</h2>
+              <div className="mb-4">
+                <MealList meals={own.meals} date={date} meal={meal} />
+              </div>
+            </>
+          )}
+          {own.custom.length > 0 && (
+            <>
+              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
+              <ul className="-mx-4 divide-y divide-border/70">
+                {own.custom.map((c) => (
+                  <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
+                ))}
+              </ul>
+            </>
+          )}
+          {own.meals.length === 0 && own.custom.length === 0 && (
+            <EmptyState icon={<Search />} title="Nichts Eigenes gefunden">
+              Unter „Eigene“ suchst du nur in deinen Lebensmitteln und Meals.{' '}
+              <Link
+                to="/custom-food/$id"
+                params={{ id: 'new' }}
+                search={{ name: q, ...linkSearch }}
+                className="text-primary underline"
+              >
+                Eigenes Lebensmittel anlegen
+              </Link>
+            </EmptyState>
+          )}
+        </>
+      )}
+
+      {tab === 'mine' && !filteringOwn && (
         <>
           {/* Saved meals cannot be part of a saved meal or an AI review. */}
           {!into && (

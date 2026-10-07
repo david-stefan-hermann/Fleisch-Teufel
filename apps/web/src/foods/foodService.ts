@@ -9,11 +9,13 @@ import {
   addDays,
   foodIds,
   indexItem,
+  normalize,
   search,
   type CustomFood,
   type Food,
   type FoodEntry,
   type FoodPortion,
+  type Meal,
   type Portion,
 } from '@ft/shared';
 import type { CachedFood, UserDb } from '@/db/dexie';
@@ -33,6 +35,26 @@ export function customToFood(c: CustomFood): Food {
     nutrients: c.nutrients,
     portions: c.portions,
     imageUrl: null,
+  };
+}
+
+/**
+ * Filter for the "Eigene" tab: own foods by name or brand, saved meals by name or ingredient.
+ * Umlauts and accents fold (`normalize`, then "ae" → "a"), so "kase", "kaese" and "käse" all find
+ * "Käse"; an empty query keeps everything.
+ */
+export function filterOwn(
+  query: string,
+  custom: readonly CustomFood[],
+  meals: readonly Meal[],
+): { custom: CustomFood[]; meals: Meal[] } {
+  const loose = (text: string) => normalize(text).replace(/([aou])e/g, '$1');
+  const q = loose(query);
+  if (!q) return { custom: [...custom], meals: [...meals] };
+  const hit = (text: string | null | undefined) => !!text && loose(text).includes(q);
+  return {
+    custom: custom.filter((c) => hit(c.name) || hit(c.brand)),
+    meals: meals.filter((m) => hit(m.name) || m.items.some((i) => hit(i.name))),
   };
 }
 

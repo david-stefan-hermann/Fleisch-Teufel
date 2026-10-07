@@ -29,6 +29,7 @@ export function SwipeToDelete({
   onDelete,
   label,
   className,
+  contentClassName,
   disabled = false,
 }: {
   children: ReactNode;
@@ -36,6 +37,8 @@ export function SwipeToDelete({
   /** Accessible name of the delete button, e.g. "Haferflocken löschen". */
   label: string;
   className?: string;
+  /** Classes of the sliding layer, e.g. `bg-background` for rows outside a card (default `bg-card`). */
+  contentClassName?: string;
   disabled?: boolean;
 }) {
   const [offset, setOffset] = useState(0);
@@ -83,6 +86,7 @@ export function SwipeToDelete({
         className={cn(
           'relative touch-pan-y bg-card',
           !dragging && 'transition-transform duration-200 ease-out motion-reduce:transition-none',
+          contentClassName,
         )}
         style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
         onPointerDown={(e) => {
@@ -130,6 +134,8 @@ export function SwipeToDelete({
           setDragging(false);
           setOffset((o) => (o < -ACTION_WIDTH / 2 ? -ACTION_WIDTH : 0));
         }}
+        // A mouse swipe over a link would otherwise start the browser's native link drag (pointercancel).
+        onDragStart={(e) => e.preventDefault()}
         onClickCapture={(e) => {
           if (!swallowClick.current) return;
           swallowClick.current = false;

@@ -1,12 +1,13 @@
 import { addDays, bmi, dayId, linearTrend, movingAverage, round, type WeightEntry } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { CalendarDays, Minus, Plus, Scale, Trash2 } from 'lucide-react';
+import { CalendarDays, Minus, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Chart, xOf, type ChartSeries } from '@/components/Chart';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -179,28 +180,10 @@ export function ProgressPage() {
                   const prev = arr[i + 1];
                   const diff = prev ? round(w.kg - prev.kg, 1) : null;
                   return (
-                    <li key={w.id} className="flex items-center gap-2 pr-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditing(w)}
-                        className="tabular flex min-h-12 flex-1 items-center justify-between px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-                      >
-                        <span>{fmtDate(w.date)}</span>
-                        <span>
-                          <span className="font-semibold">{kg(w.kg)}</span>
-                          {diff !== null && diff !== 0 && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              {diff > 0 ? '+' : ''}
-                              {fmt1(diff)}
-                            </span>
-                          )}
-                        </span>
-                      </button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Eintrag vom ${fmtDate(w.date)} löschen`}
-                        onClick={async () => {
+                    <li key={w.id}>
+                      <SwipeToDelete
+                        label={`Eintrag vom ${fmtDate(w.date)} löschen`}
+                        onDelete={async () => {
                           await deleteRecord(db, 'weightEntries', w.id);
                           toast('Gewicht gelöscht', {
                             action: {
@@ -210,8 +193,23 @@ export function ProgressPage() {
                           });
                         }}
                       >
-                        <Trash2 className="size-4" aria-hidden />
-                      </Button>
+                        <button
+                          type="button"
+                          onClick={() => setEditing(w)}
+                          className="tabular flex min-h-12 w-full items-center justify-between px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+                        >
+                          <span>{fmtDate(w.date)}</span>
+                          <span>
+                            <span className="font-semibold">{kg(w.kg)}</span>
+                            {diff !== null && diff !== 0 && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {diff > 0 ? '+' : ''}
+                                {fmt1(diff)}
+                              </span>
+                            )}
+                          </span>
+                        </button>
+                      </SwipeToDelete>
                     </li>
                   );
                 })}
@@ -231,7 +229,7 @@ export function ProgressPage() {
 }
 
 /** The weight slider spans this many kilograms below and above the starting weight. */
-const WEIGHT_SLIDER_RANGE_KG = 10;
+const WEIGHT_SLIDER_RANGE_KG = 5;
 
 function WeightDialog({
   open,

@@ -1,8 +1,15 @@
-import { uuidv7, type Food } from '@ft/shared';
+import { uuidv7, type CustomFood, type Food, type Meal } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import { saveRecord } from '@/db/write';
-import { getFood, lookupBarcode, recentAndFrequent, searchLocal, usageBoost } from '@/foods/foodService';
+import {
+  filterOwn,
+  getFood,
+  lookupBarcode,
+  recentAndFrequent,
+  searchLocal,
+  usageBoost,
+} from '@/foods/foodService';
 
 const compact = {
   version: 't1',
@@ -204,5 +211,70 @@ describe('food service', () => {
     expect(usageBoost(usage, 'b')).toBe(90);
     expect(usageBoost(usage, 'c')).toBe(0);
     expect(usageBoost(undefined, 'a')).toBe(0);
+  });
+});
+
+describe('filterOwn', () => {
+  const base = { updatedAt: 1, deleted: false };
+  const custom = [
+    {
+      ...base,
+      id: 'c1',
+      name: 'Käsekuchen Oma',
+      brand: null,
+      barcode: null,
+      unit: 'g',
+      nutrients: {},
+      portions: [],
+    },
+    {
+      ...base,
+      id: 'c2',
+      name: 'Protein Riegel',
+      brand: 'Müller',
+      barcode: null,
+      unit: 'g',
+      nutrients: {},
+      portions: [],
+    },
+  ] satisfies CustomFood[];
+  const item = (name: string) => ({
+    foodId: null,
+    source: 'bls' as const,
+    name,
+    brand: null,
+    grams: 100,
+    portionLabel: null,
+    portionGrams: null,
+    quantity: 100,
+    per100: null,
+    nutrients: {},
+  });
+  const meals = [
+    {
+      ...base,
+      id: 'm1',
+      name: 'Frühstück Klassiker',
+      items: [item('Haferflocken'), item('Apfel roh')],
+      photoId: null,
+    },
+    { ...base, id: 'm2', name: 'Bowl', items: [item('Reis'), item('Hähnchen')], photoId: null },
+  ] satisfies Meal[];
+
+  it('keeps everything for an empty query', () => {
+    const r = filterOwn('  ', custom, meals);
+    expect(r.custom).toHaveLength(2);
+    expect(r.meals).toHaveLength(2);
+  });
+
+  it('folds umlauts and matches names, brands and meal ingredients', () => {
+    for (const q of ['kase', 'kaese', 'Käse'])
+      expect(filterOwn(q, custom, meals).custom.map((c) => c.id)).toEqual(['c1']);
+    expect(filterOwn('MULLER', custom, meals).custom.map((c) => c.id)).toEqual(['c2']);
+    expect(filterOwn('hahnchen', custom, meals).meals.map((m) => m.id)).toEqual(['m2']);
+    expect(filterOwn('klassiker', custom, meals).meals.map((m) => m.id)).toEqual(['m1']);
+    const none = filterOwn('pizza', custom, meals);
+    expect(none.custom).toEqual([]);
+    expect(none.meals).toEqual([]);
   });
 });

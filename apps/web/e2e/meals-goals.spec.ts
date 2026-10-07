@@ -104,6 +104,8 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('tab', { name: 'Eigene' }).click();
   await expect(page.getByRole('heading', { name: 'Eigene Lebensmittel' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Meals/ })).toHaveCount(0);
+  // "Eigene" only searches own foods; the catalog search runs from the other tabs.
+  await page.getByRole('tab', { name: 'Häufig' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await page.getByLabel('Portion', { exact: true }).click();

@@ -90,6 +90,18 @@ describe('SwipeToDelete', () => {
     fireEvent.pointerUp(el, { pointerId: 1, clientX: 200 + dx, clientY: 100 + dy });
   };
 
+  it('blocks the native drag of links, so a mouse swipe over a link works', () => {
+    render(
+      <SwipeToDelete label="Meal löschen" onDelete={() => {}} contentClassName="bg-background">
+        <a href="/meals/1">Meal</a>
+      </SwipeToDelete>,
+    );
+    const link = screen.getByText('Meal');
+    expect(fireEvent.dragStart(link)).toBe(false); // default prevented
+    expect(link.closest('[data-slot=swipe-content]')!.className).toContain('bg-background');
+    expect(link.closest('[data-slot=swipe-content]')!.className).not.toContain('bg-card');
+  });
+
   it('reveals the delete button on a left swipe without opening the row', () => {
     let deleted = 0;
     let opened = 0;
@@ -280,8 +292,10 @@ describe('usePhotoBlob', () => {
 });
 
 describe('torch', () => {
-  function fakeCamera(torch: boolean) {
-    const applyConstraints = vi.fn(async () => {});
+  function fakeCamera(torch: boolean, refuse = false) {
+    const applyConstraints = vi.fn(async () => {
+      if (refuse) throw new Error('OverconstrainedError');
+    });
     const track = { getCapabilities: () => ({ torch }), applyConstraints, stop: vi.fn() };
     const stream = { getVideoTracks: () => [track], getTracks: () => [track] };
     vi.stubGlobal('navigator', {
@@ -307,10 +321,30 @@ describe('torch', () => {
     const button = await screen.findByRole('button', { name: 'Licht einschalten' });
     expect(button.getAttribute('aria-pressed')).toBe('false');
     expect(screen.getAllByRole('button')).toHaveLength(1); // no second toggle from the scanner
+    expect(button.className).toContain('bg-black/55');
     fireEvent.click(button);
     expect(applyConstraints).toHaveBeenCalledWith({ advanced: [{ torch: true }] });
-    const on = screen.getByRole('button', { name: 'Licht ausschalten' });
+    const on = await screen.findByRole('button', { name: 'Licht ausschalten' });
     expect(on.getAttribute('aria-pressed')).toBe('true');
+    // On: inverted white circle, same flashlight icon (the icon shows the state, not the action).
+    expect(on.className).toContain('bg-white');
+    expect(on.className).toContain('rounded-full');
+    expect(on.querySelector('.lucide-flashlight')).not.toBeNull();
+    expect(on.querySelector('.lucide-flashlight-off')).toBeNull();
+    fireEvent.click(on);
+    expect(await screen.findByRole('button', { name: 'Licht einschalten' })).toBeTruthy();
+  });
+
+  it('stays off when the camera refuses the torch', async () => {
+    const applyConstraints = fakeCamera(true, true);
+    render(<Overlay />);
+    const button = await screen.findByRole('button', { name: 'Licht einschalten' });
+    fireEvent.click(button);
+    await waitFor(() => expect(applyConstraints).toHaveBeenCalled());
+    await act(async () => {});
+    expect(screen.getByRole('button', { name: 'Licht einschalten' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
   });
 
   it('reports no torch when the camera has none', async () => {
