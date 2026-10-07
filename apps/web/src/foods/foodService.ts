@@ -55,7 +55,7 @@ export async function searchLocal(db: UserDb, query: string, limit = 40): Promis
     db.foodCache.where('id').startsWith('off:').toArray(),
   ]);
   const own = [...custom.map(customToFood), ...cached].map(indexItem);
-  const ownHits = search(own, query, limit, (f) => (f.source === 'custom' ? 15 : 8));
+  const ownHits = search(own, query, limit, (f) => (f.source === 'custom' ? 40 : 15));
   const blsHits = bls ? search(bls.index, query, limit) : [];
   const seen = new Set<string>();
   return [...ownHits, ...blsHits]

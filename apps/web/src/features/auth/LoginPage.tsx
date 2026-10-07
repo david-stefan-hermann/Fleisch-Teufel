@@ -16,7 +16,10 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // After a successful submit the page navigates itself (register → onboarding).
+  const [done, setDone] = useState(false);
 
+  if (done) return null;
   if (session && !needsReauth) return <Navigate to="/" />;
   const canRegister = serverInfo?.registrationOpen ?? false;
 
@@ -38,6 +41,7 @@ export function LoginPage() {
     try {
       const { user } =
         mode === 'login' ? await endpoints.login(email, password) : await endpoints.register(email, password);
+      setDone(true);
       signIn(user);
       await navigate({ to: mode === 'register' ? '/onboarding' : '/' });
     } catch (err) {

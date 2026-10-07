@@ -24,12 +24,13 @@ const port = Number(process.env.DEV_DB_PORT ?? 54329);
 const dataDir = process.env.DEV_DB_DIR ?? resolve(homedir(), '.local/share/fleisch-teufel/dev-db');
 mkdirSync(dirname(dataDir), { recursive: true });
 if (existsSync(dataDir)) chmodSync(dataDir, 0o700);
+const fresh = !!process.env.DEV_DB_FRESH;
 const pg = new EmbeddedPostgres({
   databaseDir: dataDir,
   port,
   user: 'postgres',
   password: 'postgres',
-  persistent: true,
+  persistent: !fresh,
   onLog: () => {},
 });
 if (!existsSync(resolve(dataDir, 'PG_VERSION'))) await pg.initialise();

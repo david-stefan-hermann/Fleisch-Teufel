@@ -15,7 +15,7 @@
     "test": "pnpm -r test",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
     "bls:import": "pnpm --filter @ft/bls-import start",
     "e2e": "pnpm --filter @ft/web e2e"
   },

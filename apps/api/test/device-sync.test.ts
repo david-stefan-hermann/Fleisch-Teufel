@@ -167,7 +167,7 @@ describe('device ↔ server sync', () => {
     const db = new UserDb(`unauth-${uuidv7()}`);
     let called = false;
     const engine = new SyncEngine(db, {
-      fetch: (p, i) => ctx.app.request(p, i),
+      fetch: async (p, i) => ctx.app.request(p, i),
       onUnauthorized: () => (called = true),
     });
     await expect(engine.sync()).rejects.toThrow('HTTP 401');

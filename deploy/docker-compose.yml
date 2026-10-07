@@ -1,0 +1,33 @@
+# Fleisch-Teufel stack for Dockge on TrueNAS.
+# 1. Create a new stack in Dockge and paste this file.
+# 2. Put the variables from .env.example into the stack's .env editor.
+# 3. Deploy. Updates: press "Update" in Dockge (pulls the new :latest image and restarts).
+services:
+  app:
+    image: ghcr.io/david-stefan-hermann/fleisch-teufel:latest
+    container_name: fleisch-teufel
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '30300:3000'
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://fleisch_teufel:${POSTGRES_PASSWORD}@db:5432/fleisch_teufel
+
+  db:
+    image: postgres:17-alpine
+    container_name: fleisch-teufel-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fleisch_teufel
+      POSTGRES_DB: fleisch_teufel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - /mnt/tank/applications/fleisch-teufel/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fleisch_teufel -d fleisch_teufel']
+      interval: 10s
+      timeout: 5s
+      retries: 10

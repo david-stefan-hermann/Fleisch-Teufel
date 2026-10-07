@@ -106,6 +106,15 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       series: s,
       cursor: { drag: { x: false, y: false }, points: { size: 8 } },
       legend: { live: true },
+      hooks: {
+        // Without hover the legend shows the most recent values instead of dashes.
+        setCursor: [
+          (u) => {
+            if (u.cursor.idx == null) u.setLegend({ idx: lastIndex(u.data) });
+          },
+        ],
+        ready: [(u) => u.setLegend({ idx: lastIndex(u.data) })],
+      },
       scales: {
         x:
           xFrom && xTo
@@ -173,6 +182,15 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       </table>
     </figure>
   );
+}
+
+/** Index of the newest x that has at least one non-null value. */
+function lastIndex(data: AlignedData): number {
+  const n = (data[0] as number[]).length;
+  for (let i = n - 1; i >= 0; i--) {
+    if (data.slice(1).some((s) => (s as (number | null)[])[i] != null)) return i;
+  }
+  return Math.max(0, n - 1);
 }
 
 /** ISO date → uPlot x (seconds, local noon to avoid DST edge cases). */

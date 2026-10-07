@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+.git
+.github
+.claude
+.env
+.env.*
+*.tmp.mjs
+PLAN.md
+tools/bls-import/cache
