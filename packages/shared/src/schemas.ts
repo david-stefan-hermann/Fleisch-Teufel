@@ -20,7 +20,9 @@ export const idSchema = z
 
 export const isoDateSchema = z.string().refine(isISODate, 'expected YYYY-MM-DD');
 
-export const nutrientMapSchema = z.record(z.string().min(1).max(16), z.number().finite());
+export const nutrientMapSchema = z
+  .record(z.string().min(1).max(16), z.number().finite())
+  .refine((m) => Object.keys(m).length <= 200, 'too many nutrients');
 
 export const portionSchema = z.object({
   label: z.string().trim().min(1).max(80),

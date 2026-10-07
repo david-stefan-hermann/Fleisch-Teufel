@@ -28,6 +28,15 @@ describe('app', () => {
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
   });
 
+  it('rejects oversized JSON bodies', async () => {
+    const r = await ctx.app.request('/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'x@example.com', password: 'x'.repeat(5 * 1024 * 1024) }),
+    });
+    expect(r.status).toBe(413);
+  });
+
   it('returns JSON 404 for unknown API routes', async () => {
     const r = await ctx.app.request('/api/nope');
     expect(r.status).toBe(404);

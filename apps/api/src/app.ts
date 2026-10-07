@@ -2,6 +2,7 @@ import { APP_NAME, type ServerInfo } from '@ft/shared';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { compress } from 'hono/compress';
 import { secureHeaders } from 'hono/secure-headers';
 import { existsSync, readFileSync } from 'node:fs';
@@ -45,6 +46,14 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
     }),
   );
   app.use('*', compress());
+  // JSON bodies: a full 500-record sync push stays far below 4 MB; photos use their own limit.
+  app.use('/api/*', async (c, next) => {
+    if (c.req.path === '/api/ai/analyze') return next();
+    return bodyLimit({ maxSize: 4 * 1024 * 1024, onError: (cx) => cx.json({ error: 'too_large' }, 413) })(
+      c,
+      next,
+    );
+  });
 
   // CSRF: state-changing API calls must come from our own origin (cookies are SameSite=Lax too).
   app.use('/api/*', async (c, next) => {
