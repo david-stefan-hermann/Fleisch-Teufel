@@ -1,0 +1,34 @@
+# secrets
+.env
+.env.*
+!.env.example
+!deploy/.env.example
+
+# deps & builds
+node_modules
+dist
+build
+coverage
+*.tsbuildinfo
+*.local
+
+# dev data
+.dev-db
+.data
+tools/bls-import/cache
+
+# test artifacts
+playwright-report
+test-results
+
+# editor / os
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# claude
+.claude/settings.local.json
+
+# internal planning notes (contain infrastructure details)
+PLAN.md

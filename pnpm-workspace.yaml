@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/*
+allowBuilds:
+  '@node-rs/argon2': true
+  esbuild: true
+  embedded-postgres: true
+  '@embedded-postgres/linux-x64': true

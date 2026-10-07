@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+dist
+coverage
+apps/api/data
+apps/api/drizzle
+apps/web/public/data
+PLAN.md
+*.gen.ts
+packages/shared/src/nutrients-catalog.json
