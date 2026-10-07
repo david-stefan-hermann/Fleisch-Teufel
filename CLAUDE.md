@@ -41,15 +41,20 @@ Serve the production web build through the API (same origin, service worker acti
 - TanStack Router search params: validators return optional keys (`clean()` in the router) so links can omit them.
 - shadcn/ui: components live in `apps/web/src/components/ui` and were adjusted (touch sizes h-10/h-11, no
   `transition-all`). The CLI once wrote `from "cn"`; imports must be `@/lib/utils`.
-- Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast).
-  Entries logged together from a saved meal share `groupId`; `groupDiaryEntries` (shared) builds diary rows.
+- Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast;
+  `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
+  (`/settings/trash`, `src/db/trash.ts`); there is no purge.
+  Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
+  without meal (`groupName`, AI review "Nur eintragen" via `logAiItems`). `groupDiaryEntries` (shared) builds
+  diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` on `/add`, `/food/$foodId`, `/scan`,
   `/custom-food/$id` adds to a saved meal / AI review instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
 - Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
-  API `routes/photos.ts`. Toasts sit at the bottom (iOS tints the status bar from top elements).
+  API `routes/photos.ts`. Images in IndexedDB are `ArrayBuffer` + type (`photos.bytes`, AI queue photos in the
+  `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them). Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
@@ -58,6 +63,9 @@ Serve the production web build through the API (same origin, service worker acti
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value
   placeholder `NO_VALUE` from `src/lib/format.ts`.
+- Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
+  for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). `MacroBars` /
+  `TargetBar` (`components/MacroBars.tsx`) only for progress towards a target (excess as red overlay).
 - Charts: `src/components/Chart.tsx` (uPlot). One y-axis only; text uses ink tokens, never series colors.
   Macro colors were validated with the dataviz palette checker for light and dark.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).
