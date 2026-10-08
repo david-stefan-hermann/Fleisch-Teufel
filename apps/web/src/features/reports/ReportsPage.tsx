@@ -2,8 +2,6 @@ import {
   addDays,
   dailyRows,
   endOfMonth,
-  get,
-  N,
   periodStats,
   startOfMonth,
   startOfWeek,
@@ -16,7 +14,7 @@ import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { Chart, xOf, type ChartSeries } from '@/components/Chart';
+import { Chart } from '@/components/Chart';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -25,21 +23,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmt0, fmt1, fmtDate, fmtMonth, NO_VALUE } from '@/lib/format';
+import { buildChart, METRICS, type Metric } from './chartData';
 import { dailyCsv, downloadText, entriesCsv, exerciseCsv, weightsCsv } from './export';
 
 type Range = 'week' | 'month' | '90';
-type Metric = 'kcal' | 'macros' | 'weight' | 'fiber' | 'sugar' | 'satFat' | 'salt';
-
-const METRICS: { id: Metric; label: string }[] = [
-  { id: 'kcal', label: 'Kalorien' },
-  { id: 'macros', label: 'Makronährstoffe' },
-  { id: 'weight', label: 'Gewicht' },
-  { id: 'fiber', label: 'Ballaststoffe' },
-  { id: 'sugar', label: 'Zucker' },
-  { id: 'satFat', label: 'Gesättigte Fettsäuren' },
-  { id: 'salt', label: 'Salz' },
-];
-const MICRO_KEY = { fiber: N.fiber, sugar: N.sugar, satFat: N.satFat, salt: N.salt } as const;
 
 function period(
   range: Range,
@@ -71,8 +58,9 @@ function period(
   };
 }
 
-const g = (v: number) => `${fmt1(v)} g`;
 const k = (v: number) => `${fmt0(v)} kcal`;
+const Y_FROM_ZERO: [number, null] = [0, null];
+const xRange = (s: { from: string; to: string }): [string, string] => [s.from, s.to];
 
 export function ReportsPage() {
   const search = useSearch({ from: '/authed/reports' });
@@ -86,6 +74,8 @@ export function ReportsPage() {
   const p = period(range, search.end ?? today);
   const isCurrent = p.to >= today;
 
+  // The result names its period: while another period loads, the old one stays on screen (chart and
+  // stats) instead of being recomputed with the wrong entries for a moment.
   const data = useLiveQuery(async () => {
     const [entries, exercises, weights] = await Promise.all([
       db.foodEntries
@@ -100,28 +90,30 @@ export function ReportsPage() {
         .toArray(),
       db.weightEntries.filter((w) => !w.deleted).toArray(),
     ]);
-    return { entries, exercises, weights };
+    return { from: p.from, to: p.to, entries, exercises, weights };
   }, [db, p.from, p.to]);
+  const shown = data ? { from: data.from, to: data.to } : null;
 
   const rows: DailyRow[] | null = useMemo(() => {
     if (!data || !goals) return null;
     // Only up to today: future days would count as "not logged".
-    const to = p.to > today ? today : p.to;
-    if (to < p.from) return [];
+    const to = data.to > today ? today : data.to;
+    if (to < data.from) return [];
     return dailyRows({
-      from: p.from,
+      from: data.from,
       to,
       entries: data.entries,
       exercises: data.exercises,
       weights: data.weights,
       goals,
     });
-  }, [data, goals, p.from, p.to, today]);
+  }, [data, goals, today]);
   const stats = rows ? periodStats(rows) : null;
 
   const chart = useMemo(() => (rows ? buildChart(rows, metric) : null), [rows, metric]);
+  // Choices live in the URL; the page keeps its scroll position (no "reload" feeling).
   const set = (patch: Partial<{ range: string; end: string; metric: string }>) =>
-    void navigate({ search: (s) => ({ ...s, ...patch }), replace: true });
+    void navigate({ search: (s) => ({ ...s, ...patch }), replace: true, resetScroll: false });
 
   return (
     <Page title="Berichte">
@@ -230,13 +222,13 @@ export function ReportsPage() {
         }
       >
         <div className="px-2 pb-3">
-          {chart && chart.hasData ? (
+          {chart && chart.hasData && shown ? (
             <Chart
-              xRange={[p.from, p.to]}
+              xRange={xRange(shown)}
               data={chart.data}
               series={chart.series}
               title={`${METRICS.find((m) => m.id === metric)!.label} ${p.label}`}
-              yRange={[0, null]}
+              yRange={Y_FROM_ZERO}
             />
           ) : (
             <p className="p-4 text-sm text-muted-foreground">Keine Daten in diesem Zeitraum.</p>
@@ -252,62 +244,6 @@ export function ReportsPage() {
       />
     </Page>
   );
-}
-
-function buildChart(
-  rows: DailyRow[],
-  metric: Metric,
-): { data: [number[], ...(number | null)[][]]; series: ChartSeries[]; hasData: boolean } {
-  const xs = rows.map((r) => xOf(r.date));
-  const v = (fn: (r: DailyRow) => number) => rows.map((r) => (r.logged ? fn(r) : null));
-  if (metric === 'kcal') {
-    return {
-      data: [xs, v((r) => get(r.nutrients, N.kcal)), rows.map((r) => r.targetKcal + r.exerciseKcal)],
-      series: [
-        { label: 'Gegessen', color: '--primary', kind: 'bars', format: k },
-        {
-          label: 'Ziel inkl. Training',
-          color: '--foreground',
-          kind: 'step',
-          dash: [4, 4],
-          width: 1.5,
-          format: k,
-        },
-      ],
-      hasData: rows.some((r) => r.logged),
-    };
-  }
-  if (metric === 'macros') {
-    return {
-      data: [
-        xs,
-        v((r) => get(r.nutrients, N.protein)),
-        v((r) => get(r.nutrients, N.carbs)),
-        v((r) => get(r.nutrients, N.fat)),
-      ],
-      series: [
-        { label: 'Protein', color: '--protein', format: g },
-        { label: 'Kohlenhydrate', color: '--carbs', format: g },
-        { label: 'Fett', color: '--fat', format: g },
-      ],
-      hasData: rows.some((r) => r.logged),
-    };
-  }
-  if (metric === 'weight') {
-    return {
-      data: [xs, rows.map((r) => r.weightKg)],
-      series: [{ label: 'Gewicht', color: '--primary', kind: 'line', format: (x) => `${fmt1(x)} kg` }],
-      hasData: rows.some((r) => r.weightKg !== null),
-    };
-  }
-  const key = MICRO_KEY[metric];
-  return {
-    data: [xs, v((r) => get(r.nutrients, key))],
-    series: [
-      { label: METRICS.find((m) => m.id === metric)!.label, color: '--primary', kind: 'bars', format: g },
-    ],
-    hasData: rows.some((r) => r.logged),
-  };
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {

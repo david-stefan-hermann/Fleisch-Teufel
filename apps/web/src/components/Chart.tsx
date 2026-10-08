@@ -2,17 +2,33 @@
  * Thin uPlot wrapper: responsive width, theme-aware colors (CSS custom properties, re-read on
  * light/dark switches), one y-axis only, live legend that doubles as hover tooltip (values of the
  * hovered day), and a visually hidden data table for screen readers.
+ *
+ * The plot is built once per series structure, height and theme; new data (another period) goes
+ * in with `setData`, so switching periods does not flash a fresh chart.
+ *
+ * Stacked bars: uPlot does not stack, so the caller passes cumulative series, highest first, all
+ * drawn from 0 (the lower ones cover the higher ones). Inner segments set `gapAbove` for the 2 px
+ * surface gap and square tops; segment series usually set `legend: false`, and a `kind: 'legend'`
+ * series carries the real value into the legend.
  */
 import { useEffect, useRef, useState } from 'react';
 import uPlot, { type AlignedData, type Options, type Series } from 'uplot';
 import 'uplot/dist/uPlot.min.css';
 import { NO_VALUE } from '@/lib/format';
+import { xOf } from '@/lib/time';
+
+export { xOf };
 
 export interface ChartSeries {
   label: string;
   /** CSS custom property name, e.g. `--protein`. */
   color: string;
-  kind?: 'line' | 'bars' | 'points' | 'step';
+  /** 'legend': no mark, only a legend entry and value (e.g. the total of stacked bars). */
+  kind?: 'line' | 'bars' | 'points' | 'step' | 'legend';
+  /** false: no legend row, no screen reader column, no cursor point (stack segments). */
+  legend?: false;
+  /** Bars only: inner stack segment with a square top and a 2 px surface gap above it. */
+  gapAbove?: boolean;
   dash?: number[];
   width?: number;
   /** Value formatter for legend/tooltip. */
@@ -61,17 +77,25 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
   const wrap = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   const dark = usePrefersDark();
-  const xFrom = xRange?.[0];
-  const xTo = xRange?.[1];
+  // Latest props for the long-lived plot (formatters, ranges, data at build time).
+  const latest = useRef({ data, series, yRange, xRange });
+  useEffect(() => {
+    latest.current = { data, series, yRange, xRange };
+  });
+  // Rebuild only when the series change in shape or style, not for new values or ranges.
+  const structure = JSON.stringify(series.map(({ format: _format, ...rest }) => rest));
+  const hasYRange = yRange !== undefined;
 
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
+    const cfgs = latest.current.series;
     const ink = cssVar('--muted-foreground', el);
     const grid = cssVar('--border', el);
+    const surface = cssVar('--card', el);
     const s: Series[] = [
       { label: 'Datum', value: (_u, v) => (v == null ? NO_VALUE : dateLong.format(new Date(v * 1000))) },
-      ...series.map((cfg): Series => {
+      ...cfgs.map((cfg, i): Series => {
         const color = cssVar(cfg.color, el);
         const base: Series = {
           label: cfg.label,
@@ -79,12 +103,15 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
           width: cfg.width ?? 2,
           dash: cfg.dash,
           spanGaps: cfg.kind !== 'bars',
-          value: (_u, v) => (v == null ? NO_VALUE : (cfg.format?.(v) ?? String(Math.round(v)))),
+          value: (_u, v) => {
+            const format = latest.current.series[i]?.format;
+            return v == null ? NO_VALUE : (format?.(v) ?? String(Math.round(v)));
+          },
           points: {
             show: cfg.kind === 'points',
             size: 7,
             stroke: color,
-            fill: cssVar('--card', el),
+            fill: surface,
             width: 2,
           },
         };
@@ -93,10 +120,15 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
             ...base,
             fill: color,
             width: 0,
-            paths: uPlot.paths.bars!({ size: [0.6, 24], radius: 0.25, gap: 2 }),
+            paths: uPlot.paths.bars!({
+              size: [BAR_FACTOR, BAR_MAX],
+              radius: cfg.gapAbove ? 0 : 0.25,
+              gap: 2,
+            }),
             points: { show: false },
           };
         if (cfg.kind === 'points') return { ...base, width: 0, paths: () => null };
+        if (cfg.kind === 'legend') return { ...base, paths: () => null, points: { show: false } };
         if (cfg.kind === 'step') return { ...base, paths: uPlot.paths.stepped!({ align: 1 }) };
         return base;
       }),
@@ -105,7 +137,10 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       width: el.clientWidth,
       height,
       series: s,
-      cursor: { drag: { x: false, y: false }, points: { size: 8 } },
+      cursor: {
+        drag: { x: false, y: false },
+        points: { size: 8 },
+      },
       legend: { live: true },
       hooks: {
         // Without hover the legend shows the most recent values instead of dashes.
@@ -114,14 +149,38 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
             if (u.cursor.idx == null) u.setLegend({ idx: lastIndex(u.data) });
           },
         ],
-        ready: [(u) => u.setLegend({ idx: lastIndex(u.data) })],
+        ready: [
+          (u) => {
+            // Stack segments have no legend row (and so cannot be hidden by a click on one) and no
+            // cursor point; the legend-only total marks the top of the stack instead.
+            const rows = u.root.querySelectorAll<HTMLElement>('.u-legend .u-series');
+            const pts = u.root.querySelectorAll<HTMLElement>('.u-cursor-pt');
+            cfgs.forEach((cfg, i) => {
+              if (cfg.legend !== false) return;
+              if (rows[i + 1]) rows[i + 1]!.style.display = 'none';
+              if (pts.length === cfgs.length) pts[i]!.style.display = 'none';
+            });
+            u.setLegend({ idx: lastIndex(u.data) });
+          },
+        ],
+        drawSeries: [(u, si) => cfgs[si - 1]?.gapAbove && drawGapAbove(u, si, surface)],
       },
       scales: {
-        x:
-          xFrom && xTo
-            ? { time: true, range: (): [number, number] => [xOf(xFrom) - 43_200, xOf(xTo) + 43_200] }
-            : { time: true },
-        y: yRange ? { range: (_u, min, max) => [yRange[0] ?? min, yRange[1] ?? max] } : {},
+        x: {
+          time: true,
+          range: (_u, min, max): [number, number] => {
+            const r = latest.current.xRange;
+            return r ? [xOf(r[0]) - 43_200, xOf(r[1]) + 43_200] : [min, max];
+          },
+        },
+        y: hasYRange
+          ? {
+              range: (_u, min, max): [number, number] => {
+                const r = latest.current.yRange;
+                return [r?.[0] ?? min, r?.[1] ?? max];
+              },
+            }
+          : {},
       },
       axes: [
         {
@@ -142,7 +201,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       ],
     };
     plot.current?.destroy();
-    plot.current = new uPlot(opts, data, el);
+    plot.current = new uPlot(opts, latest.current.data, el);
     const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height }));
     ro.observe(el);
     return () => {
@@ -150,9 +209,18 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [data, series, height, dark, yRange, xFrom, xTo]);
+  }, [structure, height, dark, hasYRange]);
+
+  // New values (another period, a new entry) update the existing plot.
+  useEffect(() => {
+    const u = plot.current;
+    if (!u || u.data === data) return;
+    u.setData(data);
+    u.setLegend({ idx: lastIndex(data) });
+  }, [data]);
 
   const xs = data[0] as number[];
+  const tableSeries = series.map((s, si) => ({ s, si })).filter(({ s }) => s.legend !== false);
   return (
     <figure className="ft-chart">
       <div ref={wrap} role="img" aria-label={title} className="w-full" />
@@ -161,7 +229,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
         <thead>
           <tr>
             <th>Datum</th>
-            {series.map((s) => (
+            {tableSeries.map(({ s }) => (
               <th key={s.label}>{s.label}</th>
             ))}
           </tr>
@@ -172,7 +240,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
             return (
               <tr key={x}>
                 <td>{dateLong.format(new Date(x * 1000))}</td>
-                {series.map((s, si) => {
+                {tableSeries.map(({ s, si }) => {
                   const v = (data[si + 1] as (number | null)[])[i];
                   return <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v) ?? Math.round(v))}</td>;
                 })}
@@ -185,6 +253,32 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
   );
 }
 
+const BAR_FACTOR = 0.6;
+const BAR_MAX = 24;
+/** Height of the surface gap between stacked bar segments (CSS px). */
+const STACK_GAP = 2;
+
+/** Paints the surface gap on top of every bar of a stack segment (after the segment is drawn). */
+function drawGapAbove(u: uPlot, si: number, surface: string) {
+  const xs = u.data[0] as number[];
+  const ys = u.data[si] as (number | null)[];
+  const ratio = window.devicePixelRatio || 1;
+  const step =
+    xs.length > 1 ? Math.abs(u.valToPos(xs[1]!, 'x', true) - u.valToPos(xs[0]!, 'x', true)) : u.bbox.width;
+  // A touch wider than the bar: the overhang lands on the card and is invisible.
+  const w = Math.min(BAR_MAX * ratio, step * BAR_FACTOR) + 2 * ratio;
+  const ctx = u.ctx;
+  ctx.save();
+  ctx.fillStyle = surface;
+  ys.forEach((v, i) => {
+    if (v == null || v <= 0) return;
+    const x = u.valToPos(xs[i]!, 'x', true);
+    const y = u.valToPos(v, 'y', true);
+    ctx.fillRect(x - w / 2, y - (STACK_GAP * ratio) / 2, w, STACK_GAP * ratio);
+  });
+  ctx.restore();
+}
+
 /** Index of the newest x that has at least one non-null value. */
 function lastIndex(data: AlignedData): number {
   const n = (data[0] as number[]).length;
@@ -192,10 +286,4 @@ function lastIndex(data: AlignedData): number {
     if (data.slice(1).some((s) => (s as (number | null)[])[i] != null)) return i;
   }
   return Math.max(0, n - 1);
-}
-
-/** ISO date → uPlot x (seconds, local noon to avoid DST edge cases). */
-export function xOf(date: string): number {
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  return new Date(y, m - 1, d, 12).getTime() / 1000;
 }

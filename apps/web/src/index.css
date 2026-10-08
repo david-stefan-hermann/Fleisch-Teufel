@@ -60,6 +60,8 @@
   /* Second excess step (above twice the target); bars only, never text. */
   --over-2: oklch(0.4 0.17 27);
   --exercise: oklch(0.62 0.13 165);
+  /* Report bar of a day without macros (absence, so grey); >= 3:1 against the card. */
+  --bar-neutral: oklch(0.64 0.01 50);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -93,6 +95,7 @@
     --good: oklch(0.72 0.13 155);
     --over: oklch(0.68 0.17 27);
     --over-2: oklch(0.48 0.16 27);
+    --bar-neutral: oklch(0.53 0.008 50);
   }
 }
 

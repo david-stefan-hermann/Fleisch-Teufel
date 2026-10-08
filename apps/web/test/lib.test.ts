@@ -15,6 +15,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
+import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
 
 describe('format', () => {
@@ -179,5 +180,57 @@ describe('training quick search', () => {
     expect(matchesTraining('bahn yoga', fields)).toBe(false);
     expect(matchesTraining('rücken', ['Rückentraining', null, undefined])).toBe(true);
     expect(matchesTraining('ruecken', ['Rückentraining'])).toBe(true);
+  });
+});
+
+describe('report chart: calories split by macros', () => {
+  const row = (date: string, nutrients: Record<string, number>, logged = true) => ({
+    date,
+    logged,
+    nutrients,
+    targetKcal: 1700,
+    targetProteinG: 130,
+    targetFatG: 55,
+    targetCarbsG: 170,
+    exerciseKcal: 100,
+    exerciseMinutes: 20,
+    weightKg: null,
+  });
+  const rows = [
+    row('2026-10-05', { ENERCC: 620, PROT625: 35, CHO: 60, FAT: 25 }),
+    row('2026-10-06', { ENERCC: 300 }),
+    row('2026-10-07', {}, false),
+  ];
+
+  it('stacks protein, carbs and fat up to the eaten kcal; legend only "Gegessen" and the target', () => {
+    const { data, series, hasData } = buildChart(rows, 'kcal');
+    expect(hasData).toBe(true);
+    expect(series.filter((s) => s.legend !== false).map((s) => s.label)).toEqual([
+      'Gegessen',
+      'Ziel inkl. Training',
+    ]);
+    const [, total, pc, p, neutral, eaten, target] = data;
+    // 35 g protein = 140 kcal, 60 g carbs = 240, 25 g fat = 225 → shares of 605 kcal of the macros.
+    expect(total![0]).toBe(620);
+    expect(p![0]).toBeCloseTo((620 * 140) / 605, 6);
+    expect(pc![0]).toBeCloseTo((620 * 380) / 605, 6);
+    // The segments add up to the eaten kcal: protein + carbs + fat = top of the stack.
+    const fatPart = total![0]! - pc![0]!;
+    expect(p![0]! + (pc![0]! - p![0]!) + fatPart).toBeCloseTo(620, 6);
+    expect(neutral![0]).toBeNull();
+    expect(eaten![0]).toBe(620);
+    expect(target).toEqual([1800, 1800, 1800]);
+  });
+
+  it('draws a day without macros as one neutral bar and leaves days without entries empty', () => {
+    const [, total, pc, p, neutral, eaten] = buildChart(rows, 'kcal').data;
+    expect([total![1], pc![1], p![1]]).toEqual([null, null, null]);
+    expect(neutral![1]).toBe(300);
+    expect(eaten![1]).toBe(300);
+    expect([total![2], pc![2], p![2], neutral![2], eaten![2]]).toEqual([null, null, null, null, null]);
+  });
+
+  it('keeps the series objects stable across periods (the chart only swaps data)', () => {
+    expect(buildChart(rows, 'kcal').series).toBe(buildChart(rows.slice(0, 1), 'kcal').series);
   });
 });
