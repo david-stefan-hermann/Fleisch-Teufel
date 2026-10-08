@@ -61,7 +61,8 @@ Serve the production web build through the API (same origin, service worker acti
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
   "Training eintragen", "Essen eintragen", "Gewicht eintragen". `/photo` is the food page "Essen eintragen" (camera,
   barcode, magnifier to `/add`; both replace each other). A plate photo shows a preview (`PhotoPreview`) and goes
-  to the AI only on "Analysieren". The "+" of a diary meal links straight to `/photo` for that meal.
+  to the AI only on "Analysieren". The header back button in the preview drops the photo and shows the camera
+  again (`Page onBack`); browser or iOS swipe back leaves the page and loses the photo (accepted). The "+" of a diary meal links straight to `/photo` for that meal.
 - Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
   meal or an AI review, "Änderungen übernehmen" when editing an entry.
 - Page primary action: `Page footer={<Button size="lg">…</Button>}` renders the sticky `PageFooter`. Saving for
