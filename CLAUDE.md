@@ -92,7 +92,11 @@ Serve the production web build through the API (same origin, service worker acti
   Macro colors were validated with the dataviz palette checker for light and dark.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).
 - AI: `apps/api/src/ai/*`: model `claude-opus-5-5` by default, structured output via `betaZodOutputFormat`,
-  `fallbacks: 'default'`. Nutrients never come from the model. Load the `claude-api` skill before changing it.
+  `fallbacks: 'default'`. Load the `claude-api` skill before changing it. In the meal photo analysis nutrients
+  never come from the model (it names foods and grams, the app looks them up). The food label reading
+  (`POST /api/ai/label`, `ai/label.ts`) is the one exception: the model only copies the printed values, never
+  estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
+  form before saving.
 - `/projects` is an SMB dataset: PostgreSQL data dirs cannot live there (0700 permissions), hence the dev DB
   in the home directory.
 - Secrets: project `.env` (gitignored). Never print or commit them.

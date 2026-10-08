@@ -18,7 +18,6 @@ import {
   RotateCcw,
   Save,
   Search,
-  Sparkles,
   Trash2,
   TriangleAlert,
   X,
@@ -27,6 +26,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import {
   BarcodeScanner,
   CAM_ERRORS,
@@ -425,27 +425,6 @@ function CameraCapture({
           {overlay}
         </BarcodeScanner>
       )}
-    </div>
-  );
-}
-
-/** Shown over the photo while Claude looks at it; pure CSS animation (see `.ai-*` in index.css). */
-function AnalyzingOverlay() {
-  return (
-    <div
-      role="status"
-      className="absolute inset-0 grid place-items-center overflow-hidden rounded-xl bg-black/50 text-white"
-    >
-      <div className="ai-scan" aria-hidden />
-      <div className="relative flex flex-col items-center gap-2 px-4 text-center">
-        <Sparkles className="ai-pulse size-8" aria-hidden />
-        <div className="text-lg font-semibold">Analysiere Foto…</div>
-        <div className="ai-steps relative h-5 w-64 text-sm">
-          <span>Erkenne Lebensmittel</span>
-          <span>Schätze die Mengen</span>
-          <span>Suche Nährwerte heraus</span>
-        </div>
-      </div>
     </div>
   );
 }

@@ -33,6 +33,10 @@ const mealParam = (v: unknown) => {
   return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 0;
 };
 const strParam = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length < 100 ? v : undefined);
+/** A barcode: the router parses `?code=4006040123453` (typed or shared link) as a number. */
+const digitsParam = (v: unknown) =>
+  (typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? String(v) : strParam(v))?.replace(/\D/g, '') ||
+  undefined;
 
 export interface DateSearch {
   date?: string;
@@ -124,7 +128,7 @@ export const routes = {
     // `code`: a barcode already read elsewhere (photo page), looked up immediately, camera stays idle.
     validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { code?: string } => ({
       ...validateMeal(s),
-      ...clean({ into: intoParam(s.into), code: strParam(s.code)?.replace(/\D/g, '') || undefined }),
+      ...clean({ into: intoParam(s.into), code: digitsParam(s.code) }),
     }),
     component: lazyRouteComponent(() => import('@/features/foods/ScanPage'), 'ScanPage'),
   }),
@@ -151,11 +155,14 @@ export const routes = {
       meal?: number;
       into?: string;
       from?: 'food';
+      /** '1': open the label camera right away (scan page, unknown product). */
+      label?: '1';
     } =>
       clean({
         from: s.from === 'food' ? ('food' as const) : undefined,
+        label: s.label === '1' || s.label === 1 ? ('1' as const) : undefined,
         into: intoParam(s.into),
-        barcode: strParam(s.barcode),
+        barcode: digitsParam(s.barcode),
         name: strParam(s.name),
         date: dateParam(s.date),
         meal: s.meal === undefined ? undefined : mealParam(s.meal),

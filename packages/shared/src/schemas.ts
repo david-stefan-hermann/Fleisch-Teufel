@@ -369,6 +369,43 @@ export interface AiAnalysisResult {
   usage: { inputTokens: number; outputTokens: number; costUsd: number };
 }
 
+// ---------------------------------------------------------------- AI label reading
+
+/** The ten values of a custom food, as read from a label (null: not printed or not legible). */
+export const LABEL_NUTRIENT_KEYS = [
+  'kcal',
+  'kj',
+  'protein',
+  'carbs',
+  'sugar',
+  'fat',
+  'satFat',
+  'fiber',
+  'salt',
+  'sodium',
+] as const;
+export type LabelNutrientKey = (typeof LABEL_NUTRIENT_KEYS)[number];
+
+/**
+ * Result of `POST /api/ai/label`: what a food label says, copied by the model, never estimated.
+ * Values refer to 100 g/ml (`basis: 'per100'`) or to one serving of `servingGrams`. The barcode is
+ * only set when it has a valid check digit.
+ */
+export interface AiLabelResult {
+  analysisId: string;
+  name: string | null;
+  brand: string | null;
+  barcode: string | null;
+  unit: 'g' | 'ml';
+  basis: 'per100' | 'perPortion';
+  servingGrams: number | null;
+  servingLabel: string | null;
+  nutrients: Record<LabelNutrientKey, number | null>;
+  notes: string | null;
+  model: string;
+  usage: { inputTokens: number; outputTokens: number; costUsd: number };
+}
+
 /**
  * Ids that must be deterministic so concurrent offline edits on two devices converge
  * on one record instead of creating duplicates. Returns null when any id is fine.

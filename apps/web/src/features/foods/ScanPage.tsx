@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Keyboard, LoaderCircle, PackageSearch } from 'lucide-react';
+import { Keyboard, LoaderCircle, PackageSearch, ScanText } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { lookupBarcode } from '@/foods/foodService';
+import { useAiStatus } from '@/hooks/useAiStatus';
 
 const ERRORS: Record<ScannerError, string> = {
   permission:
@@ -27,6 +28,20 @@ type State =
 export function ScanPage() {
   const { date, meal, into, code: initialCode } = useSearch({ from: '/authed/scan' });
   const navigate = useNavigate();
+  const ai = useAiStatus();
+  /** New custom food with the scanned code; `label`: open the label camera right away. */
+  const create = (code: string, label: boolean) =>
+    void navigate({
+      to: '/custom-food/$id',
+      params: { id: 'new' },
+      search: {
+        barcode: code,
+        date,
+        meal,
+        ...(into ? { into } : {}),
+        ...(label ? { label: '1' as const } : {}),
+      },
+    });
   const db = useDb();
   const [state, setState] = useState<State>(
     initialCode ? { kind: 'looking', code: initialCode } : { kind: 'scanning' },
@@ -99,23 +114,35 @@ export function ScanPage() {
             <p className="text-sm text-muted-foreground">
               Lege es einmal selbst an, danach findest du es beim nächsten Scan sofort.
             </p>
-            <div className="flex gap-2">
-              <Button
-                className="flex-1"
-                onClick={() =>
-                  void navigate({
-                    to: '/custom-food/$id',
-                    params: { id: 'new' },
-                    search: { barcode: state.code, date, meal, ...(into ? { into } : {}) },
-                  })
-                }
-              >
-                Produkt anlegen
-              </Button>
-              <Button variant="outline" onClick={() => setState({ kind: 'scanning' })}>
-                Weiter scannen
-              </Button>
-            </div>
+            {ai === 'on' ? (
+              <>
+                {/* The label photo fills the new food; "Selbst anlegen" is the empty editor. */}
+                <div className="flex flex-wrap gap-2">
+                  <Button className="flex-1" onClick={() => create(state.code, true)}>
+                    <ScanText aria-hidden /> Etikett fotografieren
+                  </Button>
+                  <Button variant="outline" onClick={() => create(state.code, false)}>
+                    Selbst anlegen
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setState({ kind: 'scanning' })}
+                  className="justify-self-center text-sm text-primary underline underline-offset-2 hover:no-underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  Weiter scannen
+                </button>
+              </>
+            ) : (
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => create(state.code, false)}>
+                  Produkt anlegen
+                </Button>
+                <Button variant="outline" onClick={() => setState({ kind: 'scanning' })}>
+                  Weiter scannen
+                </Button>
+              </div>
+            )}
           </div>
         )}
         {(state.kind === 'offline' || state.kind === 'error') && (

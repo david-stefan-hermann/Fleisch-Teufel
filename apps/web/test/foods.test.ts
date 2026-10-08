@@ -1,7 +1,8 @@
-import { N, uuidv7, type CustomFood, type Food, type Meal } from '@ft/shared';
+import { N, uuidv7, type AiLabelResult, type CustomFood, type Food, type Meal } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
+  applyLabel,
   initFromFood,
   kcalSource,
   nutrientError,
@@ -402,5 +403,108 @@ describe('custom food form', () => {
     );
     expect(per100[N.protein]).toBe(33.333);
     expect(initFromFood(per100).kcalAuto).toBe(true);
+  });
+});
+
+describe('label reading fills the custom food form', () => {
+  const label = (over: Partial<AiLabelResult> = {}): AiLabelResult => ({
+    analysisId: 'a',
+    name: 'Proteinriegel Schoko',
+    brand: 'Bergkorn',
+    barcode: '4006040123453',
+    unit: 'g',
+    basis: 'per100',
+    servingGrams: 45,
+    servingLabel: '1 Riegel',
+    nutrients: {
+      kcal: 389,
+      kj: 1628,
+      protein: 33,
+      carbs: 36,
+      sugar: 4.7,
+      fat: 13.8,
+      satFat: 7.6,
+      fiber: null,
+      salt: 0.4,
+      sodium: null,
+    },
+    notes: 'Ballaststoffe nicht angegeben.',
+    model: 'claude-opus-5-5',
+    usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+    ...over,
+  });
+  const filled = {
+    name: 'Alt',
+    brand: 'Alte Marke',
+    barcode: '96385074',
+    unit: 'ml' as const,
+    mode: 'per100' as const,
+    servingGrams: null,
+    portions: [],
+    nutrients: setField(initFromFood(null), 'fiber', 9),
+  };
+
+  it('overwrites the form with the values per 100 g and marks what changed', () => {
+    const { next, changed } = applyLabel(filled, label(), null);
+    expect(next).toMatchObject({
+      name: 'Proteinriegel Schoko',
+      brand: 'Bergkorn',
+      barcode: '4006040123453',
+      unit: 'g',
+    });
+    // All ten values are replaced: fiber was not on the label, so it is empty now.
+    expect(next.nutrients.values).toMatchObject({ kcal: 389, kj: 1628, protein: 33, fiber: null, salt: 0.4 });
+    expect(next.nutrients.values.sodium).toBeCloseTo(160, 6);
+    // Label kcal differ from the formula (400): an own input, kJ stay as printed.
+    expect(kcalSource(next.nutrients)).toBe('kcal');
+    expect(next.nutrients.kjAuto).toBe(true);
+    // The printed serving becomes a portion.
+    expect(next.portions).toEqual([{ label: '1 Riegel', grams: 45 }]);
+    expect(changed).toEqual(
+      expect.arrayContaining(['name', 'brand', 'barcode', 'unit', 'portions', 'kcal', 'kj', 'salt']),
+    );
+    expect(changed).not.toContain('fiber');
+    expect(changed).not.toContain('mode');
+  });
+
+  it('switches to values per portion with the serving size', () => {
+    const { next, changed } = applyLabel(
+      filled,
+      label({ basis: 'perPortion', nutrients: { ...label().nutrients, kcal: 175, kj: 732 } }),
+      null,
+    );
+    expect(next.mode).toBe('perPortion');
+    expect(next.servingGrams).toBe(45);
+    expect(next.portions).toEqual([]);
+    expect(changed).toEqual(expect.arrayContaining(['mode', 'servingGrams']));
+  });
+
+  it('prefers the code read on the device and keeps fields the label does not show', () => {
+    const local = applyLabel(filled, label(), '4006040123460');
+    expect(local.next.barcode).toBe('4006040123460');
+    const none = applyLabel(filled, label({ name: null, brand: null, barcode: null }), null);
+    expect(none.next).toMatchObject({ name: 'Alt', brand: 'Alte Marke', barcode: '96385074' });
+    expect(none.changed).not.toContain('name');
+    expect(none.changed).not.toContain('barcode');
+  });
+
+  it('keeps the kcal automatic when the label matches the EU formula', () => {
+    const { next } = applyLabel(
+      filled,
+      label({
+        nutrients: {
+          ...label().nutrients,
+          kcal: 288.6,
+          kj: null,
+          protein: 4,
+          carbs: 38,
+          fat: 13,
+          fiber: 1.8,
+        },
+      }),
+      null,
+    );
+    expect(kcalSource(next.nutrients)).toBe('macros');
+    expect(next.nutrients.values.kj).toBeCloseTo(288.6 * 4.184, 6);
   });
 });

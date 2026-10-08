@@ -1,6 +1,7 @@
 import type { AiItem } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer } from '../src/ai/analyze.js';
+import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer, type LabelInput } from '../src/ai/analyze.js';
+import type { LabelReading } from '../src/ai/label.js';
 import { matchItem } from '../src/ai/match.js';
 import { costUsd } from '../src/ai/pricing.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
@@ -18,7 +19,33 @@ const item = (over: Partial<AiItem>): AiItem => ({
 let ctx: TestCtx;
 let c: TestClient;
 const received: AnalyzeInput[] = [];
+const labels: LabelInput[] = [];
 let refuse = false;
+
+const proteinBar = (over: Partial<LabelReading> = {}): LabelReading => ({
+  name: 'Proteinriegel Schoko',
+  brand: 'Bergkorn',
+  barcode: '4006040123453',
+  unit: 'g',
+  basis: 'per100',
+  servingGrams: 45,
+  servingLabel: '1 Riegel',
+  nutrients: {
+    kcal: 389,
+    kj: 1628,
+    protein: 33,
+    carbs: 36,
+    sugar: 4.7,
+    fat: 13.8,
+    satFat: 7.6,
+    fiber: null,
+    salt: 0.4,
+    sodium: null,
+  },
+  notes: 'Ballaststoffe nicht angegeben.',
+  ...over,
+});
+let nextLabel: LabelReading = proteinBar();
 
 const fakeAnalyzer: FoodAnalyzer = {
   async analyze(input) {
@@ -44,6 +71,15 @@ const fakeAnalyzer: FoodAnalyzer = {
         outputTokens: 1500,
         costUsd: costUsd('claude-opus-5-5', { inputTokens: 3000, outputTokens: 1500 }),
       },
+    };
+  },
+  async readLabel(input) {
+    labels.push(input);
+    if (refuse) throw new AiRefusalError('general_harms');
+    return {
+      reading: nextLabel,
+      model: 'claude-opus-5-5',
+      usage: { inputTokens: 5000, outputTokens: 800, costUsd: 0.036 },
     };
   },
 };
@@ -133,6 +169,93 @@ describe('POST /api/ai/analyze', () => {
       const u = await registeredClient(off);
       expect((await u.get('/api/ai/status')).json.enabled).toBe(false);
       expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(503);
+    } finally {
+      await off.close();
+    }
+  });
+});
+
+describe('POST /api/ai/label', () => {
+  const labelForm = (n: number, type = 'image/jpeg') => {
+    const form = new FormData();
+    for (let i = 0; i < n; i++)
+      form.append('image', new File([new Uint8Array(500 + i)], `l${i}.jpg`, { type }));
+    form.set('text', 'Riegel');
+    return form;
+  };
+
+  it('reads 1 to 3 photos in one call and logs it as a label', async () => {
+    nextLabel = proteinBar();
+    const r = await c.req('POST', '/api/ai/label', labelForm(2));
+    expect(r.status).toBe(200);
+    expect(labels.at(-1)!.images.map((i) => i.mediaType)).toEqual(['image/jpeg', 'image/jpeg']);
+    expect(labels.at(-1)!.text).toBe('Riegel');
+    expect(r.json).toMatchObject({
+      name: 'Proteinriegel Schoko',
+      brand: 'Bergkorn',
+      barcode: '4006040123453',
+      basis: 'per100',
+      unit: 'g',
+      notes: 'Ballaststoffe nicht angegeben.',
+    });
+    expect(r.json.nutrients).toMatchObject({ kcal: 389, kj: 1628, fiber: null });
+    const [row] = await ctx.db
+      .$client`select result, input_tokens from ai_analyses where id = ${r.json.analysisId}`;
+    expect(row!.input_tokens).toBe(5000);
+    expect(row!.result).toMatchObject({ kind: 'label', photos: 2, barcode: '4006040123453' });
+    const calls = labels.length;
+    expect((await c.req('POST', '/api/ai/label', labelForm(3))).status).toBe(200);
+    expect(labels).toHaveLength(calls + 1);
+    expect(labels.at(-1)!.images).toHaveLength(3);
+  });
+
+  it('refuses a fourth photo, other files and missing photos without calling Claude', async () => {
+    const calls = labels.length;
+    expect((await c.req('POST', '/api/ai/label', labelForm(4))).json).toEqual({ error: 'too_many_images' });
+    expect((await c.req('POST', '/api/ai/label', labelForm(0))).status).toBe(400);
+    expect((await c.req('POST', '/api/ai/label', labelForm(1, 'image/heic'))).status).toBe(415);
+    expect((await new TestClient(ctx.app).req('POST', '/api/ai/label', labelForm(1))).status).toBe(401);
+    expect(labels).toHaveLength(calls);
+  });
+
+  it('keeps a barcode only with a valid check digit and drops impossible values', async () => {
+    nextLabel = proteinBar({
+      barcode: '4006040123456',
+      servingGrams: -1,
+      nutrients: { ...proteinBar().nutrients, sugar: -2, fat: Number.NaN },
+    });
+    let r = await c.req('POST', '/api/ai/label', labelForm(1));
+    expect(r.json.barcode).toBeNull();
+    expect(r.json.servingGrams).toBeNull();
+    expect(r.json.nutrients).toMatchObject({ sugar: null, fat: null, kcal: 389 });
+    nextLabel = proteinBar({ barcode: '4006040 12345 3' });
+    r = await c.req('POST', '/api/ai/label', labelForm(1));
+    expect(r.json.barcode).toBe('4006040123453');
+  });
+
+  it('answers 422 when nothing could be read, and maps refusals', async () => {
+    const empty = Object.fromEntries(Object.keys(proteinBar().nutrients).map((k) => [k, null]));
+    nextLabel = proteinBar({
+      name: null,
+      brand: null,
+      nutrients: empty as LabelReading['nutrients'],
+      notes: 'Kein Etikett.',
+    });
+    const r = await c.req('POST', '/api/ai/label', labelForm(1));
+    expect(r.status).toBe(422);
+    expect(r.json).toEqual({ error: 'no_label', notes: 'Kein Etikett.' });
+    refuse = true;
+    const refused = await c.req('POST', '/api/ai/label', labelForm(1));
+    refuse = false;
+    expect(refused.status).toBe(422);
+    expect(refused.json.error).toBe('refused');
+  });
+
+  it('is disabled without an analyzer', async () => {
+    const off = await createTestContext();
+    try {
+      const u = await registeredClient(off);
+      expect((await u.req('POST', '/api/ai/label', labelForm(1))).status).toBe(503);
     } finally {
       await off.close();
     }

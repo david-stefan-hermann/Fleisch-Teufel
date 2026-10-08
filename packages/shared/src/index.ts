@@ -1,3 +1,4 @@
+export * from './barcode.js';
 export * from './csv.js';
 export * from './dates.js';
 export * from './diary.js';

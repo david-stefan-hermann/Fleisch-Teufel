@@ -3,6 +3,7 @@
  * WebAssembly ponyfill (self-hosted wasm, precached → works offline). iOS Safari requires
  * `playsInline` + `muted` for inline camera video in standalone mode.
  */
+import { validGtin } from '@ft/shared';
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
 import { Flashlight } from 'lucide-react';
@@ -28,14 +29,8 @@ export const CAM_ERRORS: Record<ScannerError, string> = {
   other: 'Die Kamera konnte nicht gestartet werden.',
 };
 
-/** Valid EAN/UPC check digit (avoids misreads). */
-export function validGtin(code: string): boolean {
-  if (!/^\d{8}$|^\d{12,14}$/.test(code)) return false;
-  const digits = code.split('').map(Number);
-  const check = digits.pop()!;
-  const sum = digits.reverse().reduce((s, d, i) => s + d * (i % 2 === 0 ? 3 : 1), 0);
-  return (10 - (sum % 10)) % 10 === check;
-}
+// The check digit test lives in @ft/shared (the API validates label barcodes with it too).
+export { validGtin };
 
 /**
  * Finds an EAN/UPC in a still image (a photographed barcode). Detection runs on a downscaled copy:

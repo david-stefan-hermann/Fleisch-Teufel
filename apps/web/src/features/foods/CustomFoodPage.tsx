@@ -1,11 +1,12 @@
-import { targetsForDate, today, uuidv7, type CustomFood, type Portion } from '@ft/shared';
+import { targetsForDate, today, uuidv7, type AiLabelResult, type CustomFood, type Portion } from '@ft/shared';
 import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, ScanBarcode, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, ScanBarcode, ScanText, Sparkles, Trash2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { BarcodeScanSheet } from '@/components/BarcodeScanSheet';
+import { LabelCaptureSheet } from '@/components/LabelCaptureSheet';
 import { NumberField } from '@/components/NumberField';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { Page, Section } from '@/components/Page';
@@ -15,9 +16,11 @@ import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals } from '@/hooks/data';
+import { useAiStatus } from '@/hooks/useAiStatus';
 import { goBackOr } from '@/lib/history';
 import { cn } from '@/lib/utils';
 import {
+  applyLabel,
   initFromFood,
   nutrientError,
   resetKcal,
@@ -63,6 +66,15 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   });
   const [touched, setTouched] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const ai = useAiStatus();
+  // From the scan page ("Etikett fotografieren") the label camera opens right away, once.
+  const [labelOpen, setLabelOpen] = useState(() => search.label === '1');
+  const [filledFromLabel, setFilledFromLabel] = useState(false);
+  /** The model's note on the label (what was missing), shown until saving. */
+  const [labelNote, setLabelNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (search.label) void navigate({ to: '.', search: (s) => ({ ...s, label: undefined }), replace: true });
+  }, [search.label, navigate]);
   /** Fields filled from outside (scan) that flash once. */
   const [flash, setFlash] = useState<ReadonlySet<string>>(() => new Set());
   const flashFields = (fields: string[]) => {
@@ -92,6 +104,27 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       barcodeClean && (barcodeClean.length < 6 || barcodeClean.length > 14) ? '6 bis 14 Ziffern.' : null,
   };
   const valid = !Object.values(errors).some(Boolean);
+
+  function fillFromLabel(label: AiLabelResult, localBarcode: string | null) {
+    const { next, changed } = applyLabel(
+      { name, brand, barcode, unit, mode, servingGrams, portions, nutrients },
+      label,
+      localBarcode,
+    );
+    setName(next.name);
+    setBrand(next.brand);
+    setBarcode(next.barcode);
+    setUnit(next.unit);
+    setMode(next.mode);
+    setServingGrams(next.servingGrams);
+    setPortions(next.portions);
+    setNutrients(next.nutrients);
+    setLabelNote(label.notes);
+    setLabelOpen(false);
+    setFilledFromLabel(true);
+    flashFields(changed);
+    toast.success('Vom Etikett übernommen, bitte prüfen');
+  }
 
   async function save() {
     setTouched(true);
@@ -165,6 +198,13 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
           void save();
         }}
       >
+        {ai !== 'loading' && ai !== 'off' && (
+          <LabelEntry
+            compact={!isNew || filledFromLabel}
+            offline={ai === 'offline'}
+            onOpen={() => setLabelOpen(true)}
+          />
+        )}
         <Section>
           <div className="grid gap-4 p-4">
             <div className="grid gap-1.5">
@@ -177,6 +217,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="z. B. Omas Apfelkuchen…"
                 aria-invalid={touched && errors.name ? true : undefined}
+                className={cn(flash.has('name') && 'field-flash')}
               />
               {touched && errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
@@ -187,6 +228,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 autoComplete="off"
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
+                className={cn(flash.has('brand') && 'field-flash')}
               />
             </div>
             <div className="grid gap-1.5">
@@ -231,7 +273,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 variant="outline"
                 value={unit}
                 onValueChange={(v) => v && setUnit(v as 'g' | 'ml')}
-                className="w-full"
+                className={cn('w-full rounded-lg', flash.has('unit') && 'field-flash')}
               >
                 <ToggleGroupItem value="g" className="flex-1">
                   Gramm (fest)
@@ -244,6 +286,12 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
           </div>
         </Section>
 
+        {labelNote && (
+          <p className="mb-4 flex gap-2 rounded-xl bg-muted p-3 text-sm text-pretty">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span>{labelNote}</span>
+          </p>
+        )}
         <Section title="Nährwerte">
           <div className="grid gap-4 px-4 pb-4">
             <ToggleGroup
@@ -251,7 +299,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               variant="outline"
               value={mode}
               onValueChange={(v) => v && setMode(v as typeof mode)}
-              className="w-full"
+              className={cn('w-full rounded-lg', flash.has('mode') && 'field-flash')}
               aria-label="Bezug der Nährwerte"
             >
               <ToggleGroupItem value="per100" className="flex-1">
@@ -269,6 +317,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 onValueChange={setServingGrams}
                 error={touched ? errors.serving : null}
                 hint={`Wird beim Speichern auf 100 ${unit} umgerechnet.`}
+                inputClassName={cn(flash.has('servingGrams') && 'field-flash')}
               />
             )}
             <NutrientEditor
@@ -344,6 +393,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
           </div>
         </Section>
       </form>
+      {labelOpen && <LabelCaptureSheet onResult={fillFromLabel} onClose={() => setLabelOpen(false)} />}
       {scanning && (
         <BarcodeScanSheet
           onClose={() => setScanning(false)}
@@ -356,5 +406,43 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
         />
       )}
     </Page>
+  );
+}
+
+/**
+ * Entry to "Etikett fotografieren": a tile on a new food, a small button when editing (or after a
+ * first fill). Offline it is disabled ("Nur online"); without AI on the server the page hides it.
+ */
+function LabelEntry({
+  compact,
+  offline,
+  onOpen,
+}: {
+  compact: boolean;
+  offline: boolean;
+  onOpen: () => void;
+}) {
+  if (compact)
+    return (
+      <Button type="button" variant="outline" className="mb-4 w-full" disabled={offline} onClick={onOpen}>
+        <ScanText className="text-primary" aria-hidden />
+        {offline ? 'Vom Etikett neu ausfüllen (nur online)' : 'Vom Etikett neu ausfüllen'}
+      </Button>
+    );
+  return (
+    <button
+      type="button"
+      disabled={offline}
+      onClick={onOpen}
+      className="mb-4 flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-xs hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+    >
+      <ScanText className="size-7 shrink-0 text-primary" aria-hidden />
+      <span>
+        <span className="block font-semibold">Etikett fotografieren</span>
+        <span className="block text-[0.8125rem] text-muted-foreground">
+          {offline ? 'Nur online' : 'Name, Barcode und Nährwerte per KI ausfüllen'}
+        </span>
+      </span>
+    </button>
   );
 }

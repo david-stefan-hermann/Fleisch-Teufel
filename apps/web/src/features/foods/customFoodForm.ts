@@ -5,8 +5,11 @@ import {
   kjFromKcal,
   N,
   saltFromSodiumMg,
+  LABEL_NUTRIENT_KEYS,
   sodiumMgFromSalt,
+  type AiLabelResult,
   type NutrientMap,
+  type Portion,
 } from '@ft/shared';
 
 /**
@@ -99,34 +102,32 @@ export function initFromFood(nutrients: NutrientMap | null): NutrientFormState {
 }
 
 /** Recognizes the modes of a complete set of values (stored food, label result). */
-function statesFromValues(values: FormValues): NutrientFormState {
+function statesFromValues(given: FormValues): NutrientFormState {
+  const values = { ...given };
+  // Only kJ given: they are the source of the kcal. Only sodium given: the salt comes from it.
+  const kjSource = values.kcal === null && values.kj !== null;
+  const sodiumSource = values.salt === null && values.sodium !== null;
+  if (kjSource) values.kcal = kcalFromKj(values.kj!);
+  if (sodiumSource) values.salt = saltFromSodiumMg(values.sodium!);
   const map = formNutrients(values);
-  const kcalAuto = values.kcal === null ? true : isAutoKcal(map);
-  const kjAuto =
-    values.kj === null ||
-    (values.kcal !== null && Math.abs(values.kj - kjFromKcal(values.kcal)) <= KJ_TOLERANCE);
-  const sodiumAuto =
-    values.sodium === null ||
-    (values.salt !== null && Math.abs(values.sodium - sodiumMgFromSalt(values.salt)) <= SODIUM_TOLERANCE_MG);
-  // Only kJ given: they are the source of the kcal.
-  if (values.kcal === null && values.kj !== null) {
-    return derive({
-      values: { ...values, kcal: kcalFromKj(values.kj) },
-      kcalAuto: false,
-      kjAuto: false,
-      sodiumAuto,
-    });
-  }
-  // Only sodium given: the salt comes from it.
-  if (values.salt === null && values.sodium !== null) {
-    return derive({
-      values: { ...values, salt: saltFromSodiumMg(values.sodium) },
-      kcalAuto,
-      kjAuto,
-      sodiumAuto: false,
-    });
-  }
-  return derive({ values, kcalAuto, kjAuto, sodiumAuto });
+  const state: NutrientFormState = {
+    values,
+    kcalAuto: given.kcal === null && !kjSource ? true : !kjSource && isAutoKcal(map),
+    kjAuto:
+      !kjSource &&
+      (values.kj === null ||
+        (values.kcal !== null && Math.abs(values.kj - kjFromKcal(values.kcal)) <= KJ_TOLERANCE)),
+    sodiumAuto:
+      !sodiumSource &&
+      (values.sodium === null ||
+        (values.salt !== null &&
+          Math.abs(values.sodium - sodiumMgFromSalt(values.salt)) <= SODIUM_TOLERANCE_MG)),
+  };
+  // Stored values stay exactly as they are (also when they match their derivation); only missing
+  // ones are derived. Typing in any field recomputes as usual.
+  const derived = derive(state).values;
+  for (const c of FORM_CODES) if (values[c] === null) values[c] = derived[c];
+  return state;
 }
 
 /** One field typed by the user (null: emptied), with all couplings applied. */
@@ -177,4 +178,65 @@ export function toNutrients(state: NutrientFormState, factor: number): NutrientM
 /** Error of the nutrient part, or null. */
 export function nutrientError(state: NutrientFormState): string | null {
   return state.values.kcal === null ? 'Kalorien oder Makros angeben.' : null;
+}
+
+/** The editor fields a label result can fill (besides the nutrient values). */
+export interface LabelTarget {
+  name: string;
+  brand: string;
+  barcode: string;
+  unit: 'g' | 'ml';
+  mode: 'per100' | 'perPortion';
+  servingGrams: number | null;
+  portions: Portion[];
+  nutrients: NutrientFormState;
+}
+
+/**
+ * Fills the editor from a label reading. It overwrites what is there: name, brand and barcode when
+ * the label shows them (a code read locally from the photos wins over the model's), the unit, all
+ * ten values (unreadable ones become empty) and, for values per serving, the basis and serving
+ * size. A serving printed next to per-100 values becomes a portion ("1 Riegel", 45 g). The kcal
+ * mode follows from the values like for a stored food. Returns the changed fields for the highlight.
+ */
+export function applyLabel(
+  current: LabelTarget,
+  label: AiLabelResult,
+  localBarcode: string | null,
+): { next: LabelTarget; changed: string[] } {
+  const map: NutrientMap = {};
+  for (const k of LABEL_NUTRIENT_KEYS) {
+    const v = label.nutrients[k];
+    if (v !== null) map[FORM_NUTRIENT[k]] = v;
+  }
+  const perPortion = label.basis === 'perPortion';
+  const barcode = localBarcode ?? label.barcode;
+  const portionLabel = label.servingLabel?.trim() || 'Portion';
+  const addPortion =
+    !perPortion &&
+    label.servingGrams !== null &&
+    !current.portions.some((p) => p.grams === label.servingGrams || p.label === portionLabel);
+  const next: LabelTarget = {
+    name: label.name ?? current.name,
+    brand: label.brand ?? current.brand,
+    barcode: barcode ?? current.barcode,
+    unit: label.unit,
+    mode: label.basis,
+    servingGrams: perPortion ? (label.servingGrams ?? current.servingGrams) : current.servingGrams,
+    portions: addPortion
+      ? [...current.portions, { label: portionLabel, grams: label.servingGrams! }]
+      : current.portions,
+    nutrients: initFromFood(map),
+  };
+  const changed: string[] = [
+    ...(label.name !== null ? ['name'] : []),
+    ...(label.brand !== null ? ['brand'] : []),
+    ...(barcode !== null ? ['barcode'] : []),
+    ...(label.unit !== current.unit ? ['unit'] : []),
+    ...(label.basis !== current.mode ? ['mode'] : []),
+    ...(perPortion && label.servingGrams !== null ? ['servingGrams'] : []),
+    ...(addPortion ? ['portions'] : []),
+    ...LABEL_NUTRIENT_KEYS.filter((k) => label.nutrients[k] !== null),
+  ];
+  return { next, changed };
 }

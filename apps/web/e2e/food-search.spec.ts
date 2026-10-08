@@ -217,3 +217,107 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   await expect(page.getByLabel('Portion', { exact: true })).toContainText('Portion (45 g)');
   await expect(page.getByRole('button', { name: /^175 kcal, Anteil/ })).toBeVisible();
 });
+
+test('own food from a label photo: two photos, one call, form filled and highlighted', async ({ page }) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  let calls = 0;
+  let photos = 0;
+  await page.route('**/api/ai/label', (r) => {
+    calls++;
+    photos = (
+      r
+        .request()
+        .postDataBuffer()
+        ?.toString('latin1')
+        .match(/name="image"/g) ?? []
+    ).length;
+    if (calls === 1) return r.fulfill({ status: 422, json: { error: 'no_label', notes: null } });
+    return r.fulfill({
+      json: {
+        analysisId: '00000000-0000-7000-8000-00000000000a',
+        name: 'Proteinriegel Schoko',
+        brand: 'Bergkorn',
+        barcode: '4006040123453',
+        unit: 'g',
+        basis: 'per100',
+        servingGrams: 45,
+        servingLabel: '1 Riegel',
+        nutrients: {
+          kcal: 389,
+          kj: 1628,
+          protein: 33,
+          carbs: 36,
+          sugar: 4.7,
+          fat: 13.8,
+          satFat: 7.6,
+          fiber: null,
+          salt: 0.4,
+          sodium: null,
+        },
+        notes: 'Ballaststoffe nicht angegeben.',
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+      },
+    });
+  });
+
+  await page.goto('/custom-food/new');
+  await page.getByRole('button', { name: /^Etikett fotografieren/ }).click();
+  const sheet = page.getByRole('dialog', { name: 'Etikett fotografieren' });
+  await expect(sheet.getByText('Nährwerttabelle, Name und Barcode, bis zu 3 Fotos')).toBeVisible();
+  const analyze = sheet.getByRole('button', { name: /^Analysieren/ });
+  await expect(analyze).toBeDisabled();
+  // No camera in the test browser: the photo library is the way in (several at once).
+  await sheet
+    .locator('input[type=file][multiple]')
+    .setInputFiles(['public/pwa-192x192.png', 'public/pwa-512x512.png']);
+  await expect(sheet.getByRole('img', { name: /^Foto \d$/ })).toHaveCount(2);
+  await expect(analyze).toHaveText('Analysieren (2 Fotos)');
+
+  // Unreadable: a toast, the camera stays open with the photos.
+  await analyze.click();
+  await expect(
+    page.getByText(
+      'Das Etikett konnte nicht gelesen werden. Versuche ein schärferes Foto der Nährwerttabelle.',
+    ),
+  ).toBeVisible();
+  await expect(sheet.getByRole('img', { name: /^Foto \d$/ })).toHaveCount(2);
+  // A photo can be removed again.
+  await sheet.getByRole('button', { name: 'Foto 2 entfernen' }).click();
+  await expect(analyze).toHaveText('Analysieren (1 Foto)');
+  await analyze.click();
+
+  // The form is filled; the AI note sits above the nutrients; saving is still up to the person.
+  await expect(sheet).toHaveCount(0);
+  expect(calls).toBe(2);
+  expect(photos).toBe(1);
+  await expect(page.getByText('Vom Etikett übernommen, bitte prüfen')).toBeVisible();
+  await expect(page.getByLabel('Name')).toHaveValue('Proteinriegel Schoko');
+  await expect(page.getByLabel('Name')).toHaveClass(/field-flash/);
+  await expect(page.getByLabel('Marke (optional)')).toHaveValue('Bergkorn');
+  await expect(page.getByLabel('Barcode (optional)')).toHaveValue('4006040123453');
+  await expect(page.getByLabel('Kalorien', { exact: true })).toHaveValue('389');
+  await expect(page.getByText(/eigene Eingabe/)).toBeVisible();
+  await expect(page.getByText('Ballaststoffe nicht angegeben.')).toBeVisible();
+  await expect(page.getByText('1 Riegel · 45 g')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Vom Etikett neu ausfüllen' })).toBeVisible();
+  await page.getByRole('button', { name: 'Anlegen', exact: true }).click();
+  await expect(page.getByText('Lebensmittel angelegt')).toBeVisible();
+
+  // Scan page, unknown product: "Etikett fotografieren" opens the editor with the code and the camera.
+  await page.route('**/api/foods/barcode/**', (r) =>
+    r.fulfill({ status: 404, json: { error: 'not_found' } }),
+  );
+  await page.goto('/scan?meal=0&code=4006040123460');
+  await expect(page.getByText('Produkt 4006040123460 unbekannt')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Selbst anlegen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Weiter scannen' })).toBeVisible();
+  await page.getByRole('button', { name: 'Etikett fotografieren' }).click();
+  await expect(page.getByRole('dialog', { name: 'Etikett fotografieren' })).toBeVisible();
+  await expect(page).toHaveURL(/\/custom-food\/new\?(?!.*label=)/);
+  await page.getByRole('button', { name: 'Schließen' }).click();
+  await expect(page.getByLabel('Barcode (optional)')).toHaveValue('4006040123460');
+});

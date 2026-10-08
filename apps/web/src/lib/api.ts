@@ -1,4 +1,4 @@
-import type { Food, PublicUser, ServerInfo } from '@ft/shared';
+import type { AiLabelResult, Food, PublicUser, ServerInfo } from '@ft/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -18,10 +18,16 @@ export class OfflineError extends Error {
 }
 
 export async function api<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
-  const { timeoutMs = 15_000, ...rest } = init;
+  const { timeoutMs = 15_000, signal: callerSignal, ...rest } = init;
+  // The caller's signal (cancel) and the timeout both end the request.
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const signal =
+    callerSignal && typeof AbortSignal.any === 'function'
+      ? AbortSignal.any([timeout, callerSignal])
+      : (callerSignal ?? timeout);
   let res: Response;
   try {
-    res = await fetch(path, { credentials: 'same-origin', signal: AbortSignal.timeout(timeoutMs), ...rest });
+    res = await fetch(path, { credentials: 'same-origin', signal, ...rest });
   } catch {
     throw new OfflineError();
   }
@@ -68,6 +74,19 @@ export const endpoints = {
       ...(signal ? { signal } : {}),
     }),
   aiStatus: () => api<{ enabled: boolean; model: string | null }>('/api/ai/status', { timeoutMs: 5000 }),
+  /** 1 to 3 photos of a food label in one multipart request (field `image` repeated). */
+  readLabel: (images: Blob[], signal?: AbortSignal) => {
+    const form = new FormData();
+    images.forEach((img, i) =>
+      form.append('image', new File([img], `label-${i + 1}.jpg`, { type: img.type || 'image/jpeg' })),
+    );
+    return api<AiLabelResult>('/api/ai/label', {
+      method: 'POST',
+      body: form,
+      timeoutMs: 120_000,
+      ...(signal ? { signal } : {}),
+    });
+  },
 };
 
 /** German user-facing message for an error, including the next step. */
