@@ -2,13 +2,16 @@ import { dayId, groupDiaryEntries, uuidv7 } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
+  createAiMeal,
+  entriesToMealItems,
   logAiItems,
+  logAiMeal,
   logFoodEntry,
   logItems,
   moveEntriesToMeal,
-  saveAiMeal,
   saveExercise,
   saveExerciseTemplate,
+  saveMealFromEntries,
 } from '@/db/entries';
 import { trashCount, trashedMeals, trashedWeights } from '@/db/trash';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
@@ -109,7 +112,7 @@ describe('local writes', () => {
     expect(new Set(all.map((e) => e.id)).size).toBe(3);
   });
 
-  it('stores an AI analysis as saved meal and logs it as one group linked to the analysis', async () => {
+  it('saves an AI analysis as a meal with photo without logging, then logs it attached to the meal', async () => {
     const d = db();
     const food = {
       id: 'bls:X',
@@ -124,39 +127,121 @@ describe('local writes', () => {
       portions: [],
     };
     const ketchup = { ...food, id: 'bls:K', sourceId: 'K', name: 'Ketchup', nutrients: { ENERCC: 100 } };
-    const mealId = await saveAiMeal(
+    const photo = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
+    const mealId = await createAiMeal(
       d,
       '  Pommes mit Ketchup ',
       [
         { food, grams: 150 },
         { food: ketchup, grams: 20 },
       ],
-      { date: '2026-10-07', meal: 2 },
-      { analysisId: 'a1' },
+      photo,
     );
     const meal = await d.meals.get(mealId);
     expect(meal).toMatchObject({ name: 'Pommes mit Ketchup', deleted: false });
+    expect(meal!.photoId).toBeTruthy();
+    expect(await d.photos.get(meal!.photoId!)).toMatchObject({ type: 'image/jpeg' });
     expect(meal!.items.map((i) => i.name)).toEqual(['Pommes', 'Ketchup']);
+    // Saving logs nothing.
+    expect(await d.foodEntries.count()).toBe(0);
+
+    // Logging later: the meal takes over the reviewed ingredients and name.
+    const n = await logAiMeal(
+      d,
+      mealId,
+      'Pommes rot-weiß',
+      [{ food, grams: 200 }],
+      { date: '2026-10-07', meal: 2 },
+      { analysisId: 'a1' },
+    );
+    expect(n).toBe(1);
+    const updated = await d.meals.get(mealId);
+    expect(updated).toMatchObject({ name: 'Pommes rot-weiß', photoId: meal!.photoId });
+    expect(updated!.items.map((i) => [i.name, i.grams])).toEqual([['Pommes', 200]]);
     const entries = await d.foodEntries.orderBy('loggedAt').toArray();
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
       source: 'ai',
-      grams: 150,
-      quantity: 150,
+      grams: 200,
+      quantity: 200,
       portionGrams: 1,
       aiAnalysisId: 'a1',
       mealId,
       meal: 2,
-      nutrients: { ENERCC: 360, FAT: 18 },
+      nutrients: { ENERCC: 480, FAT: 24 },
     });
     expect(entries[0]!.groupId).toBeTruthy();
-    expect(entries[1]!.groupId).toBe(entries[0]!.groupId);
     // The name comes from the saved meal.
     expect(entries[0]!.groupName).toBeNull();
-    expect(await d.outbox.count()).toBe(3);
   });
 
-  it('logs an AI analysis as a named group without a saved meal or photo ("Nur eintragen")', async () => {
+  it('brings back a saved AI meal that was deleted before logging', async () => {
+    const d = db();
+    const food = {
+      id: 'bls:S',
+      source: 'bls' as const,
+      sourceId: 'S',
+      name: 'Salat',
+      nameEn: null,
+      brand: null,
+      group: null,
+      unit: 'g' as const,
+      nutrients: { ENERCC: 20 },
+      portions: [],
+    };
+    const mealId = await createAiMeal(d, 'Salat', [{ food, grams: 100 }]);
+    await deleteRecord(d, 'meals', mealId);
+    await logAiMeal(
+      d,
+      mealId,
+      'Salat',
+      [{ food, grams: 100 }],
+      { date: '2026-10-07', meal: 1 },
+      { analysisId: 'a3' },
+    );
+    expect((await d.meals.get(mealId))!.deleted).toBe(false);
+    expect(await d.foodEntries.count()).toBe(1);
+  });
+
+  it('saves the entries of a diary meal as a reusable meal (item fields only)', async () => {
+    const d = db();
+    await logItems(
+      d,
+      [
+        {
+          foodId: null,
+          source: 'quick',
+          name: 'Joghurt',
+          brand: null,
+          grams: null,
+          portionLabel: null,
+          portionGrams: null,
+          quantity: 1,
+          per100: null,
+          nutrients: { ENERCC: 150 },
+        },
+      ],
+      { date: '2026-10-07', meal: 0 },
+    );
+    const entries = await d.foodEntries.toArray();
+    expect(Object.keys(entriesToMealItems(entries)[0]!).sort()).toEqual([
+      'brand',
+      'foodId',
+      'grams',
+      'name',
+      'nutrients',
+      'per100',
+      'portionGrams',
+      'portionLabel',
+      'quantity',
+      'source',
+    ]);
+    const id = await saveMealFromEntries(d, ' Bowl ', entries);
+    expect(await d.meals.get(id)).toMatchObject({ name: 'Bowl', photoId: null, deleted: false });
+    expect((await d.meals.get(id))!.items).toEqual(entriesToMealItems(entries));
+  });
+
+  it('logs an unsaved AI analysis as a named group without a meal or photo ("Meal eintragen")', async () => {
     const d = db();
     const food = {
       id: 'bls:R',

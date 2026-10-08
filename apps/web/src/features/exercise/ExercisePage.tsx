@@ -10,15 +10,15 @@ import {
   round,
   uuidv7,
   type ExerciseEntry,
-  type ExerciseTemplate,
   type Intensity,
 } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookmarkPlus, Check, Plus, Search, Trash2 } from 'lucide-react';
+import { Check, Plus, Save, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -144,26 +144,42 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       title={entry ? 'Training bearbeiten' : 'Training eintragen'}
       back
       withTabBar={false}
+      footer={
+        <Button size="lg" disabled={!type || !minutes} onClick={() => void save()}>
+          {entry ? 'Änderungen übernehmen' : 'Training eintragen'}
+        </Button>
+      }
       actions={
-        entry ? (
+        <>
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Training löschen"
-            onClick={async () => {
-              await deleteRecord(db, 'exerciseEntries', entry.id);
-              toast(`${entry.name} gelöscht`, {
-                action: {
-                  label: 'Rückgängig',
-                  onClick: () => void restoreRecord(db, 'exerciseEntries', entry.id),
-                },
-              });
-              await navigate({ to: '/', search: { date } });
-            }}
+            aria-label="Als Training speichern"
+            disabled={!type || !minutes}
+            onClick={() => setTemplateOpen(true)}
           >
-            <Trash2 className="text-destructive" aria-hidden />
+            <Save aria-hidden />
           </Button>
-        ) : undefined
+          {entry && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Training löschen"
+              onClick={async () => {
+                await deleteRecord(db, 'exerciseEntries', entry.id);
+                toast(`${entry.name} gelöscht`, {
+                  action: {
+                    label: 'Rückgängig',
+                    onClick: () => void restoreRecord(db, 'exerciseEntries', entry.id),
+                  },
+                });
+                await navigate({ to: '/', search: { date } });
+              }}
+            >
+              <Trash2 className="text-destructive" aria-hidden />
+            </Button>
+          )}
+        </>
       }
     >
       <p className="mb-3 text-sm text-muted-foreground">{fmtDayLong(date)}</p>
@@ -171,14 +187,14 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         <Section title="Schnellauswahl">
           <div className="grid gap-3 pb-3">
             {templates && templates.length > 0 && (
-              <QuickList title="Vorlagen">
+              <QuickList title="Gespeichert">
                 {templates.map((t) => (
                   <li key={t.id}>
                     <SwipeToDelete
-                      label={`Vorlage ${t.name} löschen`}
+                      label={`${t.name} löschen`}
                       onDelete={async () => {
                         await deleteRecord(db, 'exerciseTemplates', t.id);
-                        toast(`Vorlage „${t.name}“ gelöscht`, {
+                        toast(`„${t.name}“ gelöscht`, {
                           action: {
                             label: 'Rückgängig',
                             onClick: () => void restoreRecord(db, 'exerciseTemplates', t.id),
@@ -319,12 +335,6 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
                 ' · Wird laut Einstellung nicht aufs Tagesziel angerechnet.'}
             </p>
           </div>
-          <Button size="lg" disabled={!type || !minutes} onClick={() => void save()}>
-            {entry ? 'Änderungen übernehmen' : 'Training speichern'}
-          </Button>
-          <Button variant="outline" disabled={!type || !minutes} onClick={() => setTemplateOpen(true)}>
-            <BookmarkPlus aria-hidden /> Als Vorlage speichern
-          </Button>
           <p className="text-xs text-muted-foreground">
             MET-Werte: Compendium of Physical Activities (Ainsworth 2011/Herrmann 2024), gerundet.{' '}
             <Link to="/about" className="underline">
@@ -333,14 +343,30 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
           </p>
         </div>
       </Section>
-      {type && minutes && (
-        <TemplateDialog
-          open={templateOpen}
-          onOpenChange={setTemplateOpen}
-          defaultName={setup.note ? `${type.name}: ${setup.note.split('\n')[0]!.slice(0, 40)}` : type.name}
-          data={{ typeKey: type.key, typeName: type.name, minutes, intensity, note: setup.note }}
-        />
-      )}
+      <NameDialog
+        open={templateOpen}
+        onOpenChange={setTemplateOpen}
+        title="Als Training speichern"
+        description="Sportart, Dauer, Intensität und Notiz stehen danach in der Schnellauswahl und unter Mehr → Gespeicherte Trainings."
+        confirmLabel="Training speichern"
+        maxLength={80}
+        placeholder="z. B. Oberkörper-Tag…"
+        defaultName={
+          type ? (setup.note ? `${type.name}: ${setup.note.split('\n')[0]!.slice(0, 40)}` : type.name) : ''
+        }
+        onConfirm={async (name) => {
+          if (!type || !minutes) return;
+          await saveExerciseTemplate(db, {
+            typeKey: type.key,
+            typeName: type.name,
+            minutes,
+            intensity,
+            note: setup.note,
+            name,
+          });
+          toast.success(`„${name}“ gespeichert`);
+        }}
+      />
       <CustomTypeDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
@@ -377,10 +403,13 @@ function describe(
     .join(' · ');
 }
 
-function QuickList({ title, children }: { title: string; children: ReactNode }) {
+function QuickList({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <div>
-      <h3 className="px-4 pb-1 text-xs font-medium text-muted-foreground">{title}</h3>
+      <div className="flex items-baseline justify-between gap-2 px-4 pb-1">
+        <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
+        {action}
+      </div>
       <ul className="divide-y divide-border/70 border-y border-border/70">{children}</ul>
     </div>
   );
@@ -413,64 +442,6 @@ function QuickItem({
       </div>
       {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden />}
     </button>
-  );
-}
-
-function TemplateDialog({
-  open,
-  onOpenChange,
-  defaultName,
-  data,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  defaultName: string;
-  data: Omit<ExerciseTemplate, 'id' | 'updatedAt' | 'deleted' | 'name'>;
-}) {
-  const db = useDb();
-  const [name, setName] = useState(defaultName);
-  const [prevDefault, setPrevDefault] = useState(defaultName);
-  if (defaultName !== prevDefault) {
-    setPrevDefault(defaultName);
-    setName(defaultName);
-  }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Als Vorlage speichern</DialogTitle>
-          <DialogDescription>
-            Sportart, Dauer, Intensität und Notiz stehen danach unter „Schnellauswahl“ bereit.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-1.5">
-          <Label htmlFor="tpl-name">Name</Label>
-          <Input
-            id="tpl-name"
-            autoComplete="off"
-            maxLength={80}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="z. B. Oberkörper-Tag…"
-          />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button
-            disabled={!name.trim()}
-            onClick={async () => {
-              await saveExerciseTemplate(db, { ...data, name: name.trim() });
-              toast.success(`Vorlage „${name.trim()}“ gespeichert`);
-              onOpenChange(false);
-            }}
-          >
-            Vorlage speichern
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

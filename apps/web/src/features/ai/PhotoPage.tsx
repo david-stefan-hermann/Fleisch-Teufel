@@ -3,10 +3,12 @@ import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Camera,
+  Check,
   Images,
   LoaderCircle,
   Plus,
   RotateCcw,
+  Save,
   Sparkles,
   Trash2,
   TriangleAlert,
@@ -24,6 +26,7 @@ import {
   type TorchState,
 } from '@/components/BarcodeScanner';
 import { MealPhoto, useObjectUrl } from '@/components/MealPhoto';
+import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
@@ -35,7 +38,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { currentDraft, patchRow, rowGrams, scaleDraft, type RowGrams } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
-import { logAiItems, saveAiMeal } from '@/db/entries';
+import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
+import { patchRecord } from '@/db/write';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
@@ -462,19 +466,34 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     });
   }
 
+  const savedMealId = draft.savedMealId ?? null;
+  const name = mealName.trim() || 'Foto-Meal';
+  const [saveOpen, setSaveOpen] = useState(false);
+
+  /** "Als Meal speichern": creates the meal with the photo (logs nothing), or renames it later. */
+  async function saveAsMeal(newName: string) {
+    let id = savedMealId;
+    if (id) await patchRecord(db, 'meals', id, { name: newName });
+    else {
+      const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
+      id = await createAiMeal(db, newName, items, image ?? null);
+    }
+    commit({ ...draft, mealName: newName, savedMealId: id });
+    toast.success(`„${newName}“ gespeichert`);
+  }
+
   /**
-   * `asMeal`: saves a reusable meal with the photo and logs it. Otherwise ("Nur eintragen") the
-   * ingredients are logged as one named group, without a saved meal and without the photo.
+   * "Meal eintragen": attached to the saved meal (which takes over the current ingredients) when
+   * the review was saved, otherwise as one named group without a meal and without the photo.
    */
-  async function save(asMeal: boolean) {
-    const name = mealName.trim() || 'Foto-Meal';
+  async function log() {
     const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
     const target = { date: item.date, meal };
-    if (asMeal) await saveAiMeal(db, name, items, target, result, image ?? null);
+    if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result);
     else await logAiItems(db, name, items, target, result);
     for (const r of resolved) await rememberFood(db, r.food);
     await discardQueueItem(db, item.localId!);
-    if (asMeal)
+    if (savedMealId)
       toast.success(`„${name}“ eingetragen`, {
         description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder eintragen und bearbeiten.',
       });
@@ -487,10 +506,37 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
       title="Ergebnis prüfen"
       back
       withTabBar={false}
-      actions={
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Zurück zur Liste">
-          <X aria-hidden />
+      footer={
+        <Button size="lg" disabled={resolved.length === 0} onClick={() => void log()}>
+          Meal eintragen
         </Button>
+      }
+      actions={
+        <>
+          {savedMealId ? (
+            <button
+              type="button"
+              onClick={() => setSaveOpen(true)}
+              aria-label={`Als Meal „${name}“ gespeichert, Namen ändern`}
+              className="flex h-8 items-center gap-1 rounded-full bg-good/10 px-2.5 text-sm font-medium text-good focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <Check className="size-4" aria-hidden /> Gespeichert
+            </button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Als Meal speichern"
+              disabled={resolved.length === 0}
+              onClick={() => setSaveOpen(true)}
+            >
+              <Save aria-hidden />
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Zurück zur Liste">
+            <X aria-hidden />
+          </Button>
+        </>
       }
     >
       <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
@@ -501,19 +547,6 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
           className="aspect-[4/3] w-full"
         />
       </div>
-      <Section>
-        <div className="grid gap-1.5 p-4">
-          <Label htmlFor="result-name">Name des Meals</Label>
-          <Input
-            id="result-name"
-            value={mealName}
-            maxLength={120}
-            autoComplete="off"
-            onChange={(e) => commit({ ...draft, mealName: e.target.value })}
-            placeholder="z. B. Spaghetti Bolognese…"
-          />
-        </div>
-      </Section>
       {result.notes && <p className="mb-4 rounded-xl bg-muted p-3 text-sm text-pretty">{result.notes}</p>}
       {rows.length === 0 && (
         <EmptyState title="Kein Essen erkannt">
@@ -664,21 +697,10 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
               </SelectContent>
             </Select>
           </div>
-          <Button size="lg" disabled={resolved.length === 0} onClick={() => void save(true)}>
-            Als Meal speichern & eintragen
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            disabled={resolved.length === 0}
-            onClick={() => void save(false)}
-          >
-            Nur eintragen
-          </Button>
           <p className="text-xs text-muted-foreground text-pretty">
-            {fmtIngredients(resolved.length)} werden mit dem Foto als Meal gespeichert und eingetragen. Unter
-            „Gespeicherte Meals“ kannst du es später wieder hinzufügen und bearbeiten. Mit „Nur eintragen“
-            landen die Zutaten als Gruppe im Tagebuch, ohne Meal und ohne Foto.
+            {savedMealId
+              ? `Als Meal „${name}“ gespeichert (mit Foto). „Meal eintragen“ hängt es an dieses Meal, so erscheint es im Tagebuch mit Foto.`
+              : `${fmtIngredients(resolved.length)} werden als Gruppe „${name}“ eingetragen. Mit dem Speichern-Icon oben legst du sie zusätzlich mit Foto unter „Gespeicherte Meals“ ab.`}
           </p>
           <p className="text-xs text-muted-foreground">
             Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}
@@ -690,6 +712,16 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
           </p>
         </div>
       </Section>
+      <NameDialog
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
+        title="Als Meal speichern"
+        description={`${fmtIngredients(resolved.length)} werden mit dem Foto als wiederverwendbares Meal gespeichert. Eingetragen wird erst mit „Meal eintragen“.`}
+        confirmLabel="Meal speichern"
+        defaultName={name}
+        placeholder="z. B. Spaghetti Bolognese…"
+        onConfirm={saveAsMeal}
+      />
     </Page>
   );
 }

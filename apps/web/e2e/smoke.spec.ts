@@ -4,12 +4,9 @@ const email = `e2e-${Date.now()}@example.com`;
 const password = 'e2e-password-123';
 
 async function addOats(page: Page, grams: string) {
-  // The meal's "+" opens the add sheet for that meal.
-  await page.getByRole('button', { name: 'Essen zu Frühstück eintragen' }).click();
-  await page
-    .getByRole('dialog', { name: 'Zu Frühstück hinzufügen' })
-    .getByRole('button', { name: 'Lebensmittel suchen' })
-    .click();
+  // The meal's "+" opens the food page for that meal; the magnifier leads to the search.
+  await page.getByRole('link', { name: 'Essen zu Frühstück eintragen' }).click();
+  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await page.getByLabel('Portion', { exact: true }).click();

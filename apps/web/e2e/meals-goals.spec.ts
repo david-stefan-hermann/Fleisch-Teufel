@@ -32,6 +32,19 @@ async function swipeLeft(page: Page, text: string) {
   await page.mouse.up();
 }
 
+/** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
+async function saveDiaryMeal(page: Page, mealName: string, name: string) {
+  await page.goto('/');
+  await page.getByRole('link', { name: new RegExp(`^${mealName}`) }).click();
+  await expect(page).toHaveURL(/\/diary-meal\?/);
+  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await dialog.getByLabel('Name').fill(name);
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  // Wait for the write to finish before any full reload (the click resolves earlier).
+  await expect(page.getByText(`„${name}“ gespeichert`)).toBeVisible();
+}
+
 /** No element may stick out of its card (the "Abmelden" button did). */
 async function expectNoOverflow(page: Page) {
   const offenders = await page.evaluate(() => {
@@ -118,12 +131,7 @@ test('day overview: "Nährstoffe" swaps the target bars for the nutrient overvie
 test('edit a saved meal: add an ingredient via search, change an amount, add a photo', async ({ page }) => {
   await register(page);
   await quickAdd(page, 0, 'Joghurt', '150');
-  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
-  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
-  await page.getByLabel('Name').fill('Mein Frühstück');
-  await page.getByRole('button', { name: 'Meal speichern' }).click();
-  // Wait for the write to finish before the full reload below (the click resolves earlier).
-  await expect(page.getByText('„Mein Frühstück“ gespeichert')).toBeVisible();
+  await saveDiaryMeal(page, 'Frühstück', 'Mein Frühstück');
 
   await page.goto('/meals');
   await page.getByRole('link', { name: /Mein Frühstück/ }).click();
@@ -247,16 +255,35 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await page.getByLabel('Gramm').first().fill('200');
   await expect(summary.getByText('100 %')).toBeVisible();
   await expect(page.getByLabel('Gramm').nth(1)).toHaveValue(String(Math.round(before * 1.3)));
-  await page.getByRole('button', { name: 'Als Meal speichern & eintragen' }).click();
 
-  await expect(page.getByRole('button', { name: /Nudeln mit Soße/ })).toBeVisible();
+  // Saving (header icon, name dialog) stores the meal with the photo but logs nothing yet.
+  await expect(page.getByLabel('Name des Meals')).toHaveCount(0);
+  await expect(page.getByText(/als Gruppe „Nudeln mit Soße“ eingetragen/)).toBeVisible();
+  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await expect(dialog).toContainText('Eingetragen wird erst mit „Meal eintragen“');
+  await expect(dialog.getByLabel('Name')).toHaveValue('Nudeln mit Soße');
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Nudeln mit Soße“ gespeichert')).toBeVisible();
+  const chip = page.getByRole('button', { name: /Als Meal „Nudeln mit Soße“ gespeichert/ });
+  await expect(chip).toContainText('Gespeichert');
+  await expect(page.getByText(/Als Meal „Nudeln mit Soße“ gespeichert \(mit Foto\)/)).toBeVisible();
+  // The chip reopens the dialog to rename the meal.
+  await chip.click();
+  await dialog.getByLabel('Name').fill('Nudeln Bolo');
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Nudeln Bolo“ gespeichert')).toBeVisible();
+  await page.getByRole('button', { name: 'Meal eintragen' }).click();
+
+  await expect(page.getByText('„Nudeln Bolo“ eingetragen')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Nudeln Bolo/ })).toBeVisible();
   await page.goto('/meals');
-  await page.getByRole('link', { name: /Nudeln mit Soße/ }).click();
-  await expect(page.getByRole('img', { name: 'Foto von Nudeln mit Soße' })).toBeVisible();
+  await page.getByRole('link', { name: /Nudeln Bolo/ }).click();
+  await expect(page.getByRole('img', { name: 'Foto von Nudeln Bolo' })).toBeVisible();
   await expect(page.getByRole('button', { name: /Hafer Flocken/ })).toBeVisible();
 });
 
-test('AI result "Nur eintragen" logs a named group without a saved meal', async ({ page }) => {
+test('AI result logged without saving becomes a named group without a saved meal', async ({ page }) => {
   await register(page);
   await page.route('**/api/ai/status', (r) =>
     r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
@@ -301,7 +328,6 @@ test('AI result "Nur eintragen" logs a named group without a saved meal', async 
   await page.goto('/photo?meal=1');
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
-  await page.getByLabel('Name des Meals').fill('Mittag vom Foto');
   // Regression (WebKit, broken thumbnails): many review writes, a reload, the photo still shows.
   const grams = page.getByLabel('Gramm').first();
   for (const g of ['210', '220', '230', '240', '200']) await grams.fill(g);
@@ -313,21 +339,24 @@ test('AI result "Nur eintragen" logs a named group without a saved meal', async 
       page.getByRole('img', { name: 'Analysiertes Foto' }).evaluate((i: HTMLImageElement) => i.naturalWidth),
     )
     .toBe(192);
-  await expect(page.getByLabel('Name des Meals')).toHaveValue('Mittag vom Foto');
+  await expect(page.getByLabel('Gramm').first()).toHaveValue('200');
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
   const thumb = page.locator('section', { hasText: 'Analysen' }).locator('img');
   await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
   await page.getByRole('button', { name: /Lebensmittel erkannt/ }).click();
-  await expect(page.getByRole('button', { name: 'Als Meal speichern & eintragen' })).toBeVisible();
-  await page.getByRole('button', { name: 'Nur eintragen' }).click();
+  await expect(page.getByRole('button', { name: 'Als Meal speichern' })).toBeVisible();
+  await page.getByRole('button', { name: 'Meal eintragen' }).click();
 
-  await expect(page.getByText('„Mittag vom Foto“ eingetragen')).toBeVisible();
-  const group = page.getByRole('button', { name: /Mittag vom Foto/ });
+  // Without saving, the group takes the dish name of the analysis.
+  await expect(page.getByText('„Reis mit Hähnchen“ eingetragen')).toBeVisible();
+  const group = page.getByRole('button', { name: /Reis mit Hähnchen/ });
   await expect(group).toBeVisible();
   await expect(group).toContainText(/2\sZutaten/);
   await expect(group.getByLabel('aus Foto')).toBeVisible();
   await group.click();
-  await expect(page.getByRole('list', { name: 'Zutaten von Mittag vom Foto' })).toContainText('Reis gekocht');
+  await expect(page.getByRole('list', { name: 'Zutaten von Reis mit Hähnchen' })).toContainText(
+    'Reis gekocht',
+  );
 
   // No saved meal, and the name reaches the server with the entries.
   await page.goto('/meals');
@@ -344,7 +373,7 @@ test('AI result "Nur eintragen" logs a named group without a saved meal', async 
         }),
       { timeout: 15_000 },
     )
-    .toEqual(['Mittag vom Foto', 'Mittag vom Foto']);
+    .toEqual(['Reis mit Hähnchen', 'Reis mit Hähnchen']);
 });
 
 test('macro templates: protein follows body weight', async ({ page }) => {

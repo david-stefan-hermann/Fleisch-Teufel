@@ -1,4 +1,4 @@
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,26 +7,18 @@ import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { deleteRecord, restoreRecord } from '@/db/write';
-import { useSettings } from '@/hooks/data';
 import { fmt0, fmtIngredients } from '@/lib/format';
 import { mealKcal } from './logMeal';
 
 export function MealsPage() {
-  const { date, meal } = useSearch({ from: '/authed/meals' });
   const db = useDb();
-  const settings = useSettings();
   const meals = useLiveQuery(() => db.meals.filter((m) => !m.deleted).sortBy('name'), [db]);
-  const picking = date !== undefined && meal !== undefined;
   return (
-    <Page
-      title={picking ? `Meal zu ${settings?.mealNames[meal] ?? ''}` : 'Gespeicherte Meals'}
-      back={picking ? true : '/more'}
-      withTabBar={false}
-    >
+    <Page title="Gespeicherte Meals" back="/more" withTabBar={false}>
       {meals?.length === 0 && (
         <EmptyState icon={<UtensilsCrossed />} title="Noch keine Meals">
-          Im Tagebuch kannst du jede Mahlzeit über ⋮ → „Als Meal speichern“ ablegen und später mit einem Tipp
-          wieder eintragen.
+          Öffne im Tagebuch eine Mahlzeit und tippe oben auf das Speichern-Icon, um sie als Meal abzulegen.
+          Eingetragen wird ein Meal über die Lebensmittelsuche, Reiter „Eigene“.
         </EmptyState>
       )}
       <ul className="-mx-4 divide-y divide-border/70">
@@ -45,7 +37,6 @@ export function MealsPage() {
               <Link
                 to="/meals/$mealId"
                 params={{ mealId: m.id }}
-                search={{ date, meal }}
                 className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
               >
                 <MealPhoto photoId={m.photoId} alt="" className="size-12 shrink-0 rounded-lg" />

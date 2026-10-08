@@ -12,7 +12,7 @@ import {
 } from '@ft/shared';
 import type { UserDb } from './dexie';
 import { storePhoto } from './photos';
-import { patchRecord, saveRecord } from './write';
+import { patchRecord, restoreRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<
   FoodEntry,
@@ -56,7 +56,7 @@ export async function moveEntriesToMeal(db: UserDb, ids: readonly string[], meal
   });
 }
 
-/** Saves a training as reusable template ("Vorlage"); returns its id. */
+/** Saves a training for reuse ("gespeichertes Training"); returns its id. */
 export async function saveExerciseTemplate(
   db: UserDb,
   data: Omit<ExerciseTemplate, 'id' | 'updatedAt' | 'deleted'>,
@@ -162,28 +162,56 @@ export function aiMealItems(items: { food: Food; grams: number }[]): MealItem[] 
 }
 
 /**
- * Saves the confirmed items of an AI photo analysis as a reusable saved meal and logs it
- * (source "ai", grouped in the diary). Returns the id of the new meal.
+ * Saves the confirmed items of an AI photo analysis as a reusable meal with the analysed photo,
+ * without logging anything ("Als Meal speichern" in the review). Returns the id of the new meal.
  */
-export async function saveAiMeal(
+export async function createAiMeal(
   db: UserDb,
   name: string,
   items: { food: Food; grams: number }[],
-  target: { date: string; meal: number },
-  analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photo; becomes the meal photo. */
   photo: Blob | null = null,
 ): Promise<string> {
-  const mealItems = aiMealItems(items);
   const mealId = uuidv7();
   const photoId = photo ? await storePhoto(db, photo) : null;
-  await saveRecord(db, 'meals', { id: mealId, name: name.trim().slice(0, 120), items: mealItems, photoId });
-  await logItems(db, mealItems, target, { mealId, aiAnalysisId: analysis.analysisId });
+  await saveRecord(db, 'meals', {
+    id: mealId,
+    name: name.trim().slice(0, 120),
+    items: aiMealItems(items),
+    photoId,
+  });
   return mealId;
 }
 
 /**
- * "Nur eintragen" of an AI analysis: logs the confirmed items as one named group in the diary,
+ * "Meal eintragen" of an AI analysis that was saved as a meal: the meal first takes over the current
+ * ingredients and name (it always matches what gets logged; a meal deleted meanwhile comes back),
+ * then the items are logged as a group attached to it. Returns the number of logged entries.
+ */
+export async function logAiMeal(
+  db: UserDb,
+  mealId: string,
+  name: string,
+  items: { food: Food; grams: number }[],
+  target: { date: string; meal: number },
+  analysis: Pick<AiAnalysisResult, 'analysisId'>,
+): Promise<number> {
+  const mealItems = aiMealItems(items);
+  const existing = await db.meals.get(mealId);
+  if (existing?.deleted) await restoreRecord(db, 'meals', mealId);
+  if (existing) await patchRecord(db, 'meals', mealId, { name: name.trim().slice(0, 120), items: mealItems });
+  else
+    await saveRecord(db, 'meals', {
+      id: mealId,
+      name: name.trim().slice(0, 120),
+      items: mealItems,
+      photoId: null,
+    });
+  return logItems(db, mealItems, target, { mealId, aiAnalysisId: analysis.analysisId });
+}
+
+/**
+ * "Meal eintragen" of an AI analysis that was not saved: logs the confirmed items as one named group in the diary,
  * without a saved meal and without storing the photo. Returns the number of logged entries.
  */
 export async function logAiItems(
@@ -197,4 +225,38 @@ export async function logAiItems(
     groupName: name.trim() || 'Meal vom Foto',
     aiAnalysisId: analysis.analysisId,
   });
+}
+
+/** Diary entries as ingredients of a saved meal (only the item fields). */
+export function entriesToMealItems(entries: readonly FoodEntry[]): MealItem[] {
+  return entries.map(
+    ({ foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients }) => ({
+      foodId,
+      source,
+      name,
+      brand,
+      grams,
+      portionLabel,
+      portionGrams,
+      quantity,
+      per100,
+      nutrients,
+    }),
+  );
+}
+
+/** Saves the entries of a diary meal as a reusable meal ("Als Meal speichern"); returns its id. */
+export async function saveMealFromEntries(
+  db: UserDb,
+  name: string,
+  entries: readonly FoodEntry[],
+): Promise<string> {
+  const id = uuidv7();
+  await saveRecord(db, 'meals', {
+    id,
+    name: name.trim().slice(0, 120),
+    items: entriesToMealItems(entries),
+    photoId: null,
+  });
+  return id;
 }

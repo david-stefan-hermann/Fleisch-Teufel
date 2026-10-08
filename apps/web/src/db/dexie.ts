@@ -72,7 +72,10 @@ export interface AiDraftRow {
 export interface AiDraft {
   rows: AiDraftRow[];
   meal: number;
+  /** Name of the group or meal; prefilled from the analysis, changed in the save dialog. */
   mealName: string;
+  /** Set once the review was saved as a meal ("Als Meal speichern"); logging then attaches to it. */
+  savedMealId?: string | null;
 }
 
 /**

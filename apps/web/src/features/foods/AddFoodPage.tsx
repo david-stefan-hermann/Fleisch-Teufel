@@ -448,8 +448,8 @@ function MealList({ meals, date, meal }: { meals: Meal[] | undefined; date: stri
   if (meals.length === 0)
     return (
       <p className="py-2 text-sm text-muted-foreground text-pretty">
-        Noch keine gespeicherten Meals. Speichere eine Mahlzeit im Tagebuch über das ⋮-Menü „Als Meal
-        speichern“, um sie mit einem Tipp erneut einzutragen.
+        Noch keine gespeicherten Meals. Öffne im Tagebuch eine Mahlzeit und tippe oben auf das Speichern-Icon,
+        um sie als Meal abzulegen.
       </p>
     );
   return (

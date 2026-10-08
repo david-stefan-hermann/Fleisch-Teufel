@@ -98,7 +98,7 @@ export function MealPage() {
             toast(`${meal.name} gelöscht`, {
               action: { label: 'Rückgängig', onClick: () => void restoreRecord(db, 'meals', meal.id) },
             });
-            await navigate({ to: '/meals', search: { date: search.date, meal: search.meal } });
+            await navigate({ to: '/meals' });
           }}
         >
           <Trash2 className="text-destructive" aria-hidden />

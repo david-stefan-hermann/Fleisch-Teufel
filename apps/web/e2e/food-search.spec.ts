@@ -12,6 +12,19 @@ async function register(page: Page) {
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 
+/** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
+async function saveDiaryMeal(page: Page, mealName: string, name: string) {
+  await page.goto('/');
+  await page.getByRole('link', { name: new RegExp(`^${mealName}`) }).click();
+  await expect(page).toHaveURL(/\/diary-meal\?/);
+  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await dialog.getByLabel('Name').fill(name);
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  // Wait for the write to finish before any full reload (the click resolves earlier).
+  await expect(page.getByText(`„${name}“ gespeichert`)).toBeVisible();
+}
+
 /** Names of the local search results, in order. */
 async function resultNames(page: Page): Promise<string[]> {
   const links = page.locator('main ul').first().locator('a[href*="/food/"] .font-medium');
@@ -76,12 +89,7 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
 
   // Typing in "Eigene" filters own foods and meals only: the tab stays active, no catalog, no online search.
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
-  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
-  await page.getByLabel('Name').fill('Sonntagsfrühstück');
-  await page.getByRole('button', { name: 'Meal speichern' }).click();
-  await expect(page.getByText('„Sonntagsfrühstück“ gespeichert')).toBeVisible();
+  await saveDiaryMeal(page, 'Frühstück', 'Sonntagsfrühstück');
   await page.goto('/add?meal=0&tab=mine');
   const search = page.getByLabel('Lebensmittel suchen');
   await expect(search).toHaveAttribute('placeholder', 'Eigene Lebensmittel und Meals suchen…');

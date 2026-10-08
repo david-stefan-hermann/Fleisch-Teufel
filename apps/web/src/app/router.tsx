@@ -66,7 +66,7 @@ function RootLayout() {
 
 /**
  * Signed-in area. Pages render their own header; the tab bar sits on the main tabs. The add sheet
- * belongs to the layout so the tab bar "+" and the meal card "+" open the same menu.
+ * (tab bar "+") belongs to the layout so any page can open it.
  */
 function AuthedLayout() {
   const { session } = useSessionContext();
@@ -154,12 +154,7 @@ export const routes = {
       }),
     component: lazyRouteComponent(() => import('@/features/foods/CustomFoodPage'), 'CustomFoodPage'),
   }),
-  meals: createRoute({
-    ...r('/meals'),
-    validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number } =>
-      clean({ date: dateParam(s.date), meal: s.meal === undefined ? undefined : mealParam(s.meal) }),
-    component: MealsPage,
-  }),
+  meals: createRoute({ ...r('/meals'), component: MealsPage }),
   meal: createRoute({
     ...r('/meals/$mealId'),
     validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number } =>
@@ -170,11 +165,6 @@ export const routes = {
     ...r('/diary-meal'),
     validateSearch: validateMeal,
     component: lazyRouteComponent(() => import('@/features/diary/DiaryMealPage'), 'DiaryMealPage'),
-  }),
-  copyMeal: createRoute({
-    ...r('/copy-meal'),
-    validateSearch: validateMeal,
-    component: lazyRouteComponent(() => import('@/features/meals/CopyMealPage'), 'CopyMealPage'),
   }),
   onboarding: createRoute({
     ...r('/onboarding'),

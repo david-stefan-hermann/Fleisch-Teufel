@@ -13,6 +13,19 @@ async function register(page: Page) {
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 
+/** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
+async function saveDiaryMeal(page: Page, mealName: string, name: string) {
+  await page.goto('/');
+  await page.getByRole('link', { name: new RegExp(`^${mealName}`) }).click();
+  await expect(page).toHaveURL(/\/diary-meal\?/);
+  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await dialog.getByLabel('Name').fill(name);
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  // Wait for the write to finish before any full reload (the click resolves earlier).
+  await expect(page.getByText(`„${name}“ gespeichert`)).toBeVisible();
+}
+
 async function swipeLeft(page: Page, target: string | Locator) {
   const row = typeof target === 'string' ? page.getByText(target, { exact: true }).first() : target;
   // Centre the row: toasts sit at the bottom and would catch the pointer.
@@ -27,7 +40,7 @@ async function swipeLeft(page: Page, target: string | Locator) {
   await page.mouse.up();
 }
 
-test('training with note, quick selection of recent trainings and templates', async ({ page }) => {
+test('training with note, quick selection of recent and saved trainings', async ({ page }) => {
   await register(page);
   await page.goto('/exercise');
   await page.getByLabel('Sportart suchen').fill('lauf');
@@ -37,19 +50,24 @@ test('training with note, quick selection of recent trainings and templates', as
     .click();
   await page.getByLabel('Dauer').fill('40');
   await page.getByLabel('Notiz (optional)').fill('Intervalle 6 × 400 m');
-  await page.getByRole('button', { name: 'Als Vorlage speichern' }).click();
-  await page.getByLabel('Name').fill('Bahntraining');
-  await page.getByRole('button', { name: 'Vorlage speichern' }).click();
-  await expect(page.getByText('Vorlage „Bahntraining“ gespeichert')).toBeVisible();
-  await page.getByRole('button', { name: 'Training speichern' }).click();
+  // The save icon in the header stores a saved training without logging it.
+  await page.getByRole('button', { name: 'Als Training speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Training speichern' });
+  await expect(dialog).toContainText('Mehr → Gespeicherte Trainings');
+  await dialog.getByLabel('Name').fill('Bahntraining');
+  await dialog.getByRole('button', { name: 'Training speichern' }).click();
+  await expect(page.getByText('„Bahntraining“ gespeichert')).toBeVisible();
+  await expect(page).toHaveURL(/\/exercise/);
+  await page.getByRole('button', { name: 'Training eintragen' }).click();
 
   // The diary shows the note under the training.
   await expect(page).toHaveURL(/\/(\?.*)?$/);
   await expect(page.getByText(/40 Min\. · .* · Intervalle 6 × 400 m/)).toBeVisible();
 
-  // Next time: template and last training are one tap away and fill the whole form.
+  // Next time: saved and last training are one tap away and fill the whole form.
   await page.goto('/exercise');
   await expect(page.getByRole('heading', { name: 'Schnellauswahl' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Gespeichert' })).toBeVisible();
   await page.getByRole('button', { name: /^Bahntraining/ }).click();
   await expect(page.getByLabel('Notiz (optional)')).toHaveValue('Intervalle 6 × 400 m');
   await expect(page.getByLabel('Dauer')).toHaveValue('40');
@@ -58,10 +76,10 @@ test('training with note, quick selection of recent trainings and templates', as
     'true',
   );
 
-  // Swipe a template away.
+  // Swipe a saved training away.
   await swipeLeft(page, 'Bahntraining');
-  await page.getByRole('button', { name: 'Vorlage Bahntraining löschen' }).click();
-  await expect(page.getByText('Vorlage „Bahntraining“ gelöscht')).toBeVisible();
+  await page.getByRole('button', { name: 'Bahntraining löschen' }).click();
+  await expect(page.getByText('„Bahntraining“ gelöscht')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Bahntraining/ })).toHaveCount(0);
 });
 
@@ -124,29 +142,46 @@ async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
 const mealCard = (page: Page, name: string) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name }) });
 
-test('the "+" of a meal opens the add sheet for that meal', async ({ page }) => {
+test('the "+" of a meal opens the food page for that meal, the meal card has no menu', async ({ page }) => {
   await register(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Essen zu Mittagessen eintragen' }).click();
-  const sheet = page.getByRole('dialog', { name: 'Zu Mittagessen hinzufügen' });
-  await expect(sheet).toBeVisible();
-  // The photo tile is the highlighted one.
-  const photo = sheet.getByRole('button', { name: 'Foto / Scan' });
-  const search = sheet.getByRole('button', { name: 'Lebensmittel suchen' });
-  const bg = (el: typeof photo) => el.evaluate((e) => getComputedStyle(e).backgroundColor);
-  expect(await bg(photo)).not.toBe(await bg(search));
-  await photo.click();
+  await expect(page.getByRole('button', { name: /^Aktionen für/ })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Mittagessen');
 
-  // The empty state of a meal opens the same sheet; the tab bar "+" one without a meal.
+  // The empty state of a meal goes there as well.
   await page.goto('/');
-  await mealCard(page, 'Abendessen').getByRole('button', { name: 'Essen eintragen' }).click();
-  await page
-    .getByRole('dialog', { name: 'Zu Abendessen hinzufügen' })
-    .getByRole('button', { name: 'Lebensmittel suchen' })
-    .click();
-  await expect(page).toHaveURL(/\/add\?.*meal=2/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Zu Abendessen' })).toBeVisible();
+  await mealCard(page, 'Abendessen').getByRole('link', { name: 'Essen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=2/);
+
+  // So do the "+" and the empty state on the meal page, whose save icon is off while it is empty.
+  await page.goto('/diary-meal?meal=3');
+  await expect(page.getByRole('button', { name: 'Als Meal speichern' })).toBeDisabled();
+  await page.getByRole('main').getByRole('link', { name: 'Essen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=3/);
+  await page.goto('/diary-meal?meal=3');
+  await page.getByRole('link', { name: 'Essen zu Snacks eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=3/);
+});
+
+test('an expanded meal group stays open after visiting one of its entries', async ({ page }) => {
+  await register(page);
+  await quickAdd(page, 0, 'Joghurt', '150');
+  await quickAdd(page, 0, 'Beeren', '50');
+  await saveDiaryMeal(page, 'Frühstück', 'Bowl');
+  await page.goto('/add?meal=1&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('button', { name: '200 kcal eintragen' }).click();
+  const group = mealCard(page, 'Mittagessen').getByRole('button', { name: /Bowl/ });
+  await expect(group).toHaveAttribute('aria-expanded', 'false');
+  await group.click();
+  await expect(group).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('list', { name: 'Zutaten von Bowl' }).getByText('Beeren').click();
+  await expect(page).toHaveURL(/quick-add/);
+  await page.goBack();
+  await expect(group).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('list', { name: 'Zutaten von Bowl' })).toBeVisible();
 });
 
 test('drag an entry to another meal, with undo', async ({ page }) => {
@@ -192,12 +227,8 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   await register(page);
   await quickAdd(page, 0, 'Joghurt', '150');
   await quickAdd(page, 0, 'Beeren', '50');
-  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
-  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
-  await page.getByLabel('Name').fill('Bowl');
-  await page.getByRole('button', { name: 'Meal speichern' }).click();
-  await expect(page.getByText('„Bowl“ gespeichert')).toBeVisible();
-  await page.goto('/meals?meal=1');
+  await saveDiaryMeal(page, 'Frühstück', 'Bowl');
+  await page.goto('/add?meal=1&tab=mine');
   await page.getByRole('link', { name: /Bowl/ }).click();
   await page.getByRole('button', { name: '200 kcal eintragen' }).click();
   const group = mealCard(page, 'Mittagessen').getByRole('button', { name: /Bowl/ });
@@ -281,11 +312,7 @@ test('weight entries delete by swipe only, with undo', async ({ page }) => {
 test('saved meals delete by swipe, with undo', async ({ page }) => {
   await register(page);
   await quickAdd(page, 0, 'Müsli', '320');
-  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
-  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
-  await page.getByLabel('Name').fill('Müsli-Frühstück');
-  await page.getByRole('button', { name: 'Meal speichern' }).click();
-  await expect(page.getByText('„Müsli-Frühstück“ gespeichert')).toBeVisible();
+  await saveDiaryMeal(page, 'Frühstück', 'Müsli-Frühstück');
   await page.goto('/meals');
   // A swipe does not open the meal.
   await swipeLeft(page, 'Müsli-Frühstück');

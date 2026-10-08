@@ -203,7 +203,7 @@ export const exerciseEntrySchema = z.object({
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
 
-/** A saved training ("Vorlage"); kcal are computed when it is logged, with the weight of that day. */
+/** A saved training ("gespeichertes Training"); kcal are computed when it is logged, with the weight of that day. */
 export const exerciseTemplateSchema = z.object({
   ...base,
   name: z.string().trim().min(1).max(80),

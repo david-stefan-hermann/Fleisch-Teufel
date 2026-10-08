@@ -1,52 +1,15 @@
-import {
-  get,
-  groupDiaryEntries,
-  N,
-  uuidv7,
-  type FoodEntry,
-  type ISODate,
-  type NutrientMap,
-} from '@ft/shared';
-import { Link, useNavigate } from '@tanstack/react-router';
-import {
-  Camera,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  EllipsisVertical,
-  ListPlus,
-  Plus,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { get, groupDiaryEntries, N, type FoodEntry, type ISODate, type NutrientMap } from '@ft/shared';
+import { Link } from '@tanstack/react-router';
+import { Camera, ChevronDown, ChevronRight, ListPlus, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { useAddSheet } from '@/components/AddSheet';
 import { MealPhoto } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import type { UserDb } from '@/db/dexie';
-import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -77,11 +40,7 @@ export function MealCard({
   entries: FoodEntry[];
   totals: NutrientMap;
 }) {
-  const db = useDb();
-  const navigate = useNavigate();
-  const addSheet = useAddSheet();
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
-  const [saveOpen, setSaveOpen] = useState(false);
   const kcal = get(totals, N.kcal);
 
   return (
@@ -110,64 +69,28 @@ export function MealCard({
         </Link>
       }
       action={
-        <div className="flex items-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={`Aktionen für ${name}`}>
-                <EllipsisVertical aria-hidden />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-60">
-              <DropdownMenuItem onSelect={() => void navigate({ to: '/copy-meal', search: { date, meal } })}>
-                <Copy aria-hidden /> Von anderem Tag kopieren
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void navigate({ to: '/meals', search: { date, meal } })}>
-                <ListPlus aria-hidden /> Gespeichertes Meal eintragen
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={entries.length === 0} onSelect={() => setSaveOpen(true)}>
-                <Save aria-hidden /> Als Meal speichern
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                disabled={entries.length === 0}
-                onSelect={() => void removeEntriesWithUndo(db, entries, `${name} geleert`)}
-              >
-                <Trash2 aria-hidden /> Alle Einträge löschen
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={`Essen zu ${name} eintragen`}
-            onClick={() => addSheet.open({ date, meal })}
-          >
+        // At a meal only food makes sense: straight to the food page for this meal.
+        <Button variant="ghost" size="icon" asChild>
+          <Link to="/photo" search={{ date, meal }} aria-label={`Essen zu ${name} eintragen`}>
             <Plus className="size-5 text-primary" aria-hidden />
-          </Button>
-        </div>
+          </Link>
+        </Button>
       }
     >
       {entries.length === 0 ? (
-        <button
-          type="button"
-          onClick={() => addSheet.open({ date, meal })}
+        <Link
+          to="/photo"
+          search={{ date, meal }}
           className={cn(
             'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
             dragActive && 'border-primary/50 text-primary',
           )}
         >
           {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
-        </button>
+        </Link>
       ) : (
         <DiaryRows entries={entries} date={date} meal={meal} draggable />
       )}
-      <SaveMealDialog
-        open={saveOpen}
-        onOpenChange={setSaveOpen}
-        defaultName={`${name} ${new Date().toLocaleDateString('de-DE')}`}
-        entries={entries}
-      />
     </Section>
   );
 }
@@ -411,69 +334,5 @@ function GroupRow({
         </ul>
       )}
     </>
-  );
-}
-
-function SaveMealDialog({
-  open,
-  onOpenChange,
-  defaultName,
-  entries,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  defaultName: string;
-  entries: FoodEntry[];
-}) {
-  const db = useDb();
-  const [name, setName] = useState(defaultName);
-  async function save() {
-    const items = entries.map(
-      ({ foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients }) => ({
-        foodId,
-        source,
-        name,
-        brand,
-        grams,
-        portionLabel,
-        portionGrams,
-        quantity,
-        per100,
-        nutrients,
-      }),
-    );
-    await saveRecord(db, 'meals', { id: uuidv7(), name: name.trim() || defaultName, items, photoId: null });
-    onOpenChange(false);
-    toast.success(`„${name.trim() || defaultName}“ gespeichert`);
-  }
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Als Meal speichern</DialogTitle>
-          <DialogDescription>
-            {entries.length} Einträge werden als wiederverwendbares Meal gespeichert.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody className="gap-1.5">
-          <Label htmlFor="meal-name">Name</Label>
-          <Input
-            id="meal-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="off"
-            placeholder="z. B. Mein Frühstück…"
-          />
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button onClick={() => void save()} className={cn(!name.trim() && 'opacity-80')}>
-            Meal speichern
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
