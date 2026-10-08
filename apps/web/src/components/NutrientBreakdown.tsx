@@ -157,20 +157,7 @@ export function NutrientBreakdown({
                   valueText={`${fmtGrams(m.grams)} von ${fmtGrams(target)}`}
                 />
               ) : (
-                <div
-                  className="relative mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
-                  role="meter"
-                  aria-label={label}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={m.percent}
-                  aria-valuetext={`${fmtPercent(m.percent / 100)} der Energie, ${fmt0(m.kcal)} kcal`}
-                >
-                  <div
-                    className={cn('h-full rounded-full', MACRO_BG[k])}
-                    style={{ width: `${m.share * 100}%` }}
-                  />
-                </div>
+                <MacroShareBar macro={k} energy={m} />
               )}
             </li>
           );
@@ -240,6 +227,29 @@ export function DisclosureTrigger({ children, className }: { children: ReactNode
   );
 }
 
+/** Thin bar of one macro's share of the energy (item variant, custom food editor). */
+export function MacroShareBar({
+  macro,
+  energy: m,
+}: {
+  macro: MacroKey;
+  energy: ReturnType<typeof energyBreakdown>['macros'][MacroKey];
+}) {
+  return (
+    <div
+      className="relative mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+      role="meter"
+      aria-label={LABEL.get(MACRO_CODE[macro])}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={m.percent}
+      aria-valuetext={`${fmtPercent(m.percent / 100)} der Energie, ${fmt0(m.kcal)} kcal`}
+    >
+      <div className={cn('h-full rounded-full', MACRO_BG[macro])} style={{ width: `${m.share * 100}%` }} />
+    </div>
+  );
+}
+
 /** Full stacked bar of the macro energy split (always 100 % when there are macros). */
 export function EnergySplitBar({
   breakdown: b,
@@ -270,16 +280,24 @@ export function EnergySplitBar({
   );
 }
 
-function MicroRow({
+/**
+ * One micro with its daily target and bar. `field` replaces the value (custom food editor), the
+ * label then becomes the field's label (`fieldId`).
+ */
+export function MicroRow({
   code,
   value,
   target,
-  showSource,
+  showSource = false,
+  field,
+  fieldId,
 }: {
   code: (typeof MICRO_NUTRIENTS)[number];
   value: number | undefined;
   target: ResolvedTargets['micros'][(typeof MICRO_NUTRIENTS)[number]];
-  showSource: boolean;
+  showSource?: boolean;
+  field?: ReactNode;
+  fieldId?: string;
 }) {
   const label = LABEL.get(code)!;
   const v = value ?? 0;
@@ -289,15 +307,27 @@ function MicroRow({
   const valueText = value === undefined ? 'keine Angabe' : `${fmtGrams(v)} ${goal}`;
   return (
     <li>
-      <div className="flex items-baseline justify-between gap-2 text-sm">
-        <span className="min-w-0">{label}</span>
-        <span className="text-right whitespace-nowrap text-muted-foreground">
-          <span className={cn('font-semibold', status === 'high' ? 'text-over' : 'text-foreground')}>
-            {value === undefined ? NO_VALUE : fmtGrams(v)}
-          </span>{' '}
-          {goal}
-        </span>
-      </div>
+      {field ? (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <label htmlFor={fieldId} className="min-w-0">
+            {label}
+          </label>
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground">
+            {field}
+            <span className="text-[0.8125rem]">{goal} pro Tag</span>
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-baseline justify-between gap-2 text-sm">
+          <span className="min-w-0">{label}</span>
+          <span className="text-right whitespace-nowrap text-muted-foreground">
+            <span className={cn('font-semibold', status === 'high' ? 'text-over' : 'text-foreground')}>
+              {value === undefined ? NO_VALUE : fmtGrams(v)}
+            </span>{' '}
+            {goal}
+          </span>
+        </div>
+      )}
       {target.kind === 'max' ? (
         // Maximums stack like the macros: grey up to the maximum, then red, then dark red.
         <TargetBar

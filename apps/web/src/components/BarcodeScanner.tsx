@@ -20,6 +20,14 @@ const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'] as const;
 
 export type ScannerError = 'permission' | 'no-camera' | 'unsupported' | 'other';
 
+/** Why the camera does not run; pages append what to do instead. */
+export const CAM_ERRORS: Record<ScannerError, string> = {
+  permission: 'Kein Kamerazugriff. Erlaube die Kamera in den iOS-Einstellungen (Safari → Kamera).',
+  'no-camera': 'Keine Kamera gefunden.',
+  unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff.',
+  other: 'Die Kamera konnte nicht gestartet werden.',
+};
+
 /** Valid EAN/UPC check digit (avoids misreads). */
 export function validGtin(code: string): boolean {
   if (!/^\d{8}$|^\d{12,14}$/.test(code)) return false;

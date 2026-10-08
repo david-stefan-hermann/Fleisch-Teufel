@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completeNutrients, N, saltFromSodiumMg } from '../src/nutrients.js';
+import { completeNutrients, isAutoKcal, kcalFromMacrosEu, N, saltFromSodiumMg } from '../src/nutrients.js';
 import {
   energyBreakdown,
   formatAmount,
@@ -103,5 +103,34 @@ describe('nutrition math', () => {
       nutrients: quickAddNutrients({ kcal: 300, proteinG: 20 }),
     };
     expect(rescaleItem(quick, 2).nutrients).toEqual({ ENERCC: 600, PROT625: 40 });
+  });
+});
+
+describe('kcal automatic (EU formula)', () => {
+  const apfel = { [N.protein]: 4, [N.carbs]: 38, [N.fat]: 13, [N.fiber]: 1.8 };
+
+  it('adds 4/4/9 kcal per g and 2 kcal per g of fiber', () => {
+    expect(kcalFromMacrosEu(apfel)).toBeCloseTo(288.6, 6);
+    expect(Math.round(kcalFromMacrosEu(apfel))).toBe(289);
+    expect(kcalFromMacrosEu({ [N.fiber]: 10 })).toBe(20);
+    expect(kcalFromMacrosEu({})).toBe(0);
+    // Alcohol and sugar do not count (sugar is part of the carbs).
+    expect(kcalFromMacrosEu({ [N.alcohol]: 10, [N.sugar]: 10 })).toBe(0);
+  });
+
+  it('treats stored kcal within 0.5 kcal of the formula as automatic', () => {
+    expect(isAutoKcal({ ...apfel, [N.kcal]: 288.6 })).toBe(true);
+    expect(isAutoKcal({ ...apfel, [N.kcal]: 289 })).toBe(true);
+    expect(isAutoKcal({ ...apfel, [N.kcal]: 288.1 })).toBe(true);
+    expect(isAutoKcal({ ...apfel, [N.kcal]: 289.2 })).toBe(false);
+    // The old 4/4/9 value is an own input now.
+    expect(isAutoKcal({ ...apfel, [N.kcal]: 285 })).toBe(false);
+  });
+
+  it('needs kcal and at least one energy nutrient', () => {
+    expect(isAutoKcal(apfel)).toBe(false);
+    expect(isAutoKcal({ [N.kcal]: 0 })).toBe(false);
+    expect(isAutoKcal({ [N.kcal]: 0, [N.protein]: 0 })).toBe(false);
+    expect(isAutoKcal({ [N.kcal]: 20, [N.fiber]: 10 })).toBe(true);
   });
 });

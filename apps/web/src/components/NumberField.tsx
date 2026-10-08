@@ -1,7 +1,7 @@
 import { useId, useState, type ComponentProps } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { fmt2, fmtFixed, parseDecimal } from '@/lib/format';
+import { fmt0, fmt1, fmt2, fmtFixed, parseDecimal } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 interface NumberFieldProps extends Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> {
@@ -14,10 +14,18 @@ interface NumberFieldProps extends Omit<ComponentProps<typeof Input>, 'value' | 
   integer?: boolean;
   /** Fixed decimals shown while the field is not being edited ("80,00"); typing stays free. */
   decimals?: 1 | 2;
+  /** At most this many decimals for values set from outside (e.g. computed kJ "1208"). Default 2. */
+  maxDecimals?: 0 | 1 | 2;
+  /** Classes of the input itself (`className` styles the wrapper). */
+  inputClassName?: string;
+  unitClassName?: string;
 }
 
-const display = (v: number | null, decimals?: 1 | 2) =>
-  v === null || Number.isNaN(v) ? '' : (decimals ? fmtFixed(v, decimals) : fmt2(v)).replace(/\./g, '');
+const LOOSE = { 0: fmt0, 1: fmt1, 2: fmt2 } as const;
+const display = (v: number | null, decimals?: 1 | 2, maxDecimals: 0 | 1 | 2 = 2) =>
+  v === null || Number.isNaN(v)
+    ? ''
+    : (decimals ? fmtFixed(v, decimals) : LOOSE[maxDecimals](v)).replace(/\./g, '');
 
 /** Decimal input that accepts "1,5" and "1.5" (iOS shows the decimal keypad). */
 export function NumberField({
@@ -29,6 +37,9 @@ export function NumberField({
   error,
   integer,
   decimals,
+  maxDecimals,
+  inputClassName,
+  unitClassName,
   className,
   id,
   onBlur,
@@ -36,14 +47,14 @@ export function NumberField({
 }: NumberFieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const [text, setText] = useState(() => display(value, decimals));
+  const [text, setText] = useState(() => display(value, decimals, maxDecimals));
   // Follow external changes (e.g. +/- buttons, presets) unless the text already means that number.
   const [lastValue, setLastValue] = useState(value);
   if (value !== lastValue) {
     setLastValue(value);
     const parsed = parseDecimal(text);
     const same = value === null ? Number.isNaN(parsed) : parsed === value;
-    if (!same) setText(display(value, decimals));
+    if (!same) setText(display(value, decimals, maxDecimals));
   }
   return (
     <div className={cn('grid content-start gap-1.5', className)}>
@@ -68,11 +79,16 @@ export function NumberField({
             if (decimals && value !== null && parseDecimal(text) === value) setText(display(value, decimals));
             onBlur?.(e);
           }}
-          className={cn('tabular', unit && 'pr-14')}
+          className={cn('tabular', unit && 'pr-14', inputClassName)}
           {...rest}
         />
         {unit && (
-          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+          <span
+            className={cn(
+              'pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground',
+              unitClassName,
+            )}
+          >
             {unit}
           </span>
         )}

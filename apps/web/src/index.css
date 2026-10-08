@@ -284,3 +284,26 @@ input[type='date']::-webkit-datetime-edit {
     opacity: 1;
   }
 }
+
+/* A field just filled from outside (scanned barcode, label photo): green ring that fades in 1.2 s.
+   The page removes the class afterwards; with reduced motion the ring stays still until then. */
+.field-flash {
+  border-color: var(--color-good);
+  animation: field-flash 1.2s ease-out forwards;
+}
+@keyframes field-flash {
+  0%,
+  60% {
+    border-color: var(--color-good);
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-good) 25%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 3px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .field-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px color-mix(in oklch, var(--color-good) 25%, transparent);
+  }
+}

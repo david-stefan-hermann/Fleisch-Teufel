@@ -116,7 +116,7 @@ test('own food: the pencil edits it, saving returns to the food page, deleting r
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: 'Eigenes Lebensmittel anlegen' }).click();
   await page.getByLabel('Name').fill('Omas Apfelkuchen');
-  await page.getByLabel('Kalorien').fill('285');
+  await page.getByLabel('Kalorien', { exact: true }).fill('285');
   await page.getByRole('button', { name: 'Anlegen und eintragen' }).click();
   await expect(page).toHaveURL(/\/food\//);
   const foodUrl = page.url();
@@ -129,7 +129,7 @@ test('own food: the pencil edits it, saving returns to the food page, deleting r
   await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
   await expect(page).toHaveURL(/\/custom-food\/[^?]+\?from=food$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Lebensmittel bearbeiten' })).toBeVisible();
-  await page.getByLabel('Kalorien').fill('300');
+  await page.getByLabel('Kalorien', { exact: true }).fill('300');
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByText('Gespeichert', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(foodUrl);
@@ -146,4 +146,74 @@ test('own food: the pencil edits it, saving returns to the food page, deleting r
   await page.getByRole('button', { name: 'Lebensmittel löschen' }).click();
   await expect(page).toHaveURL(/\/add\?/);
   await expect(page.getByText('Omas Apfelkuchen gelöscht')).toBeVisible();
+});
+
+test('own food: kcal from the macros, ten values saved, sticky save, barcode hint', async ({ page }) => {
+  await register(page);
+  await page.goto('/custom-foods');
+  await page.goto('/custom-food/new');
+  const save = page.getByRole('button', { name: 'Anlegen', exact: true });
+  // The save button stays at the bottom of the screen while the form is longer than the screen.
+  const viewport = page.viewportSize()!;
+  const box = (await save.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+  await save.click();
+  await expect(page.getByText('Kalorien oder Makros angeben.')).toBeVisible();
+
+  await page.getByLabel('Name').fill('Omas Apfelkuchen');
+  await page.getByLabel('Barcode (optional)').fill('4006040123453');
+  const kcal = page.getByLabel('Kalorien', { exact: true });
+  await page.getByRole('textbox', { name: 'Protein' }).fill('4');
+  await page.getByRole('textbox', { name: 'Kohlenhydrate' }).fill('38');
+  await page.getByRole('textbox', { name: 'Fett' }).fill('13');
+  await expect(kcal).toHaveValue('285');
+  await page.getByRole('button', { name: 'Weitere Nährstoffe' }).click();
+  await page.getByRole('textbox', { name: 'Ballaststoffe' }).fill('1,8');
+  await page.getByRole('textbox', { name: 'Salz' }).fill('0,2');
+  // EU formula: 4 × 4 + 38 × 4 + 13 × 9 + 1,8 × 2 = 289.
+  await expect(kcal).toHaveValue('289');
+  await expect(page.getByText('aus den Makros berechnet')).toBeVisible();
+  await page.getByRole('button', { name: 'Alle 10 Nährstoffe' }).click();
+  await expect(page.getByLabel('Natrium', { exact: true })).toHaveValue('80');
+  await save.click();
+  await expect(page.getByText('Lebensmittel angelegt')).toBeVisible();
+  await expect(page).toHaveURL(/\/custom-foods$/);
+
+  // On the food page the overview shows the computed kcal and all ten values.
+  await page.goto('/add?meal=0&tab=mine');
+  await page.getByRole('link', { name: /Omas Apfelkuchen/ }).click();
+  await page.getByLabel('Portion', { exact: true }).click();
+  await page.getByRole('option', { name: '100 g' }).click();
+  await expect(page.getByRole('button', { name: /^289 kcal, Anteil/ })).toBeVisible();
+
+  // Reopened, the kcal are still automatic (no mode is stored); typing makes them an own input.
+  await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
+  await expect(page.getByText('aus den Makros berechnet')).toBeVisible();
+  await page.getByLabel('Kalorien', { exact: true }).fill('300');
+  await expect(page.getByText(/eigene Eingabe/)).toBeVisible();
+  await page.getByRole('button', { name: 'aus Makros berechnen' }).click();
+  await expect(page.getByLabel('Kalorien', { exact: true })).toHaveValue('289');
+
+  // A second food with the same barcode gets a hint, saving still works.
+  await page.goto('/custom-food/new');
+  await page.getByLabel('Name').fill('Apfelkuchen (Blech)');
+  await page.getByLabel('Barcode (optional)').fill('4006040123453');
+  await expect(page.getByText('Schon bei „Omas Apfelkuchen“ hinterlegt.')).toBeVisible();
+  await page.getByLabel('Kalorien', { exact: true }).fill('250');
+  await page.getByRole('button', { name: 'Anlegen', exact: true }).click();
+  await expect(page.getByText('Lebensmittel angelegt')).toBeVisible();
+
+  // Per portion: converted to 100 g, the portion is kept.
+  await page.goto('/custom-food/new');
+  await page.getByLabel('Name').fill('Proteinriegel');
+  await page.getByRole('radio', { name: 'pro Portion' }).click();
+  await expect(page.getByText('Wird beim Speichern auf 100 g umgerechnet.')).toBeVisible();
+  await page.getByLabel('Portionsgröße').fill('45');
+  await page.getByLabel('Kalorien', { exact: true }).fill('175');
+  await page.getByRole('button', { name: 'Anlegen', exact: true }).click();
+  await expect(page).toHaveURL(/\/custom-foods$/);
+  await page.goto('/add?meal=0&tab=mine');
+  await page.getByRole('link', { name: /Proteinriegel/ }).click();
+  await expect(page.getByLabel('Portion', { exact: true })).toContainText('Portion (45 g)');
+  await expect(page.getByRole('button', { name: /^175 kcal, Anteil/ })).toBeVisible();
 });

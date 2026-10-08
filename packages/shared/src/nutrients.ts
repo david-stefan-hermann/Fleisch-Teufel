@@ -64,8 +64,37 @@ export const COMPACT_NUTRIENTS: readonly string[] = [
 export const MICRO_NUTRIENTS = [N.fiber, N.sugar, N.satFat, N.salt] as const;
 export type MicroKey = (typeof MICRO_NUTRIENTS)[number];
 
-/** Atwater factors used for macro-energy shares (kcal per g). */
-export const KCAL_PER_G = { protein: 4, fat: 9, carbs: 4, alcohol: 7 } as const;
+/**
+ * Energy factors (kcal per g). Macro-energy shares (`energyBreakdown`) use protein, fat and carbs
+ * (4/9/4); the custom food kcal automatic adds fiber like the EU label rule (`kcalFromMacrosEu`).
+ */
+export const KCAL_PER_G = { protein: 4, fat: 9, carbs: 4, alcohol: 7, fiber: 2 } as const;
+
+/** Nutrients that count for the kcal automatic of custom foods. */
+const EU_ENERGY = [
+  [N.protein, KCAL_PER_G.protein],
+  [N.carbs, KCAL_PER_G.carbs],
+  [N.fat, KCAL_PER_G.fat],
+  [N.fiber, KCAL_PER_G.fiber],
+] as const;
+
+/**
+ * kcal from the macros like an EU nutrition label (Regulation 1169/2011, Annex XIV):
+ * 4 × protein + 4 × carbs + 9 × fat + 2 × fiber. Missing values count as 0.
+ */
+export function kcalFromMacrosEu(map: NutrientMap): number {
+  return EU_ENERGY.reduce((sum, [code, f]) => sum + (map[code] ?? 0) * f, 0);
+}
+
+/**
+ * Whether stored kcal are the automatic ones (no mode flag is stored): they match
+ * `kcalFromMacrosEu` to 0.5 kcal and at least one of its nutrients is above 0.
+ */
+export function isAutoKcal(map: NutrientMap): boolean {
+  const kcal = map[N.kcal];
+  if (kcal === undefined || !EU_ENERGY.some(([code]) => (map[code] ?? 0) > 0)) return false;
+  return Math.abs(kcal - kcalFromMacrosEu(map)) <= 0.5;
+}
 
 /** Salt (g) from sodium (mg): NaCl = Na × 2.5 (EU Regulation 1169/2011, Annex XIV; also the BLS formula). */
 export function saltFromSodiumMg(sodiumMg: number): number {

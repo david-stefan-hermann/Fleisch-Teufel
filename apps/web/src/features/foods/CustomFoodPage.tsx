@@ -1,29 +1,33 @@
-import { completeNutrients, N, uuidv7, type CustomFood, type NutrientMap, type Portion } from '@ft/shared';
+import { targetsForDate, today, uuidv7, type CustomFood, type Portion } from '@ft/shared';
 import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, ScanBarcode, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { BarcodeScanSheet } from '@/components/BarcodeScanSheet';
 import { NumberField } from '@/components/NumberField';
+import { NutrientEditor } from '@/components/NutrientEditor';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { useGoals } from '@/hooks/data';
 import { goBackOr } from '@/lib/history';
+import { cn } from '@/lib/utils';
+import {
+  initFromFood,
+  nutrientError,
+  resetKcal,
+  setField,
+  toNutrients,
+  type FormCode,
+} from './customFoodForm';
 
-const FIELDS = [
-  { key: N.kcal, label: 'Kalorien', unit: 'kcal', required: true },
-  { key: N.protein, label: 'Protein', unit: 'g' },
-  { key: N.carbs, label: 'Kohlenhydrate', unit: 'g' },
-  { key: N.sugar, label: 'davon Zucker', unit: 'g' },
-  { key: N.fat, label: 'Fett', unit: 'g' },
-  { key: N.satFat, label: 'davon gesättigte Fettsäuren', unit: 'g' },
-  { key: N.fiber, label: 'Ballaststoffe', unit: 'g' },
-  { key: N.salt, label: 'Salz', unit: 'g' },
-] as const;
+/** How long a field filled from outside stays marked (matches `.field-flash`). */
+const FLASH_MS = 1200;
 
 export function CustomFoodPage() {
   const { id } = useParams({ from: '/authed/custom-food/$id' });
@@ -42,6 +46,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
+  const goals = useGoals();
   const isNew = existing === null;
   const toList = () => void navigate({ to: '/custom-foods', replace: true });
   const [name, setName] = useState(existing?.name ?? search.name ?? '');
@@ -50,21 +55,38 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   const [unit, setUnit] = useState<'g' | 'ml'>(existing?.unit ?? 'g');
   const [mode, setMode] = useState<'per100' | 'perPortion'>('per100');
   const [servingGrams, setServingGrams] = useState<number | null>(null);
-  const [values, setValues] = useState<Record<string, number | null>>(() =>
-    existing ? Object.fromEntries(FIELDS.map((f) => [f.key, existing.nutrients[f.key] ?? null])) : {},
-  );
+  const [nutrients, setNutrients] = useState(() => initFromFood(existing?.nutrients ?? null));
   const [portions, setPortions] = useState<Portion[]>(existing?.portions ?? []);
   const [newPortion, setNewPortion] = useState<{ label: string; grams: number | null }>({
     label: '',
     grams: null,
   });
   const [touched, setTouched] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  /** Fields filled from outside (scan) that flash once. */
+  const [flash, setFlash] = useState<ReadonlySet<string>>(() => new Set());
+  const flashFields = (fields: string[]) => {
+    setFlash(new Set(fields));
+    window.setTimeout(() => setFlash(new Set()), FLASH_MS);
+  };
 
   const factor = mode === 'perPortion' ? (servingGrams && servingGrams > 0 ? 100 / servingGrams : null) : 1;
   const barcodeClean = barcode.replace(/\D/g, '');
+  // Another (not deleted) own food with this code: a hint only, saving stays allowed.
+  const duplicate = useLiveQuery(
+    async () =>
+      barcodeClean
+        ? ((await db.customFoods
+            .where('barcode')
+            .equals(barcodeClean)
+            .filter((f) => !f.deleted && f.id !== existing?.id)
+            .first()) ?? null)
+        : null,
+    [db, barcodeClean, existing?.id],
+  );
   const errors = {
     name: !name.trim() ? 'Bitte einen Namen eingeben.' : null,
-    kcal: values[N.kcal] === null || values[N.kcal] === undefined ? 'Kalorien sind Pflicht.' : null,
+    nutrients: nutrientError(nutrients),
     serving: mode === 'perPortion' && !factor ? 'Portionsgröße angeben.' : null,
     barcode:
       barcodeClean && (barcodeClean.length < 6 || barcodeClean.length > 14) ? '6 bis 14 Ziffern.' : null,
@@ -74,11 +96,6 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   async function save() {
     setTouched(true);
     if (!valid || !factor) return;
-    const nutrients: NutrientMap = {};
-    for (const f of FIELDS) {
-      const v = values[f.key];
-      if (v !== null && v !== undefined) nutrients[f.key] = Math.round(v * factor * 1000) / 1000;
-    }
     const allPortions = [...portions];
     if (mode === 'perPortion' && servingGrams && !allPortions.some((p) => p.grams === servingGrams)) {
       allPortions.unshift({ label: `Portion (${servingGrams} ${unit})`, grams: servingGrams });
@@ -89,7 +106,8 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       brand: brand.trim() || null,
       barcode: barcodeClean || null,
       unit,
-      nutrients: completeNutrients(nutrients),
+      // All ten values; kJ and sodium are already derived where they were not typed.
+      nutrients: toNutrients(nutrients, factor),
       portions: allPortions,
     });
     toast.success(isNew ? 'Lebensmittel angelegt' : 'Gespeichert');
@@ -111,6 +129,11 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       title={isNew ? 'Eigenes Lebensmittel' : 'Lebensmittel bearbeiten'}
       back="/custom-foods"
       withTabBar={false}
+      footer={
+        <Button size="lg" type="submit" form="custom-food">
+          {isNew ? (search.date !== undefined ? 'Anlegen und eintragen' : 'Anlegen') : 'Speichern'}
+        </Button>
+      }
       actions={
         existing ? (
           <Button
@@ -135,6 +158,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       }
     >
       <form
+        id="custom-food"
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
@@ -156,18 +180,19 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               />
               {touched && errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
             </div>
-            <div className="grid grid-cols-2 items-start gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="cf-brand">Marke (optional)</Label>
-                <Input
-                  id="cf-brand"
-                  autoComplete="off"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="cf-barcode">Barcode (optional)</Label>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cf-brand">Marke (optional)</Label>
+              <Input
+                id="cf-brand"
+                autoComplete="off"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="cf-barcode">Barcode (optional)</Label>
+              {/* 13 digits and the scan button do not fit half a row, so the field has its own. */}
+              <div className="relative">
                 <Input
                   id="cf-barcode"
                   inputMode="numeric"
@@ -175,9 +200,29 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                   value={barcode}
                   onChange={(e) => setBarcode(e.target.value)}
                   aria-invalid={errors.barcode ? true : undefined}
+                  aria-describedby="cf-barcode-hint"
+                  className={cn('pr-12', flash.has('barcode') && 'field-flash')}
                 />
-                {errors.barcode && <p className="text-xs text-destructive">{errors.barcode}</p>}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Barcode scannen"
+                  className="absolute top-0.5 right-0.5 text-muted-foreground"
+                  onClick={() => setScanning(true)}
+                >
+                  <ScanBarcode className="size-5" aria-hidden />
+                </Button>
               </div>
+              <p id="cf-barcode-hint" aria-live="polite" className="empty:hidden">
+                {errors.barcode ? (
+                  <span className="text-xs text-destructive">{errors.barcode}</span>
+                ) : duplicate ? (
+                  <span className="text-xs text-muted-foreground">
+                    Schon bei „{duplicate.name}“ hinterlegt.
+                  </span>
+                ) : null}
+              </p>
             </div>
             <div className="grid gap-1.5">
               <span className="text-sm font-medium">Einheit</span>
@@ -207,6 +252,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               value={mode}
               onValueChange={(v) => v && setMode(v as typeof mode)}
               className="w-full"
+              aria-label="Bezug der Nährwerte"
             >
               <ToggleGroupItem value="per100" className="flex-1">
                 pro 100 {unit}
@@ -222,21 +268,19 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 value={servingGrams}
                 onValueChange={setServingGrams}
                 error={touched ? errors.serving : null}
+                hint={`Wird beim Speichern auf 100 ${unit} umgerechnet.`}
               />
             )}
-            <div className="grid grid-cols-2 items-start gap-3">
-              {FIELDS.map((f) => (
-                <NumberField
-                  key={f.key}
-                  label={f.label}
-                  unit={f.unit}
-                  value={values[f.key] ?? null}
-                  onValueChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))}
-                  error={f.key === N.kcal && touched ? errors.kcal : null}
-                  className={f.key === N.kcal ? 'col-span-2' : ''}
-                />
-              ))}
-            </div>
+            <NutrientEditor
+              idPrefix="cf"
+              state={nutrients}
+              onChange={(code, v) => setNutrients((s) => setField(s, code, v))}
+              onResetKcal={() => setNutrients(resetKcal)}
+              targets={targetsForDate(goals ?? [], today())}
+              error={touched ? errors.nutrients : null}
+              defaultMicrosOpen={!isNew}
+              highlighted={flash as ReadonlySet<FormCode>}
+            />
           </div>
         </Section>
 
@@ -299,11 +343,18 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
             </div>
           </div>
         </Section>
-
-        <Button type="submit" size="lg" className="w-full">
-          {isNew ? (search.date !== undefined ? 'Anlegen und eintragen' : 'Anlegen') : 'Speichern'}
-        </Button>
       </form>
+      {scanning && (
+        <BarcodeScanSheet
+          onClose={() => setScanning(false)}
+          onDetected={(code) => {
+            setScanning(false);
+            setBarcode(code);
+            flashFields(['barcode']);
+            toast.success('Barcode übernommen');
+          }}
+        />
+      )}
     </Page>
   );
 }

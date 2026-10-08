@@ -7,6 +7,8 @@ import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
+import { NutrientEditor } from '@/components/NutrientEditor';
+import { initFromFood, resetKcal, setField } from '@/features/foods/customFoodForm';
 import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
@@ -551,6 +553,75 @@ describe('NutrientsDisclosure', () => {
     );
     expect(screen.getByRole('button', { name: /^200 kcal/ })).toBeTruthy();
     expect(screen.getByText('100 g')).toBeTruthy();
+  });
+});
+
+describe('NutrientEditor', () => {
+  const micros = targetsForDate([], '2026-10-07').micros;
+  function Editor({ open = false }: { open?: boolean }) {
+    const [state, setState] = useState(() => initFromFood(null));
+    return (
+      <NutrientEditor
+        state={state}
+        onChange={(code, v) => setState((s) => setField(s, code, v))}
+        onResetKcal={() => setState(resetKcal)}
+        targets={{ micros }}
+        defaultMicrosOpen={open}
+      />
+    );
+  }
+  const input = (id: string) => document.getElementById(id) as HTMLInputElement;
+  const type = (id: string, value: string) => fireEvent.change(input(id), { target: { value } });
+  const macroLine = (key: string) =>
+    document.querySelector(`[data-macro=${key}] > div`)!.textContent!.replace(/\u00a0/g, ' ');
+
+  it('computes kcal, split and percents live from the macros', () => {
+    render(<Editor open />);
+    expect(screen.getByText('aus den Makros berechnet')).toBeTruthy();
+    type('nf-protein', '4');
+    type('nf-carbs', '38');
+    type('nf-fat', '13');
+    type('nf-fiber', '1,8');
+    expect(input('nf-kcal').value).toBe('289');
+    expect(macroLine('protein')).toContain('· 6 % · 16 kcal');
+    expect(macroLine('fat')).toContain('· 41 % · 117 kcal');
+    const bar = screen.getByRole('img', { name: /^Energieverteilung: Protein 6/ });
+    expect(bar.children).toHaveLength(3);
+  });
+
+  it('typed kcal win; kJ follow the kcal, "aus Makros berechnen" resets', async () => {
+    render(<Editor open />);
+    type('nf-protein', '10');
+    type('nf-kcal', '175');
+    expect(screen.getByText(/eigene Eingabe/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Alle 10 Nährstoffe' }));
+    expect(((await screen.findByLabelText('Energie (Kilojoule)')) as HTMLInputElement).value).toBe('732');
+    expect(screen.getByText('wird aus kcal berechnet')).toBeTruthy();
+    type('nf-kj-all', '1000');
+    expect(input('nf-kcal').value).toBe('239');
+    expect(screen.getByText(/aus deinen kJ/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'aus Makros berechnen' }));
+    expect(input('nf-kcal').value).toBe('40');
+    expect(input('nf-kj-all').value).toBe('167');
+  });
+
+  it('couples salt and sodium and shows the error in place of the source line', async () => {
+    render(
+      <NutrientEditor
+        state={setField(initFromFood(null), 'salt', 0.2)}
+        onChange={() => {}}
+        onResetKcal={() => {}}
+        targets={{ micros }}
+        error="Kalorien oder Makros angeben."
+        defaultMicrosOpen
+      />,
+    );
+    expect(screen.getByText('Kalorien oder Makros angeben.')).toBeTruthy();
+    expect(screen.queryByText('aus den Makros berechnet')).toBeNull();
+    expect(input('nf-kcal').getAttribute('aria-invalid')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Alle 10 Nährstoffe' }));
+    expect(((await screen.findByLabelText('Natrium')) as HTMLInputElement).value).toBe('80');
+    expect(screen.getByText('wird aus Salz berechnet')).toBeTruthy();
   });
 });
 

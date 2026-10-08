@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import {
   BarcodeScanner,
+  CAM_ERRORS,
   detectBarcodeInImage,
   TorchButton,
   type CaptureFn,
@@ -264,13 +265,6 @@ function PhotoPreview({
     </form>
   );
 }
-
-const CAM_ERRORS: Record<ScannerError, string> = {
-  permission: 'Kein Kamerazugriff. Erlaube die Kamera in den iOS-Einstellungen (Safari → Kamera).',
-  'no-camera': 'Keine Kamera gefunden.',
-  unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff.',
-  other: 'Die Kamera konnte nicht gestartet werden.',
-};
 
 /**
  * Live camera as the single entry point: a barcode in view is looked up immediately, the shutter

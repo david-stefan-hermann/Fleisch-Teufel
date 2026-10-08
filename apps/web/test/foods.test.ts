@@ -1,6 +1,15 @@
-import { uuidv7, type CustomFood, type Food, type Meal } from '@ft/shared';
+import { N, uuidv7, type CustomFood, type Food, type Meal } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
+import {
+  initFromFood,
+  kcalSource,
+  nutrientError,
+  resetKcal,
+  setField,
+  toNutrients,
+  type NutrientFormState,
+} from '@/features/foods/customFoodForm';
 import { saveRecord } from '@/db/write';
 import {
   filterOwn,
@@ -278,5 +287,120 @@ describe('filterOwn', () => {
     const none = filterOwn('pizza', custom, meals);
     expect(none.custom).toEqual([]);
     expect(none.meals).toEqual([]);
+  });
+});
+
+describe('custom food form', () => {
+  const type = (
+    s: NutrientFormState,
+    fields: Partial<Record<Parameters<typeof setField>[1], number | null>>,
+  ) =>
+    Object.entries(fields).reduce((acc, [k, v]) => setField(acc, k as Parameters<typeof setField>[1], v), s);
+
+  it('starts empty with automatic kcal and asks for kcal or macros', () => {
+    const s = initFromFood(null);
+    expect(s.kcalAuto).toBe(true);
+    expect(s.values.kcal).toBeNull();
+    expect(nutrientError(s)).toBe('Kalorien oder Makros angeben.');
+    expect(toNutrients(s, 1)).toEqual({});
+  });
+
+  it('computes kcal from the macros (EU formula) and kJ from the kcal', () => {
+    const s = type(initFromFood(null), { protein: 4, carbs: 38, fat: 13, fiber: 1.8 });
+    expect(s.values.kcal).toBeCloseTo(288.6, 6);
+    expect(Math.round(s.values.kcal!)).toBe(289);
+    expect(s.values.kj).toBeCloseTo(288.6 * 4.184, 6);
+    expect(kcalSource(s)).toBe('macros');
+    expect(nutrientError(s)).toBeNull();
+    // Sugar and saturated fat do not change the energy.
+    expect(type(s, { sugar: 22, satFat: 6 }).values.kcal).toBeCloseTo(288.6, 6);
+    // Removing every macro empties the kcal again.
+    const none = type(s, { protein: null, carbs: null, fat: null, fiber: null });
+    expect(none.values.kcal).toBeNull();
+    expect(none.values.kj).toBeNull();
+  });
+
+  it('typed kcal win until reset or emptied', () => {
+    let s = type(initFromFood(null), { protein: 15, carbs: 16, fat: 6.2, fiber: 4.5 });
+    expect(s.values.kcal).toBeCloseTo(188.8, 6);
+    s = setField(s, 'kcal', 175);
+    expect(kcalSource(s)).toBe('kcal');
+    expect(s.values.kj).toBeCloseTo(175 * 4.184, 6);
+    s = setField(s, 'protein', 20);
+    expect(s.values.kcal).toBe(175);
+    expect(kcalSource(resetKcal(s))).toBe('macros');
+    expect(resetKcal(s).values.kcal).toBeCloseTo(208.8, 6);
+    s = setField(s, 'kcal', null);
+    expect(kcalSource(s)).toBe('macros');
+    expect(s.values.kcal).toBeCloseTo(208.8, 6);
+  });
+
+  it('typed kJ set the kcal; emptying them hands the energy back to the macros', () => {
+    let s = type(initFromFood(null), { protein: 10 });
+    s = setField(s, 'kj', 1000);
+    expect(kcalSource(s)).toBe('kj');
+    expect(s.values.kcal).toBeCloseTo(1000 / 4.184, 6);
+    expect(s.values.kj).toBe(1000);
+    // Typing kcal afterwards makes them the source again; kJ follow.
+    const k = setField(s, 'kcal', 200);
+    expect(kcalSource(k)).toBe('kcal');
+    expect(k.values.kj).toBeCloseTo(836.8, 6);
+    s = setField(s, 'kj', null);
+    expect(kcalSource(s)).toBe('macros');
+    expect(s.values.kcal).toBe(40);
+  });
+
+  it('couples salt and sodium both ways', () => {
+    let s = setField(initFromFood(null), 'salt', 0.2);
+    expect(s.values.sodium).toBeCloseTo(80, 6);
+    expect(s.sodiumAuto).toBe(true);
+    s = setField(s, 'sodium', 400);
+    expect(s.values.salt).toBeCloseTo(1, 6);
+    expect(s.sodiumAuto).toBe(false);
+    s = setField(s, 'salt', 0.5);
+    expect(s.values.sodium).toBeCloseTo(200, 6);
+    expect(s.sodiumAuto).toBe(true);
+    s = setField(s, 'sodium', null);
+    expect(s.values.salt).toBeNull();
+  });
+
+  it('recognizes the modes of a stored food', () => {
+    const auto = initFromFood({
+      [N.kcal]: 288.6,
+      [N.kj]: 1207.5,
+      [N.protein]: 4,
+      [N.carbs]: 38,
+      [N.fat]: 13,
+      [N.fiber]: 1.8,
+      [N.salt]: 0.2,
+      [N.sodium]: 80,
+    });
+    expect(auto).toMatchObject({ kcalAuto: true, kjAuto: true, sodiumAuto: true });
+    // The old 4/4/9 kcal (285) are an own input now; a label kJ value is kept.
+    const own = initFromFood({ [N.kcal]: 285, [N.protein]: 4, [N.carbs]: 38, [N.fat]: 13, [N.fiber]: 1.8 });
+    expect(own.kcalAuto).toBe(false);
+    expect(own.values.kcal).toBe(285);
+    expect(own.values.kj).toBeCloseTo(285 * 4.184, 6);
+    const label = initFromFood({ [N.kcal]: 389, [N.kj]: 1650, [N.salt]: 0.4, [N.sodium]: 300 });
+    expect(label).toMatchObject({ kcalAuto: false, kjAuto: false, sodiumAuto: false });
+    expect(label.values).toMatchObject({ kcal: 389, kj: 1650, salt: 0.4, sodium: 300 });
+    expect(kcalSource(label)).toBe('kcal');
+    // Only kJ or only sodium: they are the sources.
+    const kj = initFromFood({ [N.kj]: 836.8 });
+    expect(kj.values.kcal).toBeCloseTo(200, 6);
+    expect(kcalSource(kj)).toBe('kj');
+    const na = initFromFood({ [N.kcal]: 100, [N.sodium]: 400 });
+    expect(na.values.salt).toBeCloseTo(1, 6);
+    expect(na.sodiumAuto).toBe(false);
+  });
+
+  it('scales every set value to 100 g and keeps the automatic kcal recognizable', () => {
+    const portion = type(initFromFood(null), { protein: 15, carbs: 16, fat: 6.2, fiber: 4.5, salt: 0.18 });
+    const per100 = toNutrients(portion, 100 / 45);
+    expect(Object.keys(per100).sort()).toEqual(
+      [N.kcal, N.kj, N.protein, N.carbs, N.fat, N.fiber, N.salt, N.sodium].sort(),
+    );
+    expect(per100[N.protein]).toBe(33.333);
+    expect(initFromFood(per100).kcalAuto).toBe(true);
   });
 });
