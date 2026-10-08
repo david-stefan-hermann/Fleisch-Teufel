@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   addFoodToDraft,
   currentDraft,
+  draftChanged,
   draftFromResult,
   patchRow,
   rowGrams,
@@ -29,6 +30,7 @@ import {
   loadQueueImage,
   migrateLegacyImages,
   processQueue,
+  reanalyze,
 } from '@/features/ai/queue';
 import { saveRecord } from '@/db/write';
 import { parseInto, formatInto, returnFromInto, rememberIntoStart } from '@/lib/into';
@@ -301,6 +303,121 @@ describe('AI queue photos', () => {
     await processQueue(d);
     expect(await d.aiQueue.get(id)).toMatchObject({ status: 'failed', error: 'Foto nicht mehr vorhanden' });
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe('AI review: re-analyze with the hint', () => {
+  const jpeg = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 9])], { type: 'image/jpeg' });
+  afterEach(() => vi.unstubAllGlobals());
+  const analysis = (name: string, grams: number) =>
+    ({
+      analysisId: `a-${name}`,
+      dishName: name,
+      items: [
+        {
+          name,
+          grams,
+          confidence: 'high' as const,
+          preparation: null,
+          packaged: false,
+          searchTerms: [],
+          candidates: [{ food: food(`bls:${name}`, name, 150), score: 1 }],
+        },
+      ],
+      notes: null,
+      model: 'claude-opus-5-5',
+      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+    }) satisfies AiAnalysisResult;
+  /** Answers each analyze call with the next result; records the hints sent. */
+  const server = (...answers: (AiAnalysisResult | Response)[]) => {
+    const hints: string[] = [];
+    const fetchFn = vi.fn(async (_path: string, init?: RequestInit) => {
+      hints.push(String((init?.body as FormData).get('text') ?? ''));
+      const next = answers.shift()!;
+      return next instanceof Response ? next : new Response(JSON.stringify(next), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchFn);
+    return { fetchFn, hints };
+  };
+  async function analyzed(d: UserDb) {
+    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: 'mit Butter' }, jpeg());
+    await processQueue(d);
+    return id;
+  }
+
+  it('notices changed ingredients only (amount, food, rows), not meal or name', () => {
+    const it0 = { meal: 1, result: analysis('Nudeln', 200) };
+    const base = draftFromResult(it0);
+    expect(draftChanged({ ...it0, draft: undefined })).toBe(false);
+    expect(draftChanged({ ...it0, draft: { ...base, meal: 3, mealName: 'Anders' } })).toBe(false);
+    expect(draftChanged({ ...it0, draft: patchRow(base, 'ai-0', { grams: 180 }) })).toBe(true);
+    expect(draftChanged({ ...it0, draft: patchRow(base, 'ai-0', { foodId: 'x' }) })).toBe(true);
+    expect(draftChanged({ ...it0, draft: { ...base, rows: [] } })).toBe(true);
+  });
+
+  it('sends the photo again with the new hint and replaces the review rows', async () => {
+    const d = db();
+    const { fetchFn, hints } = server(analysis('Nudeln', 200), analysis('Reis', 150));
+    const id = await analyzed(d);
+    await d.aiQueue.update(id, {
+      draft: { ...patchRow(draftFromResult((await d.aiQueue.get(id))!), 'ai-0', { grams: 90 }), meal: 2 },
+    });
+    expect(await reanalyze(d, id, '  ohne Butter ')).toBe('done');
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(hints).toEqual(['mit Butter', 'ohne Butter']);
+    const item = (await d.aiQueue.get(id))!;
+    expect(item.text).toBe('ohne Butter');
+    expect(item.result!.dishName).toBe('Reis');
+    // New rows from the new result; the chosen meal stays.
+    expect(currentDraft(item).rows.map((r) => [r.name, r.grams])).toEqual([['Reis', 150]]);
+    expect(currentDraft(item).meal).toBe(2);
+    // Only one queue item: the analysis is replaced, not duplicated.
+    expect(await d.aiQueue.count()).toBe(1);
+  });
+
+  it('keeps a review saved as a meal linked to it (with its name)', async () => {
+    const d = db();
+    server(analysis('Nudeln', 200), analysis('Reis', 150));
+    const id = await analyzed(d);
+    const draft = draftFromResult((await d.aiQueue.get(id))!);
+    await d.aiQueue.update(id, { draft: { ...draft, savedMealId: 'meal-1', mealName: 'Mein Teller' } });
+    await reanalyze(d, id, 'mit Reis');
+    const now = currentDraft((await d.aiQueue.get(id))!);
+    expect(now).toMatchObject({ savedMealId: 'meal-1', mealName: 'Mein Teller' });
+    expect(now.rows[0]!.name).toBe('Reis');
+  });
+
+  it('runs once for a double tap and keeps result and rows when it fails', async () => {
+    const d = db();
+    const { fetchFn } = server(
+      analysis('Nudeln', 200),
+      new Response(JSON.stringify({ error: 'no_result' }), { status: 502 }),
+    );
+    const id = await analyzed(d);
+    const edited = patchRow(draftFromResult((await d.aiQueue.get(id))!), 'ai-0', { grams: 90 });
+    await d.aiQueue.update(id, { draft: edited });
+    const [first, second] = await Promise.all([reanalyze(d, id, 'x'), reanalyze(d, id, 'y')]);
+    expect([first, second].sort()).toEqual(['busy', 'failed']);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    const item = (await d.aiQueue.get(id))!;
+    expect(item.status).toBe('failed');
+    expect(item.result!.dishName).toBe('Nudeln');
+    expect(item.draft).toEqual(edited);
+    // The review stays editable after a failure (updateDraft needs a result, not 'done').
+    await addFoodToDraft(d, id, food('bls:R', 'Reis', 130), 100);
+    expect(currentDraft((await d.aiQueue.get(id))!).rows).toHaveLength(2);
+  });
+
+  it('waits offline and reports it', async () => {
+    const d = db();
+    server(analysis('Nudeln', 200));
+    const id = await analyzed(d);
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect(await reanalyze(d, id, 'x')).toBe('pending');
+    expect(await reanalyze(d, id, 'y')).toBe('busy');
+    expect((await d.aiQueue.get(id))!.result!.dishName).toBe('Nudeln');
   });
 });
 

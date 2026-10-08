@@ -590,3 +590,102 @@ test('macro templates: protein follows body weight', async ({ page }) => {
   const kcal = Number(await page.getByLabel('Kalorien', { exact: true }).inputValue());
   await expect(page.getByLabel('Kohlenh.')).toHaveValue(String(Math.round((kcal * 0.2) / 4)));
 });
+
+test('AI review: the hint stays editable, ↻ analyzes again (asking after changes)', async ({ page }) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  const result = (dish: string, name: string, grams: number) => ({
+    analysisId: '00000000-0000-7000-8000-000000000002',
+    dishName: dish,
+    items: [
+      {
+        name,
+        grams,
+        confidence: 'high',
+        preparation: null,
+        packaged: false,
+        searchTerms: [],
+        candidates: [
+          {
+            food: {
+              id: `bls:${name}`,
+              source: 'bls',
+              sourceId: name,
+              name: `${name} gekocht`,
+              nameEn: null,
+              brand: null,
+              group: null,
+              unit: 'g',
+              nutrients: { ENERCC: 150, PROT625: 5 },
+              portions: [],
+            },
+            score: 1,
+          },
+        ],
+      },
+    ],
+    notes: `Erkannt: ${dish}.`,
+    model: 'claude-opus-5-5',
+    usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+  });
+  const hints: string[] = [];
+  let release: (() => void) | null = null;
+  await page.route('**/api/ai/analyze', async (r) => {
+    const hint =
+      r
+        .request()
+        .postDataBuffer()
+        ?.toString('utf8')
+        .match(/name="text"\r\n\r\n([^\r]*)/)?.[1] ?? '';
+    hints.push(hint);
+    if (hints.length === 1) return r.fulfill({ json: result('Nudeln mit Soße', 'Nudeln', 200) });
+    // The second analysis waits until the test lets it finish (to see the busy state).
+    await new Promise<void>((resolve) => (release = resolve));
+    await r.fulfill({ json: result('Reis mit Gemüse', 'Reis', 150) });
+  });
+
+  await page.goto('/photo?meal=1');
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByLabel('Hinweis für die Analyse (optional)').fill('mit Butter');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+
+  // The hint of the preview is in the review, under the note of the AI.
+  const hint = page.getByLabel('Hinweis für die Analyse', { exact: true });
+  await expect(hint).toHaveValue('mit Butter');
+  await expect(page.getByText('Ändern und oben auf ↻ tippen, um neu zu analysieren.')).toBeVisible();
+  await expect(page.getByText('Erkannt: Nudeln mit Soße.')).toBeVisible();
+
+  // After a change to the ingredients ↻ asks first; "Abbrechen" keeps everything.
+  await page.getByLabel('Gramm').first().fill('180');
+  const redo = page.getByRole('button', { name: 'Neu analysieren' });
+  await redo.click();
+  const ask = page.getByRole('dialog', { name: 'Neu analysieren?' });
+  await expect(ask).toContainText('Deine Änderungen an den Zutaten gehen verloren.');
+  await ask.getByRole('button', { name: 'Abbrechen' }).click();
+  await expect(page.getByLabel('Gramm').first()).toHaveValue('180');
+
+  // New hint, ↻, confirm: the review is greyed out under the overlay, ↻ is locked meanwhile.
+  await hint.fill('ohne Butter, mit Reis');
+  await redo.click();
+  await ask.getByRole('button', { name: 'Neu analysieren' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Analysiere Foto…' })).toBeVisible();
+  await expect(redo).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Meal eintragen' })).toBeDisabled();
+  await expect(hint).toBeDisabled();
+  expect(hints).toEqual(['mit Butter', 'ohne Butter, mit Reis']);
+  release!();
+
+  // The new result replaces the rows; one queue item, the hint stays.
+  await expect(page.getByText('Erkannt: Reis mit Gemüse.')).toBeVisible();
+  await expect(page.getByLabel('Gramm').first()).toHaveValue('150');
+  await expect(redo).toBeEnabled();
+  await expect(page.getByLabel('Hinweis für die Analyse', { exact: true })).toHaveValue(
+    'ohne Butter, mit Reis',
+  );
+  // Still one analysis in the list (replaced, not added).
+  await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
+  await expect(page.getByText(/1 Lebensmittel erkannt, bitte prüfen/)).toHaveCount(1);
+});

@@ -32,6 +32,23 @@ export function currentDraft(item: AiQueueItem): AiDraft {
   return item.draft ?? draftFromResult(item);
 }
 
+/**
+ * Whether the ingredients of the review differ from the analysis (amount, chosen food, removed or
+ * added rows), so a re-analysis would throw changes away. Meal and name do not count.
+ */
+export function draftChanged(item: Pick<AiQueueItem, 'meal' | 'result' | 'draft'>): boolean {
+  if (!item.draft || !item.result) return false;
+  const now = item.draft.rows;
+  const initial = draftFromResult(item).rows;
+  return (
+    now.length !== initial.length ||
+    now.some((r, i) => {
+      const o = initial[i]!;
+      return r.key !== o.key || r.grams !== o.grams || r.foodId !== o.foodId;
+    })
+  );
+}
+
 /** Applies a change to the draft (creating it from the result on first edit). */
 export async function updateDraft(
   db: UserDb,
@@ -40,7 +57,8 @@ export async function updateDraft(
 ): Promise<void> {
   await db.transaction('rw', db.aiQueue, async () => {
     const item = await db.aiQueue.get(localId);
-    if (!item || item.status !== 'done') return;
+    // A review exists once there is a result (also after a failed re-analysis), not while it runs.
+    if (!item?.result || item.status === 'pending' || item.status === 'analyzing') return;
     await db.aiQueue.update(localId, { draft: change(currentDraft(item)) });
   });
 }

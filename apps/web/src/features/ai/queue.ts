@@ -7,6 +7,7 @@
  * Blob read earlier unreadable (see `AiImage` in `db/dexie.ts`).
  */
 import type { AiAnalysisResult } from '@ft/shared';
+import { draftFromResult } from '@/db/aiDraft';
 import type { AiImage, AiQueueItem, UserDb } from '@/db/dexie';
 import { api, ApiError, OfflineError, errorMessage } from '@/lib/api';
 
@@ -62,45 +63,98 @@ export async function migrateLegacyImages(db: UserDb): Promise<void> {
   });
 }
 
-let running = false;
+let current: Promise<void> | null = null;
+let again = false;
 
-/** Processes pending items one by one; stops at the first network failure. */
+/**
+ * Processes pending items one by one; stops at the first network failure. A call while a run is
+ * going on makes that run look for pending items once more and resolves with it, so an item queued
+ * meanwhile (e.g. a re-analysis) is never left waiting.
+ */
 export async function processQueue(db: UserDb): Promise<void> {
-  if (running) return;
-  running = true;
-  try {
-    await migrateLegacyImages(db);
-    // Items stuck in "analyzing" (app closed mid-request) are retried.
-    await db.aiQueue
-      .where('localId')
-      .above(0)
-      .modify((i) => {
-        if (i.status === 'analyzing') i.status = 'pending';
-      });
-    for (;;) {
-      const item = (await db.aiQueue.toArray()).find((i) => i.status === 'pending');
-      if (!item) break;
-      const image = await loadQueueImage(db, item);
-      if (!image) {
-        await db.aiQueue.update(item.localId!, { status: 'failed', error: 'Foto nicht mehr vorhanden' });
-        continue;
-      }
-      await db.aiQueue.update(item.localId!, { status: 'analyzing' });
-      try {
-        const result = await analyzePhoto(image, item.text);
-        await db.aiQueue.update(item.localId!, { status: 'done', result, error: undefined });
-      } catch (e) {
-        if (e instanceof OfflineError) {
-          await db.aiQueue.update(item.localId!, { status: 'pending' });
-          break;
-        }
-        await db.aiQueue.update(item.localId!, { status: 'failed', error: errorMessage(e) });
-        if (e instanceof ApiError && e.status === 401) break;
-      }
-    }
-  } finally {
-    running = false;
+  if (current) {
+    again = true;
+    return current;
   }
+  current = (async () => {
+    try {
+      do {
+        again = false;
+        await runQueue(db);
+      } while (again);
+    } finally {
+      current = null;
+    }
+  })();
+  return current;
+}
+
+async function runQueue(db: UserDb): Promise<void> {
+  await migrateLegacyImages(db);
+  // Items stuck in "analyzing" (app closed mid-request) are retried.
+  await db.aiQueue
+    .where('localId')
+    .above(0)
+    .modify((i) => {
+      if (i.status === 'analyzing') i.status = 'pending';
+    });
+  for (;;) {
+    const item = (await db.aiQueue.toArray()).find((i) => i.status === 'pending');
+    if (!item) break;
+    const image = await loadQueueImage(db, item);
+    if (!image) {
+      await db.aiQueue.update(item.localId!, { status: 'failed', error: 'Foto nicht mehr vorhanden' });
+      continue;
+    }
+    await db.aiQueue.update(item.localId!, { status: 'analyzing' });
+    try {
+      const result = await analyzePhoto(image, item.text);
+      await db.transaction('rw', db.aiQueue, async () => {
+        const now = await db.aiQueue.get(item.localId!);
+        if (!now) return; // discarded meanwhile
+        // A re-analysis replaces the review rows. The meal choice stays, and a review already saved
+        // as a meal stays linked to it (with its name); the meal itself changes when it is logged.
+        const old = now.draft;
+        const draft = old
+          ? {
+              ...draftFromResult({ meal: old.meal, result }),
+              ...(old.savedMealId ? { savedMealId: old.savedMealId, mealName: old.mealName } : {}),
+            }
+          : undefined;
+        await db.aiQueue.update(item.localId!, { status: 'done', result, error: undefined, draft });
+      });
+    } catch (e) {
+      if (e instanceof OfflineError) {
+        await db.aiQueue.update(item.localId!, { status: 'pending' });
+        break;
+      }
+      // A failed re-analysis keeps the previous result and review rows.
+      await db.aiQueue.update(item.localId!, { status: 'failed', error: errorMessage(e) });
+      if (e instanceof ApiError && e.status === 401) break;
+    }
+  }
+}
+
+/**
+ * "Neu analysieren" from the review: the same photo with the (edited) hint, as one more Claude call.
+ * Nothing happens while the item is still waiting or being analyzed. Resolves with the item's
+ * status afterwards ('pending': offline, it runs once connected).
+ */
+export async function reanalyze(
+  db: UserDb,
+  localId: number,
+  text: string,
+): Promise<AiQueueItem['status'] | 'busy' | 'missing'> {
+  const started = await db.transaction('rw', db.aiQueue, async () => {
+    const item = await db.aiQueue.get(localId);
+    if (!item) return 'missing' as const;
+    if (item.status === 'pending' || item.status === 'analyzing') return 'busy' as const;
+    await db.aiQueue.update(localId, { text: text.trim(), status: 'pending', error: undefined });
+    return 'started' as const;
+  });
+  if (started !== 'started') return started;
+  await processQueue(db);
+  return (await db.aiQueue.get(localId))?.status ?? 'missing';
 }
 
 /** Queues a photo for analysis; returns the new item's `localId`. */
