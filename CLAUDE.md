@@ -52,6 +52,8 @@ Serve the production web build through the API (same origin, service worker acti
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` on `/add`, `/food/$foodId`, `/scan`,
   `/custom-food/$id` adds to a saved meal / AI review instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
+  The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, one more Claude call, asks first when
+  `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old result.
 - Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
   API `routes/photos.ts`. Images in IndexedDB are `ArrayBuffer` + type (`photos.bytes`, AI queue photos in the
   `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them). Toasts sit at the bottom (iOS tints the status bar from top elements).
@@ -59,8 +61,9 @@ Serve the production web build through the API (same origin, service worker acti
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
-  "Training eintragen", "Essen eintragen", "Gewicht eintragen". `/photo` is the food page "Essen eintragen" (camera,
-  barcode, magnifier to `/add`; both replace each other). A plate photo shows a preview (`PhotoPreview`) and goes
+  "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". `/photo` is the food page "Essen
+  eintragen" (camera, barcode; header: bolt "Schnelleingabe" to `/quick-add` as a new page, then the magnifier to
+  `/add`; food page and search replace each other). A plate photo shows a preview (`PhotoPreview`) and goes
   to the AI only on "Analysieren". The header back button in the preview drops the photo and shows the camera
   again (`Page onBack`); browser or iOS swipe back leaves the page and loses the photo (accepted). The "+" of a diary meal links straight to `/photo` for that meal.
 - Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
@@ -70,6 +73,12 @@ Serve the production web build through the API (same origin, service worker acti
   shows a "Gespeichert" chip). Editors with explicit save (meal editor, saved training editor) block leaving
   with `useBlocker` (`shouldBlockFn` in `useCallback`) and show `DiscardDialog`; navigate with `ignoreBlocker`
   after deleting.
+- Editing from where you log: own foods (`/food/$id`) and saved meals ("Meal eintragen") have a header pencil to
+  `/custom-food/$id?from=food` / `/meals/$id?from=log`. Saving in the custom food and meal editors closes them
+  (back to the page that opened them, `goBackOr` in `src/lib/history.ts`; the meal editor sets a `leaving` ref so
+  its blocker does not ask). Deleting goes back past the page that opened the editor when `from` says so. The
+  food page stashes its unsaved form for the way there and back (`features/foods/foodLogDraft.ts`, keyed by the
+  history entry). "Anlegen und eintragen" still replaces the editor with the new food's page.
 - Dialogs sit at the top of the visual viewport (`ViewportVars` sets `--vvh`/`--vvt`) and stay above the iOS
   keyboard; put everything between header and footer into `DialogBody` (scrolls, buttons stay visible).
 - Saved meals: `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
@@ -88,8 +97,25 @@ Serve the production web build through the API (same origin, service worker acti
 - Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
   for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). `MacroBars` /
   `TargetBar` (`components/MacroBars.tsx`) only for progress towards a target (excess as red overlay).
+  Ingredients (meal editor, AI review) get `NutrientsDisclosure` ("Nährwerte", collapsed); "Meal eintragen" opens
+  one ingredient row at a time.
+- Custom food editor: `NutrientEditor` (same layout as the breakdown, fields instead of numbers) on the pure form
+  logic in `features/foods/customFoodForm.ts`. kcal follow the macros with the EU label formula
+  (`kcalFromMacrosEu`: 4/4/9 plus 2 kcal per g of fiber; the macro split everywhere stays 4/4/9) until typed over;
+  kJ follow kcal, sodium follows salt, each editable and computing back. No mode is stored: on opening, kcal count
+  as automatic when they match the formula to 0.5 kcal (`isAutoKcal`). All ten values are saved. Barcode scan via
+  `BarcodeScanSheet`, label photos via `LabelCaptureSheet` (both on `FullscreenOverlay`); a field filled from
+  outside flashes with `.field-flash`. The barcode duplicate hint is informational only.
 - Charts: `src/components/Chart.tsx` (uPlot). One y-axis only; text uses ink tokens, never series colors.
-  Macro colors were validated with the dataviz palette checker for light and dark.
+  Macro colors were validated with the dataviz palette checker for light and dark. The plot is rebuilt only when
+  the series structure, height or theme change; new data goes in with `setData` (keep series arrays stable).
+  Stacked bars are cumulative series drawn from 0, highest first; inner segments set `gapAbove`, segments
+  `legend: false` (no legend row, table column or cursor point), a `kind: 'legend'` series carries the total
+  (report kcal: `features/reports/chartData.ts`, grey `--bar-neutral` for days without macros). Report choices
+  navigate with `resetScroll: false`.
+- No pinch or double-tap zoom (viewport `user-scalable=no`, `touch-action: pan-x pan-y` on `html`, iOS
+  `gesturestart` cancelled in `main.tsx`). Every input needs at least 16 px text (`Input`/`NumberField` have it),
+  or iOS zooms in on focus.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).
 - AI: `apps/api/src/ai/*`: model `claude-opus-5-5` by default, structured output via `betaZodOutputFormat`,
   `fallbacks: 'default'`. Load the `claude-api` skill before changing it. In the meal photo analysis nutrients
