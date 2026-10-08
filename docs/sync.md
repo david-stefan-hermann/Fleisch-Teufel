@@ -21,10 +21,15 @@ auf: er zeigt gelöschte Gewichtseinträge, Meals und gespeicherte Trainings (`e
 es bewusst nicht, weil das Protokoll kein Purge kennt. Gewicht hat die deterministische ID `w:<Datum>`: ein
 neues Gewicht am selben Tag überschreibt den Grabstein, der Eintrag verschwindet dann aus dem Papierkorb.
 
+Nicht synchronisiert werden Entwürfe auf dem Gerät: der Meal-Editor schreibt ungespeicherte Änderungen nach
+`kv` (`mealDraft:<id>`, ein neues Foto als Bytes unter `mealDraftPhoto:<id>`, `apps/web/src/db/mealDraft.ts`).
+Erst „Speichern“ macht daraus einen normalen Schreibvorgang auf `meals` (und legt das Foto in `photos` an, das
+dann hochgeladen wird). Ein verworfener Entwurf hinterlässt so weder Outbox-Einträge noch verwaiste Fotos.
+
 Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
 hochladen können, z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal
 eingetragen wurden; das Tagebuch zeigt sie als eine Zeile), `foodEntries.groupName` (Name einer Gruppe
-ohne gespeichertes Meal, z. B. eine Foto-Analyse mit „Nur eintragen“; bei Meal-Gruppen bleibt es `null`,
+ohne gespeichertes Meal, z. B. eine Foto-Analyse, die ohne Speichern mit „Meal eintragen“ eingetragen wurde; bei Meal-Gruppen bleibt es `null`,
 der Name kommt vom Meal) und `exerciseEntries.note`.
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,

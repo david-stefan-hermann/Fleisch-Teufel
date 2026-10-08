@@ -45,7 +45,7 @@ Serve the production web build through the API (same origin, service worker acti
   `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
   (`/settings/trash`, `src/db/trash.ts`); there is no purge.
   Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
-  without meal (`groupName`, AI review "Nur eintragen" via `logAiItems`). `groupDiaryEntries` (shared) builds
+  without meal (`groupName`, AI review "Meal eintragen" without saving, via `logAiItems`). `groupDiaryEntries` (shared) builds
   diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).
@@ -58,11 +58,32 @@ Serve the production web build through the API (same origin, service worker acti
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
-- Add menu: one `AddSheetProvider` in the authed layout; open it with `useAddSheet().open({ date, meal })`.
+- Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
+  "Training eintragen", "Essen eintragen", "Gewicht eintragen". `/photo` is the food page "Essen eintragen" (camera,
+  barcode, magnifier to `/add`; both replace each other). A plate photo shows a preview (`PhotoPreview`) and goes
+  to the AI only on "Analysieren". The "+" of a diary meal links straight to `/photo` for that meal.
+- Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
+  meal or an AI review, "Änderungen übernehmen" when editing an entry.
+- Page primary action: `Page footer={<Button size="lg">…</Button>}` renders the sticky `PageFooter`. Saving for
+  reuse is a header save icon that opens `NameDialog` (meal page, training, AI review; after saving the review
+  shows a "Gespeichert" chip). Editors with explicit save (meal editor, saved training editor) block leaving
+  with `useBlocker` (`shouldBlockFn` in `useCallback`) and show `DiscardDialog`; navigate with `ignoreBlocker`
+  after deleting.
+- Dialogs sit at the top of the visual viewport (`ViewportVars` sets `--vvh`/`--vvt`) and stay above the iOS
+  keyboard; put everything between header and footer into `DialogBody` (scrolls, buttons stay visible).
+- Saved meals: `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
+  entry only), without them edits (`MealEditor`). The editor writes a device draft (`db/mealDraft.ts`, `kv`) and
+  only `saveMealDraft` touches the synced record; `addItemToMeal` (food search `into=meal:`) appends to the draft.
+- Saved trainings (`exerciseTemplates`, never "Vorlage" in the UI): `/trainings`, `/trainings/$templateId`; sport
+  picker and fields shared with logging (`features/exercise/TrainingFields.tsx`, `training.ts`). Trash covers
+  weights, meals and saved trainings.
+- Weight entry uses `TapeMeasure` (0,05 raster, `role=slider`); weights display with up to two decimals.
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value
   placeholder `NO_VALUE` from `src/lib/format.ts`.
+- Excess bars (`TargetBar`): red `--over` up to twice the target, then dark red `--over-2` (bars only, text
+  stays `text-over`); micros with a maximum use `TargetBar` too (pass `over` for decimal comparisons).
 - Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
   for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). `MacroBars` /
   `TargetBar` (`components/MacroBars.tsx`) only for progress towards a target (excess as red overlay).
