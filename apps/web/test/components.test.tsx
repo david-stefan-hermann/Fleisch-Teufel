@@ -10,7 +10,7 @@ import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { UserDb } from '@/db/dexie';
-import { NO_VALUE } from '@/lib/format';
+import { fmtGrams, NO_VALUE } from '@/lib/format';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
@@ -100,6 +100,39 @@ describe('MacroBars', () => {
     expect(width(carbs.querySelector('[data-part=excess]'))).toBe(100);
     // "55 / 55 g" is on target, not over.
     expect(screen.getByRole('meter', { name: 'Protein' }).querySelector('[data-part=excess]')).toBeNull();
+  });
+
+  it('fills a darker second step once the red bar is full', () => {
+    render(
+      <MacroBars
+        macros={[
+          { key: 'protein', label: 'Protein', value: 66, target: 55 },
+          { key: 'carbs', label: 'Kohlenhydrate', value: 137.5, target: 55 },
+          { key: 'fat', label: 'Fett', value: 165, target: 55 },
+        ]}
+      />,
+    );
+    const part = (name: string, p: string) =>
+      screen.getByRole('meter', { name }).querySelector(`[data-part=${p}]`);
+    // 120 %: red only.
+    expect(width(part('Protein', 'excess'))).toBeCloseTo(20, 5);
+    expect(part('Protein', 'excess2')).toBeNull();
+    // 250 %: red full, dark red half.
+    expect(width(part('Kohlenhydrate', 'excess'))).toBe(100);
+    expect(width(part('Kohlenhydrate', 'excess2'))).toBeCloseTo(50, 5);
+    expect(part('Kohlenhydrate', 'excess2')!.className).toContain('bg-over-2');
+    // 300 %: both full.
+    expect(width(part('Fett', 'excess2'))).toBe(100);
+    // The text stays in the normal red.
+    expect(screen.getByText('165').className).toContain('text-over');
+    expect(screen.getByText('165').className).not.toContain('over-2');
+  });
+
+  it('caps the second step at the full width (400 %)', () => {
+    render(<MacroBars macros={[{ key: 'fat', label: 'Fett', value: 220, target: 55 }]} />);
+    const meter = screen.getByRole('meter', { name: 'Fett' });
+    expect(width(meter.querySelector('[data-part=excess]'))).toBe(100);
+    expect(width(meter.querySelector('[data-part=excess2]'))).toBe(100);
   });
 });
 
@@ -205,6 +238,38 @@ describe('NutrientBreakdown', () => {
     );
     // Only a few catalog codes: no "Alle N Nährstoffe".
     expect(screen.queryByRole('button', { name: /^Alle \d+ Nährstoffe$/ })).toBeNull();
+  });
+
+  it('stacks micros above their maximum like the macros, minimums keep their own bar', async () => {
+    render(
+      <NutrientBreakdown
+        nutrients={{ ENERCC: 1700, SUGAR: targets.micros.SUGAR.grams * 2.5, NACL: 6.3, FASAT: 10, FIBT: 34 }}
+        targets={targets}
+        defaultMicrosOpen
+      />,
+    );
+    const sugar = await screen.findByRole('meter', { name: 'Zucker' });
+    // 2,5 × the maximum: red full, dark red 50 %.
+    const max = targets.micros.SUGAR.grams;
+    expect(sugar.querySelector('[data-part=fill]')!.className).toContain('bg-foreground/40');
+    expect(Number.parseFloat((sugar.querySelector('[data-part=excess]') as HTMLElement).style.width)).toBe(
+      100,
+    );
+    expect(
+      Number.parseFloat((sugar.querySelector('[data-part=excess2]') as HTMLElement).style.width),
+    ).toBeCloseTo(50, 5);
+    expect(sugar.getAttribute('aria-valuetext')).toBe(`${fmtGrams(max * 2.5)} von max. ${fmtGrams(max)}`);
+    // Decimals count: 6,3 g of max. 6 g is over although both round to 6.
+    const salt = screen.getByRole('meter', { name: 'Salz' });
+    expect(salt.querySelector('[data-part=excess]')).not.toBeNull();
+    expect(salt.querySelector('[data-part=excess2]')).toBeNull();
+    // Below the maximum: grey only.
+    const sat = screen.getByRole('meter', { name: 'Gesättigte Fettsäuren' });
+    expect(sat.querySelector('[data-part=excess]')).toBeNull();
+    // Fibre (minimum) reached: green, never an excess layer.
+    const fiber = screen.getByRole('meter', { name: 'Ballaststoffe' });
+    expect(fiber.querySelector('[data-part=excess]')).toBeNull();
+    expect(fiber.firstElementChild!.className).toContain('bg-good');
   });
 
   it('lists all catalog nutrients of the shown amount when there are more than the main ones', async () => {

@@ -17,8 +17,9 @@ export function isOverTarget(value: number, target: number): boolean {
 
 /**
  * Progress towards a target. The fill is capped at 100 %; above the target a red bar from the
- * left shows the excess as a share of the target (76 g of 55 g: full bar, red 38 %). No legend:
- * the red grams next to it say the same.
+ * left shows the excess as a share of the target (76 g of 55 g: full bar, red 38 %). Once the red
+ * bar is full (twice the target), a darker red step fills on top of it the same way (250 %: red full,
+ * dark red 50 %; from 300 % both are full). No legend: the red grams next to it say the same.
  */
 export function TargetBar({
   value,
@@ -26,19 +27,26 @@ export function TargetBar({
   color,
   label,
   valueText,
+  over = isOverTarget(value, target),
   className,
 }: {
   value: number;
   target: number;
-  /** Fill color (macro token class, e.g. `bg-protein`). */
+  /** Fill color (macro token class, e.g. `bg-protein`; `bg-foreground/40` for micros with a maximum). */
   color: string;
   /** Accessible name of the meter. */
   label: string;
   valueText?: string;
+  /**
+   * Whether the value counts as above the target. Defaults to the whole-number comparison of the
+   * macros; micros pass their own status because they are shown with decimals (6,3 g of max. 6 g).
+   */
+  over?: boolean;
   className?: string;
 }) {
   const fill = target > 0 ? Math.min(100, (value / target) * 100) : 0;
-  const excess = isOverTarget(value, target) ? Math.min(100, ((value - target) / target) * 100) : 0;
+  const excess = over && target > 0 ? Math.min(100, ((value - target) / target) * 100) : 0;
+  const excess2 = over && target > 0 ? Math.min(100, Math.max(0, ((value - 2 * target) / target) * 100)) : 0;
   return (
     <div
       className={cn('relative h-1.5 overflow-hidden rounded-full bg-muted', className)}
@@ -55,6 +63,13 @@ export function TargetBar({
           data-part="excess"
           className="absolute inset-y-0 left-0 rounded-full bg-over"
           style={{ width: `${excess}%` }}
+        />
+      )}
+      {excess2 > 0 && (
+        <div
+          data-part="excess2"
+          className="absolute inset-y-0 left-0 rounded-full bg-over-2"
+          style={{ width: `${excess2}%` }}
         />
       )}
     </div>

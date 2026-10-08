@@ -476,7 +476,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     await discardQueueItem(db, item.localId!);
     if (asMeal)
       toast.success(`„${name}“ eingetragen`, {
-        description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder hinzufügen und bearbeiten.',
+        description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder eintragen und bearbeiten.',
       });
     else toast.success(`„${name}“ eingetragen`);
     await navigate({ to: '/', search: { date: item.date } });

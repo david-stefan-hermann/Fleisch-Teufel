@@ -1,0 +1,1179 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nährstoffübersicht Mockup v3: alle Screens</title>
+    <style>
+      :root {
+        --bg: #f4f4f5;
+        --card: #fff;
+        --border: #e4e4e7;
+        --ink: #18181b;
+        --muted: #71717a;
+        --track: #e9e9ec;
+        --accent: #2f6fdb;
+        --protein: #2f80c9;
+        --carbs: #d98a1e;
+        --fat: #b84d9a;
+        --good: #2e9e5b;
+        --over: #d04545;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111113;
+          --card: #1c1c1f;
+          --border: #2b2b30;
+          --ink: #f4f4f5;
+          --muted: #a1a1aa;
+          --track: #2d2d33;
+          --accent: #7aa7ff;
+          --protein: #6cb0ec;
+          --carbs: #f0b05a;
+          --fat: #e08ccf;
+          --good: #5fc38a;
+          --over: #ef7b7b;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          15px/1.4 -apple-system,
+          system-ui,
+          sans-serif;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 36px 0 4px;
+        padding-top: 16px;
+        border-top: 2px solid var(--border);
+      }
+      p.note {
+        color: var(--muted);
+        font-size: 13px;
+        margin: 0 0 12px;
+      }
+      .phone {
+        max-width: 390px;
+        margin: 0 auto 28px;
+      }
+      .label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 18px 0 6px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .card + .card {
+        margin-top: 10px;
+      }
+      .card.ghost {
+        color: var(--muted);
+        font-size: 13px;
+        padding: 12px 16px;
+      }
+      .tab {
+        font-variant-numeric: tabular-nums;
+      }
+      .pagebar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+        font-size: 17px;
+        margin: 0 0 10px;
+      }
+      .pagebar small {
+        font-weight: 400;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .sect {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        margin: 0 0 8px;
+      }
+      /* breakdown */
+      .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+      }
+      .head .t {
+        font-weight: 600;
+      }
+      .kcal {
+        font-size: 28px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        padding: 2px 6px;
+        margin: -2px -6px;
+        border-radius: 8px;
+      }
+      .kcal.tap {
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+      }
+      .kcal small {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .kcal .target {
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .mode {
+        font-size: 12px;
+        color: var(--muted);
+        text-align: right;
+        margin-top: 2px;
+      }
+      .split {
+        display: flex;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--track);
+        margin: 10px 0 14px;
+      }
+      .split i {
+        display: block;
+        height: 100%;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .l1 {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .v {
+        color: var(--muted);
+        text-align: right;
+        white-space: nowrap;
+      }
+      .v b {
+        color: var(--ink);
+      }
+      .bar {
+        position: relative;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--track);
+        overflow: hidden;
+        margin-top: 5px;
+      }
+      .bar i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        height: 100%;
+        border-radius: 999px;
+      }
+      .bar i.ov {
+        background: var(--over);
+      }
+      .p {
+        background: var(--protein);
+      }
+      .c {
+        background: var(--carbs);
+      }
+      .f {
+        background: var(--fat);
+      }
+      .micro .bar i {
+        background: color-mix(in srgb, var(--ink) 40%, transparent);
+      }
+      .micro .bar i.good {
+        background: var(--good);
+      }
+      .micro .bar i.over {
+        background: var(--over);
+      }
+      .over-t {
+        color: var(--over) !important;
+      }
+      .toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+        padding-top: 6px;
+      }
+      .all {
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+        min-height: 40px;
+        align-items: center;
+      }
+      .chev {
+        width: 16px;
+        height: 16px;
+        flex: none;
+      }
+      .btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+        height: 36px;
+        margin: 8px 0 -8px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted);
+      }
+      .cta {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 15px;
+        margin-top: 12px;
+      }
+      .cta.outline {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--border);
+      }
+      /* lists */
+      .entry {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-top: 1px solid var(--border);
+        font-size: 14px;
+      }
+      .entry:first-of-type {
+        border-top: 0;
+      }
+      .entry small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .entry b {
+        font-weight: 600;
+      }
+      /* day */
+      .ring-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+      }
+      .dayring {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        flex: none;
+        background: conic-gradient(var(--accent) 0 96%, var(--track) 96% 100%);
+        display: grid;
+        place-items: center;
+      }
+      .dayring span {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        background: var(--card);
+        display: grid;
+        place-items: center;
+        font-weight: 700;
+        font-size: 18px;
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        gap: 6px;
+        flex: 1;
+        font-size: 14px;
+      }
+      dl div {
+        display: flex;
+        justify-content: space-between;
+      }
+      dl dt {
+        color: var(--muted);
+      }
+      dl dd {
+        margin: 0;
+        font-weight: 500;
+      }
+      dl .big dt {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      dl .big dd {
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .three {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+        font-size: 12px;
+      }
+      .three .bar {
+        height: 8px;
+        margin-top: 4px;
+      }
+      .three .sub {
+        margin-top: 4px;
+        color: var(--muted);
+      }
+      .three .sub b {
+        color: var(--ink);
+      }
+      .divider {
+        border-top: 1px solid var(--border);
+        margin: 16px 0 14px;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 8px;
+        margin-bottom: 14px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .tiles b {
+        display: block;
+        color: var(--ink);
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .tiles small {
+        display: block;
+        font-size: 11px;
+      }
+      .photo {
+        height: 150px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #c9b8a8, #8d7b6a);
+        margin-bottom: 12px;
+      }
+      .field {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .amount {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .amount span {
+        flex: 1;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+      }
+      .amount span.on {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .legend {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        gap: 14px;
+        margin: 6px 0 0;
+      }
+      .legend i {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        display: inline-block;
+        vertical-align: -1px;
+        margin-right: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="phone">
+      <h1>Nährstoffübersicht v3, alle Screens</h1>
+      <p class="note">
+        Tagesziel im Beispiel: 1.700 kcal, Protein 130 g, Kohlenhydrate 170 g, Fett 55 g. Beispiel-Item: 620
+        kcal, Protein 35 g, Kohlenhydrate 60 g, Fett 25 g.
+      </p>
+      <p class="note">
+        <b>Neu gegenüber v2:</b> (1) „Weitere Nährstoffe“ zeigen überall das Tagesziel („6,2 g von mind. 30
+        g“) samt Balken. (2) Tipp auf die kcal-Zahl schaltet in den Tagesmodus: Kopf „620 / 1.700 kcal“, der
+        dicke Verteilungsbalken bleibt, Makro-Balken und Prozent beziehen sich auf das Tagesziel. (3)
+        Überschuss wird als roter Balken über den vollen Balken gelegt, so lang wie der Anteil, der über das
+        Ziel hinausgeht.
+      </p>
+
+      <!-- ============================================================ -->
+      <h2>A. Lebensmittel-Seite (/food/…)</h2>
+      <p class="note">Oben wie heute Name, Portion und Menge. Darunter die Übersicht.</p>
+
+      <div class="label">A1. Eintragsmodus (Standard)</div>
+      <div class="card tab">
+        <div class="pagebar">‹ &nbsp;Vollkornbrötchen <small>BLS</small></div>
+        <div class="field">Portion: 1 Stück (60 g)</div>
+        <div class="amount"><span>1</span><span class="on">2</span><span>3</span><span>+</span></div>
+      </div>
+      <div class="card tab">
+        <div class="sect">Nährwerte dieser Menge</div>
+        <div class="head">
+          <span class="t"></span><span class="kcal tap">620<small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> · 23 % · 140 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 23%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> · 40 % · 240 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 40%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> · 37 % · 225 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 37%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <div class="cta">Zu Mittagessen hinzufügen</div>
+      </div>
+
+      <div class="label">A2. Nach Tipp auf die kcal-Zahl: Tagesmodus</div>
+      <div class="card tab">
+        <div class="sect">Nährwerte dieser Menge</div>
+        <div class="head">
+          <span class="t"></span
+          ><span class="kcal tap">620<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="mode">Anteil am Tagesziel</div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> / 130 g · 27 %</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 27%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> / 170 g · 35 %</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 35%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> / 55 g · 45 %</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 45%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg
+            class="chev"
+            style="transform: rotate(180deg)"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <ul>
+          <li class="micro">
+            <div class="l1">
+              <span>Ballaststoffe</span><span class="v"><b>6,2 g</b> von mind. 30 g</span>
+            </div>
+            <div class="bar"><i style="width: 21%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Zucker</span><span class="v"><b>12 g</b> von max. 43 g</span>
+            </div>
+            <div class="bar"><i style="width: 28%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Gesättigte Fettsäuren</span><span class="v"><b>9,1 g</b> von max. 19 g</span>
+            </div>
+            <div class="bar"><i style="width: 48%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Salz</span><span class="v"><b>1,8 g</b> von max. 6 g</span>
+            </div>
+            <div class="bar"><i style="width: 30%"></i></div>
+          </li>
+        </ul>
+        <div class="all">
+          <span>Alle 138 Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <div class="cta">Zu Mittagessen hinzufügen</div>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2>B. Gespeichertes Meal (/meals/…)</h2>
+      <p class="note">
+        Foto, Name und Zutaten wie heute. Die Übersicht bekommt eine eigene Section „Nährwerte“ zwischen
+        Zutaten und Eintragen.
+      </p>
+
+      <div class="label">B1. Eintragsmodus</div>
+      <div class="card tab">
+        <div class="pagebar">‹ &nbsp;Mittag Klassiker <small>🗑</small></div>
+        <div class="photo"></div>
+        <div class="sect">Zutaten</div>
+        <div class="entry">
+          <span>Vollkornbrötchen<small>120 g</small></span
+          ><b>290</b>
+        </div>
+        <div class="entry">
+          <span>Hähnchenbrust<small>150 g</small></span
+          ><b>165</b>
+        </div>
+        <div class="entry">
+          <span>Gurke<small>100 g</small></span
+          ><b>12</b>
+        </div>
+      </div>
+      <div class="card tab">
+        <div class="sect">Nährwerte</div>
+        <div class="head">
+          <span class="t"></span><span class="kcal tap">620<small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> · 23 % · 140 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 23%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> · 40 % · 240 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 40%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> · 37 % · 225 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 37%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+      <div class="card ghost">
+        Section „Eintragen“: Mahlzeit wählen, ½ / 1× / 2×, Button „Eintragen“ (unverändert)
+      </div>
+
+      <div class="label">B2. Tagesmodus</div>
+      <div class="card tab">
+        <div class="sect">Nährwerte</div>
+        <div class="head">
+          <span class="t"></span
+          ><span class="kcal tap">620<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="mode">Anteil am Tagesziel</div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> / 130 g · 27 %</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 27%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> / 170 g · 35 %</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 35%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> / 55 g · 45 %</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 45%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2>C. Analyse-Review (/photo?review=…)</h2>
+      <p class="note">
+        Foto, Name, Zutaten mit Slidern, Gesamtmenge wie heute. Die „Summe“ wird zur Übersicht. Darunter
+        Mahlzeit-Auswahl und die zwei Buttons.
+      </p>
+
+      <div class="label">C1. Eintragsmodus</div>
+      <div class="card tab">
+        <div class="pagebar">‹ &nbsp;Ergebnis prüfen</div>
+        <div class="photo"></div>
+        <div class="field">Name des Meals: Mittag vom Foto</div>
+      </div>
+      <div class="card ghost">Zutaten mit Gramm-Slidern und „Zutat hinzufügen“ (unverändert)</div>
+      <div class="card tab">
+        <div class="field" style="margin-bottom: 12px">Gesamtmenge: 100 %</div>
+        <div class="head">
+          <span class="t">Summe</span><span class="kcal tap">620<small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> · 23 % · 140 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 23%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> · 40 % · 240 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 40%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> · 37 % · 225 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 37%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <div class="field" style="margin-top: 12px">Mahlzeit: Mittagessen</div>
+        <div class="cta">Als Meal speichern &amp; eintragen</div>
+        <div class="cta outline">Nur eintragen</div>
+      </div>
+
+      <div class="label">C2. Tagesmodus</div>
+      <div class="card tab">
+        <div class="head">
+          <span class="t">Summe</span
+          ><span class="kcal tap">620<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="mode">Anteil am Tagesziel</div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> / 130 g · 27 %</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 27%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> / 170 g · 35 %</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 35%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> / 55 g · 45 %</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 45%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2>D. Mahlzeit-Seite (/diary-meal, neu)</h2>
+      <p class="note">
+        Geöffnet per Tipp auf „Mittagessen 620 kcal“ im Tagebuch. Oben die Übersicht, darunter die Einträge
+        der Mahlzeit.
+      </p>
+
+      <div class="label">D1. Eintragsmodus</div>
+      <div class="card tab">
+        <div class="pagebar">‹ &nbsp;Mittagessen <small>Heute</small></div>
+        <div class="head">
+          <span class="t">Summe</span><span class="kcal tap">620<small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> · 23 % · 140 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 23%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> · 40 % · 240 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 40%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> · 37 % · 225 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 37%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+      <div class="card tab">
+        <div class="sect">Einträge</div>
+        <div class="entry">
+          <span>Vollkornbrötchen<small>2 Stück (120 g)</small></span
+          ><b>290</b>
+        </div>
+        <div class="entry">
+          <span>Hähnchenbrust<small>150 g</small></span
+          ><b>165</b>
+        </div>
+        <div class="entry">
+          <span>Gurke<small>100 g</small></span
+          ><b>12</b>
+        </div>
+      </div>
+
+      <div class="label">D2. Tagesmodus</div>
+      <div class="card tab">
+        <div class="pagebar">‹ &nbsp;Mittagessen <small>Heute</small></div>
+        <div class="head">
+          <span class="t">Summe</span
+          ><span class="kcal tap">620<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="mode">Anteil am Tagesziel</div>
+        <div class="split">
+          <i class="p" style="width: 23%"></i><i class="c" style="width: 40%"></i
+          ><i class="f" style="width: 37%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>35 g</b> / 130 g · 27 %</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 27%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>60 g</b> / 170 g · 35 %</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 35%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b>25 g</b> / 55 g · 45 %</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 45%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg
+            class="chev"
+            style="transform: rotate(180deg)"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <ul>
+          <li class="micro">
+            <div class="l1">
+              <span>Ballaststoffe</span><span class="v"><b>6,2 g</b> von mind. 30 g</span>
+            </div>
+            <div class="bar"><i style="width: 21%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Zucker</span><span class="v"><b>12 g</b> von max. 43 g</span>
+            </div>
+            <div class="bar"><i style="width: 28%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Gesättigte Fettsäuren</span><span class="v"><b>9,1 g</b> von max. 19 g</span>
+            </div>
+            <div class="bar"><i style="width: 48%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Salz</span><span class="v"><b>1,8 g</b> von max. 6 g</span>
+            </div>
+            <div class="bar"><i style="width: 30%"></i></div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2>E. Tagesübersicht (Tagebuch)</h2>
+      <p class="note">
+        Geschlossen: Ring, Zahlen, drei Zielbalken. Fett liegt mit 76 g über dem Ziel von 55 g (138 %): der
+        Balken ist voll, und der Überschuss (38 % des Ziels) liegt als roter Balken von links darüber.
+      </p>
+
+      <div class="label">E1. Geschlossen, mit Überschuss-Markierung</div>
+      <div class="card tab">
+        <div class="ring-row">
+          <div class="dayring"><span>96 %</span></div>
+          <dl>
+            <div>
+              <dt>Ziel</dt>
+              <dd>1.700</dd>
+            </div>
+            <div>
+              <dt>Essen</dt>
+              <dd>− 1.640</dd>
+            </div>
+            <div>
+              <dt>Training</dt>
+              <dd>+ 0</dd>
+            </div>
+            <div class="big">
+              <dt>Übrig</dt>
+              <dd>60</dd>
+            </div>
+          </dl>
+        </div>
+        <div class="three">
+          <div>
+            Protein
+            <div class="bar"><i class="p" style="width: 85%"></i></div>
+            <div class="sub"><b>110</b> / 130 g</div>
+          </div>
+          <div>
+            Kohlenhydrate
+            <div class="bar"><i class="c" style="width: 99%"></i></div>
+            <div class="sub"><b>168</b> / 170 g</div>
+          </div>
+          <div>
+            Fett
+            <div class="bar"><i class="f" style="width: 100%"></i><i class="ov" style="width: 38%"></i></div>
+            <div class="sub over-t"><b>76</b> / 55 g</div>
+          </div>
+        </div>
+        <div class="btn">
+          Nährstoffe
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="label">
+        E2. Nach „Nährstoffe“: Zielbalken weg, Übersicht da (hier gibt es keinen Modus-Wechsel, der Tag ist
+        der Tag)
+      </div>
+      <div class="card tab">
+        <div class="ring-row">
+          <div class="dayring"><span>96 %</span></div>
+          <dl>
+            <div>
+              <dt>Ziel</dt>
+              <dd>1.700</dd>
+            </div>
+            <div>
+              <dt>Essen</dt>
+              <dd>− 1.640</dd>
+            </div>
+            <div>
+              <dt>Training</dt>
+              <dd>+ 0</dd>
+            </div>
+            <div class="big">
+              <dt>Übrig</dt>
+              <dd>60</dd>
+            </div>
+          </dl>
+        </div>
+        <div class="divider"></div>
+        <div class="head">
+          <span class="t"></span
+          ><span class="kcal">1.640<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 25%"></i><i class="c" style="width: 37%"></i
+          ><i class="f" style="width: 38%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>110 g</b> / 130 g · 25 % · 440 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 85%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b>168 g</b> / 170 g · 37 % · 672 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 99%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b class="over-t">76 g</b> / 55 g · 38 % · 684 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 100%"></i><i class="ov" style="width: 38%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg
+            class="chev"
+            style="transform: rotate(180deg)"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <ul>
+          <li class="micro">
+            <div class="l1">
+              <span>Ballaststoffe</span><span class="v"><b>21 g</b> von mind. 30 g</span>
+            </div>
+            <div class="bar"><i style="width: 70%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Zucker</span><span class="v"><b>38 g</b> von max. 43 g</span>
+            </div>
+            <div class="bar"><i style="width: 88%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Gesättigte Fettsäuren</span
+              ><span class="v"><b class="over-t">24 g</b> von max. 19 g</span>
+            </div>
+            <div class="bar"><i class="over" style="width: 100%"></i></div>
+          </li>
+          <li class="micro">
+            <div class="l1">
+              <span>Salz</span><span class="v"><b>4,1 g</b> von max. 6 g</span>
+            </div>
+            <div class="bar"><i style="width: 68%"></i></div>
+          </li>
+        </ul>
+        <div class="all" style="min-height: 32px">
+          <span style="text-decoration: underline">Woher kommen die Zielwerte?</span>
+        </div>
+        <div class="btn">
+          Weniger
+          <svg
+            class="chev"
+            style="transform: rotate(180deg)"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+      </div>
+      <p class="note" style="margin-top: 8px">
+        In der Tagesübersicht sind die Makro-Balken immer relativ zum Tagesziel (wie der Tagesmodus), weil
+        Eintrags- und Tagesmenge hier dasselbe sind. Prozent und kcal rechts bleiben die Energieverteilung.
+      </p>
+
+      <!-- ============================================================ -->
+      <h2>F. Berichte</h2>
+      <p class="note">
+        Ø pro Tag über den Zeitraum. Balken relativ zum durchschnittlichen Tagesziel, Prozent und kcal als
+        Energieverteilung. Kein Modus-Wechsel nötig.
+      </p>
+      <div class="card tab">
+        <div class="tiles">
+          <div>Ø kcal<b>1.720</b><small>Ziel Ø 1.700</small></div>
+          <div>Tage erfasst<b>6/7</b><small>3 im Ziel</small></div>
+          <div>Gewicht<b>−0,6 kg</b><small>83,9 kg</small></div>
+          <div>Training<b>140 Min.</b><small>620 kcal</small></div>
+        </div>
+        <div class="divider" style="margin-top: 4px"></div>
+        <div class="head">
+          <span class="t">Ø pro Tag</span
+          ><span class="kcal">1.720<span class="target">/ 1.700</span><small>kcal</small></span>
+        </div>
+        <div class="split">
+          <i class="p" style="width: 24%"></i><i class="c" style="width: 42%"></i
+          ><i class="f" style="width: 34%"></i>
+        </div>
+        <ul>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot p"></i>Protein</span
+              ><span class="v"><b>104 g</b> / 130 g · 24 % · 416 kcal</span>
+            </div>
+            <div class="bar"><i class="p" style="width: 80%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+              ><span class="v"><b class="over-t">182 g</b> / 170 g · 42 % · 728 kcal</span>
+            </div>
+            <div class="bar"><i class="c" style="width: 100%"></i><i class="ov" style="width: 7%"></i></div>
+          </li>
+          <li>
+            <div class="l1">
+              <span class="name"><i class="dot f"></i>Fett</span
+              ><span class="v"><b class="over-t">65 g</b> / 55 g · 34 % · 585 kcal</span>
+            </div>
+            <div class="bar"><i class="f" style="width: 100%"></i><i class="ov" style="width: 18%"></i></div>
+          </li>
+        </ul>
+        <div class="toggle">
+          <span>Weitere Nährstoffe</span
+          ><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </div>
+        <p class="note" style="margin: 10px 0 0">Durchschnitte nur über Tage mit Einträgen.</p>
+      </div>
+    </div>
+  </body>
+</html>

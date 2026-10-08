@@ -319,7 +319,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             </p>
           </div>
           <Button size="lg" disabled={!type || !minutes} onClick={() => void save()}>
-            {entry ? 'Änderungen speichern' : 'Training speichern'}
+            {entry ? 'Änderungen übernehmen' : 'Training speichern'}
           </Button>
           <Button variant="outline" disabled={!type || !minutes} onClick={() => setTemplateOpen(true)}>
             <BookmarkPlus aria-hidden /> Als Vorlage speichern

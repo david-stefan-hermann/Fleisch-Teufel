@@ -49,7 +49,7 @@ export function DiaryMealPage() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label={`Zu ${name} hinzufügen`}
+          aria-label={`Essen zu ${name} eintragen`}
           onClick={() => addSheet.open({ date, meal })}
         >
           <Plus className="text-primary" aria-hidden />
@@ -75,7 +75,7 @@ export function DiaryMealPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<UtensilsCrossed />} title="Noch nichts eingetragen">
                 <Button variant="outline" className="mt-2" onClick={() => addSheet.open({ date, meal })}>
-                  <Plus aria-hidden /> Lebensmittel hinzufügen
+                  <Plus aria-hidden /> Essen eintragen
                 </Button>
               </EmptyState>
             ) : (

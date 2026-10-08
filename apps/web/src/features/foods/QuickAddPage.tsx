@@ -88,7 +88,7 @@ function QuickAddForm({
 
   return (
     <Page
-      title={entry ? 'Schnelleintrag bearbeiten' : 'Schnell hinzufügen'}
+      title={entry ? 'Schnelleintrag bearbeiten' : 'Schnelleingabe'}
       back
       withTabBar={false}
       actions={
@@ -161,7 +161,7 @@ function QuickAddForm({
             </Select>
           </div>
           <Button type="submit" size="lg" disabled={!valid}>
-            {entry ? 'Änderungen speichern' : 'Eintragen'}
+            {entry ? 'Änderungen übernehmen' : 'Eintragen'}
           </Button>
         </form>
       </Section>

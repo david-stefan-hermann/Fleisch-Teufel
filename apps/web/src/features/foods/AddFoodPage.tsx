@@ -167,7 +167,7 @@ export function AddFoodPage() {
       groupId: null,
       groupName: null,
     });
-    toast.success(`${r.name} zu ${mealName} hinzugefügt`);
+    toast.success(`${r.name} eingetragen`);
   }
 
   return (
@@ -184,7 +184,7 @@ export function AddFoodPage() {
               </Link>
             </Button>
             <Button variant="ghost" size="icon" asChild>
-              <Link to="/quick-add" search={{ date, meal }} aria-label="Schnell hinzufügen">
+              <Link to="/quick-add" search={{ date, meal }} aria-label="Schnelleingabe">
                 <Zap className="size-6" aria-hidden />
               </Link>
             </Button>

@@ -33,7 +33,7 @@ export function ExerciseCard({
       }
       action={
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/exercise" search={{ date }} aria-label="Training hinzufügen">
+          <Link to="/exercise" search={{ date }} aria-label="Training eintragen">
             <Plus className="size-5 text-primary" aria-hidden />
           </Link>
         </Button>

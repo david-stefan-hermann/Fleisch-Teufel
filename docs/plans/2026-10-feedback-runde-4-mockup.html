@@ -1,0 +1,5098 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Feedback-Runde 4, Mockups v4</title>
+    <style>
+      /* Tokens from apps/web/src/index.css (oklch). --over-2 is new (section C). */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --popover: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --secondary: oklch(0.955 0.008 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --destructive: oklch(0.55 0.2 27);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --input-bg: transparent;
+        --switch-thumb-on: var(--background);
+        --switch-thumb-off: var(--background);
+        --protein: oklch(0.58 0.14 250);
+        --carbs: oklch(0.75 0.15 75);
+        --fat: oklch(0.6 0.16 320);
+        --good: oklch(0.6 0.13 155);
+        --over: oklch(0.58 0.19 27);
+        --over-2: oklch(0.4 0.17 27);
+        --exercise: oklch(0.62 0.13 165);
+        --photo: linear-gradient(135deg, oklch(0.72 0.09 45), oklch(0.5 0.11 30) 55%, oklch(0.38 0.07 60));
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --background: oklch(0.18 0.006 40);
+          --foreground: oklch(0.95 0.006 60);
+          --card: oklch(0.225 0.008 40);
+          --popover: oklch(0.24 0.008 40);
+          --primary: oklch(0.64 0.17 25);
+          --primary-foreground: oklch(0.15 0.01 40);
+          --secondary: oklch(0.27 0.008 40);
+          --muted: oklch(0.27 0.008 40);
+          --muted-foreground: oklch(0.7 0.012 50);
+          --accent: oklch(0.3 0.01 40);
+          --destructive: oklch(0.65 0.19 27);
+          --border: oklch(0.32 0.008 40);
+          --input: oklch(0.36 0.01 40);
+          --input-bg: oklch(0.36 0.01 40 / 0.3);
+          --switch-thumb-on: var(--primary-foreground);
+          --switch-thumb-off: var(--foreground);
+          --protein: oklch(0.66 0.13 250);
+          --carbs: oklch(0.66 0.14 70);
+          --fat: oklch(0.62 0.15 320);
+          --good: oklch(0.72 0.13 155);
+          --over: oklch(0.68 0.17 27);
+          --over-2: oklch(0.48 0.16 27);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --popover: oklch(0.24 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --secondary: oklch(0.27 0.008 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --destructive: oklch(0.65 0.19 27);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --input-bg: oklch(0.36 0.01 40 / 0.3);
+        --switch-thumb-on: var(--primary-foreground);
+        --switch-thumb-off: var(--foreground);
+        --protein: oklch(0.66 0.13 250);
+        --carbs: oklch(0.66 0.14 70);
+        --fat: oklch(0.62 0.15 320);
+        --good: oklch(0.72 0.13 155);
+        --over: oklch(0.68 0.17 27);
+        --over-2: oklch(0.48 0.16 27);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--foreground);
+        font:
+          16px/1.5 -apple-system,
+          system-ui,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+        padding: 24px 16px 80px;
+      }
+      .tab,
+      .screen {
+        font-variant-numeric: tabular-nums;
+      }
+      svg.i {
+        width: 16px;
+        height: 16px;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      /* ---------- document chrome (notes around the phones) ---------- */
+      .doc {
+        max-width: 1260px;
+        margin: 0 auto;
+      }
+      .doc > h1 {
+        font-size: 22px;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .doc h2 {
+        font-size: 18px;
+        margin: 48px 0 6px;
+        padding-top: 20px;
+        border-top: 2px solid var(--border);
+        scroll-margin-top: 16px;
+      }
+      p.note,
+      .doc ul.note,
+      .doc ol.note {
+        color: var(--muted-foreground);
+        font-size: 14px;
+        max-width: 860px;
+        margin: 0 0 12px;
+      }
+      .doc ul.note,
+      .doc ol.note {
+        padding-left: 20px;
+      }
+      .doc ul.note li,
+      .doc ol.note li {
+        margin: 4px 0;
+      }
+      .note b,
+      .note strong {
+        color: var(--foreground);
+      }
+      .q {
+        display: inline-block;
+        padding: 0 6px;
+        border-radius: 6px;
+        background: color-mix(in oklch, var(--primary) 14%, transparent);
+        color: var(--primary);
+        font-weight: 600;
+        font-size: 12px;
+        line-height: 20px;
+      }
+      .callout {
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--primary);
+        background: var(--card);
+        border-radius: 12px;
+        padding: 12px 16px;
+        max-width: 860px;
+        margin: 12px 0 16px;
+        font-size: 14px;
+      }
+      .callout h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+      .callout ol {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .callout li {
+        margin: 5px 0;
+      }
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        align-items: center;
+        margin: 14px 0 6px;
+        font-size: 14px;
+      }
+      .toolbar nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .toolbar a,
+      .theme button {
+        color: var(--foreground);
+        text-decoration: none;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 999px;
+        padding: 4px 12px;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .theme {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+      .theme button[aria-pressed='true'] {
+        background: var(--foreground);
+        color: var(--background);
+        border-color: var(--foreground);
+      }
+      .cmp-wrap {
+        overflow-x: auto;
+        max-width: 1100px;
+      }
+      table.cmp {
+        min-width: 640px;
+        border-collapse: collapse;
+        font-size: 13px;
+        margin: 8px 0 16px;
+        max-width: 1100px;
+        width: 100%;
+        background: var(--card);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      table.cmp th,
+      table.cmp td {
+        border: 1px solid var(--border);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      table.cmp th {
+        background: var(--muted);
+        font-weight: 600;
+      }
+      table.cmp td:first-child {
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      /* ---------- phones ---------- */
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px 32px;
+        align-items: flex-start;
+        margin-top: 8px;
+      }
+      figure.state {
+        width: 390px;
+        max-width: 100%;
+        margin: 0;
+      }
+      figure.state.narrow {
+        width: 300px;
+      }
+      .label {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 600;
+        margin: 0 0 8px;
+        min-height: 18px;
+      }
+      figcaption {
+        font-size: 13px;
+        color: var(--muted-foreground);
+        margin-top: 8px;
+      }
+      .screen {
+        position: relative;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 32px;
+        /* clip (not hidden): keeps position: sticky working for the footers */
+        overflow: clip;
+        box-shadow:
+          0 1px 2px rgb(0 0 0 / 0.06),
+          0 12px 32px -12px rgb(0 0 0 / 0.18);
+      }
+      .screen.before {
+        opacity: 0.72;
+        filter: saturate(0.6);
+      }
+      .hdr {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        height: 56px;
+        padding: 0 8px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+        background: color-mix(in oklch, var(--background) 85%, transparent);
+      }
+      .hdr .spacer {
+        width: 8px;
+      }
+      .hdr h1 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hdr h1 small {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .ibtn {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: inline-grid;
+        place-items: center;
+        color: var(--foreground);
+        background: none;
+        border: 0;
+        padding: 0;
+        position: relative;
+      }
+      .ibtn.hl {
+        background: var(--accent);
+      }
+      .hdr .ibtn svg.i,
+      .hdr .ibtn.lg svg.i {
+        width: 24px;
+        height: 24px;
+      }
+      .ibtn svg.i {
+        width: 16px;
+        height: 16px;
+      }
+      .ibtn.plus svg.i {
+        width: 20px;
+        height: 20px;
+      }
+      .ibtn.primary {
+        color: var(--primary);
+      }
+      .ibtn.danger {
+        color: var(--destructive);
+      }
+      .ibtn.disabled {
+        opacity: 0.4;
+      }
+      .ibtn .ring {
+        position: absolute;
+        inset: -3px;
+        border-radius: 14px;
+        border: 2px dashed var(--primary);
+      }
+      .chip-saved {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: color-mix(in oklch, var(--good) 16%, transparent);
+        color: var(--good);
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .chip-saved svg.i {
+        width: 14px;
+        height: 14px;
+        stroke-width: 2.5;
+      }
+      main.m {
+        padding: 16px 16px 8px;
+      }
+      .sub-date {
+        font-size: 14px;
+        color: var(--muted-foreground);
+        margin: 0 0 12px;
+      }
+      .sec {
+        margin-bottom: 16px;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+        overflow: clip;
+      }
+      .sec-t {
+        display: flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .sec-t .link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        min-width: 0;
+      }
+      .sec-t .link .k {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .sec-t .link svg.i {
+        color: var(--muted-foreground);
+      }
+      .sec-t .acts {
+        display: flex;
+        align-items: center;
+      }
+      .pad {
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+      .pad.g4 {
+        gap: 16px;
+      }
+      .px {
+        padding: 0 16px 12px;
+      }
+      .ghost {
+        border: 1px dashed var(--border);
+        border-radius: 16px;
+        color: var(--muted-foreground);
+        font-size: 13px;
+        padding: 12px 16px;
+        margin-bottom: 16px;
+        background: color-mix(in oklch, var(--card) 50%, transparent);
+      }
+      .hint {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        margin: 0;
+        line-height: 1.45;
+      }
+
+      /* form controls */
+      .fld {
+        display: grid;
+        gap: 6px;
+        align-content: start;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+      .input {
+        position: relative;
+        height: 44px;
+        border: 1px solid var(--input);
+        background: var(--input-bg);
+        border-radius: 12px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        font-size: 16px;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .input.ph {
+        color: var(--muted-foreground);
+      }
+      .input.focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 25%, transparent);
+      }
+      .input .unit {
+        position: absolute;
+        right: 12px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .input.select {
+        justify-content: space-between;
+        font-size: 14px;
+      }
+      .input.select svg.i {
+        opacity: 0.5;
+      }
+      .input.area {
+        height: 80px;
+        align-items: flex-start;
+        padding-top: 10px;
+        font-size: 14px;
+      }
+      input.real {
+        all: unset;
+        width: 100%;
+        font: inherit;
+        font-size: 16px;
+        color: var(--foreground);
+      }
+      .err {
+        font-size: 12px;
+        color: var(--destructive);
+        margin: 0;
+        min-height: 0;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        height: 40px;
+        padding: 0 16px;
+        border-radius: 12px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid transparent;
+        background: none;
+        color: var(--foreground);
+        white-space: nowrap;
+        cursor: default;
+      }
+      .btn.lg {
+        height: 48px;
+        border-radius: 14px;
+        font-size: 16px;
+        padding: 0 24px;
+      }
+      .btn.sm {
+        height: 32px;
+        padding: 0 12px;
+        gap: 6px;
+      }
+      .btn.block {
+        width: 100%;
+      }
+      .btn.primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.outline {
+        border-color: var(--border);
+        background: var(--background);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .btn.secondary {
+        background: var(--secondary);
+      }
+      .btn.ghost-b {
+        background: none;
+      }
+      .btn.disabled {
+        opacity: 0.5;
+      }
+      .btn.icon {
+        width: 40px;
+        padding: 0;
+      }
+      .btn.tall {
+        height: 80px;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .btn.tall svg.i {
+        width: 24px;
+        height: 24px;
+        color: var(--primary);
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .tg {
+        display: flex;
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .tg span {
+        flex: 1;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        font-weight: 500;
+        border: 1px solid var(--input);
+        margin-left: -1px;
+      }
+      .tg span:first-child {
+        margin-left: 0;
+        border-radius: 12px 0 0 12px;
+      }
+      .tg span:last-child {
+        border-radius: 0 12px 12px 0;
+      }
+      .tg span.on {
+        background: var(--accent);
+      }
+      .slider {
+        position: relative;
+        height: 16px;
+        display: flex;
+        align-items: center;
+      }
+      .slider .track {
+        position: relative;
+        flex: 1;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--muted);
+        overflow: hidden;
+      }
+      .slider .range {
+        position: absolute;
+        inset: 0 auto 0 0;
+        background: var(--primary);
+      }
+      .slider .thumb {
+        position: absolute;
+        top: 0;
+        width: 16px;
+        height: 16px;
+        margin-left: -8px;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid var(--primary);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+      }
+      .amt {
+        display: grid;
+        grid-template-columns: 1fr 7rem;
+        gap: 12px;
+        align-items: end;
+      }
+      .amt .slider {
+        margin-bottom: 14px;
+      }
+      .amt.wide {
+        grid-template-columns: 1fr 9.5rem;
+      }
+      .switch {
+        width: 32px;
+        height: 18.4px;
+        border-radius: 999px;
+        background: var(--input);
+        position: relative;
+        flex: none;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 1.2px;
+        left: 1.2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--switch-thumb-off);
+      }
+      .switch.on {
+        background: var(--primary);
+      }
+      .switch.on::after {
+        left: auto;
+        right: 1.2px;
+        background: var(--switch-thumb-on);
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+      }
+      .switch-row .t {
+        font-size: 15px;
+        font-weight: 500;
+      }
+      .switch-row .s {
+        display: block;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-weight: 400;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        background: var(--secondary);
+        margin-top: 4px;
+      }
+      .note-box {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+        font-size: 14px;
+        margin-bottom: 16px;
+      }
+      .kcalbox {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+      }
+      .kcalbox .top {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .kcalbox b {
+        white-space: nowrap;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--exercise);
+      }
+
+      /* sticky footer (FoodLogPage today) */
+      .foot {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 90%, transparent);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        padding: 12px 16px 14px;
+        display: grid;
+        gap: 8px;
+      }
+      .foot .hint {
+        text-align: center;
+      }
+      .home {
+        width: 134px;
+        height: 5px;
+        border-radius: 999px;
+        background: var(--foreground);
+        opacity: 0.85;
+        margin: 6px auto 0;
+      }
+      .home.alone {
+        margin: 4px auto 8px;
+      }
+
+      /* diary rows */
+      .rows {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .drow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .drow + .drow {
+        border-top: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
+      }
+      .drow .main {
+        flex: 1;
+        min-width: 0;
+      }
+      .drow .n {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .drow .d {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .drow .d svg.i {
+        width: 14px;
+        height: 14px;
+      }
+      .drow .sum {
+        text-align: right;
+      }
+      .drow .sum b {
+        display: block;
+        font-weight: 600;
+      }
+      .drow .sum small {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      .drow .kc {
+        font-weight: 600;
+      }
+      .thumb40 {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: var(--photo);
+        flex: none;
+      }
+      .photo43 {
+        aspect-ratio: 4 / 3;
+        width: 100%;
+        background: var(--photo);
+        position: relative;
+      }
+      .photo43::after {
+        /* a plate, so the gradient reads as a food photo */
+        content: '';
+        position: absolute;
+        left: 22%;
+        top: 18%;
+        width: 56%;
+        height: 64%;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at 46% 44%, oklch(0.62 0.16 35) 0 22%, transparent 23%),
+          radial-gradient(circle at 55% 55%, oklch(0.85 0.09 85) 0 36%, transparent 37%),
+          radial-gradient(circle, oklch(0.97 0.005 80) 0 64%, oklch(0.9 0.01 80) 65% 70%, transparent 71%);
+        opacity: 0.95;
+      }
+      .photo-acts {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        display: flex;
+        gap: 8px;
+        z-index: 1;
+      }
+      .photo-acts .btn {
+        height: 32px;
+        padding: 0 10px;
+        background: var(--secondary);
+        gap: 6px;
+      }
+      .photo-acts .btn.icon {
+        width: 32px;
+        padding: 0;
+      }
+      .empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 40px 24px;
+        text-align: center;
+      }
+      .empty > svg.i {
+        width: 40px;
+        height: 40px;
+        color: var(--muted-foreground);
+        stroke-width: 1.5;
+      }
+      .empty p {
+        margin: 0;
+        font-weight: 500;
+      }
+
+      /* dropdown sketch (before) */
+      .menu {
+        margin: 0 16px 12px auto;
+        width: 300px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--popover);
+        box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.25);
+        padding: 4px;
+        font-size: 14px;
+      }
+      .menu div {
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 8px;
+      }
+      .menu div em {
+        margin-left: auto;
+        font-style: normal;
+        font-size: 11px;
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .menu hr {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 4px -4px;
+      }
+      .menu .red {
+        color: var(--destructive);
+      }
+      .strike {
+        text-decoration: line-through;
+        text-decoration-color: var(--primary);
+      }
+
+      /* dialog */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        background: rgb(0 0 0 / 0.5);
+        z-index: 10;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0 16px;
+      }
+      .dialog {
+        width: 100%;
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px;
+        display: grid;
+        gap: 16px;
+        box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+        position: relative;
+      }
+      .dialog .x {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        opacity: 0.7;
+      }
+      .dialog .dh {
+        display: grid;
+        gap: 8px;
+        text-align: center;
+      }
+      .dialog .dh h3 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 600;
+      }
+      .dialog .dh p {
+        margin: 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .dialog .df {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .behind {
+        filter: blur(0.3px);
+      }
+      .skel {
+        border-radius: 16px;
+        background: var(--card);
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        margin-bottom: 16px;
+      }
+
+      /* nutrient breakdown (components/NutrientBreakdown.tsx) */
+      .nb .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .nb .head .t {
+        font-weight: 600;
+      }
+      .nb .kcal {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-size: 28px;
+        line-height: 1.25;
+        font-weight: 700;
+        padding: 2px 6px;
+        margin: -2px -6px;
+        border-radius: 8px;
+        background: color-mix(in oklch, var(--foreground) 6%, transparent);
+      }
+      .nb .kcal small {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .nb .kcal .tg-t {
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .nb .split {
+        display: flex;
+        height: 8px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: var(--muted);
+        margin: 10px 0 14px;
+      }
+      .nb .split i {
+        display: block;
+        height: 100%;
+      }
+      .nb ul,
+      ul.bars {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .l1 {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .l1 .name {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+        flex: none;
+      }
+      .l1 .v {
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        text-align: right;
+      }
+      .l1 .v b {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .l1 .v b.ov,
+      .ov-t,
+      .ov-t b {
+        color: var(--over) !important;
+      }
+      .nb .more {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 44px;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+      .p {
+        background: var(--protein);
+      }
+      .c {
+        background: var(--carbs);
+      }
+      .f {
+        background: var(--fat);
+      }
+
+      /* TargetBar: fill, excess (over), second excess (over-2), always from the left */
+      .tbar {
+        position: relative;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--muted);
+        overflow: hidden;
+        margin-top: 4px;
+      }
+      .tbar.h2 {
+        height: 8px;
+      }
+      .tbar.big {
+        height: 22px;
+        border-radius: 8px;
+      }
+      .tbar.big i {
+        border-radius: 8px;
+      }
+      .tbar i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 999px;
+      }
+      .tbar i.x1 {
+        background: var(--over);
+      }
+      .tbar i.x2 {
+        background: var(--over-2);
+      }
+      .mb3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 12px;
+        font-size: 12px;
+      }
+      .mb3 .lab {
+        font-weight: 500;
+      }
+      .mb3 .tbar {
+        margin-top: 4px;
+      }
+      .mb3 .s {
+        margin-top: 4px;
+        color: var(--muted-foreground);
+      }
+      .mb3 .s b {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .ladder {
+        display: grid;
+        grid-template-columns: 74px 1fr 120px;
+        gap: 10px 14px;
+        align-items: center;
+        font-size: 13px;
+      }
+      .ladder .pct {
+        font-weight: 600;
+      }
+      .ladder .txt {
+        color: var(--muted-foreground);
+        text-align: right;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        margin-top: 12px;
+      }
+      .legend i {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        display: inline-block;
+        vertical-align: -2px;
+        margin-right: 5px;
+      }
+
+      /* weight tape measure (section D) */
+      .bigval {
+        text-align: center;
+      }
+      .bigval output {
+        font-size: 36px;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+      .bigval span {
+        margin-left: 4px;
+        font-size: 18px;
+        color: var(--muted-foreground);
+      }
+      .valrow {
+        display: grid;
+        grid-template-columns: 40px 1fr 40px;
+        align-items: center;
+        gap: 12px;
+      }
+      .tape {
+        position: relative;
+        height: 68px;
+        border-radius: 12px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        outline: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .tape:focus-visible {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 25%, transparent);
+      }
+      .tape-scroll {
+        position: absolute;
+        inset: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        overscroll-behavior-x: contain;
+        z-index: 2;
+        cursor: grab;
+        touch-action: pan-x;
+      }
+      .tape-scroll::-webkit-scrollbar {
+        display: none;
+      }
+      .tape-scroll.grabbing {
+        cursor: grabbing;
+      }
+      .tape-spacer {
+        height: 100%;
+      }
+      .tape canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        pointer-events: none;
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+      }
+      .tape-pointer {
+        position: absolute;
+        left: 50%;
+        top: 0;
+        z-index: 3;
+        pointer-events: none;
+        width: 3px;
+        height: 40px;
+        margin-left: -1.5px;
+        border-radius: 0 0 2px 2px;
+        background: var(--primary);
+      }
+      .tape-pointer::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        margin-left: -7px;
+        border: 7px solid transparent;
+        border-top: 8px solid var(--primary);
+        border-bottom: 0;
+      }
+      .daterow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .daterow span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--muted-foreground);
+      }
+      .daterow .btn {
+        height: 32px;
+        padding: 0 12px;
+      }
+      .snapinfo {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-align: center;
+        margin: -6px 0 0;
+        min-height: 18px;
+      }
+
+      /* ---------- v2 additions ---------- */
+      .callout ul.plain {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .callout ul.plain li {
+        margin: 5px 0;
+      }
+      .callout + .callout {
+        margin-top: -4px;
+      }
+      .screen.full {
+        height: 844px;
+      }
+      .sbar {
+        height: 47px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 30px 0 40px;
+        font-size: 16px;
+        font-weight: 600;
+        background: color-mix(in oklch, var(--background) 85%, transparent);
+      }
+      .sbar .ind {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .sbar .ind i {
+        display: block;
+        background: var(--foreground);
+        border-radius: 2px;
+      }
+      .overlay.top {
+        padding-top: 59px;
+      }
+      /* iOS keyboard, drawn above the dialog overlay like the system does */
+      :root {
+        --kb-bg: oklch(0.85 0.006 260);
+        --kb-key: oklch(1 0 0);
+        --kb-key2: oklch(0.72 0.01 260);
+        --kb-ink: oklch(0.15 0 0);
+        --kb-acc: oklch(0.93 0.004 260);
+        --kb-blue: oklch(0.58 0.2 255);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --kb-bg: oklch(0.25 0.004 260);
+          --kb-key: oklch(0.47 0.004 260);
+          --kb-key2: oklch(0.34 0.004 260);
+          --kb-ink: oklch(0.98 0 0);
+          --kb-acc: oklch(0.29 0.004 260);
+          --kb-blue: oklch(0.68 0.17 255);
+        }
+      }
+      :root[data-theme='dark'] {
+        --kb-bg: oklch(0.25 0.004 260);
+        --kb-key: oklch(0.47 0.004 260);
+        --kb-key2: oklch(0.34 0.004 260);
+        --kb-ink: oklch(0.98 0 0);
+        --kb-acc: oklch(0.29 0.004 260);
+        --kb-blue: oklch(0.68 0.17 255);
+      }
+      .kbd {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 20;
+        background: var(--kb-bg);
+        color: var(--kb-ink);
+        font-family: -apple-system, system-ui, sans-serif;
+      }
+      .kb-acc {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        padding: 0 16px;
+        background: var(--kb-acc);
+        border-top: 1px solid color-mix(in oklch, var(--kb-ink) 12%, transparent);
+        color: var(--kb-blue);
+        font-size: 17px;
+      }
+      .kb-acc .done {
+        margin-left: auto;
+        font-weight: 600;
+      }
+      .kb-acc svg.i {
+        width: 20px;
+        height: 20px;
+        stroke-width: 2.4;
+      }
+      .kb-sugg {
+        height: 42px;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: center;
+        text-align: center;
+        font-size: 16px;
+      }
+      .kb-sugg span + span {
+        border-left: 1px solid color-mix(in oklch, var(--kb-ink) 18%, transparent);
+      }
+      .kb-rows {
+        padding: 6px 3px 0;
+        display: grid;
+        gap: 11px;
+      }
+      .kb-row {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+      }
+      .kb-row span {
+        flex: 0 0 calc((100% - 9 * 6px) / 10);
+        height: 42px;
+        border-radius: 5px;
+        background: var(--kb-key);
+        box-shadow: 0 1px 0 rgb(0 0 0 / 0.3);
+        display: grid;
+        place-items: center;
+        font-size: 22px;
+        line-height: 1;
+      }
+      .kb-row span.sp {
+        background: var(--kb-key2);
+        flex-basis: 42px;
+        font-size: 16px;
+      }
+      .kb-row span.wide {
+        flex: 1 1 auto;
+        font-size: 16px;
+      }
+      .kb-row span.ret {
+        flex: 0 0 88px;
+        background: var(--kb-key2);
+        font-size: 16px;
+      }
+      .kb-row.mid {
+        padding: 0 18px;
+      }
+      .kb-row.bottom span.sp {
+        flex-basis: 88px;
+      }
+      .kb-home {
+        height: 40px;
+        position: relative;
+      }
+      .kb-home::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        width: 134px;
+        height: 5px;
+        margin-left: -67px;
+        border-radius: 999px;
+        background: var(--kb-ink);
+      }
+      .kb-num {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px 6px;
+        padding: 6px 6px 0;
+      }
+      .kb-num span {
+        height: 46px;
+        border-radius: 5px;
+        background: var(--kb-key);
+        box-shadow: 0 1px 0 rgb(0 0 0 / 0.3);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 25px;
+        line-height: 1;
+      }
+      .kb-num span small {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        margin-top: 2px;
+      }
+      .kb-num span.flat {
+        background: none;
+        box-shadow: none;
+      }
+      .caret {
+        display: inline-block;
+        width: 2px;
+        height: 20px;
+        margin-left: 1px;
+        background: var(--primary);
+        vertical-align: -4px;
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .caret {
+          animation: none;
+        }
+      }
+      /* dialog whose body scrolls while the buttons stay above the keyboard */
+      .dialog.clamp {
+        padding: 0;
+        gap: 0;
+        overflow: hidden;
+      }
+      .dialog.clamp .dscroll {
+        position: relative;
+        overflow: hidden;
+      }
+      .dialog.clamp .dscroll .inner {
+        display: grid;
+        gap: 16px;
+        padding: 24px 24px 16px;
+      }
+      .dialog.clamp .dscroll::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 auto;
+        height: 28px;
+        z-index: 1;
+        background: linear-gradient(var(--background), transparent);
+      }
+      .dialog.clamp .df {
+        padding: 12px 24px 20px;
+        border-top: 1px solid var(--border);
+      }
+      .scrollbar {
+        position: absolute;
+        right: 3px;
+        width: 3px;
+        border-radius: 3px;
+        background: color-mix(in oklch, var(--foreground) 35%, transparent);
+        z-index: 2;
+      }
+      /* swipe to delete (components/SwipeToDelete.tsx) */
+      .swipe {
+        position: relative;
+        overflow: hidden;
+      }
+      .swipe .under {
+        position: absolute;
+        inset: 0;
+        background: var(--destructive);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 5px;
+        padding-right: 12px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .swipe .drow {
+        position: relative;
+        background: var(--card);
+        transform: translateX(-104px);
+        box-shadow: 1px 0 0 var(--border);
+      }
+      .drow + .swipe,
+      .swipe + .drow {
+        border-top: 1px solid color-mix(in oklch, var(--border) 50%, transparent);
+      }
+      .tlink {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 44px;
+        padding: 0 16px;
+        color: var(--primary);
+        font-size: 14px;
+        font-weight: 500;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .tlink svg.i {
+        width: 14px;
+        height: 14px;
+      }
+      .tbar i.n {
+        background: color-mix(in oklch, var(--foreground) 40%, transparent);
+      }
+      .tbar i.good {
+        background: var(--good);
+      }
+      /* "Mehr" rows */
+      .mrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .mrow + .mrow {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .mrow > svg.i:first-child {
+        width: 20px;
+        height: 20px;
+        color: var(--muted-foreground);
+      }
+      .mrow .main {
+        flex: 1;
+        min-width: 0;
+      }
+      .mrow .main div:first-child {
+        font-weight: 500;
+      }
+      .mrow .main div + div {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .mrow > svg.i:last-child {
+        color: var(--muted-foreground);
+      }
+      .mrow.new {
+        background: color-mix(in oklch, var(--primary) 8%, transparent);
+      }
+      .newtag {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 0 6px;
+        border-radius: 6px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 18px;
+        vertical-align: 1px;
+      }
+      .tabbar {
+        position: sticky;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        height: 82px;
+        padding-top: 6px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 90%, transparent);
+        font-size: 10px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .tabbar span {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+      }
+      .tabbar svg.i {
+        width: 24px;
+        height: 24px;
+      }
+      .tabbar .on {
+        color: var(--primary);
+      }
+      .picked {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 48px;
+        padding: 0 12px;
+        border: 1px solid var(--input);
+        border-radius: 12px;
+      }
+      .picked .main {
+        flex: 1;
+      }
+      .picked .main small {
+        display: block;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .tape[data-static] .tape-scroll {
+        pointer-events: none;
+      }
+      .toast {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        margin-bottom: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 8px 24px -10px rgb(0 0 0 / 0.3);
+        font-size: 14px;
+      }
+      .toast b {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: var(--foreground);
+        color: var(--background);
+      }
+
+      /* ---------- v3 additions ---------- */
+      .ticks {
+        position: relative;
+        height: 16px;
+        margin: -2px 8px 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .ticks span {
+        position: absolute;
+        transform: translateX(-50%);
+      }
+      input.range {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 16px;
+        margin: 0;
+        background: transparent;
+        --fill: 33.33%;
+      }
+      input.range::-webkit-slider-runnable-track {
+        height: 6px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--primary) var(--fill), var(--muted) var(--fill));
+      }
+      input.range::-moz-range-track {
+        height: 6px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--primary) var(--fill), var(--muted) var(--fill));
+      }
+      input.range::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 16px;
+        height: 16px;
+        margin-top: -5px;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid var(--primary);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+      }
+      input.range::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid var(--primary);
+      }
+      input.range:focus-visible {
+        outline: none;
+      }
+      input.range:focus-visible::-webkit-slider-thumb {
+        box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 30%, transparent);
+      }
+      /* add sheet (components/AddSheet.tsx, vaul drawer) */
+      .sheet-stage {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.5)),
+          repeating-linear-gradient(180deg, var(--background) 0 110px, var(--card) 110px 220px);
+        display: flex;
+        align-items: flex-end;
+      }
+      .sheet {
+        width: 100%;
+        background: var(--background);
+        border-radius: 14px 14px 0 0;
+        border-top: 1px solid var(--border);
+        padding-bottom: 34px;
+      }
+      .grab {
+        width: 100px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--muted);
+        margin: 16px auto 0;
+      }
+      .sheet-h {
+        display: grid;
+        gap: 2px;
+        text-align: center;
+        padding: 16px;
+      }
+      .sheet-h b {
+        font-weight: 600;
+      }
+      .sheet-h span {
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .tiles3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        padding: 0 16px;
+      }
+      .tile {
+        aspect-ratio: 1;
+        border-radius: 16px;
+        background: var(--secondary);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 8px;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.2;
+      }
+      .tile > svg.i,
+      .tile .combo {
+        width: 28px;
+        height: 28px;
+        color: var(--primary);
+      }
+      .tile.primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+      }
+      .tile.primary > svg.i,
+      .tile.primary .combo {
+        color: var(--primary-foreground);
+      }
+      .combo {
+        position: relative;
+        display: inline-grid;
+        place-items: center;
+      }
+      .combo svg.i {
+        width: 100%;
+        height: 100%;
+        stroke-width: 1.75;
+      }
+      .combo svg.i.in {
+        position: absolute;
+        width: 52%;
+        height: 52%;
+        stroke-width: 2.25;
+      }
+      .ibtn.search-hl {
+        box-shadow: 0 0 0 2px var(--primary);
+      }
+      .viewfinder {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 16px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 50% 45%, oklch(0.55 0.08 60 / 0.9), transparent 60%),
+          linear-gradient(160deg, oklch(0.32 0.03 60), oklch(0.16 0.01 40));
+      }
+      .vf-corner {
+        position: absolute;
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgb(255 255 255 / 0.9);
+      }
+      .vf-corner.tl {
+        top: 14%;
+        left: 12%;
+        border-right: 0;
+        border-bottom: 0;
+        border-radius: 10px 0 0 0;
+      }
+      .vf-corner.tr {
+        top: 14%;
+        right: 12%;
+        border-left: 0;
+        border-bottom: 0;
+        border-radius: 0 10px 0 0;
+      }
+      .vf-corner.bl {
+        bottom: 26%;
+        left: 12%;
+        border-right: 0;
+        border-top: 0;
+        border-radius: 0 0 0 10px;
+      }
+      .vf-corner.br {
+        bottom: 26%;
+        right: 12%;
+        border-left: 0;
+        border-top: 0;
+        border-radius: 0 0 10px 0;
+      }
+      .vf-bar {
+        position: absolute;
+        inset: auto 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 20px 16px;
+      }
+      .vf-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgb(0 0 0 / 0.55);
+        color: #fff;
+        display: grid;
+        place-items: center;
+      }
+      .vf-btn svg.i {
+        width: 24px;
+        height: 24px;
+      }
+      .shutter {
+        width: 72px;
+        height: 72px;
+        border-radius: 999px;
+        border: 4px solid rgb(255 255 255 / 0.9);
+        background: rgb(255 255 255 / 0.2);
+        display: grid;
+        place-items: center;
+      }
+      .shutter span {
+        width: 56px;
+        height: 56px;
+        border-radius: 999px;
+        background: #fff;
+      }
+      .iconideas {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px 16px;
+      }
+      .iconideas .tile {
+        width: 128px;
+        margin: 0 auto;
+      }
+      .iconideas .tile > svg.i,
+      .iconideas .tile .combo {
+        width: 40px;
+        height: 40px;
+      }
+      .iconideas p {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        line-height: 1.4;
+      }
+      .iconideas p b {
+        color: var(--foreground);
+      }
+      .arrow-note {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 6px 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--primary);
+      }
+      ol.scope li {
+        margin: 6px 0;
+      }
+      .preview34 {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 16px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 46% 50%, oklch(0.62 0.16 35) 0 13%, transparent 14%),
+          radial-gradient(circle at 54% 56%, oklch(0.85 0.09 85) 0 22%, transparent 23%),
+          radial-gradient(
+            circle at 50% 54%,
+            oklch(0.97 0.005 80) 0 36%,
+            oklch(0.88 0.01 80) 37% 39%,
+            transparent 40%
+          ),
+          var(--photo);
+      }
+      .foot.kbfoot {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 100%;
+      }
+      .tile.chosen {
+        box-shadow:
+          0 0 0 3px var(--background),
+          0 0 0 6px var(--primary);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- lucide icons (ISC), same glyphs as in the app -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6" /></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6" /></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M5 12h14" />
+        <path d="M12 5v14" />
+      </symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+      <symbol id="i-ellipsis" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="1" />
+        <circle cx="12" cy="5" r="1" />
+        <circle cx="12" cy="19" r="1" />
+      </symbol>
+      <symbol id="i-save" viewBox="0 0 24 24">
+        <path
+          d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+        />
+        <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+        <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+      </symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18" />
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+        <line x1="10" x2="10" y1="11" y2="17" />
+        <line x1="14" x2="14" y1="11" y2="17" />
+      </symbol>
+      <symbol id="i-camera" viewBox="0 0 24 24">
+        <path
+          d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+        />
+        <circle cx="12" cy="13" r="3" />
+      </symbol>
+      <symbol id="i-image-plus" viewBox="0 0 24 24">
+        <path d="M16 5h6" />
+        <path d="M19 2v6" />
+        <path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5" />
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+        <circle cx="9" cy="9" r="2" />
+      </symbol>
+      <symbol id="i-list-plus" viewBox="0 0 24 24">
+        <path d="M11 12H3" />
+        <path d="M16 6H3" />
+        <path d="M16 18H3" />
+        <path d="M18 9v6" />
+        <path d="M21 12h-6" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      </symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24">
+        <path d="M8 2v4" />
+        <path d="M16 2v4" />
+        <rect width="18" height="18" x="3" y="4" rx="2" />
+        <path d="M3 10h18" />
+      </symbol>
+      <symbol id="i-utensils" viewBox="0 0 24 24">
+        <path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8" />
+        <path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7" />
+        <path d="m2.1 21.8 6.4-6.3" />
+        <path d="m19 5-7 7" />
+      </symbol>
+      <symbol id="i-bookmark-plus" viewBox="0 0 24 24">
+        <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+        <line x1="12" x2="12" y1="7" y2="13" />
+        <line x1="15" x2="9" y1="10" y2="10" />
+      </symbol>
+      <symbol id="i-dumbbell" viewBox="0 0 24 24">
+        <path
+          d="M17.596 12.768a2 2 0 1 0 2.829-2.829l-1.768-1.767a2 2 0 0 0 2.828-2.829l-2.828-2.828a2 2 0 0 0-2.829 2.828l-1.767-1.768a2 2 0 1 0-2.829 2.829z"
+        />
+        <path d="m2.5 21.5 1.4-1.4" />
+        <path d="m20.1 3.9 1.4-1.4" />
+        <path
+          d="M5.343 21.485a2 2 0 1 0 2.829-2.828l1.767 1.768a2 2 0 1 0 2.829-2.829l-6.364-6.364a2 2 0 1 0-2.829 2.829l1.768 1.767a2 2 0 0 0-2.828 2.829z"
+        />
+        <path d="m9.6 14.4 4.8-4.8" />
+      </symbol>
+      <symbol id="i-salad" viewBox="0 0 24 24">
+        <path d="M7 21h10" />
+        <path d="M12 21a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9Z" />
+        <path
+          d="M11.38 12a2.4 2.4 0 0 1-.4-4.77 2.4 2.4 0 0 1 3.2-2.77 2.4 2.4 0 0 1 3.47-.63 2.4 2.4 0 0 1 3.37 3.37 2.4 2.4 0 0 1-1.1 3.7 2.51 2.51 0 0 1 .03 1.1"
+        />
+        <path d="m13 12 4-4" />
+        <path d="M10.9 7.25A3.99 3.99 0 0 0 4 10c0 .73.2 1.41.54 2" />
+      </symbol>
+      <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6" /></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24">
+        <path d="M12 7v14" />
+        <path
+          d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
+        />
+      </symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24">
+        <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+        <path d="m19 9-5 5-4-4-3 3" />
+      </symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24">
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+        <path d="M4 6h16" />
+      </symbol>
+      <symbol id="i-delete" viewBox="0 0 24 24">
+        <path
+          d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"
+        />
+        <path d="m12 9 6 6" />
+        <path d="m18 9-6 6" />
+      </symbol>
+      <symbol id="i-scan" viewBox="0 0 24 24">
+        <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+        <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+        <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+        <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      </symbol>
+      <symbol id="i-scale" viewBox="0 0 24 24">
+        <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+        <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+        <path d="M7 21h10" />
+        <path d="M12 3v18" />
+        <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+      </symbol>
+      <symbol id="i-images" viewBox="0 0 24 24">
+        <path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16" />
+        <path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2" />
+        <circle cx="13" cy="7" r="1" />
+        <rect x="8" y="2" width="14" height="14" rx="2" />
+      </symbol>
+      <symbol id="i-utensils2" viewBox="0 0 24 24">
+        <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" />
+        <path d="M7 2v20" />
+        <path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />
+      </symbol>
+      <symbol id="i-apple" viewBox="0 0 24 24">
+        <path
+          d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.5a4.5 4.5 0 0 0-4.5-4.5c-1.8 0-2.8 1-4.5 1-1.7 0-2.7-1-4.5-1A4.5 4.5 0 0 0 2 9.5C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"
+        />
+        <path d="M10 2c1 .5 2 2 2 5" />
+      </symbol>
+      <symbol id="i-beef" viewBox="0 0 24 24">
+        <circle cx="12.5" cy="8.5" r="2.5" />
+        <path
+          d="M12.5 2a6.5 6.5 0 0 0-6.22 4.6c-1.1 3.13-.78 3.9-3.18 6.08A3 3 0 0 0 5 18c4 0 8.4-1.8 11.4-4.3A6.5 6.5 0 0 0 12.5 2Z"
+        />
+        <path
+          d="m18.5 6 2.19 4.5a6.48 6.48 0 0 1 .31 2 6.49 6.49 0 0 1-2.6 5.2C15.4 20.2 11 22 7 22a3 3 0 0 1-2.68-1.66L2.4 16.5"
+        />
+      </symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24">
+        <path
+          d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"
+        />
+        <path d="M20 3v4" />
+        <path d="M22 5h-4" />
+        <path d="M4 17v2" />
+        <path d="M5 18H3" />
+      </symbol>
+      <symbol id="i-rotate" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+        <path d="M3 3v5h5" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </symbol>
+    </svg>
+
+    <div class="doc">
+      <h1>Feedback-Runde 4, Mockups v4</h1>
+      <p class="note">
+        Ein Mockup je sichtbarer Änderung aus deinem Feedback nach Runde 3. Die Telefone sind 390 px breit
+        (iPhone), Farben, Abstände und Schrift folgen den echten Tokens der App. Oben rechts lässt sich
+        zwischen Hell und Dunkel umschalten (Standard: wie dein System). Abschnitt D ist bedienbar: Maßband
+        ziehen oder wischen.
+      </p>
+      <p class="note">
+        Beispielwerte: Tagesziel 1.700 kcal, Protein 130 g, Kohlenhydrate 170 g, Fett 55 g. Beispiel-Meal
+        „Spaghetti Bolognese“ mit 620 kcal (5 Zutaten). Gewicht zuletzt 84,50 kg. Beispiel-Training „Joggen“,
+        60 Min., mittel.
+      </p>
+      <p class="note">
+        <b>Punkt 1 (aufgeklapptes Meal ist nach Zurück wieder zu)</b> braucht kein Mockup: Das ist ein
+        Zustandsfehler (der Aufklapp-Zustand lebt nur in der Zeile und geht beim Seitenwechsel verloren). Er
+        wird im Implementierungsplan behoben, sichtbar ändert sich nur, dass die Gruppe offen bleibt.
+      </p>
+      <p class="note">
+        <b>Neu gegenüber v3:</b> (1) G5: Ein Foto wird nicht mehr sofort analysiert. Nach Auslöser oder
+        Mediathek erscheint eine Vorschau mit dem Hinweisfeld, erst „Analysieren“ schickt es los. Dafür
+        verschwindet das Hinweisfeld unter der Kamera (G2). (2) Icon a ist gesetzt (G1, G3), das „+“ an
+        Mahlzeiten öffnet direkt die Essen-Seite (G4). (3) Keine offenen Fragen mehr; Umfangsliste ergänzt.
+      </p>
+
+      <div class="toolbar">
+        <nav aria-label="Abschnitte">
+          <a href="#a">A. Mahlzeit-Seite</a>
+          <a href="#b">B. Meal-Editor</a>
+          <a href="#c">C. Überschuss</a>
+          <a href="#d">D. Maßband</a>
+          <a href="#e">E. Speichern-UI</a>
+          <a href="#f">F. Gespeicherte Trainings</a>
+          <a href="#g">G. Hinzufügen-Menü</a>
+          <a href="#umfang">Zusätzlicher Umfang</a>
+        </nav>
+        <div class="theme" role="group" aria-label="Darstellung">
+          Darstellung:
+          <button type="button" data-set-theme="system" aria-pressed="true">System</button>
+          <button type="button" data-set-theme="light" aria-pressed="false">Hell</button>
+          <button type="button" data-set-theme="dark" aria-pressed="false">Dunkel</button>
+        </div>
+      </div>
+
+      <div class="callout">
+        <h3>Entschieden (deine Antworten zu v1 und v2)</h3>
+        <ul class="plain">
+          <li>
+            <b>Speichern-UI:</b> Variante 1 (Footer + Header-Icon). Review-Hauptbutton heißt „Meal eintragen“.
+          </li>
+          <li><b>Meal-Editor:</b> Nachfrage bei ungespeicherten Änderungen: ja.</li>
+          <li><b>Modus aus Suche / aus Mehr:</b> ja, und Link „Meal bearbeiten“ im Eintragen-Modus: ja.</li>
+          <li><b>„Änderungen übernehmen“</b> statt „Änderungen speichern“ beim Bearbeiten: ja (überall).</li>
+          <li><b>Mikros mit Höchstwert</b> bekommen die zweite Rotstufe auch: ja.</li>
+          <li>
+            <b>Neu:</b> Gespeicherte Trainings bekommen unter Mehr (bei „Eigene Lebensmittel“ und
+            „Gespeicherte Meals“) einen eigenen Eintrag, in dem sie bearbeitet werden können.
+          </li>
+          <li>
+            <b>B2:</b> Wischen entfernt eine Zutat nur für diesen Eintrag. Menge als Slider 0,5× bis 2×,
+            Standard 1×.
+          </li>
+          <li><b>Begriff:</b> „Vorlage“ heißt überall „gespeichertes Training“.</li>
+          <li><b>Papierkorb</b> auch für gespeicherte Trainings: ja.</li>
+          <li><b>Eigene Sportarten</b> bekommen keine eigene Verwaltung.</li>
+          <li>
+            <b>Neu:</b> Im Hinzufügen-Menü gehen Foto/Scan und Suche zusammen (Lupe oben rechts), dritte
+            Kachel wird „Training eintragen“.
+          </li>
+          <li><b>Icon „Essen eintragen“:</b> a) Scan-Rahmen mit Besteck.</li>
+          <li><b>„+“ an einer Mahlzeit</b> öffnet direkt die Essen-Seite für diese Mahlzeit, ohne Menü.</li>
+          <li>
+            <b>Foto erst nach „Analysieren“</b> an die KI, damit vorher ein Hinweis dazugeschrieben werden
+            kann (G5).
+          </li>
+        </ul>
+      </div>
+
+      <div class="callout">
+        <h3>Offene Fragen</h3>
+        <p style="margin: 0">Keine. Wenn v4 passt, schreibe ich den Implementierungsplan.</p>
+      </div>
+      <!-- ============================================================ -->
+      <h2 id="a">A. Tagebuch: Mahlzeitenkarte und Mahlzeit-Seite (Feedback 2)</h2>
+      <p class="note">
+        Das ⋮-Menü an jeder Mahlzeit fällt weg. Die Karte hat nur noch das <b>+</b>. „Als Meal speichern“
+        wandert als <b>Speichern-Icon</b> in den Kopf der Mahlzeit-Seite (Tipp auf „Mittagessen 698 kcal ›“).
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">A0. Vorher (zum Vergleich)</div>
+          <div class="screen before tab">
+            <main class="m" style="padding-bottom: 4px">
+              <section class="sec" style="margin-bottom: 8px">
+                <div class="sec-t">
+                  <span class="link"
+                    >Mittagessen <span class="k">698 kcal</span
+                    ><svg class="i"><use href="#i-chevron-right" /></svg
+                  ></span>
+                  <span class="acts">
+                    <span class="ibtn hl"
+                      ><svg class="i"><use href="#i-ellipsis" /></svg
+                    ></span>
+                    <span class="ibtn primary plus"
+                      ><svg class="i"><use href="#i-plus" /></svg
+                    ></span>
+                  </span>
+                </div>
+                <div class="menu">
+                  <div class="strike">
+                    <svg class="i"><use href="#i-copy" /></svg> Von anderem Tag kopieren<em>entfällt</em>
+                  </div>
+                  <div>
+                    <svg class="i"><use href="#i-list-plus" /></svg> Gespeichertes Meal eintragen<em
+                      >Suche</em
+                    >
+                  </div>
+                  <div>
+                    <svg class="i"><use href="#i-save" /></svg> Als Meal speichern<em>A2</em>
+                  </div>
+                  <hr />
+                  <div class="red">
+                    <svg class="i"><use href="#i-trash" /></svg> Alle Einträge löschen<em>Wischen</em>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+          <figcaption>
+            Rechts in Rot: wo die Aktion künftig liegt. Nur „Von anderem Tag kopieren“ entfällt ersatzlos
+            (samt Seite /copy-meal).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">A1. Karte im Tagebuch, neu</div>
+          <div class="screen tab">
+            <main class="m" style="padding-bottom: 0">
+              <section class="sec">
+                <div class="sec-t">
+                  <span class="link"
+                    >Mittagessen <span class="k">698 kcal</span
+                    ><svg class="i"><use href="#i-chevron-right" /></svg
+                  ></span>
+                  <span class="acts">
+                    <span class="ibtn primary plus" aria-label="Zu Mittagessen hinzufügen"
+                      ><svg class="i"><use href="#i-plus" /></svg
+                    ></span>
+                  </span>
+                </div>
+                <div class="rows">
+                  <div class="drow">
+                    <span class="thumb40"></span>
+                    <div class="main">
+                      <div class="n">Spaghetti Bolognese</div>
+                      <div class="d">
+                        5 Zutaten <svg class="i"><use href="#i-chevron-down" /></svg>
+                      </div>
+                    </div>
+                    <div class="sum"><b>620</b><small>P 36 · K 73 · F 20</small></div>
+                  </div>
+                  <div class="drow">
+                    <div class="main">
+                      <div class="n">Apfel</div>
+                      <div class="d">1 Stück (150 g)</div>
+                    </div>
+                    <div class="sum"><b>78</b><small>P 0 · K 17 · F 0</small></div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+          <figcaption>
+            Kopfzeile wie heute (Tipp öffnet A2), rechts nur noch <b>+</b>. Zeilen, Wischen und Ziehen
+            bleiben.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">A2. Mahlzeit-Seite /diary-meal</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Mittagessen <small>Heute</small></h1>
+              <span class="ibtn" aria-label="Als Meal speichern"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+              <span class="ibtn primary" aria-label="Zu Mittagessen hinzufügen"
+                ><svg class="i"><use href="#i-plus" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <section class="sec">
+                <div class="nb pad" style="display: block; padding-bottom: 6px">
+                  <div class="head">
+                    <span class="t">Summe</span><span class="kcal">698<small>kcal</small></span>
+                  </div>
+                  <div class="split">
+                    <i class="p" style="width: 21%"></i><i class="c" style="width: 53%"></i
+                    ><i class="f" style="width: 26%"></i>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot p"></i>Protein</span
+                        ><span class="v"><b>36 g</b> · 21 % · 144 kcal</span>
+                      </div>
+                      <div class="tbar"><i class="p" style="width: 21%"></i></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+                        ><span class="v"><b>90 g</b> · 53 % · 360 kcal</span>
+                      </div>
+                      <div class="tbar"><i class="c" style="width: 53%"></i></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot f"></i>Fett</span
+                        ><span class="v"><b>20 g</b> · 26 % · 180 kcal</span>
+                      </div>
+                      <div class="tbar"><i class="f" style="width: 26%"></i></div>
+                    </li>
+                  </ul>
+                  <div class="more">
+                    <span>Weitere Nährstoffe</span><svg class="i"><use href="#i-chevron-down" /></svg>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-t">Einträge</div>
+                <div class="rows">
+                  <div class="drow">
+                    <span class="thumb40"></span>
+                    <div class="main">
+                      <div class="n">Spaghetti Bolognese</div>
+                      <div class="d">
+                        5 Zutaten <svg class="i"><use href="#i-chevron-down" /></svg>
+                      </div>
+                    </div>
+                    <div class="sum"><b>620</b><small>P 36 · K 73 · F 20</small></div>
+                  </div>
+                  <div class="drow">
+                    <div class="main">
+                      <div class="n">Apfel</div>
+                      <div class="d">1 Stück (150 g)</div>
+                    </div>
+                    <div class="sum"><b>78</b><small>P 0 · K 17 · F 0</small></div>
+                  </div>
+                </div>
+              </section>
+            </main>
+          </div>
+          <figcaption>
+            Neu im Kopf: <b>Speichern-Icon</b> („Als Meal speichern“, gleiche Farbe wie Zurück) links vom
+            roten <b>+</b>. Tipp öffnet A3. Inhalt unverändert.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">A2b. Leere Mahlzeit: Speichern deaktiviert</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Abendessen <small>Heute</small></h1>
+              <span class="ibtn disabled" aria-disabled="true" aria-label="Als Meal speichern"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+              <span class="ibtn primary"
+                ><svg class="i"><use href="#i-plus" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <section class="sec">
+                <div class="nb pad" style="display: block; padding-bottom: 6px">
+                  <div class="head">
+                    <span class="t">Summe</span><span class="kcal">0<small>kcal</small></span>
+                  </div>
+                  <div class="split"></div>
+                  <ul>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot p"></i>Protein</span
+                        ><span class="v"><b>0 g</b> · 0 % · 0 kcal</span>
+                      </div>
+                      <div class="tbar"></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+                        ><span class="v"><b>0 g</b> · 0 % · 0 kcal</span>
+                      </div>
+                      <div class="tbar"></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot f"></i>Fett</span
+                        ><span class="v"><b>0 g</b> · 0 % · 0 kcal</span>
+                      </div>
+                      <div class="tbar"></div>
+                    </li>
+                  </ul>
+                  <div class="more">
+                    <span>Weitere Nährstoffe</span><svg class="i"><use href="#i-chevron-down" /></svg>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-t">Einträge</div>
+                <div class="empty">
+                  <svg class="i"><use href="#i-utensils" /></svg>
+                  <p>Noch nichts eingetragen</p>
+                  <span class="btn outline" style="margin-top: 8px"
+                    ><svg class="i"><use href="#i-plus" /></svg> Lebensmittel hinzufügen</span
+                  >
+                </div>
+              </section>
+            </main>
+          </div>
+          <figcaption>Ohne Einträge ist das Icon ausgegraut (40 % Deckkraft) und nicht tippbar.</figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">A3. „Als Meal speichern“, Tastatur offen</div>
+          <div class="screen tab full">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="ibtn lg"
+                  ><svg class="i"><use href="#i-chevron-left" /></svg
+                ></span>
+                <h1>Mittagessen <small>Heute</small></h1>
+                <span class="ibtn"
+                  ><svg class="i"><use href="#i-save" /></svg
+                ></span>
+                <span class="ibtn primary"
+                  ><svg class="i"><use href="#i-plus" /></svg
+                ></span>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 250px"></div>
+                <div class="skel" style="height: 180px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog">
+                <span class="x"
+                  ><svg class="i"><use href="#i-x" /></svg
+                ></span>
+                <div class="dh">
+                  <h3>Als Meal speichern</h3>
+                  <p>6 Einträge werden als wiederverwendbares Meal gespeichert.</p>
+                </div>
+                <div class="fld">
+                  <span class="lbl">Name</span>
+                  <div class="input focus">Mittagessen 8.10.2026<span class="caret"></span></div>
+                </div>
+                <div class="df">
+                  <span class="btn outline">Abbrechen</span>
+                  <span class="btn primary">Meal speichern</span>
+                </div>
+              </div>
+            </div>
+            <div class="kbd" aria-hidden="true">
+              <div class="kb-acc">
+                <svg class="i"><use href="#i-chevron-up" /></svg
+                ><svg class="i"><use href="#i-chevron-down" /></svg><span class="done">Fertig</span>
+              </div>
+              <div class="kb-sugg"><span>„Mittagessen“</span><span>Mittag</span><span>Mittags</span></div>
+              <div class="kb-rows">
+                <div class="kb-row">
+                  <span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>z</span
+                  ><span>u</span><span>i</span><span>o</span><span>p</span>
+                </div>
+                <div class="kb-row mid">
+                  <span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span
+                  ><span>j</span><span>k</span><span>l</span>
+                </div>
+                <div class="kb-row">
+                  <span class="sp">⇧</span><span>y</span><span>x</span><span>c</span><span>v</span
+                  ><span>b</span><span>n</span><span>m</span
+                  ><span class="sp"
+                    ><svg class="i" style="width: 22px; height: 22px"><use href="#i-delete" /></svg
+                  ></span>
+                </div>
+                <div class="kb-row bottom">
+                  <span class="sp">123</span><span class="wide">Leerzeichen</span
+                  ><span class="ret">Return</span>
+                </div>
+              </div>
+              <div class="kb-home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Der Dialog sitzt <b>oben</b> (12 px unter der Statusleiste) statt in der Mitte. Buttons liegen
+            frei über der Tastatur und sind direkt tippbar. Tippen auf „Meal speichern“ speichert sofort, ohne
+            dass vorher die Tastatur zugehen muss. „Fertig“ auf der Tastatur schließt nur die Tastatur.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Gespeichertes Meal eintragen:</b> über <b>+</b> → Lebensmittel suchen → Reiter „Eigene“
+          (Abschnitt „Meals“). Das ist heute schon der zweite Weg; das ⋮-Menü führte zur Meal-Liste.
+        </li>
+        <li>
+          <b>Alle Einträge löschen:</b> entfällt als Sammelaktion; jede Zeile lässt sich wischen (mit
+          Rückgängig).
+        </li>
+        <li>
+          <b>Von anderem Tag kopieren:</b> entfällt ersatzlos, die Seite /copy-meal wird gelöscht. Wer eine
+          Mahlzeit wiederholen will, speichert sie als Meal (A2).
+        </li>
+        <li>
+          <b>Dialoge oben, für die ganze App:</b> Heute stehen Dialoge mittig. Geht auf dem iPhone die
+          Tastatur auf, verdeckt sie die untere Hälfte, und weil der Dialog beim Schließen der Tastatur wieder
+          nach unten rutscht, trifft der erste Tipp oft daneben. Neu sitzen alle Dialoge oben und bewegen sich
+          nicht. Ist ein Dialog höher als der Platz über der Tastatur, scrollt sein Inhalt und die Buttons
+          bleiben unten im Dialog stehen (D1b). Gilt für alle Dialoge: Meal, Training, Gewicht, eigene
+          Sportart, neue Portion.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="b">B. Meal-Editor unter „Gespeicherte Meals“ (Feedback 3)</h2>
+      <p class="note">
+        Vorbild ist der Analyse-Review: je Zutat eine Karte mit Gramm-Slider und Zahlenfeld, darunter
+        Gesamtmenge und Summe. Im Editor wird <b>nicht eingetragen, nur gespeichert</b>. Der Analyse-Review
+        selbst bleibt wie er ist (Eintragen direkt nach dem Scan).
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">B1. Editor (Mehr → Gespeicherte Meals → Meal)</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Spaghetti Bolognese</h1>
+              <span class="ibtn danger" aria-label="Meal löschen"
+                ><svg class="i"><use href="#i-trash" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <section class="sec">
+                <div class="photo43">
+                  <div class="photo-acts">
+                    <span class="btn"
+                      ><svg class="i"><use href="#i-image-plus" /></svg> Ändern</span
+                    >
+                    <span class="btn icon"
+                      ><svg class="i"><use href="#i-x" /></svg
+                    ></span>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad">
+                  <div class="fld">
+                    <span class="lbl">Name</span>
+                    <div class="input">Spaghetti Bolognese</div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="sec">
+                <div class="pad">
+                  <div class="l1" style="font-size: 16px; align-items: center">
+                    <span style="font-weight: 600">Spaghetti, gekocht</span>
+                    <span style="display: flex; align-items: center; gap: 4px"
+                      ><b style="font-weight: 600">316 kcal</b
+                      ><span class="ibtn"
+                        ><svg class="i"><use href="#i-trash" /></svg></span
+                    ></span>
+                  </div>
+                  <div class="amt">
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 50%"></div></div>
+                      <div class="thumb" style="left: 50%"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Gramm</span>
+                      <div class="input">200<span class="unit">g</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad">
+                  <div class="l1" style="font-size: 16px; align-items: center">
+                    <span style="font-weight: 600">Rinderhackfleisch</span>
+                    <span style="display: flex; align-items: center; gap: 4px"
+                      ><b style="font-weight: 600">172 kcal</b
+                      ><span class="ibtn"
+                        ><svg class="i"><use href="#i-trash" /></svg></span
+                    ></span>
+                  </div>
+                  <div class="amt">
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 50%"></div></div>
+                      <div class="thumb" style="left: 50%"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Gramm</span>
+                      <div class="input">80<span class="unit">g</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad">
+                  <div class="l1" style="font-size: 16px; align-items: center">
+                    <span style="font-weight: 600">Tomatensoße</span>
+                    <span style="display: flex; align-items: center; gap: 4px"
+                      ><b style="font-weight: 600">56 kcal</b
+                      ><span class="ibtn"
+                        ><svg class="i"><use href="#i-trash" /></svg></span
+                    ></span>
+                  </div>
+                  <div class="amt">
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 50%"></div></div>
+                      <div class="thumb" style="left: 50%"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Gramm</span>
+                      <div class="input">140<span class="unit">g</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad">
+                  <div class="l1" style="font-size: 16px; align-items: center">
+                    <span style="font-weight: 600">Zwiebel</span>
+                    <span style="display: flex; align-items: center; gap: 4px"
+                      ><b style="font-weight: 600">17 kcal</b
+                      ><span class="ibtn"
+                        ><svg class="i"><use href="#i-trash" /></svg></span
+                    ></span>
+                  </div>
+                  <div class="amt wide">
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 25%"></div></div>
+                      <div class="thumb" style="left: 25%"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Anzahl · Stück (60 g)</span>
+                      <div class="input">1<span class="unit">×</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad">
+                  <div class="l1" style="font-size: 16px; align-items: center">
+                    <span style="font-weight: 600">Parmesan</span>
+                    <span style="display: flex; align-items: center; gap: 4px"
+                      ><b style="font-weight: 600">59 kcal</b
+                      ><span class="ibtn"
+                        ><svg class="i"><use href="#i-trash" /></svg></span
+                    ></span>
+                  </div>
+                  <div class="amt">
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 50%"></div></div>
+                      <div class="thumb" style="left: 50%"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Gramm</span>
+                      <div class="input">15<span class="unit">g</span></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <span class="btn outline block" style="margin-bottom: 8px"
+                ><svg class="i"><use href="#i-plus" /></svg> Zutat hinzufügen</span
+              >
+              <p class="hint" style="margin: 0 4px 16px">
+                Änderungen gelten für künftige Einträge. Bereits eingetragene Tage bleiben, wie sie sind.
+              </p>
+
+              <section class="sec">
+                <div class="pad">
+                  <div class="fld" style="gap: 8px">
+                    <div class="l1" style="align-items: baseline">
+                      <div>
+                        <span class="lbl">Gesamtmenge</span>
+                        <p class="hint">Skaliert alle Zutaten</p>
+                      </div>
+                      <b style="font-size: 18px; font-weight: 600">100 %</b>
+                    </div>
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 27.3%"></div></div>
+                      <div class="thumb" style="left: 27.3%"></div>
+                    </div>
+                  </div>
+                  <div class="nb">
+                    <div class="head">
+                      <span class="t">Summe</span><span class="kcal">620<small>kcal</small></span>
+                    </div>
+                    <div class="split">
+                      <i class="p" style="width: 23%"></i><i class="c" style="width: 48%"></i
+                      ><i class="f" style="width: 29%"></i>
+                    </div>
+                    <ul>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot p"></i>Protein</span
+                          ><span class="v"><b>36 g</b> · 23 % · 144 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="p" style="width: 23%"></i></div>
+                      </li>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+                          ><span class="v"><b>73 g</b> · 48 % · 292 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="c" style="width: 48%"></i></div>
+                      </li>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot f"></i>Fett</span
+                          ><span class="v"><b>20 g</b> · 29 % · 180 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="f" style="width: 29%"></i></div>
+                      </li>
+                    </ul>
+                    <div class="more" style="margin-bottom: -10px">
+                      <span>Weitere Nährstoffe</span><svg class="i"><use href="#i-chevron-down" /></svg>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Speichern</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Kein „Lebensmittel aus der Datenbank“-Auswahlfeld und kein KI-Badge (jede Zutat ist schon ein
+            Lebensmittel), kein „Mahlzeit“-Feld, kein Eintragen. Stück-Zutaten (Zwiebel) zählen in Stück statt
+            Gramm. Der Footer klebt beim Scrollen unten.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">B2. Eintragen-Modus (Suche → Eigene)</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Spaghetti Bolognese</h1>
+            </div>
+            <main class="m">
+              <section class="sec"><div class="photo43"></div></section>
+              <section class="sec">
+                <div class="sec-t">Zutaten</div>
+                <div class="rows">
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Spaghetti, gekocht</div>
+                      <div class="d">200 g</div>
+                    </div>
+                    <span class="kc">316</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Rinderhackfleisch</div>
+                      <div class="d">80 g</div>
+                    </div>
+                    <span class="kc">172</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Tomatensoße</div>
+                      <div class="d">140 g</div>
+                    </div>
+                    <span class="kc">56</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Zwiebel</div>
+                      <div class="d">1 Stück (60 g)</div>
+                    </div>
+                    <span class="kc">17</span>
+                  </div>
+                  <div class="swipe">
+                    <div class="under">
+                      <svg class="i"><use href="#i-trash" /></svg> Entfernen
+                    </div>
+                    <div class="drow" style="min-height: 48px">
+                      <div class="main">
+                        <div class="n">Parmesan</div>
+                        <div class="d">15 g</div>
+                      </div>
+                      <span class="kc">59</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="tlink">
+                  Meal bearbeiten <svg class="i"><use href="#i-chevron-right" /></svg>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-t">Nährwerte</div>
+                <div class="nb px">
+                  <div class="head">
+                    <span class="t"></span
+                    ><span class="kcal"><span data-scale="620"></span><small>kcal</small></span>
+                  </div>
+                  <div class="split">
+                    <i class="p" style="width: 23%"></i><i class="c" style="width: 48%"></i
+                    ><i class="f" style="width: 29%"></i>
+                  </div>
+                  <ul>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot p"></i>Protein</span
+                        ><span class="v"
+                          ><b data-scale="36" data-unit=" g"></b> · 23 % ·
+                          <span data-scale="144"></span> kcal</span
+                        >
+                      </div>
+                      <div class="tbar"><i class="p" style="width: 23%"></i></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+                        ><span class="v"
+                          ><b data-scale="73" data-unit=" g"></b> · 48 % ·
+                          <span data-scale="292"></span> kcal</span
+                        >
+                      </div>
+                      <div class="tbar"><i class="c" style="width: 48%"></i></div>
+                    </li>
+                    <li>
+                      <div class="l1">
+                        <span class="name"><i class="dot f"></i>Fett</span
+                        ><span class="v"
+                          ><b data-scale="20" data-unit=" g"></b> · 29 % ·
+                          <span data-scale="180"></span> kcal</span
+                        >
+                      </div>
+                      <div class="tbar"><i class="f" style="width: 29%"></i></div>
+                    </li>
+                  </ul>
+                  <div class="more" style="margin-bottom: -6px">
+                    <span>Weitere Nährstoffe</span><svg class="i"><use href="#i-chevron-down" /></svg>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-t">Eintragen</div>
+                <div class="pad g4" style="padding-top: 0">
+                  <div class="fld" style="gap: 8px">
+                    <div class="l1" style="align-items: baseline">
+                      <label class="lbl" for="b2-factor">Menge</label>
+                      <output class="b2-out" for="b2-factor" style="font-size: 18px; font-weight: 600"
+                        >1,0×</output
+                      >
+                    </div>
+                    <input
+                      id="b2-factor"
+                      class="range"
+                      type="range"
+                      min="0.5"
+                      max="2"
+                      step="0.1"
+                      value="1"
+                      aria-valuetext="1,0-fache Menge"
+                    />
+                    <div class="ticks">
+                      <span style="left: 0">0,5×</span><span style="left: 33.33%">1×</span
+                      ><span style="left: 100%">2×</span>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Mahlzeit</span>
+                    <div class="input select">
+                      Mittagessen <svg class="i"><use href="#i-chevron-down" /></svg>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block"
+                ><span><span data-scale="620"></span> kcal eintragen</span></span
+              >
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            <b>Neu in v3:</b> Menge als Slider von 0,5× bis 2× in 0,1er Schritten, Standard 1×; Nährwerte und
+            Button rechnen mit (bedienbar). Mengen der Zutaten nur lesend, kein Name-Feld, kein Foto-Ändern,
+            kein Löschen im Kopf. <b>Neu:</b> Zutaten lassen sich nach links wegwischen (hier Parmesan), nur
+            für diesen Eintrag. Darunter der Link „Meal bearbeiten“ zum Editor (B1).
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">B1b. Zurück mit ungespeicherten Änderungen</div>
+          <div class="screen tab full" style="height: 600px">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="ibtn lg"
+                  ><svg class="i"><use href="#i-chevron-left" /></svg
+                ></span>
+                <h1>Spaghetti Bolognese</h1>
+                <span class="ibtn danger"
+                  ><svg class="i"><use href="#i-trash" /></svg
+                ></span>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 250px"></div>
+                <div class="skel" style="height: 180px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog">
+                <div class="dh">
+                  <h3>Änderungen verwerfen?</h3>
+                  <p>Du hast Spaghetti Bolognese geändert. Ohne Speichern gehen die Änderungen verloren.</p>
+                </div>
+                <div class="df">
+                  <span class="btn outline">Weiter bearbeiten</span>
+                  <span class="btn outline" style="color: var(--destructive)">Verwerfen</span>
+                  <span class="btn primary">Speichern</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            Kommt nur, wenn sich wirklich etwas geändert hat, bei Zurück und bei jedem anderen Wegnavigieren
+            (Tab gewechselt, Zutat-Suche ausgenommen). Gleicher Dialog im Trainings-Editor (F3).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">B2b. Nach dem Wischen</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Spaghetti Bolognese</h1>
+            </div>
+            <main class="m">
+              <section class="sec">
+                <div class="sec-t">Zutaten</div>
+                <div class="rows">
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Spaghetti, gekocht</div>
+                      <div class="d">200 g</div>
+                    </div>
+                    <span class="kc">316</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Rinderhackfleisch</div>
+                      <div class="d">80 g</div>
+                    </div>
+                    <span class="kc">172</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Tomatensoße</div>
+                      <div class="d">140 g</div>
+                    </div>
+                    <span class="kc">56</span>
+                  </div>
+                  <div class="drow" style="min-height: 48px">
+                    <div class="main">
+                      <div class="n">Zwiebel</div>
+                      <div class="d">1 Stück (60 g)</div>
+                    </div>
+                    <span class="kc">17</span>
+                  </div>
+                </div>
+                <div class="pad" style="padding-top: 0; padding-bottom: 12px">
+                  <p class="hint">Ohne Parmesan. Das gespeicherte Meal bleibt unverändert.</p>
+                </div>
+                <div class="tlink">
+                  Meal bearbeiten <svg class="i"><use href="#i-chevron-right" /></svg>
+                </div>
+              </section>
+              <div class="ghost">Nährwerte (561 kcal) und Eintragen wie in B2</div>
+              <div class="toast"><span>Parmesan entfernt</span><b>Rückgängig</b></div>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">561 kcal eintragen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Summe und Button rechnen sofort neu, ein Toast bietet Rückgängig. Die letzte Zutat lässt sich
+            nicht wegwischen. Im Tagebuch steht der Eintrag weiter als „Spaghetti Bolognese“ (4 Zutaten).
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Speichern statt Sofort-Schreiben:</b> Name, Mengen, neue und entfernte Zutaten und das Foto
+          werden erst mit „Speichern“ geschrieben (heute: Name beim Verlassen des Feldes, Mengen per Dialog
+          sofort). Der Button ist ausgegraut, solange nichts geändert ist. Zurück fragt nach (B1b).
+        </li>
+        <li>
+          <b>Trash im Kopf</b> löscht das ganze Meal (wie heute, mit Rückgängig, landet im Papierkorb).
+          Einzelne Zutaten entfernt das Trash-Icon der Zutat; die letzte Zutat lässt sich nicht entfernen.
+        </li>
+        <li>
+          <b>„Zutat hinzufügen“</b> öffnet wie heute die Suche mit Ziel „Meal“ und kommt zurück in den Editor;
+          die neue Zutat ist dann eine ungespeicherte Änderung.
+        </li>
+        <li>
+          <b>Welcher Modus:</b> Kommen Datum und Mahlzeit mit (aus der Suche, Reiter „Eigene“), öffnet B2; aus
+          Mehr → Gespeicherte Meals öffnet B1. „Meal bearbeiten“ in B2 führt zu B1 und von dort mit Zurück
+          wieder zu B2, mit den gespeicherten Änderungen.
+        </li>
+        <li>
+          <b>Wischen in B2</b> entfernt die Zutat nur aus diesem Eintrag. Wer sie dauerhaft nicht mehr will,
+          entfernt sie im Editor.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="c">C. Überschussbalken mit zweiter Stufe (Feedback 4)</h2>
+      <p class="note">
+        Heute ist ab 200 % alles rot, 2× und 5× sehen gleich aus. Neu: Ist auch der rote Balken voll, füllt
+        sich darüber von links eine <b>dunklere Rot-Stufe</b> (neues Token <code>--over-2</code>). Ab 300 %
+        sind beide Stufen voll, mehr Stufen gibt es nicht, ab dort zeigt nur noch die Zahl die Menge.
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">C0. Lupe: die Stufen (Fett, Ziel 55 g)</div>
+          <div class="screen tab" style="border-radius: 20px">
+            <div class="pad" style="padding: 20px">
+              <div class="ladder">
+                <span class="pct">50 %</span>
+                <div class="tbar big"><i class="f" style="width: 50%"></i></div>
+                <span class="txt">28 / 55 g</span>
+
+                <span class="pct">120 %</span>
+                <div class="tbar big">
+                  <i class="f" style="width: 100%"></i><i class="x1" style="width: 20%"></i>
+                </div>
+                <span class="txt ov-t">66 / 55 g</span>
+
+                <span class="pct">200 %</span>
+                <div class="tbar big">
+                  <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i>
+                </div>
+                <span class="txt ov-t">110 / 55 g</span>
+
+                <span class="pct">250 %</span>
+                <div class="tbar big">
+                  <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                  ><i class="x2" style="width: 50%"></i>
+                </div>
+                <span class="txt ov-t">138 / 55 g</span>
+
+                <span class="pct">300 %</span>
+                <div class="tbar big">
+                  <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                  ><i class="x2" style="width: 100%"></i>
+                </div>
+                <span class="txt ov-t">165 / 55 g</span>
+
+                <span class="pct">400 %</span>
+                <div class="tbar big">
+                  <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                  ><i class="x2" style="width: 100%"></i>
+                </div>
+                <span class="txt ov-t">220 / 55 g</span>
+              </div>
+              <div class="legend">
+                <span><i class="f"></i>bis Ziel (Makrofarbe)</span>
+                <span><i style="background: var(--over)"></i>100 bis 200 %</span>
+                <span><i style="background: var(--over-2)"></i>200 bis 300 %</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            Nur zum Erklären vergrößert. In der App sind die Balken 6 bis 8 px hoch (C1, C2).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">C1. Tagesübersicht (MacroBars)</div>
+          <div class="screen tab" style="border-radius: 20px">
+            <div class="pad" style="gap: 18px">
+              <div>
+                <div class="hint" style="margin-bottom: 6px">Fett 50 %</div>
+                <div class="mb3">
+                  <div>
+                    <span class="lab">Protein</span>
+                    <div class="tbar h2"><i class="p" style="width: 85%"></i></div>
+                    <div class="s"><b>110</b> / 130&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Kohlenhydrate</span>
+                    <div class="tbar h2"><i class="c" style="width: 99%"></i></div>
+                    <div class="s"><b>168</b> / 170&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Fett</span>
+                    <div class="tbar h2"><i class="f" style="width: 50%"></i></div>
+                    <div class="s"><b>28</b> / 55&nbsp;g</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom: 6px">Fett 120 %</div>
+                <div class="mb3">
+                  <div>
+                    <span class="lab">Protein</span>
+                    <div class="tbar h2"><i class="p" style="width: 85%"></i></div>
+                    <div class="s"><b>110</b> / 130&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Kohlenhydrate</span>
+                    <div class="tbar h2"><i class="c" style="width: 99%"></i></div>
+                    <div class="s"><b>168</b> / 170&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Fett</span>
+                    <div class="tbar h2">
+                      <i class="f" style="width: 100%"></i><i class="x1" style="width: 20%"></i>
+                    </div>
+                    <div class="s ov-t"><b>66</b> / 55&nbsp;g</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom: 6px">Fett 200 %</div>
+                <div class="mb3">
+                  <div>
+                    <span class="lab">Protein</span>
+                    <div class="tbar h2"><i class="p" style="width: 85%"></i></div>
+                    <div class="s"><b>110</b> / 130&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Kohlenhydrate</span>
+                    <div class="tbar h2"><i class="c" style="width: 99%"></i></div>
+                    <div class="s"><b>168</b> / 170&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Fett</span>
+                    <div class="tbar h2">
+                      <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i>
+                    </div>
+                    <div class="s ov-t"><b>110</b> / 55&nbsp;g</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom: 6px">Fett 250 %</div>
+                <div class="mb3">
+                  <div>
+                    <span class="lab">Protein</span>
+                    <div class="tbar h2"><i class="p" style="width: 85%"></i></div>
+                    <div class="s"><b>110</b> / 130&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Kohlenhydrate</span>
+                    <div class="tbar h2"><i class="c" style="width: 99%"></i></div>
+                    <div class="s"><b>168</b> / 170&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Fett</span>
+                    <div class="tbar h2">
+                      <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                      ><i class="x2" style="width: 50%"></i>
+                    </div>
+                    <div class="s ov-t"><b>138</b> / 55&nbsp;g</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div class="hint" style="margin-bottom: 6px">Fett 300 % und mehr</div>
+                <div class="mb3">
+                  <div>
+                    <span class="lab">Protein</span>
+                    <div class="tbar h2"><i class="p" style="width: 85%"></i></div>
+                    <div class="s"><b>110</b> / 130&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Kohlenhydrate</span>
+                    <div class="tbar h2"><i class="c" style="width: 99%"></i></div>
+                    <div class="s"><b>168</b> / 170&nbsp;g</div>
+                  </div>
+                  <div>
+                    <span class="lab">Fett</span>
+                    <div class="tbar h2">
+                      <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                      ><i class="x2" style="width: 100%"></i>
+                    </div>
+                    <div class="s ov-t"><b>165</b> / 55&nbsp;g</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            Gleiche Zustände in Originalgröße (Balken 8 px), so wie sie im Tagebuch oben stehen.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">C2. Tagesmodus (NutrientBreakdown)</div>
+          <div class="screen tab" style="border-radius: 20px">
+            <div class="pad">
+              <ul class="bars">
+                <li>
+                  <div class="l1">
+                    <span class="name"><i class="dot f"></i>Fett</span
+                    ><span class="v"><b>28 g</b> / 55 g · 50 %</span>
+                  </div>
+                  <div class="tbar"><i class="f" style="width: 50%"></i></div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span class="name"><i class="dot f"></i>Fett</span
+                    ><span class="v"><b class="ov">66 g</b> / 55 g · 120 %</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="f" style="width: 100%"></i><i class="x1" style="width: 20%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span class="name"><i class="dot f"></i>Fett</span
+                    ><span class="v"><b class="ov">110 g</b> / 55 g · 200 %</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span class="name"><i class="dot f"></i>Fett</span
+                    ><span class="v"><b class="ov">138 g</b> / 55 g · 250 %</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                    ><i class="x2" style="width: 50%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span class="name"><i class="dot f"></i>Fett</span
+                    ><span class="v"><b class="ov">165 g</b> / 55 g · 300 %</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="f" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                    ><i class="x2" style="width: 100%"></i>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <figcaption>
+            Dieselbe Komponente (TargetBar), daher sehen Tagesübersicht, Tagesmodus und Berichte gleich aus.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">C3. Weitere Nährstoffe (Mikros)</div>
+          <div class="screen tab" style="border-radius: 20px">
+            <div class="pad">
+              <ul class="bars">
+                <li>
+                  <div class="l1">
+                    <span>Ballaststoffe</span><span class="v"><b>21 g</b> von mind. 30 g</span>
+                  </div>
+                  <div class="tbar"><i class="n" style="width: 70%"></i></div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Ballaststoffe</span><span class="v"><b>34 g</b> von mind. 30 g</span>
+                  </div>
+                  <div class="tbar"><i class="good" style="width: 100%"></i></div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Zucker</span><span class="v"><b>38 g</b> von max. 43 g</span>
+                  </div>
+                  <div class="tbar"><i class="n" style="width: 88%"></i></div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Salz</span><span class="v"><b class="ov">7,5 g</b> von max. 6 g</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="n" style="width: 100%"></i><i class="x1" style="width: 25%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Gesättigte Fettsäuren</span
+                    ><span class="v"><b class="ov">41 g</b> von max. 19 g</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="n" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                    ><i class="x2" style="width: 16%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Zucker</span><span class="v"><b class="ov">120 g</b> von max. 43 g</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="n" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                    ><i class="x2" style="width: 79%"></i>
+                  </div>
+                </li>
+                <li>
+                  <div class="l1">
+                    <span>Salz</span><span class="v"><b class="ov">20 g</b> von max. 6 g</span>
+                  </div>
+                  <div class="tbar">
+                    <i class="n" style="width: 100%"></i><i class="x1" style="width: 100%"></i
+                    ><i class="x2" style="width: 100%"></i>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <figcaption>
+            Höchstwerte (Zucker, Salz, gesättigte Fettsäuren) stapeln jetzt wie die Makros: grau bis zum
+            Höchstwert, dann Rot, dann Dunkelrot (heute: einfach ein voller roter Balken). Mindestwerte
+            (Ballaststoffe) bleiben grau und werden grün, wenn erreicht.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Schichten</b>, alle von links: Makrofarbe (bis 100 %), darüber Rot <code>--over</code> (Breite =
+          Überschuss bis 1× Ziel), darüber Dunkelrot <code>--over-2</code> (Breite = was über 2× Ziel liegt,
+          bis 1× Ziel). Rechnung: <code>min(100, (Wert − 2 × Ziel) / Ziel)</code>. Bei Mikros mit Höchstwert
+          gleich, nur ist die erste Schicht grau statt Makrofarbe (C3).
+        </li>
+        <li>
+          <b>Text bleibt in <code>--over</code></b
+          >, nie in <code>--over-2</code> (das dunkle Rot hat auf der dunklen Karte zu wenig Kontrast für
+          Schrift).
+        </li>
+        <li>
+          <b>Farbwahl:</b> Hell <code>oklch(0.40 0.17 27)</code>, Dunkel <code>oklch(0.48 0.16 27)</code>
+          (Vorschlag im Plan war 0,42 / 0,52; etwas dunkler gewählt, damit sich die Stufen klarer trennen).
+          Kontrast Rot zu Dunkelrot: hell 2,1 : 1, dunkel 2,3 : 1. Die Stufen unterscheiden sich damit
+          deutlich sichtbar; die eigentliche Information trägt zusätzlich die rote Zahl daneben. Die Spur
+          (<code>--muted</code>) grenzt nie an Dunkelrot, weil Dunkelrot erst kommt, wenn Rot voll ist.
+        </li>
+        <li>
+          Nebenbefund (unverändert, nur zur Info): Rot auf dem violetten Fett-Balken hat im hellen Modus fast
+          gleiche Helligkeit (1,1 : 1), getrennt werden die beiden über den Farbton.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="d">D. Gewicht als Maßband (Feedback 5), bedienbar</h2>
+      <p class="note">
+        Statt Slider (±5 kg, 0,1er Schritte) ein <b>endloses Maßband</b> (20 bis 400 kg) mit festem Zeiger in
+        der Mitte. Sichtbar ist genau ±1 kg um den Wert, Striche alle 0,05 kg (klein), 0,5 kg (mittel) und 1
+        kg (lang, beschriftet). <b>Probier es aus:</b> mit der Maus ziehen, mit dem Trackpad wischen, auf dem
+        Telefon mit dem Finger; Pfeiltasten (±0,05) und Bild auf/ab (±1 kg) gehen auch, wenn das Maßband den
+        Fokus hat. Die −/+ Buttons sind weg. Beim Loslassen rastet es auf 0,05 ein.
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">D1. „Gewicht eintragen“</div>
+          <div class="screen tab full" style="height: 700px">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="spacer"></span>
+                <h1>Fortschritt</h1>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 220px"></div>
+                <div class="skel" style="height: 260px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog weight" data-initial="84.5">
+                <span class="x"
+                  ><svg class="i"><use href="#i-x" /></svg
+                ></span>
+                <div class="dh">
+                  <h3>Gewicht eintragen</h3>
+                  <p>Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.</p>
+                </div>
+                <div class="bigval"><output class="w-out">84,50</output><span>kg</span></div>
+                <div
+                  class="tape"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Gewicht in Kilogramm"
+                  aria-valuemin="20"
+                  aria-valuemax="400"
+                >
+                  <div class="tape-scroll"><div class="tape-spacer"></div></div>
+                  <canvas></canvas>
+                  <div class="tape-pointer"></div>
+                </div>
+                <p class="snapinfo">Ziehen oder wischen, rastet auf 0,05 kg ein</p>
+                <div class="fld">
+                  <label class="lbl" for="w1-exact">Genauer Wert</label>
+                  <div class="input">
+                    <input
+                      class="real w-exact"
+                      id="w1-exact"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      value="84,50"
+                    /><span class="unit">kg</span>
+                  </div>
+                  <p class="err" aria-live="polite"></p>
+                </div>
+                <div class="daterow">
+                  <span
+                    ><svg class="i"><use href="#i-calendar" /></svg> Heute</span
+                  >
+                  <span class="btn ghost-b" style="color: var(--foreground)">Datum ändern</span>
+                </div>
+                <div class="df">
+                  <span class="btn outline">Abbrechen</span>
+                  <button type="button" class="btn primary w-save">Speichern</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            Bedienbar. Ohne −/+: Feinjustieren geht über das Maßband (eine Marke = 0,05 kg) oder „Genauer
+            Wert“. Das Feld zeigt immer zwei Nachkommastellen (84,50).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">D2. „Gewicht ändern“ (Eintrag vom 5. Oktober)</div>
+          <div class="screen tab full" style="height: 700px">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="spacer"></span>
+                <h1>Fortschritt</h1>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 220px"></div>
+                <div class="skel" style="height: 260px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog weight" data-initial="83.9">
+                <span class="x"
+                  ><svg class="i"><use href="#i-x" /></svg
+                ></span>
+                <div class="dh">
+                  <h3>Gewicht ändern</h3>
+                  <p>Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.</p>
+                </div>
+                <div class="bigval"><output class="w-out">83,90</output><span>kg</span></div>
+                <div
+                  class="tape"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Gewicht in Kilogramm"
+                  aria-valuemin="20"
+                  aria-valuemax="400"
+                >
+                  <div class="tape-scroll"><div class="tape-spacer"></div></div>
+                  <canvas></canvas>
+                  <div class="tape-pointer"></div>
+                </div>
+                <p class="snapinfo">Ziehen oder wischen, rastet auf 0,05 kg ein</p>
+                <div class="fld">
+                  <label class="lbl" for="w2-exact">Genauer Wert</label>
+                  <div class="input">
+                    <input
+                      class="real w-exact"
+                      id="w2-exact"
+                      inputmode="decimal"
+                      autocomplete="off"
+                      value="83,90"
+                    /><span class="unit">kg</span>
+                  </div>
+                  <p class="err" aria-live="polite"></p>
+                </div>
+                <div class="daterow">
+                  <span
+                    ><svg class="i"><use href="#i-calendar" /></svg> Mo., 5. Okt.</span
+                  >
+                </div>
+                <div class="df">
+                  <span class="btn outline">Abbrechen</span>
+                  <button type="button" class="btn primary w-save">Speichern</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            Beim Ändern bleibt das Datum wie heute stehen, aber ohne „Datum ändern“ (ein Eintrag gehört fest
+            zu seinem Tag).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">D1b. „Genauer Wert“ getippt, Tastatur offen</div>
+          <div class="screen tab full">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="spacer"></span>
+                <h1>Fortschritt</h1>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 220px"></div>
+                <div class="skel" style="height: 260px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog clamp">
+                <div class="dscroll" style="height: 352px">
+                  <span class="scrollbar" style="top: 24px; height: 324px"></span>
+                  <div class="inner" style="margin-top: -30px">
+                    <div class="dh">
+                      <h3>Gewicht eintragen</h3>
+                      <p>Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.</p>
+                    </div>
+                    <div class="bigval"><output>84,30</output><span>kg</span></div>
+                    <div class="tape" data-static="84.3" aria-hidden="true">
+                      <div class="tape-scroll"><div class="tape-spacer"></div></div>
+                      <canvas></canvas>
+                      <div class="tape-pointer"></div>
+                    </div>
+                    <div class="fld">
+                      <span class="lbl">Genauer Wert</span>
+                      <div class="input focus">
+                        84,3<span class="caret"></span><span class="unit">kg</span>
+                      </div>
+                    </div>
+                    <div class="daterow">
+                      <span
+                        ><svg class="i"><use href="#i-calendar" /></svg> Heute</span
+                      >
+                      <span class="btn ghost-b" style="color: var(--foreground)">Datum ändern</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="df">
+                  <span class="btn outline">Abbrechen</span>
+                  <span class="btn primary">Speichern</span>
+                </div>
+              </div>
+            </div>
+            <div class="kbd" aria-hidden="true">
+              <div class="kb-acc">
+                <svg class="i"><use href="#i-chevron-up" /></svg
+                ><svg class="i"><use href="#i-chevron-down" /></svg><span class="done">Fertig</span>
+              </div>
+              <div class="kb-num">
+                <span>1<small></small></span><span>2<small>ABC</small></span
+                ><span>3<small>DEF</small></span
+                ><span>4<small>GHI</small></span
+                ><span>5<small>JKL</small></span
+                ><span>6<small>MNO</small></span
+                ><span>7<small>PQRS</small></span
+                ><span>8<small>TUV</small></span
+                ><span>9<small>WXYZ</small></span
+                ><span class="flat">,</span><span>0</span
+                ><span class="flat"
+                  ><svg class="i" style="width: 24px; height: 24px"><use href="#i-delete" /></svg
+                ></span>
+              </div>
+              <div class="kb-home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Der Dialog ist höher als der Platz über der Tastatur: Sein Inhalt scrollt (das fokussierte Feld
+            wird sichtbar gehalten), „Speichern“ und „Abbrechen“ bleiben fest unten im Dialog über der
+            Tastatur. Während des Tippens steht im Feld, was du tippst (84,3); beim Verlassen wird daraus
+            84,30.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Zahl mit zwei Nachkommastellen</b> (84,50), weil das Raster 0,05 ist. Gespeichert wird wie heute
+          mit zwei Stellen.
+        </li>
+        <li>
+          <b>„Genauer Wert“</b> zeigt immer zwei Nachkommastellen (80,00 statt 80, 80,50 statt 80,5), auch
+          wenn das Maßband den Wert setzt. Es nimmt weiter alles zwischen 20 und 400 kg (z. B. 84,37); das
+          Maßband springt dann auf die nächste Marke, die große Zahl zeigt den getippten Wert. Außerhalb des
+          Bereichs: Fehlertext „Zwischen 20 und 400 kg.“ und Speichern ist aus (probier 500).
+        </li>
+        <li>
+          <b>Farben:</b> Striche und Zahlen in <code>muted-foreground</code>, Zeiger in <code>primary</code>,
+          Hintergrund <code>card</code>, an den Rändern weich ausgeblendet. Mit „Dunkel“ oben prüfen.
+        </li>
+        <li>
+          <b>Haptik:</b> In der App soll jede 0,05-Marke beim Überfahren ganz leicht ticken (iOS erlaubt das
+          in Safari nur eingeschränkt). Im Mockup lässt sich Haptik nicht zeigen.
+        </li>
+        <li>
+          <b>Bedienung mit VoiceOver</b>: Das Maßband ist ein Slider (Wischen hoch/runter = ±0,05 kg), das
+          Feld „Genauer Wert“ bleibt die schnelle Alternative.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="e">E. Einheitliches Speichern-UI (Feedback 6), Variante 1</h2>
+      <p class="note">
+        Entschieden: <b>Variante 1 „Footer + Header-Icon“</b>. Überall gleiche Begriffe: <b>Eintragen</b> =
+        ins Tagebuch (ein Button im Footer: „Training eintragen“, „Meal eintragen“), <b>Speichern</b> =
+        wiederverwendbar ablegen (Speichern-Icon im Kopf, öffnet einen Namensdialog). Die Mahlzeit-Seite (A2)
+        folgt demselben Muster, der Meal-Editor (B1) und der Trainings-Editor (F3) haben nur „Speichern“.
+      </p>
+      <div class="row">
+        <figure class="state">
+          <div class="label">E1a. Training eintragen</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Training eintragen</h1>
+              <span class="ibtn" aria-label="Als Training speichern"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <p class="sub-date">Donnerstag, 8. Oktober</p>
+              <div class="ghost">Schnellauswahl und Sportart (Joggen gewählt) wie heute</div>
+              <section class="sec">
+                <div class="pad g4">
+                  <div class="fld">
+                    <span class="lbl">Intensität</span>
+                    <div class="tg"><span>leicht</span><span class="on">mittel</span><span>hoch</span></div>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Dauer</span>
+                    <div class="input">60<span class="unit">Min.</span></div>
+                  </div>
+                  <div class="chips">
+                    <span class="btn sm secondary">15 Min.</span><span class="btn sm secondary">30 Min.</span
+                    ><span class="btn sm secondary">45 Min.</span><span class="btn sm primary">60 Min.</span
+                    ><span class="btn sm secondary">90 Min.</span>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Notiz (optional)</span>
+                    <div class="input area ph">z. B. Bankdrücken 3 × 8 à 60 kg, Kniebeugen 4 × 10…</div>
+                  </div>
+                  <div class="kcalbox">
+                    <div class="top"><span>Verbrauch (zusätzlich zum Grundumsatz)</span><b>507 kcal</b></div>
+                    <p class="hint" style="margin-top: 4px">(MET 7,0 − 1) × 84,5 kg × 1,0 h</p>
+                  </div>
+                  <p class="hint">
+                    MET-Werte: Compendium of Physical Activities (Ainsworth 2011/Herrmann 2024), gerundet.
+                    <u>Quellen</u>
+                  </p>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Training eintragen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Speichern-Icon oben rechts: „Als Training speichern“ (öffnet E1d, trägt nichts ein). Unten ein
+            Button „Training eintragen“. Die Outline-Buttons in der Karte entfallen.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">E1b. Analyse-Review, noch nicht gespeichert</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Ergebnis prüfen</h1>
+              <span class="ibtn" aria-label="Als Meal speichern"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-x" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="sec" style="border-radius: 16px"><div class="photo43"></div></div>
+              <div class="ghost">
+                Kein Feld „Name des Meals“ mehr. KI-Notiz und 5 Zutaten mit Gramm-Slidern wie heute, „+ Zutat
+                hinzufügen“
+              </div>
+              <section class="sec">
+                <div class="pad">
+                  <div class="fld" style="gap: 8px">
+                    <div class="l1" style="align-items: baseline">
+                      <div>
+                        <span class="lbl">Gesamtmenge</span>
+                        <p class="hint">Skaliert alle Zutaten</p>
+                      </div>
+                      <b style="font-size: 18px; font-weight: 600">100 %</b>
+                    </div>
+                    <div class="slider">
+                      <div class="track"><div class="range" style="width: 27.3%"></div></div>
+                      <div class="thumb" style="left: 27.3%"></div>
+                    </div>
+                  </div>
+                  <div class="nb">
+                    <div class="head">
+                      <span class="t">Summe</span><span class="kcal">620<small>kcal</small></span>
+                    </div>
+                    <div class="split">
+                      <i class="p" style="width: 23%"></i><i class="c" style="width: 48%"></i
+                      ><i class="f" style="width: 29%"></i>
+                    </div>
+                    <ul>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot p"></i>Protein</span
+                          ><span class="v"><b>36 g</b> · 23 % · 144 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="p" style="width: 23%"></i></div>
+                      </li>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot c"></i>Kohlenhydrate</span
+                          ><span class="v"><b>73 g</b> · 48 % · 292 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="c" style="width: 48%"></i></div>
+                      </li>
+                      <li>
+                        <div class="l1">
+                          <span class="name"><i class="dot f"></i>Fett</span
+                          ><span class="v"><b>20 g</b> · 29 % · 180 kcal</span>
+                        </div>
+                        <div class="tbar"><i class="f" style="width: 29%"></i></div>
+                      </li>
+                    </ul>
+                    <div class="more">
+                      <span>Weitere Nährstoffe</span><svg class="i"><use href="#i-chevron-down" /></svg>
+                    </div>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Mahlzeit</span>
+                    <div class="input select">
+                      Mittagessen <svg class="i"><use href="#i-chevron-down" /></svg>
+                    </div>
+                  </div>
+                  <p class="hint">
+                    5 Zutaten werden als Gruppe „Spaghetti Bolognese“ eingetragen. Mit dem Speichern-Icon oben
+                    legst du sie zusätzlich mit Foto unter „Gespeicherte Meals“ ab.
+                  </p>
+                  <p class="hint">Modell claude-opus-5-5 · 2.840 Tokens · ≈ 0,031 $</p>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Meal eintragen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Ein Button „Meal eintragen“ (wie „Training eintragen“). „Nur eintragen“ und das Feld „Name des
+            Meals“ entfallen: eingetragen wird immer als Gruppe mit dem KI-Namen, oder mit dem Namen aus dem
+            Dialog.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">E1c. Analyse-Review nach dem Speichern</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Ergebnis prüfen</h1>
+              <span class="chip-saved" aria-label="Als Meal gespeichert, Name ändern"
+                ><svg class="i"><use href="#i-check" /></svg> Gespeichert</span
+              >
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-x" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="ghost" style="margin-bottom: 16px">
+                Foto, Zutaten, Gesamtmenge, Summe wie in E1b
+              </div>
+              <section class="sec">
+                <div class="pad">
+                  <div class="fld">
+                    <span class="lbl">Mahlzeit</span>
+                    <div class="input select">
+                      Mittagessen <svg class="i"><use href="#i-chevron-down" /></svg>
+                    </div>
+                  </div>
+                  <p class="hint">
+                    Als Meal „Spaghetti Bolognese“ gespeichert (mit Foto). „Meal eintragen“ hängt es an dieses
+                    Meal, so erscheint es im Tagebuch mit Foto.
+                  </p>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Meal eintragen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Statt des Icons ein grüner Chip „✓ Gespeichert“; Tipp darauf öffnet den Dialog wieder (Namen
+            ändern). „Meal eintragen“ entspricht dann dem heutigen „Als Meal speichern &amp; eintragen“.
+          </figcaption>
+        </figure>
+      </div>
+      <div class="row">
+        <figure class="state">
+          <div class="label">E1d. „Als Training speichern“, Tastatur offen</div>
+          <div class="screen tab full">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="behind">
+              <div class="hdr">
+                <span class="ibtn lg"
+                  ><svg class="i"><use href="#i-chevron-left" /></svg
+                ></span>
+                <h1>Training eintragen</h1>
+                <span class="ibtn"
+                  ><svg class="i"><use href="#i-save" /></svg
+                ></span>
+              </div>
+              <main class="m">
+                <div class="skel" style="height: 250px"></div>
+                <div class="skel" style="height: 180px"></div>
+              </main>
+            </div>
+            <div class="overlay top">
+              <div class="dialog">
+                <span class="x"
+                  ><svg class="i"><use href="#i-x" /></svg
+                ></span>
+                <div class="dh">
+                  <h3>Als Training speichern</h3>
+                  <p>
+                    Sportart, Dauer, Intensität und Notiz stehen danach in der Schnellauswahl und unter Mehr →
+                    Gespeicherte Trainings.
+                  </p>
+                </div>
+                <div class="fld">
+                  <span class="lbl">Name</span>
+                  <div class="input focus">Joggen<span class="caret"></span></div>
+                </div>
+                <div class="df">
+                  <span class="btn outline">Abbrechen</span>
+                  <span class="btn primary">Training speichern</span>
+                </div>
+              </div>
+            </div>
+            <div class="kbd" aria-hidden="true">
+              <div class="kb-acc">
+                <svg class="i"><use href="#i-chevron-up" /></svg
+                ><svg class="i"><use href="#i-chevron-down" /></svg><span class="done">Fertig</span>
+              </div>
+              <div class="kb-sugg"><span>„Joggen“</span><span>Jogging</span><span>Joggen,</span></div>
+              <div class="kb-rows">
+                <div class="kb-row">
+                  <span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>z</span
+                  ><span>u</span><span>i</span><span>o</span><span>p</span>
+                </div>
+                <div class="kb-row mid">
+                  <span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span
+                  ><span>j</span><span>k</span><span>l</span>
+                </div>
+                <div class="kb-row">
+                  <span class="sp">⇧</span><span>y</span><span>x</span><span>c</span><span>v</span
+                  ><span>b</span><span>n</span><span>m</span
+                  ><span class="sp"
+                    ><svg class="i" style="width: 22px; height: 22px"><use href="#i-delete" /></svg
+                  ></span>
+                </div>
+                <div class="kb-row bottom">
+                  <span class="sp">123</span><span class="wide">Leerzeichen</span
+                  ><span class="ret">Return</span>
+                </div>
+              </div>
+              <div class="kb-home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Aufbau wie A3 (oben, Buttons über der Tastatur). Beim Review heißt er „Als Meal speichern“ mit „5
+            Zutaten werden mit dem Foto als wiederverwendbares Meal gespeichert. Eingetragen wird erst mit
+            „Meal eintragen“.“
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">E1e. Training bearbeiten</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Training bearbeiten</h1>
+              <span class="ibtn" aria-label="Als Training speichern"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+              <span class="ibtn danger" aria-label="Training löschen"
+                ><svg class="i"><use href="#i-trash" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <p class="sub-date">Montag, 5. Oktober</p>
+              <div class="ghost">Sportart (Joggen) wie heute, ohne Schnellauswahl</div>
+              <section class="sec">
+                <div class="pad g4">
+                  <div class="fld">
+                    <span class="lbl">Intensität</span>
+                    <div class="tg"><span>leicht</span><span>mittel</span><span class="on">hoch</span></div>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Dauer</span>
+                    <div class="input">45<span class="unit">Min.</span></div>
+                  </div>
+                  <div class="kcalbox">
+                    <div class="top"><span>Verbrauch (zusätzlich zum Grundumsatz)</span><b>475 kcal</b></div>
+                    <p class="hint" style="margin-top: 4px">(MET 8,5 − 1) × 84,5 kg × 0,8 h</p>
+                  </div>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Änderungen übernehmen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Beim Bearbeiten heißt der Footer-Button „Änderungen übernehmen“ (heute „Änderungen speichern“). Im
+            Kopf Speichern-Icon und Löschen. Gleiche Umbenennung beim Bearbeiten eines Lebensmittel-Eintrags
+            und einer Schnelleingabe.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Was wegfällt:</b> beim Training der Outline-Button „Als Vorlage speichern“ in der Karte; beim
+          Review „Nur eintragen“, „Als Meal speichern &amp; eintragen“ und das Feld „Name des Meals“.
+        </li>
+        <li>
+          <b>Review ohne Speichern:</b> „Meal eintragen“ trägt die Zutaten als Gruppe mit dem KI-Namen ein
+          (ohne Foto, wie heute „Nur eintragen“). <b>Mit Speichern:</b> Meal mit Foto anlegen, Eintrag hängt
+          daran.
+        </li>
+        <li>
+          <b>„Änderungen übernehmen“</b> ersetzt „Änderungen speichern“ an allen drei Stellen: Training,
+          Lebensmittel-Eintrag, Schnelleingabe.
+        </li>
+      </ul>
+      <!-- ============================================================ -->
+      <h2 id="f">F. Gespeicherte Trainings unter Mehr (neu)</h2>
+      <p class="note">
+        Gespeicherte Trainings (heute „Vorlagen“, der Begriff verschwindet) bekommen wie Meals einen Eintrag
+        unter Mehr, eine Liste und einen Editor nach dem Muster von B1: ändern, explizit speichern, Nachfrage
+        bei ungespeicherten Änderungen, Löschen mit Rückgängig.
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">F1. Mehr</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="spacer"></span>
+              <h1>Mehr</h1>
+            </div>
+            <main class="m">
+              <div class="ghost">Ziele, Profil, Mahlzeiten (unverändert)</div>
+              <section class="sec">
+                <div class="mrow">
+                  <svg class="i"><use href="#i-salad" /></svg>
+                  <div class="main"><div>Eigene Lebensmittel</div></div>
+                  <svg class="i"><use href="#i-chevron-right" /></svg>
+                </div>
+                <div class="mrow">
+                  <svg class="i"><use href="#i-utensils" /></svg>
+                  <div class="main"><div>Gespeicherte Meals</div></div>
+                  <svg class="i"><use href="#i-chevron-right" /></svg>
+                </div>
+                <div class="mrow new">
+                  <svg class="i"><use href="#i-dumbbell" /></svg>
+                  <div class="main">
+                    <div>Gespeicherte Trainings<span class="newtag">neu</span></div>
+                  </div>
+                  <svg class="i"><use href="#i-chevron-right" /></svg>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="mrow">
+                  <div class="main">
+                    <div>Trainingskalorien anrechnen</div>
+                    <div>Erhöht das Tagesziel um den Trainingsverbrauch</div>
+                  </div>
+                  <span class="switch on"></span>
+                </div>
+              </section>
+              <div class="ghost">Daten, Papierkorb, Konto, Über (unverändert)</div>
+            </main>
+          </div>
+          <figcaption>
+            Dritter Eintrag in der Gruppe mit „Eigene Lebensmittel“ und „Gespeicherte Meals“.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">F2. Liste „Gespeicherte Trainings“</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Gespeicherte Trainings</h1>
+            </div>
+            <main class="m" style="padding-left: 0; padding-right: 0">
+              <div class="rows" style="border-top: 0">
+                <div class="drow">
+                  <div class="main">
+                    <div class="n">Joggen</div>
+                    <div class="d">Joggen · 60 Min. · mittel</div>
+                  </div>
+                  <div class="sum"><b>507</b><small>kcal</small></div>
+                </div>
+                <div
+                  class="swipe"
+                  style="border-top: 1px solid color-mix(in oklch, var(--border) 50%, transparent)"
+                >
+                  <div class="under">
+                    <svg class="i"><use href="#i-trash" /></svg> Löschen
+                  </div>
+                  <div class="drow" style="background: var(--background)">
+                    <div class="main">
+                      <div class="n">Oberkörper-Tag</div>
+                      <div class="d">Krafttraining · 45 Min. · hoch · Bankdrücken 3 × 8 à 60 kg</div>
+                    </div>
+                    <div class="sum"><b>317</b><small>kcal</small></div>
+                  </div>
+                </div>
+                <div
+                  class="drow"
+                  style="border-top: 1px solid color-mix(in oklch, var(--border) 50%, transparent)"
+                >
+                  <div class="main">
+                    <div class="n">Radfahren zur Arbeit</div>
+                    <div class="d">Radfahren · 25 Min. · leicht</div>
+                  </div>
+                  <div class="sum"><b>106</b><small>kcal</small></div>
+                </div>
+              </div>
+            </main>
+          </div>
+          <figcaption>
+            Wie „Gespeicherte Meals“: alphabetisch, Tipp öffnet F3, nach links wischen löscht (mit
+            Rückgängig). kcal mit dem aktuellen Gewicht gerechnet. Leer: „Noch keine gespeicherten Trainings.
+            Beim Eintragen eines Trainings speicherst du es über das Speichern-Icon oben rechts.“
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">F3. Editor</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Oberkörper-Tag</h1>
+              <span class="ibtn danger" aria-label="Gespeichertes Training löschen"
+                ><svg class="i"><use href="#i-trash" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <section class="sec">
+                <div class="pad">
+                  <div class="fld">
+                    <span class="lbl">Name</span>
+                    <div class="input">Oberkörper-Tag</div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="sec-t">Sportart</div>
+                <div class="pad" style="padding-top: 4px">
+                  <div class="input ph">
+                    <svg class="i" style="margin-right: 8px"><use href="#i-search" /></svg>Sportart suchen…
+                  </div>
+                  <div
+                    style="
+                      border: 1px solid var(--border);
+                      border-radius: 12px;
+                      overflow: hidden;
+                      font-size: 14px;
+                    "
+                  >
+                    <div class="l1" style="min-height: 44px; align-items: center; padding: 0 12px">
+                      <span>Joggen</span><span class="v">MET 7,0</span>
+                    </div>
+                    <div
+                      class="l1"
+                      style="
+                        min-height: 44px;
+                        align-items: center;
+                        padding: 0 12px;
+                        background: var(--primary);
+                        color: var(--primary-foreground);
+                      "
+                    >
+                      <span>Krafttraining</span><span style="opacity: 0.7; font-size: 12px">MET 5,0</span>
+                    </div>
+                    <div class="l1" style="min-height: 44px; align-items: center; padding: 0 12px">
+                      <span>Radfahren</span><span class="v">MET 6,8</span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <section class="sec">
+                <div class="pad g4">
+                  <div class="fld">
+                    <span class="lbl">Intensität</span>
+                    <div class="tg"><span>leicht</span><span>mittel</span><span class="on">hoch</span></div>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Dauer</span>
+                    <div class="input">45<span class="unit">Min.</span></div>
+                  </div>
+                  <div class="chips">
+                    <span class="btn sm secondary">15 Min.</span><span class="btn sm secondary">30 Min.</span
+                    ><span class="btn sm primary">45 Min.</span><span class="btn sm secondary">60 Min.</span
+                    ><span class="btn sm secondary">90 Min.</span>
+                  </div>
+                  <div class="fld">
+                    <span class="lbl">Notiz (optional)</span>
+                    <div class="input area">Bankdrücken 3 × 8 à 60 kg</div>
+                  </div>
+                  <div class="kcalbox">
+                    <div class="top"><span>Verbrauch beim aktuellen Gewicht</span><b>317 kcal</b></div>
+                    <p class="hint" style="margin-top: 4px">(MET 6,0 − 1) × 84,5 kg × 0,8 h</p>
+                  </div>
+                  <p class="hint">
+                    Änderungen gelten für künftige Einträge. Bereits eingetragene Trainings bleiben, wie sie
+                    sind.
+                  </p>
+                </div>
+              </section>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Speichern</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Gleiche Felder wie beim Eintragen, aber ohne Datum und ohne Eintragen. „Speichern“ ist aus,
+            solange nichts geändert ist; Zurück mit Änderungen fragt nach (wie B1b).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">F4. Schnellauswahl beim Eintragen</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Training eintragen</h1>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-save" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <p class="sub-date">Donnerstag, 8. Oktober</p>
+              <section class="sec">
+                <div class="sec-t">
+                  Schnellauswahl
+                  <span class="btn sm ghost-b" style="color: var(--primary)">Verwalten</span>
+                </div>
+                <div style="padding-bottom: 12px">
+                  <div class="hint" style="padding: 0 16px 4px; font-weight: 500">Gespeichert</div>
+                  <div
+                    class="rows"
+                    style="border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent)"
+                  >
+                    <div class="drow" style="min-height: 48px">
+                      <div class="main">
+                        <div class="n" style="font-size: 14px">Joggen</div>
+                        <div class="d">Joggen · 60 Min. · mittel</div>
+                      </div>
+                    </div>
+                    <div
+                      class="drow"
+                      style="
+                        min-height: 48px;
+                        background: color-mix(in oklch, var(--primary) 10%, transparent);
+                      "
+                    >
+                      <div class="main">
+                        <div class="n" style="font-size: 14px">Oberkörper-Tag</div>
+                        <div class="d">Krafttraining · 45 Min. · hoch</div>
+                      </div>
+                      <svg class="i" style="color: var(--primary)"><use href="#i-check" /></svg>
+                    </div>
+                  </div>
+                  <div class="hint" style="padding: 12px 16px 4px; font-weight: 500">Zuletzt</div>
+                  <div
+                    class="rows"
+                    style="border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent)"
+                  >
+                    <div class="drow" style="min-height: 48px">
+                      <div class="main">
+                        <div class="n" style="font-size: 14px">Radfahren</div>
+                        <div class="d">25 Min. · leicht · 6.10.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <div class="ghost">Sportart, Intensität, Dauer, Notiz, Verbrauch wie E1a</div>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block">Training eintragen</span>
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Die Gruppe „Vorlagen“ heißt „Gespeichert“. Neu: „Verwalten“ rechts im Titel öffnet F2. Wischen zum
+            Löschen bleibt hier wie heute.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Begriff:</b> „Vorlage“ verschwindet aus der App: Dialog „Als Training speichern“, Button
+          „Training speichern“, Gruppe „Gespeichert“, Liste „Gespeicherte Trainings“.
+        </li>
+        <li>
+          <b>Papierkorb:</b> Gelöschte gespeicherte Trainings erscheinen unter Mehr → Papierkorb (wie Gewichte
+          und Meals) und lassen sich dort wiederherstellen.
+        </li>
+        <li>
+          <b>Sportart ändern</b> im Editor nutzt dieselbe Suche und Liste wie beim Eintragen, inklusive „+
+          Eigene Sportart“.
+        </li>
+        <li><b>Eigene Sportarten</b> bleiben wie heute (anlegen beim Eintragen, keine eigene Liste).</li>
+      </ul>
+      <!-- ============================================================ -->
+      <h2 id="g">G. Hinzufügen-Menü: Essen, Training, Gewicht (neu)</h2>
+      <p class="note">
+        Das Menü hinter dem roten <b>+</b> in der Tab-Leiste hat heute drei Kacheln: „Lebensmittel suchen“,
+        „Foto / Scan“ (hervorgehoben) und „Gewicht eintragen“. Neu wird daraus
+        <b>eine Kachel für alles rund ums Essen</b> (Kamera, Barcode und, über die Lupe oben rechts, die
+        Suche), daneben <b>„Training eintragen“</b> und „Gewicht eintragen“. Alle drei Kacheln heißen „…
+        eintragen“, passend zu E.
+      </p>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">G0. Vorher (zum Vergleich)</div>
+          <div class="screen tab before" style="height: 360px">
+            <div class="sheet-stage">
+              <div class="sheet">
+                <div class="grab"></div>
+                <div class="sheet-h"><b>Hinzufügen</b><span>Was möchtest du eintragen?</span></div>
+                <div class="tiles3">
+                  <div class="tile">
+                    <svg class="i"><use href="#i-search" /></svg>Lebensmittel suchen
+                  </div>
+                  <div class="tile primary">
+                    <span class="combo"
+                      ><svg class="i"><use href="#i-scan" /></svg
+                      ><svg class="i in"><use href="#i-camera" /></svg
+                    ></span>
+                    Foto / Scan
+                  </div>
+                  <div class="tile">
+                    <svg class="i"><use href="#i-scale" /></svg>Gewicht eintragen
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </figure>
+
+        <figure class="state">
+          <div class="label">G1. Neu: Hinzufügen-Menü</div>
+          <div class="screen tab" style="height: 360px">
+            <div class="sheet-stage">
+              <div class="sheet">
+                <div class="grab"></div>
+                <div class="sheet-h"><b>Hinzufügen</b><span>Was möchtest du eintragen?</span></div>
+                <div class="tiles3">
+                  <div class="tile">
+                    <svg class="i"><use href="#i-dumbbell" /></svg>Training eintragen
+                  </div>
+                  <div class="tile primary">
+                    <span class="combo"
+                      ><svg class="i"><use href="#i-scan" /></svg
+                      ><svg class="i in"><use href="#i-utensils2" /></svg
+                    ></span>
+                    Essen eintragen
+                  </div>
+                  <div class="tile">
+                    <svg class="i"><use href="#i-scale" /></svg>Gewicht eintragen
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            „Essen eintragen“ bleibt in der Mitte und rot, dort, wo heute „Foto / Scan“ sitzt (gleiche
+            Daumenposition). Links „Training eintragen“ (Hantel wie die Trainings-Karte im Tagebuch), rechts
+            Gewicht. Hier mit Icon-Vorschlag a.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">G2. Essen eintragen (heute „Foto / Scan“)</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Essen eintragen <small>Mittagessen</small></h1>
+              <span class="ibtn search-hl" aria-label="Lebensmittel suchen"
+                ><svg class="i"><use href="#i-search" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="viewfinder">
+                <span class="vf-corner tl"></span><span class="vf-corner tr"></span
+                ><span class="vf-corner bl"></span><span class="vf-corner br"></span>
+                <div class="vf-bar">
+                  <span class="vf-btn"
+                    ><svg class="i"><use href="#i-images" /></svg
+                  ></span>
+                  <span class="shutter"><span></span></span>
+                  <span style="width: 44px"></span>
+                </div>
+              </div>
+              <p class="hint" style="margin-top: 12px">
+                Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos zeigen erst eine
+                Vorschau; mit „Analysieren“ gehen sie an Claude (Anthropic) und werden dort nicht gespeichert.
+              </p>
+            </main>
+          </div>
+          <figcaption>
+            Kamera wie heute (Auslöser, Mediathek, Barcode im Bild). <b>Neu:</b> Titel „Essen eintragen“ mit
+            der Ziel-Mahlzeit daneben (vom Tab-Leisten-„+“: die zur Uhrzeit passende), und die
+            <b>Lupe</b> oben rechts öffnet die Lebensmittelsuche für dieselbe Mahlzeit. Die Suche hat oben
+            rechts schon heute ein Kamera-Icon zurück hierher; beide Wechsel ersetzen die Seite, damit Zurück
+            nicht zwischen beiden pendelt. Das Hinweisfeld unter der Kamera entfällt, es sitzt jetzt in der
+            Vorschau (G5).
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="row">
+        <figure class="state" style="width: 600px">
+          <div class="label">G3. Icon-Ideen für „Essen eintragen“ (gewählt: a)</div>
+          <div class="screen tab" style="border-radius: 20px; padding: 20px">
+            <div class="iconideas">
+              <div>
+                <div class="tile primary chosen">
+                  <span class="combo"
+                    ><svg class="i"><use href="#i-scan" /></svg
+                    ><svg class="i in"><use href="#i-utensils2" /></svg
+                  ></span>
+                  Essen eintragen
+                </div>
+                <p>
+                  <b>a) Scan-Rahmen + Besteck</b> (gewählt). Der Rahmen sagt „Kamera/Scan“, das Besteck
+                  „Essen“. Gleicher Aufbau wie das heutige Icon.
+                </p>
+              </div>
+              <div>
+                <div class="tile primary">
+                  <span class="combo"
+                    ><svg class="i"><use href="#i-scan" /></svg><svg class="i in"><use href="#i-apple" /></svg
+                  ></span>
+                  Essen eintragen
+                </div>
+                <p><b>b) Scan-Rahmen + Apfel.</b> Freundlicher, „Lebensmittel“ statt „Mahlzeit“.</p>
+              </div>
+              <div>
+                <div class="tile primary">
+                  <span class="combo"
+                    ><svg class="i"><use href="#i-scan" /></svg><svg class="i in"><use href="#i-beef" /></svg
+                  ></span>
+                  Essen eintragen
+                </div>
+                <p><b>c) Scan-Rahmen + Steak.</b> Augenzwinkern zum Namen Fleisch-Teufel.</p>
+              </div>
+              <div>
+                <div class="tile primary">
+                  <svg class="i"><use href="#i-utensils2" /></svg>Essen eintragen
+                </div>
+                <p>
+                  <b>d) Besteck allein.</b> Am klarsten „Essen“, verliert aber den Hinweis auf die Kamera.
+                </p>
+              </div>
+              <div>
+                <div class="tile primary">
+                  <svg class="i"><use href="#i-apple" /></svg>Essen eintragen
+                </div>
+                <p><b>e) Apfel allein.</b> Klassisches Ernährungs-Symbol, sehr ruhig.</p>
+              </div>
+              <div>
+                <div class="tile primary">
+                  <svg class="i"><use href="#i-beef" /></svg>Essen eintragen
+                </div>
+                <p><b>f) Steak allein.</b> Am meisten Marke, aber am wenigsten neutral.</p>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            <b>Entschieden: a.</b> Hier vergrößert (40 px), in der App 28 px wie in G1. Das alte Kombi-Icon
+            (ScanCameraIcon) wird zum Scan-Rahmen mit Besteck.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">G4. „+“ an einer Mahlzeit</div>
+          <div class="screen tab">
+            <main class="m" style="padding-bottom: 0">
+              <section class="sec">
+                <div class="sec-t">
+                  <span class="link"
+                    >Mittagessen <span class="k">698 kcal</span
+                    ><svg class="i"><use href="#i-chevron-right" /></svg
+                  ></span>
+                  <span class="acts">
+                    <span
+                      class="ibtn primary plus"
+                      style="box-shadow: 0 0 0 2px var(--primary); border-radius: 12px"
+                      ><svg class="i"><use href="#i-plus" /></svg
+                    ></span>
+                  </span>
+                </div>
+                <div class="rows">
+                  <div class="drow">
+                    <div class="main">
+                      <div class="n">Apfel</div>
+                      <div class="d">1 Stück (150 g)</div>
+                    </div>
+                    <div class="sum"><b>78</b><small>P 0 · K 17 · F 0</small></div>
+                  </div>
+                </div>
+              </section>
+            </main>
+            <div class="arrow-note">
+              <svg class="i"><use href="#i-chevron-down" /></svg>
+              öffnet direkt
+            </div>
+            <div class="hdr" style="border-top: 1px solid var(--border)">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Essen eintragen <small>Mittagessen</small></h1>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-search" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="viewfinder" style="aspect-ratio: 4 / 3">
+                <span class="vf-corner tl"></span><span class="vf-corner tr"></span
+                ><span class="vf-corner bl"></span><span class="vf-corner br"></span>
+                <div class="vf-bar">
+                  <span class="vf-btn"
+                    ><svg class="i"><use href="#i-images" /></svg
+                  ></span>
+                  <span class="shutter"><span></span></span>
+                  <span style="width: 44px"></span>
+                </div>
+              </div>
+            </main>
+          </div>
+          <figcaption>
+            <b>Entschieden:</b> An einer Mahlzeit ergibt nur Essen Sinn, das „+“ springt direkt auf die
+            Essen-Seite für diese Mahlzeit. Gleiches gilt für das „+“ im Kopf der Mahlzeit-Seite (A2) und
+            „Lebensmittel hinzufügen“ in einer leeren Mahlzeit (A2b). Das Menü bleibt für das „+“ in der
+            Tab-Leiste.
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="row">
+        <figure class="state">
+          <div class="label">G5a. Nach dem Auslösen: Vorschau</div>
+          <div class="screen tab">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Essen eintragen <small>Mittagessen</small></h1>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-search" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="preview34">
+                <div class="photo-acts" style="left: 8px; right: auto">
+                  <span class="btn"
+                    ><svg class="i"><use href="#i-rotate" /></svg> Neu aufnehmen</span
+                  >
+                </div>
+              </div>
+              <div class="fld" style="margin-top: 12px">
+                <span class="lbl">Hinweis für die Analyse (optional)</span>
+                <div class="input ph" style="font-size: 14px">
+                  z. B. „mit Butter gebraten“, „halbe Portion“…
+                </div>
+              </div>
+              <p class="hint" style="margin-top: 8px">Erst mit „Analysieren“ geht das Foto an Claude.</p>
+            </main>
+            <div class="foot">
+              <span class="btn lg primary block"
+                ><svg class="i" style="width: 20px; height: 20px"><use href="#i-sparkles" /></svg>
+                Analysieren</span
+              >
+              <div class="home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Auslöser oder Mediathek zeigen erst das Foto. „Neu aufnehmen“ verwirft es und öffnet wieder die
+            Kamera, Zurück ebenso. Mit oder ohne Hinweis startet <b>„Analysieren“</b> die Analyse (danach wie
+            heute: Analyse-Animation, dann der Review).
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">G5b. Hinweis tippen, Tastatur offen</div>
+          <div class="screen tab full">
+            <div class="sbar">
+              <span>9:41</span
+              ><span class="ind"
+                ><i style="width: 18px; height: 11px; border-radius: 3px"></i
+                ><i style="width: 16px; height: 11px; border-radius: 6px 6px 2px 2px"></i
+                ><i style="width: 26px; height: 12px; border-radius: 4px"></i
+              ></span>
+            </div>
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Essen eintragen <small>Mittagessen</small></h1>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-search" /></svg
+              ></span>
+            </div>
+            <main class="m" style="padding-top: 0">
+              <div
+                class="preview34"
+                style="aspect-ratio: auto; height: 150px; border-radius: 0 0 16px 16px"
+              ></div>
+              <div class="fld" style="margin-top: 12px">
+                <span class="lbl">Hinweis für die Analyse (optional)</span>
+                <div class="input focus" style="font-size: 15px">
+                  viel Parmesan, halbe Portion<span class="caret"></span>
+                </div>
+              </div>
+            </main>
+            <div class="kbd">
+              <div class="foot kbfoot">
+                <span class="btn lg primary block"
+                  ><svg class="i" style="width: 20px; height: 20px"><use href="#i-sparkles" /></svg>
+                  Analysieren</span
+                >
+              </div>
+
+              <div class="kb-acc">
+                <svg class="i"><use href="#i-chevron-up" /></svg
+                ><svg class="i"><use href="#i-chevron-down" /></svg><span class="done">Fertig</span>
+              </div>
+              <div class="kb-sugg"><span>„Portion“</span><span>Portionen</span><span>Portion,</span></div>
+              <div class="kb-rows">
+                <div class="kb-row">
+                  <span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>z</span
+                  ><span>u</span><span>i</span><span>o</span><span>p</span>
+                </div>
+                <div class="kb-row mid">
+                  <span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span
+                  ><span>j</span><span>k</span><span>l</span>
+                </div>
+                <div class="kb-row">
+                  <span class="sp">⇧</span><span>y</span><span>x</span><span>c</span><span>v</span
+                  ><span>b</span><span>n</span><span>m</span
+                  ><span class="sp"
+                    ><svg class="i" style="width: 22px; height: 22px"><use href="#i-delete" /></svg
+                  ></span>
+                </div>
+                <div class="kb-row bottom">
+                  <span class="sp">123</span><span class="wide">Leerzeichen</span
+                  ><span class="ret">Return</span>
+                </div>
+              </div>
+              <div class="kb-home"></div>
+            </div>
+          </div>
+          <figcaption>
+            Beim Tippen rückt das Foto nach oben aus dem Bild, das Feld bleibt sichtbar und „Analysieren“
+            sitzt direkt über der Tastatur (gleiche Regel wie bei den Dialogen). Ein Tipp darauf analysiert
+            sofort, die Tastatur muss nicht erst zu. „Fertig“ schließt nur die Tastatur.
+          </figcaption>
+        </figure>
+
+        <figure class="state">
+          <div class="label">G5c. Mediathek-Foto mit Barcode</div>
+          <div class="screen tab" style="height: 300px">
+            <div class="hdr">
+              <span class="ibtn lg"
+                ><svg class="i"><use href="#i-chevron-left" /></svg
+              ></span>
+              <h1>Essen eintragen <small>Mittagessen</small></h1>
+              <span class="ibtn"
+                ><svg class="i"><use href="#i-search" /></svg
+              ></span>
+            </div>
+            <main class="m">
+              <div class="ghost">
+                Ein Barcode im Live-Bild oder im gewählten Foto braucht keine KI: Er wird wie heute sofort
+                nachgeschlagen (Toast „Barcode 4006040… erkannt“), ohne Vorschau.
+              </div>
+            </main>
+          </div>
+          <figcaption>
+            Unverändert, nur zur Abgrenzung: die Vorschau gibt es nur für Fotos, die zur KI gehen.
+          </figcaption>
+        </figure>
+      </div>
+
+      <ul class="note">
+        <li>
+          <b>Was wegfällt:</b> die Kachel „Lebensmittel suchen“ (die Suche ist eine Lupe weiter), der Titel
+          „Foto / Scan“, das Hinweisfeld unter der Kamera und der Sofort-Start der Analyse.
+        </li>
+        <li>
+          <b>„Training eintragen“</b> öffnet die Seite aus E1a für den angezeigten Tag (bisher nur über die
+          Trainings-Karte im Tagebuch erreichbar, die bleibt).
+        </li>
+        <li>
+          <b>Ohne KI</b> (kein API-Schlüssel auf dem Server) funktioniert die Essen-Seite weiter: Barcodes
+          werden erkannt, und die Lupe führt zur Suche. Der Hinweis „Foto-Analyse nicht eingerichtet“ bleibt
+          wie heute.
+        </li>
+        <li>
+          <b>Offline:</b> „Analysieren“ legt das Foto samt Hinweis wie heute in die Warteschlange („Wird
+          analysiert, sobald du wieder verbunden bist“).
+        </li>
+        <li>
+          <b>Ohne Kamera-Erlaubnis</b> zeigt die Seite wie heute „Foto aufnehmen“ / „Aus Mediathek“; die Lupe
+          ist immer da, also kommt man auch dann zur Suche.
+        </li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="umfang">Zusätzlicher Umfang (über das ursprüngliche Feedback hinaus)</h2>
+      <p class="note">
+        Was durch deine Antworten neu dazugekommen ist und im Implementierungsplan eigene Schritte bekommt.
+      </p>
+      <ol class="note scope">
+        <li>
+          <b>Gespeicherte Trainings verwalten</b> (F): Eintrag unter Mehr, Listenseite, Editor (zwei neue
+          Routen), Löschen mit Rückgängig, Abkürzung „Verwalten“ in der Schnellauswahl.
+        </li>
+        <li><b>Papierkorb für gespeicherte Trainings</b>: dort anzeigen und wiederherstellen.</li>
+        <li>
+          <b>Begriff „Vorlage“ ersetzen</b> durch „gespeichertes Training“ (Dialog, Button,
+          Schnellauswahl-Gruppe, Toasts, Doku, E2E-Tests).
+        </li>
+        <li>
+          <b>Nachfrage bei ungespeicherten Änderungen</b> (B1b): Wegnavigieren abfangen, im Meal-Editor und im
+          Trainings-Editor.
+        </li>
+        <li>
+          <b>Dialoge app-weit oben und tastaturfest</b> (A3, D1b, E1d): gemeinsame Dialog-Komponente, Höhe
+          passt sich dem Platz über der Tastatur an, Inhalt scrollt, Buttons bleiben sichtbar.
+        </li>
+        <li>
+          <b>Zutat nur für einen Eintrag entfernen</b> (B2, Wischen mit Rückgängig), Summe und Button rechnen
+          neu.
+        </li>
+        <li><b>Mengen-Slider 0,5× bis 2×</b> im Eintragen-Modus statt vier Buttons (B2).</li>
+        <li><b>Link „Meal bearbeiten“</b> vom Eintragen-Modus in den Editor und zurück (B2).</li>
+        <li><b>Zweistufiger Überschuss für Mikronährstoffe</b> mit Höchstwert (C3).</li>
+        <li>
+          <b>„Änderungen übernehmen“</b> beim Bearbeiten an allen drei Stellen: Training,
+          Lebensmittel-Eintrag, Schnelleingabe (E1e).
+        </li>
+        <li>
+          <b>Hinzufügen-Menü umbauen</b> (G1): Kacheln „Training eintragen“, „Essen eintragen“, „Gewicht
+          eintragen“; neues Icon (G3).
+        </li>
+        <li><b>Essen-Seite mit Lupe zur Suche</b> (G2), neuer Titel, Seitenwechsel ohne Zurück-Pendeln.</li>
+        <li>
+          <b>„+“ an Mahlzeiten öffnet direkt die Essen-Seite</b> (G4): Mahlzeitenkarte, Kopf der
+          Mahlzeit-Seite, leere Mahlzeit.
+        </li>
+        <li>
+          <b>Foto-Vorschau vor der Analyse</b> (G5): Auslöser und Mediathek zeigen erst das Foto mit
+          Hinweisfeld, „Neu aufnehmen“ und „Analysieren“; das Hinweisfeld unter der Kamera entfällt. Barcodes
+          gehen weiter sofort zur Produktsuche.
+        </li>
+      </ol>
+    </div>
+
+    <script>
+      // Theme switch for reviewing light and dark side by side with the system setting.
+      (() => {
+        const root = document.documentElement;
+        const buttons = document.querySelectorAll('[data-set-theme]');
+        const apply = (t) => {
+          if (t === 'system') root.removeAttribute('data-theme');
+          else root.setAttribute('data-theme', t);
+          buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.setTheme === t)));
+          document.dispatchEvent(new Event('themechange'));
+        };
+        buttons.forEach((b) => b.addEventListener('click', () => apply(b.dataset.setTheme)));
+      })();
+
+      /**
+       * Endless tape measure (section D): native horizontal scrolling (momentum on touch), a canvas
+       * draws only the visible ±1 kg, snapping to 0.05 kg once the scroll settles. Mouse drag and
+       * keyboard (role="slider") are added on top. Prototype for components/TapeMeasure.tsx.
+       */
+      const MIN = 20;
+      const MAX = 400;
+      const STEP = 0.05;
+      const TICKS_PER_KG = 20; // 1 / STEP, kept integral to avoid float drift
+      const fmt2 = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const clamp = (v) => Math.min(MAX, Math.max(MIN, v));
+      const snap = (v) => clamp(Math.round(v * TICKS_PER_KG) / TICKS_PER_KG);
+
+      function createTape(root, initial, onChange) {
+        const scroller = root.querySelector('.tape-scroll');
+        const spacer = root.querySelector('.tape-spacer');
+        const canvas = root.querySelector('canvas');
+        const ctx = canvas.getContext('2d');
+        let width = 0;
+        let pxPerKg = 1;
+        let value = snap(initial);
+        let lastEmitted = value;
+        let drag = null;
+        let settleTimer = 0;
+        let frame = 0;
+        let colors = {};
+
+        const leftFor = (v) => (v - MIN) * pxPerKg;
+        const valueAt = () => clamp(MIN + scroller.scrollLeft / pxPerKg);
+
+        function readColors() {
+          const s = getComputedStyle(root);
+          colors = {
+            tick: s.getPropertyValue('--muted-foreground').trim(),
+            text: s.getPropertyValue('--muted-foreground').trim(),
+          };
+        }
+
+        function layout() {
+          width = scroller.clientWidth;
+          if (!width) return;
+          pxPerKg = width / 2; // exactly ±1 kg visible around the pointer
+          spacer.style.width = `${(MAX - MIN) * pxPerKg + width}px`;
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(root.clientHeight * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          scroller.scrollLeft = leftFor(value);
+          draw();
+        }
+
+        function draw() {
+          frame = 0;
+          const h = root.clientHeight;
+          const v = valueAt();
+          ctx.clearRect(0, 0, width, h);
+          const from = Math.floor((v - 1.2) * TICKS_PER_KG);
+          const to = Math.ceil((v + 1.2) * TICKS_PER_KG);
+          ctx.strokeStyle = colors.tick;
+          ctx.fillStyle = colors.text;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'alphabetic';
+          ctx.font = '600 13px -apple-system, system-ui, "Segoe UI", sans-serif';
+          for (let k = Math.max(from, MIN * TICKS_PER_KG); k <= Math.min(to, MAX * TICKS_PER_KG); k++) {
+            const x = Math.round(width / 2 + (k / TICKS_PER_KG - v) * pxPerKg) + 0.5;
+            const kg = k % TICKS_PER_KG === 0;
+            const half = !kg && k % (TICKS_PER_KG / 2) === 0;
+            ctx.globalAlpha = kg ? 1 : half ? 0.8 : 0.55;
+            ctx.lineWidth = kg ? 2 : 1;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, kg ? 30 : half ? 22 : 12);
+            ctx.stroke();
+            if (kg) {
+              ctx.globalAlpha = 1;
+              ctx.fillText(String(k / TICKS_PER_KG), x, h - 12);
+            }
+          }
+          ctx.globalAlpha = 1;
+        }
+
+        function requestDraw() {
+          if (!frame) frame = requestAnimationFrame(draw);
+        }
+
+        function emit(v, source) {
+          root.setAttribute('aria-valuenow', String(v));
+          root.setAttribute('aria-valuetext', `${fmt2(v)} kg`);
+          if (v !== lastEmitted) {
+            lastEmitted = v;
+            onChange(v, source);
+          }
+        }
+
+        function settle() {
+          clearTimeout(settleTimer);
+          if (drag) return;
+          value = snap(valueAt());
+          const target = leftFor(value);
+          if (Math.abs(scroller.scrollLeft - target) > 0.5)
+            scroller.scrollTo({ left: target, behavior: 'smooth' });
+          emit(value, 'tape');
+        }
+
+        scroller.addEventListener(
+          'scroll',
+          () => {
+            requestDraw();
+            emit(snap(valueAt()), 'tape');
+            // scrollend is not in every Safari yet: settle after a short pause as well.
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(settle, 140);
+          },
+          { passive: true },
+        );
+        scroller.addEventListener('scrollend', settle);
+
+        // Mouse: drag the tape (touch and trackpads scroll natively).
+        scroller.addEventListener('pointerdown', (e) => {
+          if (e.pointerType !== 'mouse' || e.button !== 0) return;
+          drag = { x: e.clientX, left: scroller.scrollLeft };
+          scroller.setPointerCapture(e.pointerId);
+          scroller.classList.add('grabbing');
+          root.focus({ preventScroll: true });
+          e.preventDefault();
+        });
+        scroller.addEventListener('pointermove', (e) => {
+          if (drag) scroller.scrollLeft = drag.left - (e.clientX - drag.x);
+        });
+        const endDrag = () => {
+          if (!drag) return;
+          drag = null;
+          scroller.classList.remove('grabbing');
+          settle();
+        };
+        scroller.addEventListener('pointerup', endDrag);
+        scroller.addEventListener('pointercancel', endDrag);
+
+        root.addEventListener('keydown', (e) => {
+          const d = {
+            ArrowLeft: -STEP,
+            ArrowDown: -STEP,
+            ArrowRight: STEP,
+            ArrowUp: STEP,
+            PageDown: -1,
+            PageUp: 1,
+          }[e.key];
+          if (d === undefined) return;
+          e.preventDefault();
+          set(value + d, { smooth: false });
+          lastEmitted = null; // set() marks the value as known; the keyboard change must still be reported
+          emit(value, 'tape');
+        });
+
+        /** Moves the tape to `v` (snapped). `emit: false` keeps an exact typed value elsewhere. */
+        function set(v, { smooth = true } = {}) {
+          value = snap(v);
+          lastEmitted = value;
+          scroller.scrollTo({ left: leftFor(value), behavior: smooth ? 'smooth' : 'auto' });
+          requestDraw();
+        }
+
+        readColors();
+        new ResizeObserver(layout).observe(scroller);
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+          readColors();
+          draw();
+        });
+        document.addEventListener('themechange', () => {
+          readColors();
+          draw();
+        });
+        emit(value, 'init');
+        return {
+          set,
+          get value() {
+            return value;
+          },
+        };
+      }
+
+      // Static tapes (D1b) only draw their value.
+      document
+        .querySelectorAll('.tape[data-static]')
+        .forEach((t) => createTape(t, Number(t.dataset.static), () => {}));
+
+      document.querySelectorAll('.dialog.weight').forEach((dialog) => {
+        const out = dialog.querySelector('.w-out');
+        const exact = dialog.querySelector('.w-exact');
+        const err = dialog.querySelector('.err');
+        const save = dialog.querySelector('.w-save');
+        let current = Number(dialog.dataset.initial);
+
+        const show = (v) => {
+          current = v;
+          out.textContent = v === null ? '–' : fmt2(v);
+          const valid = v !== null && v >= MIN && v <= MAX;
+          err.textContent = v !== null && !valid ? 'Zwischen 20 und 400 kg.' : '';
+          save.disabled = !valid;
+          save.classList.toggle('disabled', !valid);
+        };
+        const tape = createTape(dialog.querySelector('.tape'), current, (v, source) => {
+          if (source === 'init') return;
+          show(v);
+          if (document.activeElement !== exact) exact.value = fmt2(v);
+        });
+        exact.addEventListener('input', () => {
+          const n = Number(exact.value.trim().replace(/\./g, '').replace(',', '.'));
+          const v = exact.value.trim() === '' || Number.isNaN(n) ? null : n;
+          show(v);
+          if (v !== null && v >= MIN && v <= MAX) tape.set(v, { smooth: false });
+        });
+        exact.addEventListener('focus', () => exact.select());
+        // Always two decimals once the field is left: 80 -> 80,00, 80,5 -> 80,50.
+        exact.addEventListener('blur', () => {
+          if (current !== null && current >= MIN && current <= MAX) exact.value = fmt2(current);
+        });
+        save.addEventListener('click', () => {
+          save.textContent = `${fmt2(current)} kg gespeichert`;
+          setTimeout(() => (save.textContent = 'Speichern'), 1400);
+        });
+        show(current);
+      });
+      // B2: amount slider 0.5x to 2x scales the nutrients and the log button.
+      document.querySelectorAll('#b2-factor').forEach((range) => {
+        const fig = range.closest('figure');
+        const out = fig.querySelector('.b2-out');
+        const fmtF = (f) => f.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        const update = () => {
+          const f = Number(range.value);
+          out.textContent = `${fmtF(f)}×`;
+          range.setAttribute('aria-valuetext', `${fmtF(f)}-fache Menge`);
+          range.style.setProperty('--fill', `${((f - 0.5) / 1.5) * 100}%`);
+          fig.querySelectorAll('[data-scale]').forEach((el) => {
+            el.textContent = `${Math.round(Number(el.dataset.scale) * f).toLocaleString('de-DE')}${el.dataset.unit ?? ''}`;
+          });
+        };
+        range.addEventListener('input', update);
+        update();
+      });
+    </script>
+  </body>
+</html>

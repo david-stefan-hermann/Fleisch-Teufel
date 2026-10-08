@@ -260,7 +260,7 @@ function FoodLogEditor({
     };
     if (entry) {
       await saveRecord(db, 'foodEntries', { ...entry, ...base });
-      toast.success('Eintrag gespeichert');
+      toast.success('Änderungen übernommen');
     } else {
       const dates = [date, ...extraDays];
       await logFoodEntry(db, base, dates);
@@ -457,12 +457,12 @@ function FoodLogEditor({
       <div className="sticky bottom-0 -mx-4 border-t border-border/70 bg-background/90 px-4 pt-3 pb-[calc(var(--safe-bottom)+0.75rem)] backdrop-blur-md">
         <Button size="lg" className="w-full" disabled={!valid} onClick={() => void save()}>
           {entry
-            ? 'Änderungen speichern'
+            ? 'Änderungen übernehmen'
             : into
               ? into.kind === 'meal'
                 ? 'Zum Meal hinzufügen'
                 : 'Zur Analyse hinzufügen'
-              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} hinzufügen`}
+              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} eintragen`}
         </Button>
       </div>
 

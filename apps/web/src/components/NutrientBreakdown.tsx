@@ -283,6 +283,7 @@ function MicroRow({
   const status = value === undefined ? null : microStatus(v, target);
   const pct = value !== undefined && target.grams > 0 ? Math.min(100, (v / target.grams) * 100) : 0;
   const goal = `${target.kind === 'min' ? 'von mind.' : 'von max.'} ${fmtGrams(target.grams)}`;
+  const valueText = value === undefined ? 'keine Angabe' : `${fmtGrams(v)} ${goal}`;
   return (
     <li>
       <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -294,27 +295,33 @@ function MicroRow({
           {goal}
         </span>
       </div>
-      <div
-        className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
-        role="meter"
-        aria-label={label}
-        aria-valuemin={0}
-        aria-valuemax={target.grams}
-        aria-valuenow={Math.round(v * 10) / 10}
-        aria-valuetext={value === undefined ? 'keine Angabe' : `${fmtGrams(v)} ${goal}`}
-      >
-        <div
-          className={cn(
-            'h-full rounded-full',
-            status === 'high'
-              ? 'bg-over'
-              : status === 'ok' && target.kind === 'min'
-                ? 'bg-good'
-                : 'bg-foreground/40',
-          )}
-          style={{ width: `${pct}%` }}
+      {target.kind === 'max' ? (
+        // Maximums stack like the macros: grey up to the maximum, then red, then dark red.
+        <TargetBar
+          className="mt-1"
+          value={v}
+          target={target.grams}
+          color="bg-foreground/40"
+          label={label}
+          valueText={valueText}
+          over={status === 'high'}
         />
-      </div>
+      ) : (
+        <div
+          className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+          role="meter"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={target.grams}
+          aria-valuenow={Math.round(v * 10) / 10}
+          aria-valuetext={valueText}
+        >
+          <div
+            className={cn('h-full rounded-full', status === 'ok' ? 'bg-good' : 'bg-foreground/40')}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
       {showSource && (
         <p className="mt-1 text-xs text-muted-foreground">
           {target.custom ? 'Eigener Zielwert' : MICRO_DEFAULTS[code].source}

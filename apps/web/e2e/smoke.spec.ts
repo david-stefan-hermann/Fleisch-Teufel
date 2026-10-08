@@ -5,7 +5,7 @@ const password = 'e2e-password-123';
 
 async function addOats(page: Page, grams: string) {
   // The meal's "+" opens the add sheet for that meal.
-  await page.getByRole('button', { name: 'Zu Frühstück hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Essen zu Frühstück eintragen' }).click();
   await page
     .getByRole('dialog', { name: 'Zu Frühstück hinzufügen' })
     .getByRole('button', { name: 'Lebensmittel suchen' })
@@ -15,7 +15,7 @@ async function addOats(page: Page, grams: string) {
   await page.getByLabel('Portion', { exact: true }).click();
   await page.getByRole('option', { name: '1 g' }).click();
   await page.getByLabel('Anzahl Portionen').fill(grams);
-  await page.getByRole('button', { name: 'Zu Frühstück hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Zu Frühstück eintragen' }).click();
   await expect(page.getByText('Hafer Flocken eingetragen')).toBeVisible();
 }
 

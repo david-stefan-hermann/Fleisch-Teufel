@@ -4,6 +4,7 @@ import { fmtGrams, fmtIngredients, fmtPercent, fmtRelativeDay, NO_VALUE, parseDe
 import { defaultMealForNow } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
+import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -75,5 +76,28 @@ describe('labels', () => {
     expect(errorMessage(new OfflineError())).toMatch(/WireGuard/);
     expect(errorMessage(new ApiError(401, 'invalid_credentials'))).toBe('E-Mail oder Passwort stimmt nicht.');
     expect(errorMessage(new ApiError(500, 'x'))).toMatch(/500/);
+  });
+});
+
+describe('expanded diary groups', () => {
+  it('remembers expanded group ids in sessionStorage', () => {
+    sessionStorage.clear();
+    expect(readExpanded().size).toBe(0);
+    setGroupExpanded('g1', true);
+    setGroupExpanded('g2', true);
+    setGroupExpanded('g1', false);
+    expect([...readExpanded()]).toEqual(['g2']);
+    writeExpanded(new Set(['a', 'b']));
+    expect(readExpanded()).toEqual(new Set(['a', 'b']));
+  });
+
+  it('treats broken or foreign data as nothing expanded', () => {
+    sessionStorage.setItem('ft.diary.expanded', '{not json');
+    expect(readExpanded().size).toBe(0);
+    sessionStorage.setItem('ft.diary.expanded', '{"a":1}');
+    expect(readExpanded().size).toBe(0);
+    sessionStorage.setItem('ft.diary.expanded', '["a",2,null]');
+    expect([...readExpanded()]).toEqual(['a']);
+    sessionStorage.clear();
   });
 });

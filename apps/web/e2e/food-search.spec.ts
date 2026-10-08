@@ -32,7 +32,7 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
 
   // Header: photo and quick add (24 px icons), no barcode link (the photo page scans barcodes).
   await expect(page.getByRole('link', { name: 'Barcode scannen' })).toHaveCount(0);
-  for (const name of ['Foto analysieren', 'Schnell hinzufügen']) {
+  for (const name of ['Foto analysieren', 'Schnelleingabe']) {
     const icon = (await page.getByRole('link', { name }).locator('svg').boundingBox())!;
     expect(icon.width).toBe(24);
   }
@@ -47,7 +47,7 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   // Log the fourth hit; searching again puts it first.
   const picked = plain[3]!;
   await page.locator('main ul').first().getByRole('link').nth(3).click();
-  await page.getByRole('button', { name: 'Zu Frühstück hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Zu Frühstück eintragen' }).click();
   await expect(page.getByText(`${picked} eingetragen`)).toBeVisible();
   await page.goto('/add?meal=0');
   await page.getByLabel('Lebensmittel suchen').fill('brötchen');

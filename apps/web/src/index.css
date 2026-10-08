@@ -57,6 +57,8 @@
   --good: oklch(0.6 0.13 155);
   --warn: oklch(0.7 0.15 65);
   --over: oklch(0.58 0.19 27);
+  /* Second excess step (above twice the target); bars only, never text. */
+  --over-2: oklch(0.4 0.17 27);
   --exercise: oklch(0.62 0.13 165);
 
   --safe-top: env(safe-area-inset-top, 0px);
@@ -90,6 +92,7 @@
     --fat: oklch(0.62 0.15 320);
     --good: oklch(0.72 0.13 155);
     --over: oklch(0.68 0.17 27);
+    --over-2: oklch(0.48 0.16 27);
   }
 }
 
@@ -123,6 +126,7 @@
   --color-good: var(--good);
   --color-warn: var(--warn);
   --color-over: var(--over);
+  --color-over-2: var(--over-2);
   --color-exercise: var(--exercise);
 }
 

@@ -50,6 +50,7 @@ import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
+import { readExpanded, setGroupExpanded } from './expandedGroups';
 
 export function entryAmountLabel(
   e: Pick<FoodEntry, 'source' | 'quantity' | 'portionLabel' | 'portionGrams' | 'grams'>,
@@ -138,7 +139,7 @@ export function MealCard({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Zu ${name} hinzufügen`}
+            aria-label={`Essen zu ${name} eintragen`}
             onClick={() => addSheet.open({ date, meal })}
           >
             <Plus className="size-5 text-primary" aria-hidden />
@@ -155,7 +156,7 @@ export function MealCard({
             dragActive && 'border-primary/50 text-primary',
           )}
         >
-          {dragActive ? 'Hier ablegen' : 'Lebensmittel hinzufügen'}
+          {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
         </button>
       ) : (
         <DiaryRows entries={entries} date={date} meal={meal} draggable />
@@ -338,8 +339,12 @@ function GroupRow({
   draggable: boolean;
   onDelete: (entries: FoodEntry[]) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(() => readExpanded().has(groupId));
   const { dragging } = useDiaryDrag();
+  function toggle() {
+    setExpanded(!expanded);
+    setGroupExpanded(groupId, !expanded);
+  }
   const fromPhoto = entries.some((e) => e.source === 'ai');
   return (
     <>
@@ -359,7 +364,7 @@ function GroupRow({
           <button
             type="button"
             aria-expanded={expanded}
-            onClick={() => setExpanded(!expanded)}
+            onClick={toggle}
             className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
           >
             {photoId && (

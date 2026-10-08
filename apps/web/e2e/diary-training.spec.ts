@@ -127,7 +127,7 @@ const mealCard = (page: Page, name: string) =>
 test('the "+" of a meal opens the add sheet for that meal', async ({ page }) => {
   await register(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Zu Mittagessen hinzufügen' }).click();
+  await page.getByRole('button', { name: 'Essen zu Mittagessen eintragen' }).click();
   const sheet = page.getByRole('dialog', { name: 'Zu Mittagessen hinzufügen' });
   await expect(sheet).toBeVisible();
   // The photo tile is the highlighted one.
@@ -140,7 +140,7 @@ test('the "+" of a meal opens the add sheet for that meal', async ({ page }) => 
 
   // The empty state of a meal opens the same sheet; the tab bar "+" one without a meal.
   await page.goto('/');
-  await mealCard(page, 'Abendessen').getByRole('button', { name: 'Lebensmittel hinzufügen' }).click();
+  await mealCard(page, 'Abendessen').getByRole('button', { name: 'Essen eintragen' }).click();
   await page
     .getByRole('dialog', { name: 'Zu Abendessen hinzufügen' })
     .getByRole('button', { name: 'Lebensmittel suchen' })
