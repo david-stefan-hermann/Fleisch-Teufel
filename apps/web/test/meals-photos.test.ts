@@ -11,7 +11,17 @@ import {
   updateDraft,
 } from '@/db/aiDraft';
 import { UserDb, type AiDraft } from '@/db/dexie';
-import { addItemToMeal, updateMealItem } from '@/db/entries';
+import { addItemToMeal } from '@/db/entries';
+import {
+  clearMealDraft,
+  draftFromMeal,
+  isDirty,
+  readMealDraft,
+  readMealDraftPhoto,
+  saveMealDraft,
+  setMealDraftPhoto,
+  writeMealDraft,
+} from '@/db/mealDraft';
 import { loadPhoto, photoBlob, storePhoto, uploadPendingPhotos } from '@/db/photos';
 import {
   discardQueueItem,
@@ -51,28 +61,87 @@ const food = (id: string, name: string, kcal: number): Food => ({
   portions: [],
 });
 
-describe('saved meal editing', () => {
-  it('adds, rescales and removes ingredients but never the last one', async () => {
+describe('saved meal editing (draft until "Speichern")', () => {
+  const setup = async () => {
     const d = db();
     await saveRecord(d, 'meals', { id: 'm1', name: 'Müsli', items: [item('Hafer', 370)], photoId: null });
-    expect(await addItemToMeal(d, 'm1', item('Milch', 64))).toBe(true);
+    await d.outbox.clear();
+    return d;
+  };
+
+  it('starts a draft from the meal and compares it with the saved one', async () => {
+    const d = await setup();
+    const meal = (await d.meals.get('m1'))!;
+    const draft = draftFromMeal(meal);
+    expect(draft).toEqual({ mealId: 'm1', name: 'Müsli', items: meal.items, photo: 'keep' });
+    expect(isDirty(draft, meal)).toBe(false);
+    // An empty or untrimmed name means the same name.
+    expect(isDirty({ ...draft, name: '  ' }, meal)).toBe(false);
+    expect(isDirty({ ...draft, name: ' Müsli ' }, meal)).toBe(false);
+    expect(isDirty({ ...draft, name: 'Porridge' }, meal)).toBe(true);
+    expect(isDirty({ ...draft, items: [{ ...meal.items[0]!, quantity: 50 }] }, meal)).toBe(true);
+    expect(isDirty({ ...draft, photo: 'remove' }, meal)).toBe(true);
+  });
+
+  it('adds an ingredient from the search to the draft, never to the record', async () => {
+    const d = await setup();
+    expect(await addItemToMeal(d, 'm1', { ...item('Milch', 64), extra: 1 } as MealItem)).toBe(true);
     expect(await addItemToMeal(d, 'missing', item('Milch', 64))).toBe(false);
-    let meal = (await d.meals.get('m1'))!;
-    expect(meal.items.map((i) => i.name)).toEqual(['Hafer', 'Milch']);
+    const draft = (await readMealDraft(d, 'm1'))!;
+    expect(draft.items.map((i) => i.name)).toEqual(['Hafer', 'Milch']);
+    // Only item fields go into the draft.
+    expect(draft.items[1]).not.toHaveProperty('extra');
+    // A second one appends to the existing draft (with its other edits).
+    await writeMealDraft(d, { ...draft, name: 'Porridge' });
+    await addItemToMeal(d, 'm1', item('Honig', 300));
+    expect(await readMealDraft(d, 'm1')).toMatchObject({ name: 'Porridge' });
+    expect((await readMealDraft(d, 'm1'))!.items.map((i) => i.name)).toEqual(['Hafer', 'Milch', 'Honig']);
+    expect((await d.meals.get('m1'))!.items).toHaveLength(1);
+    expect(await d.outbox.count()).toBe(0);
+    // A deleted meal takes nothing.
+    await saveRecord(d, 'meals', { ...(await d.meals.get('m1'))!, deleted: true });
+    expect(await addItemToMeal(d, 'm1', item('Zimt', 250))).toBe(false);
+  });
 
-    await updateMealItem(d, 'm1', 1, {
-      ...meal.items[1]!,
-      quantity: 200,
-      grams: 200,
-      nutrients: { ENERCC: 128 },
+  it('saves name, items and a new photo in one change, storing the photo only now', async () => {
+    const d = await setup();
+    const draft = draftFromMeal((await d.meals.get('m1'))!);
+    await setMealDraftPhoto(d, 'm1', { bytes: new Uint8Array([1, 2, 3]).buffer, type: 'image/png', at: 1 });
+    await writeMealDraft(d, {
+      ...draft,
+      name: ' Porridge ',
+      items: [...draft.items, item('Milch', 64)],
+      photo: 'pending',
     });
-    meal = (await d.meals.get('m1'))!;
-    expect(meal.items[1]).toMatchObject({ quantity: 200, nutrients: { ENERCC: 128 } });
-
-    await updateMealItem(d, 'm1', 0, null);
-    expect((await d.meals.get('m1'))!.items.map((i) => i.name)).toEqual(['Milch']);
-    await expect(updateMealItem(d, 'm1', 0, null)).rejects.toThrow();
+    expect(await d.photos.count()).toBe(0);
+    expect(await saveMealDraft(d, (await readMealDraft(d, 'm1'))!)).toBe(true);
+    const meal = (await d.meals.get('m1'))!;
+    expect(meal).toMatchObject({ name: 'Porridge' });
+    expect(meal.items.map((i) => i.name)).toEqual(['Hafer', 'Milch']);
+    expect(meal.photoId).toBeTruthy();
+    expect(await d.photos.get(meal.photoId!)).toMatchObject({ type: 'image/png', uploaded: 0 });
     expect(await d.outbox.get('meals:m1')).toBeTruthy();
+    // Both draft keys are gone.
+    expect(await readMealDraft(d, 'm1')).toBeNull();
+    expect(await readMealDraftPhoto(d, 'm1')).toBeNull();
+  });
+
+  it('removes the photo on "remove", refuses an empty meal and reports a missing one', async () => {
+    const d = await setup();
+    await saveRecord(d, 'meals', { ...(await d.meals.get('m1'))!, photoId: 'p1' });
+    const draft = draftFromMeal((await d.meals.get('m1'))!);
+    expect(await saveMealDraft(d, { ...draft, photo: 'remove' })).toBe(true);
+    expect((await d.meals.get('m1'))!.photoId).toBeNull();
+    await expect(saveMealDraft(d, { ...draft, items: [] })).rejects.toThrow();
+    expect(await saveMealDraft(d, { ...draft, mealId: 'missing' })).toBe(false);
+  });
+
+  it('discards a draft with both keys', async () => {
+    const d = await setup();
+    await writeMealDraft(d, draftFromMeal((await d.meals.get('m1'))!));
+    await setMealDraftPhoto(d, 'm1', { bytes: new ArrayBuffer(1), type: 'image/jpeg', at: 1 });
+    await clearMealDraft(d, 'm1');
+    expect(await d.kv.count()).toBe(0);
   });
 });
 

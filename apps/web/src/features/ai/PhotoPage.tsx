@@ -43,6 +43,7 @@ import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
+import { rowSliderMax } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
@@ -496,12 +497,6 @@ const CONFIDENCE = { low: 'unsicher', medium: 'mittel', high: 'sicher' } as cons
 /** Range of the "Gesamtmenge" slider (factor on all ingredients). */
 const SCALE_MIN = 0.25;
 const SCALE_MAX = 3;
-
-/** Upper end of an ingredient's gram slider: 2.5 × the reference amount, at least 50 g. */
-function rowSliderMax(base: number | null, grams: number | null): number {
-  const roundUp10 = (g: number) => Math.ceil(g / 10) * 10;
-  return Math.max(50, roundUp10((base ?? 100) * 2.5), roundUp10(grams ?? 0));
-}
 
 /**
  * Review of a finished analysis. The working state is kept in component state for smooth typing and

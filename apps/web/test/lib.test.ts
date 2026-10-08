@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { validGtin } from '@/components/BarcodeScanner';
-import { fmtGrams, fmtIngredients, fmtPercent, fmtRelativeDay, NO_VALUE, parseDecimal } from '@/lib/format';
+import {
+  fmtFixed,
+  fmtGrams,
+  fmtIngredients,
+  fmtPercent,
+  fmtRelativeDay,
+  NO_VALUE,
+  parseDecimal,
+} from '@/lib/format';
 import { defaultMealForNow } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
@@ -99,5 +107,15 @@ describe('expanded diary groups', () => {
     sessionStorage.setItem('ft.diary.expanded', '["a",2,null]');
     expect([...readExpanded()]).toEqual(['a']);
     sessionStorage.clear();
+  });
+});
+
+describe('fmtFixed', () => {
+  it('always shows the given number of decimals', () => {
+    expect(fmtFixed(80, 2)).toBe('80,00');
+    expect(fmtFixed(84.5, 2)).toBe('84,50');
+    expect(fmtFixed(84.555, 2)).toBe('84,56');
+    expect(fmtFixed(1, 1)).toBe('1,0');
+    expect(fmtFixed(1234.5, 0)).toBe('1.235');
   });
 });

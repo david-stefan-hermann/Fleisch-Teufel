@@ -11,6 +11,7 @@ import {
   type MealItem,
 } from '@ft/shared';
 import type { UserDb } from './dexie';
+import { addItemToMealDraft } from './mealDraft';
 import { storePhoto } from './photos';
 import { patchRecord, restoreRecord, saveRecord } from './write';
 
@@ -115,33 +116,12 @@ export async function logItems(
   return items.length;
 }
 
-/** Appends an ingredient to a saved meal (meal editor / "Zutat hinzufügen"). */
+/**
+ * Appends an ingredient to a saved meal from the food search ("Zutat hinzufügen" in the meal editor).
+ * It goes into the editor's draft, not into the record: the editor saves explicitly.
+ */
 export async function addItemToMeal(db: UserDb, mealId: string, item: MealItem): Promise<boolean> {
-  const meal = await db.meals.get(mealId);
-  if (!meal || meal.deleted) return false;
-  const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
-    item;
-  await patchRecord(db, 'meals', mealId, {
-    items: [
-      ...meal.items,
-      { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients },
-    ],
-  });
-  return true;
-}
-
-/** Replaces one ingredient of a saved meal (amount changed) or removes it (`null`). */
-export async function updateMealItem(
-  db: UserDb,
-  mealId: string,
-  index: number,
-  item: MealItem | null,
-): Promise<void> {
-  const meal = await db.meals.get(mealId);
-  if (!meal) return;
-  const items = meal.items.flatMap((it, i) => (i !== index ? [it] : item ? [item] : []));
-  if (items.length === 0) throw new Error('A meal needs at least one ingredient');
-  await patchRecord(db, 'meals', mealId, { items });
+  return addItemToMealDraft(db, mealId, item);
 }
 
 /** Confirmed ingredients of an AI analysis as logged items (source "ai", grams as 1 g portions). */

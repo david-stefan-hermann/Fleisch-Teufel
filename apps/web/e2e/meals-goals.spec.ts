@@ -128,7 +128,9 @@ test('day overview: "Nährstoffe" swaps the target bars for the nutrient overvie
   await expect(page).toHaveURL(/quick-add/);
 });
 
-test('edit a saved meal: add an ingredient via search, change an amount, add a photo', async ({ page }) => {
+test('edit a saved meal: add an ingredient via search, change an amount, add a photo, save', async ({
+  page,
+}) => {
   await register(page);
   await quickAdd(page, 0, 'Joghurt', '150');
   await saveDiaryMeal(page, 'Frühstück', 'Mein Frühstück');
@@ -137,6 +139,11 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('link', { name: /Mein Frühstück/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Mein Frühstück' })).toBeVisible();
   const mealUrl = page.url();
+  const save = page.getByRole('button', { name: 'Speichern', exact: true });
+  // Nothing changed yet: nothing to save, and leaving does not ask.
+  await expect(save).toBeDisabled();
+  await expect(page.getByLabel('Mahlzeit')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /kcal eintragen/ })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Zutat hinzufügen' })).toBeVisible();
@@ -154,32 +161,146 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await expect(page.getByLabel('Mahlzeit')).toHaveCount(0);
   await page.getByRole('button', { name: 'Zum Meal hinzufügen' }).click();
 
-  // Back on the meal (search and food page left the history).
+  // Back in the editor (search and food page left the history), the ingredient is an unsaved change.
   await expect(page).toHaveURL(mealUrl);
-  await expect(page.getByRole('button', { name: /Hafer Flocken/ })).toBeVisible();
-  await page.goBack();
-  await expect(page).toHaveURL(/\/meals$/);
-  await page.goForward();
+  await expect(page.getByText('Hafer Flocken', { exact: true })).toBeVisible();
+  await expect(save).toBeEnabled();
+  // It survives a reload (device draft) without reaching the server.
+  await page.reload();
+  await expect(page.getByText('Hafer Flocken', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: /Hafer Flocken/ }).click();
-  await page.getByLabel('Menge').fill('100');
-  await page.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByRole('button', { name: /Hafer Flocken.*348/ })).toBeVisible();
+  // Leaving with changes asks; "Weiter bearbeiten" stays.
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  const ask = page.getByRole('dialog', { name: 'Änderungen verwerfen?' });
+  await expect(ask).toContainText('Du hast Mein Frühstück geändert.');
+  await ask.getByRole('button', { name: 'Weiter bearbeiten' }).click();
+  await expect(ask).toHaveCount(0);
+  await expect(page).toHaveURL(mealUrl);
+
+  // Amount via the number field of the ingredient card (50 g → 100 g = 348 kcal).
+  const grams = page.getByLabel('Gramm').nth(0);
+  await expect(grams).toHaveValue('50');
+  await grams.fill('100');
+  await expect(page.getByText('348 kcal', { exact: true })).toBeVisible();
+  // The slider moves in 5 g steps.
+  await page.getByRole('slider', { name: 'Menge Hafer Flocken' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(grams).toHaveValue('105');
 
   await page.locator('input[type=file]').nth(1).setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Foto von Mein Frühstück' })).toBeVisible();
-  // The photo reaches the server with the next sync.
+  await page.getByLabel('Name').fill('Porridge');
+  await expect(page.getByRole('heading', { level: 1, name: 'Porridge' })).toBeVisible();
+
+  // Nothing reached the server so far.
+  const serverMeal = () =>
+    page.evaluate(async () => {
+      const r = await fetch('/api/sync/pull?since=0');
+      return (await r.json()).changes.find((c: { table: string }) => c.table === 'meals')?.data as
+        { name: string; photoId: string | null; items: { name: string }[] } | undefined;
+    });
+  expect((await serverMeal())?.name).toBe('Mein Frühstück');
+
+  // Back with changes → "Speichern" in the dialog saves and leaves.
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await ask.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('„Porridge“ gespeichert', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/meals$/);
+  await expect(page.getByRole('link', { name: /Porridge/ })).toBeVisible();
+  // Name, items and photo reach the server with the next sync, the photo included.
   await expect
     .poll(
-      () =>
-        page.evaluate(async () => {
-          const r = await fetch('/api/sync/pull?since=0');
-          const meal = (await r.json()).changes.find((c: { table: string }) => c.table === 'meals')?.data;
-          return meal?.photoId ? (await fetch(`/api/photos/${meal.photoId}`)).status : 0;
-        }),
+      async () => {
+        const meal = await serverMeal();
+        if (!meal?.photoId) return null;
+        const status = await page.evaluate(
+          async (id) => (await fetch(`/api/photos/${id}`)).status,
+          meal.photoId,
+        );
+        return [meal.name, meal.items.map((i) => i.name).join(', '), status];
+      },
       { timeout: 15_000 },
     )
-    .toBe(200);
+    .toEqual(['Porridge', 'Joghurt, Hafer Flocken', 200]);
+
+  // An edit discarded in the dialog leaves the meal as it was.
+  await page.getByRole('link', { name: /Porridge/ }).click();
+  await page.getByLabel('Name').fill('Verworfen');
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await ask.getByRole('button', { name: 'Verwerfen' }).click();
+  await expect(page).toHaveURL(/\/meals$/);
+  await expect(page.getByRole('link', { name: /Porridge/ })).toBeVisible();
+  await page.getByRole('link', { name: /Porridge/ }).click();
+  await expect(page.getByLabel('Name')).toHaveValue('Porridge');
+  await expect(save).toBeDisabled();
+});
+
+test('log a saved meal: leave out an ingredient for this entry, amount slider, edit link', async ({
+  page,
+}) => {
+  await register(page);
+  await quickAdd(page, 0, 'Joghurt', '150');
+  await quickAdd(page, 0, 'Beeren', '50');
+  await quickAdd(page, 0, 'Honig', '60');
+  await saveDiaryMeal(page, 'Frühstück', 'Bowl');
+
+  await page.goto('/add?meal=1&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Bowl' })).toBeVisible();
+  // Read-only ingredients, no editing in the head.
+  await expect(page.getByRole('button', { name: 'Meal löschen' })).toHaveCount(0);
+  await expect(page.getByLabel('Name')).toHaveCount(0);
+  const logButton = page.getByRole('button', { name: /kcal eintragen$/ });
+  await expect(logButton).toHaveText('260 kcal eintragen');
+
+  // Swipe leaves Honig out of this entry only; undo brings it back, a second swipe removes it again.
+  await swipeLeft(page, 'Honig');
+  await page.getByRole('button', { name: 'Honig für diesen Eintrag entfernen' }).click();
+  await expect(logButton).toHaveText('200 kcal eintragen');
+  await expect(page.getByText('Ohne Honig. Das gespeicherte Meal bleibt unverändert.')).toBeVisible();
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(logButton).toHaveText('260 kcal eintragen');
+  await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
+  await swipeLeft(page, 'Honig');
+  await page.getByRole('button', { name: 'Honig für diesen Eintrag entfernen' }).click();
+  await expect(logButton).toHaveText('200 kcal eintragen');
+
+  // Amount 0,5× to 2× in tenths.
+  const amount = page.getByRole('slider', { name: 'Menge' });
+  await expect(amount).toHaveAttribute('aria-valuenow', '1');
+  await amount.focus();
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await expect(page.getByText('1,5×', { exact: true })).toBeVisible();
+  await expect(logButton).toHaveText('300 kcal eintragen');
+  await page.keyboard.press('End');
+  await expect(amount).toHaveAttribute('aria-valuenow', '2');
+  await page.keyboard.press('Home');
+  await expect(amount).toHaveAttribute('aria-valuenow', '0.5');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await expect(logButton).toHaveText('200 kcal eintragen');
+
+  await logButton.click();
+  await expect(page.getByText(/^Bowl: 2\sZutaten eingetragen$/)).toBeVisible();
+  const group = page
+    .locator('section')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Mittagessen' }) })
+    .getByRole('button', { name: /Bowl/ });
+  await expect(group).toContainText(/2\sZutaten/);
+  // The saved meal still has all three.
+  await page.goto('/meals');
+  await expect(page.getByRole('link', { name: /Bowl/ })).toContainText(/3\sZutaten/);
+
+  // "Meal bearbeiten" opens the editor; back returns to logging with the saved changes.
+  await page.goto('/add?meal=1&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('link', { name: 'Meal bearbeiten' }).click();
+  await expect(page.getByRole('button', { name: 'Speichern', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Honig entfernen' }).click();
+  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await expect(page.getByText('„Bowl“ gespeichert', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page.getByRole('button', { name: /kcal eintragen$/ })).toHaveText('200 kcal eintragen');
+  await expect(page.getByText('Honig', { exact: true })).toHaveCount(0);
 });
 
 test('AI result shows the photo, takes extra ingredients and becomes a meal with photo', async ({ page }) => {
@@ -304,7 +425,7 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await page.goto('/meals');
   await page.getByRole('link', { name: /Nudeln Bolo/ }).click();
   await expect(page.getByRole('img', { name: 'Foto von Nudeln Bolo' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Hafer Flocken/ })).toBeVisible();
+  await expect(page.getByText('Hafer Flocken', { exact: true })).toBeVisible();
 });
 
 test('AI result logged without saving becomes a named group without a saved meal', async ({ page }) => {
