@@ -1,10 +1,12 @@
-import { get, N, rescaleItem, type MealItem } from '@ft/shared';
+import { get, N, rescaleItem, type MealItem, type ResolvedTargets } from '@ft/shared';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { NumberField } from '@/components/NumberField';
+import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { entryAmountLabel } from '@/features/diary/MealCard';
 import { rowSliderMax } from '@/lib/amounts';
 import { fmt0 } from '@/lib/format';
 
@@ -19,13 +21,15 @@ export const minQuantity = (item: Pick<MealItem, 'portionLabel'>) => (isGramItem
 /**
  * One ingredient of the meal editor, laid out like an ingredient of the AI review: name, kcal and
  * remove in the head, then a slider with a number field. Gram ingredients move in 5 g steps, piece
- * ingredients ("Anzahl · Stück") in halves.
+ * ingredients ("Anzahl · Stück") in halves. "Nährwerte" at the bottom opens the overview of the
+ * current amount (it follows slider and field).
  */
 export function IngredientCard({
   item,
   index,
   base,
   removable,
+  targets,
   onChange,
   onRemove,
 }: {
@@ -34,6 +38,7 @@ export function IngredientCard({
   /** Reference quantity for the slider range (the amount before "Gesamtmenge" scaled it). */
   base: number;
   removable: boolean;
+  targets: ResolvedTargets;
   onChange: (item: MealItem) => void;
   onRemove: () => void;
 }) {
@@ -92,6 +97,7 @@ export function IngredientCard({
             error={invalid ? (grams ? `Mindestens 1 ${unit}.` : 'Mindestens 0,1.') : null}
           />
         </div>
+        <NutrientsDisclosure title={entryAmountLabel(item)} nutrients={item.nutrients} targets={targets} />
       </div>
     </Section>
   );

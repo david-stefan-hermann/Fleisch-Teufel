@@ -182,10 +182,14 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await expect(grams).toHaveValue('50');
   await grams.fill('100');
   await expect(page.getByText('348 kcal', { exact: true })).toBeVisible();
+  // "Nährwerte" in the card shows the overview of the amount and follows the slider.
+  await page.getByRole('button', { name: 'Nährwerte' }).nth(1).click();
+  await expect(page.getByRole('button', { name: /^348 kcal, Anteil/ })).toBeVisible();
   // The slider moves in 5 g steps.
   await page.getByRole('slider', { name: 'Menge Hafer Flocken' }).focus();
   await page.keyboard.press('ArrowRight');
   await expect(grams).toHaveValue('105');
+  await expect(page.getByRole('button', { name: /^365 kcal, Anteil/ })).toBeVisible();
 
   await page.locator('input[type=file]').nth(1).setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Foto von Mein Frühstück' })).toBeVisible();
@@ -260,10 +264,23 @@ test('log a saved meal: leave out an ingredient for this entry, amount slider, p
   const logButton = page.getByRole('button', { name: /kcal eintragen$/ });
   await expect(logButton).toHaveText('260 kcal eintragen');
 
-  // Swipe leaves Honig out of this entry only; undo brings it back, a second swipe removes it again.
+  // A tap shows the nutrients of one ingredient at a time.
+  const joghurt = page.getByRole('button', { name: /^Joghurt/ });
+  const honig = page.getByRole('button', { name: /^Honig/ });
+  await joghurt.click();
+  await expect(joghurt).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: /^150 kcal, Anteil/ })).toBeVisible();
+  await honig.click();
+  await expect(joghurt).toHaveAttribute('aria-expanded', 'false');
+  await expect(honig).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('button', { name: /^60 kcal, Anteil/ })).toBeVisible();
+
+  // Swipe leaves Honig out of this entry only (its open overview goes with it); undo brings it back,
+  // a second swipe removes it again.
   await swipeLeft(page, 'Honig');
   await page.getByRole('button', { name: 'Honig für diesen Eintrag entfernen' }).click();
   await expect(logButton).toHaveText('200 kcal eintragen');
+  await expect(page.getByRole('button', { name: /^60 kcal, Anteil/ })).toHaveCount(0);
   await expect(page.getByText('Ohne Honig. Das gespeicherte Meal bleibt unverändert.')).toBeVisible();
   await page.getByRole('button', { name: 'Rückgängig' }).click();
   await expect(logButton).toHaveText('260 kcal eintragen');
@@ -393,6 +410,11 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   expect(hint).toBe('viel Parmesan');
   await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Gramm' }).or(page.getByLabel('Gramm')).first().fill('180');
+  // Each ingredient card opens the nutrients of its grams (150 kcal per 100 g × 180 g).
+  const pasta = page.locator('section').filter({ hasText: 'Teigwaren gekocht' });
+  await pasta.getByRole('button', { name: 'Nährwerte' }).click();
+  await expect(pasta.getByRole('button', { name: /^270 kcal, Anteil/ })).toBeVisible();
+  await expect(pasta.getByText('180 g', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');

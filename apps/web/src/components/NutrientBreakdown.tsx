@@ -183,7 +183,7 @@ export function NutrientBreakdown({
         onOpenChange={onMicrosOpenChange}
         className="mt-2 border-t border-border/70 pt-1.5"
       >
-        <Trigger className="min-h-11 text-sm font-semibold">Weitere Nährstoffe</Trigger>
+        <DisclosureTrigger className="min-h-11 text-sm font-semibold">Weitere Nährstoffe</DisclosureTrigger>
         <CollapsibleContent>
           <ul className="grid gap-3 pt-1 pb-1">
             {MICRO_NUTRIENTS.map((code) => (
@@ -198,7 +198,9 @@ export function NutrientBreakdown({
           </ul>
           {catalogRows.length > DISPLAY_NUTRIENTS.length && (
             <Collapsible className="mt-2">
-              <Trigger className="min-h-10 text-[0.8125rem]">Alle {catalogRows.length} Nährstoffe</Trigger>
+              <DisclosureTrigger className="min-h-10 text-[0.8125rem]">
+                Alle {catalogRows.length} Nährstoffe
+              </DisclosureTrigger>
               <CollapsibleContent>
                 <dl className="grid text-xs">
                   {catalogRows.map((c) => (
@@ -220,7 +222,8 @@ export function NutrientBreakdown({
   );
 }
 
-function Trigger({ children, className }: { children: ReactNode; className?: string }) {
+/** Row trigger of the overview's collapsibles ("Weitere Nährstoffe", the ingredient "Nährwerte"). */
+export function DisclosureTrigger({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <CollapsibleTrigger
       className={cn(

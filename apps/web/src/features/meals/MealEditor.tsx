@@ -115,6 +115,7 @@ function MealEditorForm({
 
   const name = draft.name.trim() || meal.name;
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
+  const targets = targetsForDate(goals ?? [], today());
 
   async function save(): Promise<boolean> {
     const ok = await saveMealDraft(db, draft);
@@ -186,6 +187,7 @@ function MealEditorForm({
           item={item}
           base={scaleBase[i]?.quantity ?? item.quantity}
           removable={draft.items.length > 1}
+          targets={targets}
           onChange={(next) => commitItems(draft.items.map((it, j) => (j === i ? next : it)))}
           onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
         />
@@ -222,11 +224,7 @@ function MealEditorForm({
               onValueChange={([v]) => v !== undefined && rescale(v)}
             />
           </div>
-          <NutrientBreakdown
-            title="Summe"
-            nutrients={totals}
-            targets={targetsForDate(goals ?? [], today())}
-          />
+          <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
         </div>
       </Section>
       <DiscardDialog

@@ -6,6 +6,7 @@ import { BarcodeScanner, TorchButton, type TorchState } from '@/components/Barco
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
+import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
@@ -510,6 +511,46 @@ describe('NutrientBreakdown', () => {
     );
     expect(screen.getByRole('meter', { name: 'Ballaststoffe' })).toBeTruthy();
     expect(screen.getByText('DGE-Referenzwert: mind. 30 g/Tag')).toBeTruthy();
+  });
+});
+
+describe('NutrientsDisclosure', () => {
+  const targets = {
+    kcal: 1700,
+    proteinG: 130,
+    carbsG: 170,
+    fatG: 55,
+    micros: targetsForDate([], '2026-10-07').micros,
+  };
+
+  it('starts closed and shows the overview of the amount on a tap', async () => {
+    render(
+      <NutrientsDisclosure
+        title="100 g"
+        nutrients={{ ENERCC: 250, PROT625: 20, CHO: 0, FAT: 18.5 }}
+        targets={targets}
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Nährwerte' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('meter', { name: 'Protein' })).toBeNull();
+    fireEvent.click(trigger);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(await screen.findByRole('meter', { name: 'Protein' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^250 kcal, Anteil am Tagesziel/ })).toBeTruthy();
+    expect(screen.getByText('100 g')).toBeTruthy();
+  });
+
+  it('follows new values while open (slider, gram field)', async () => {
+    const { rerender } = render(
+      <NutrientsDisclosure title="50 g" nutrients={{ ENERCC: 100, CHO: 25 }} targets={targets} open />,
+    );
+    expect(await screen.findByRole('button', { name: /^100 kcal/ })).toBeTruthy();
+    rerender(
+      <NutrientsDisclosure title="100 g" nutrients={{ ENERCC: 200, CHO: 50 }} targets={targets} open />,
+    );
+    expect(screen.getByRole('button', { name: /^200 kcal/ })).toBeTruthy();
+    expect(screen.getByText('100 g')).toBeTruthy();
   });
 });
 

@@ -1,4 +1,12 @@
-import { computeItem, get, N, sumNutrients, targetsForDate, type AiAnalysisResult } from '@ft/shared';
+import {
+  computeItem,
+  get,
+  N,
+  scaleNutrients,
+  sumNutrients,
+  targetsForDate,
+  type AiAnalysisResult,
+} from '@ft/shared';
 import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -30,6 +38,7 @@ import {
 import { MealPhoto, useObjectUrl } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
+import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +55,7 @@ import { rememberFood } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
 import { rowSliderMax } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
-import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
+import { fmt0, fmtGrams, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { compressImage } from './image';
 import { discardQueueItem, enqueuePhoto, imageBlob, processQueue } from './queue';
@@ -554,6 +563,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
     })
     .filter((x) => x !== null);
   const totals = sumNutrients(resolved.map((r) => r.nutrients));
+  const targets = targetsForDate(goals ?? [], item.date);
 
   function searchIngredient(q?: string) {
     rememberIntoStart(router.history);
@@ -738,6 +748,13 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
                   integer
                 />
               </div>
+              {food && r.grams ? (
+                <NutrientsDisclosure
+                  title={fmtGrams(r.grams, food.unit)}
+                  nutrients={scaleNutrients(food.nutrients, r.grams)}
+                  targets={targets}
+                />
+              ) : null}
             </div>
           </Section>
         );
@@ -774,11 +791,7 @@ function ResultEditor({ item, onClose }: { item: AiQueueItem; onClose: () => voi
               />
             </div>
           )}
-          <NutrientBreakdown
-            title="Summe"
-            nutrients={totals}
-            targets={targetsForDate(goals ?? [], item.date)}
-          />
+          <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
           <div className="grid gap-1.5">
             <Label htmlFor="result-meal">Mahlzeit</Label>
             <Select value={String(meal)} onValueChange={(v) => commit({ ...draft, meal: Number(v) })}>

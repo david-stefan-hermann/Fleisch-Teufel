@@ -1,6 +1,6 @@
 import { get, N, rescaleItem, sumNutrients, targetsForDate, type Meal } from '@ft/shared';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Pencil } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -22,7 +22,8 @@ const FACTOR_MAX = 2;
 
 /**
  * Logging a saved meal (food search, tab "Eigene"): its ingredients read-only, a swipe leaves one
- * out of this entry only, the amount goes from 0,5× to 2×. The pencil ("Meal bearbeiten") opens the
+ * out of this entry only (an open row goes with it), a tap shows the nutrients of one ingredient, the
+ * amount goes from 0,5× to 2×. The pencil ("Meal bearbeiten") opens the
  * editor; saving there comes back here with the new ingredients (`MealPage` keys this view by `updatedAt`).
  */
 export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: string; mealIndex: number }) {
@@ -33,6 +34,9 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => new Set());
   const [factor, setFactor] = useState(1);
   const [target, setTarget] = useState(mealIndex);
+  // One ingredient row at a time shows its nutrients.
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const targets = targetsForDate(goals ?? [], date);
 
   const kept = meal.items.filter((_, i) => !excluded.has(i));
   // Same rounding as `logItems`, so the button shows what gets logged.
@@ -49,6 +53,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
       return;
     }
     setExcluded((s) => new Set(s).add(index));
+    if (openIndex === index) setOpenIndex(null);
     toast(`${meal.items[index]!.name} entfernt`, {
       action: {
         label: 'Rückgängig',
@@ -102,13 +107,33 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
             excluded.has(i) ? null : (
               <li key={i}>
                 <SwipeToDelete label={`${it.name} für diesen Eintrag entfernen`} onDelete={() => exclude(i)}>
-                  <div className="flex min-h-12 items-center gap-3 px-4 py-2 select-none">
+                  {/* SwipeToDelete swallows the click after a horizontal move, so a started swipe never opens. */}
+                  <button
+                    type="button"
+                    aria-expanded={openIndex === i}
+                    aria-controls={`ingredient-${i}-nutrients`}
+                    onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                    className="group flex min-h-12 w-full items-center gap-3 py-2 pr-3 pl-4 text-left select-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset"
+                  >
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{it.name}</div>
                       <div className="truncate text-xs text-muted-foreground">{entryAmountLabel(it)}</div>
                     </div>
                     <div className="tabular font-semibold">{fmt0(get(it.nutrients, N.kcal))}</div>
-                  </div>
+                    <ChevronDown
+                      className="size-4 shrink-0 text-muted-foreground transition-transform group-aria-expanded:rotate-180 motion-reduce:transition-none"
+                      aria-hidden
+                    />
+                  </button>
+                  {openIndex === i && (
+                    <div id={`ingredient-${i}-nutrients`} className="px-4 pb-3">
+                      <NutrientBreakdown
+                        title={entryAmountLabel(it)}
+                        nutrients={it.nutrients}
+                        targets={targets}
+                      />
+                    </div>
+                  )}
                 </SwipeToDelete>
               </li>
             ),
@@ -121,11 +146,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
         )}
       </Section>
       <Section title="Nährwerte">
-        <NutrientBreakdown
-          className="px-4 pb-3"
-          nutrients={totals}
-          targets={targetsForDate(goals ?? [], date)}
-        />
+        <NutrientBreakdown className="px-4 pb-3" nutrients={totals} targets={targets} />
       </Section>
       <Section title="Eintragen">
         <div className="grid gap-4 px-4 pb-4">
