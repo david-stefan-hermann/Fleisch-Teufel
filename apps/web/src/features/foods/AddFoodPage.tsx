@@ -179,7 +179,8 @@ export function AddFoodPage() {
         into ? undefined : (
           <>
             <Button variant="ghost" size="icon" asChild>
-              <Link to="/photo" search={{ date, meal }} aria-label="Foto analysieren">
+              {/* Replaces the page: switching between search and food page never piles up history. */}
+              <Link to="/photo" search={{ date, meal }} replace aria-label="Foto oder Barcode">
                 <Camera className="size-6" aria-hidden />
               </Link>
             </Button>

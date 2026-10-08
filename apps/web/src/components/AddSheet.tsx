@@ -1,6 +1,6 @@
 import { today } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { Search, Scale } from 'lucide-react';
+import { Dumbbell, Scale } from 'lucide-react';
 import {
   createContext,
   useCallback,
@@ -11,12 +11,11 @@ import {
   type ReactNode,
 } from 'react';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
-import { useSettings } from '@/hooks/data';
 import { defaultMealForNow } from '@/lib/meals';
 import { cn } from '@/lib/utils';
-import { ScanCameraIcon } from './ScanCameraIcon';
+import { ScanFoodIcon } from './ScanFoodIcon';
 
-/** Target of the sheet: a meal card passes its day and meal, the tab bar passes nothing. */
+/** Target of the sheet: day and meal for "Essen eintragen" (default: the shown day, the meal of the hour). */
 export interface AddSheetTarget {
   date?: string;
   meal?: number;
@@ -24,7 +23,7 @@ export interface AddSheetTarget {
 
 const AddSheetContext = createContext<{ open: (target?: AddSheetTarget) => void } | null>(null);
 
-/** Opens the "Hinzufügen" sheet (tab bar "+", meal card "+"). */
+/** Opens the "Hinzufügen" sheet (tab bar "+"). */
 export function useAddSheet() {
   const ctx = useContext(AddSheetContext);
   if (!ctx) throw new Error('useAddSheet outside AddSheetProvider');
@@ -58,16 +57,15 @@ function AddSheet({
   target: AddSheetTarget;
 }) {
   const navigate = useNavigate();
-  const settings = useSettings();
   const search = useSearch({ strict: false }) as { date?: string };
   const date = target.date ?? search.date ?? today();
   const meal = target.meal ?? defaultMealForNow();
-  const mealName = target.meal !== undefined ? settings?.mealNames[target.meal] : undefined;
   const go = (fn: () => void) => {
     onOpenChange(false);
     fn();
   };
-  // Deliberately only three entries: quick add lives in the food search, training in the diary card.
+  // Three entries, all "… eintragen": food (camera, barcode, and the search behind the magnifier) in
+  // the middle and highlighted, where the thumb rests; training on the left, weight on the right.
   const items: {
     label: string;
     icon: ComponentType<{ className?: string }>;
@@ -75,15 +73,13 @@ function AddSheet({
     primary?: boolean;
   }[] = [
     {
-      label: 'Lebensmittel suchen',
-      icon: Search,
-      run: () => navigate({ to: '/add', search: { date, meal } }),
+      label: 'Training eintragen',
+      icon: Dumbbell,
+      run: () => navigate({ to: '/exercise', search: { date } }),
     },
     {
-      // One entry for photo and barcode: a photographed barcode is recognized on the photo page.
-      // Highlighted: the most used way to log.
-      label: 'Foto / Scan',
-      icon: ScanCameraIcon,
+      label: 'Essen eintragen',
+      icon: ScanFoodIcon,
       run: () => navigate({ to: '/photo', search: { date, meal } }),
       primary: true,
     },
@@ -98,7 +94,7 @@ function AddSheet({
       {/* On wide screens a centered card instead of a full-width sheet with giant square tiles. */}
       <DrawerContent className="pb-[calc(var(--safe-bottom)+1rem)] sm:mx-auto sm:max-w-md sm:rounded-t-2xl sm:border-x">
         <DrawerHeader>
-          <DrawerTitle>{mealName ? `Zu ${mealName} hinzufügen` : 'Hinzufügen'}</DrawerTitle>
+          <DrawerTitle>Hinzufügen</DrawerTitle>
           <DrawerDescription>Was möchtest du eintragen?</DrawerDescription>
         </DrawerHeader>
         <div className="grid grid-cols-3 gap-3 px-4">

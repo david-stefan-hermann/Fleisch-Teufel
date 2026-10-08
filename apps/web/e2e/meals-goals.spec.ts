@@ -224,10 +224,34 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
       },
     }),
   );
+  let hint: string | null = null;
+  page.on('request', (r) => {
+    if (r.url().endsWith('/api/ai/analyze'))
+      hint =
+        r
+          .postDataBuffer()
+          ?.toString('latin1')
+          .match(/name="text"\r\n\r\n([^\r]*)/)?.[1] ?? '';
+  });
   await page.goto('/photo?meal=1');
-  // A picked gallery photo (no barcode in it) is analyzed right away.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Essen eintragen\s*Mittagessen/);
+  // A picked gallery photo (no barcode in it) shows a preview first; nothing goes to the AI yet.
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toBeVisible();
+  await expect(page.getByText('Erst mit „Analysieren“ geht das Foto an Claude.')).toBeVisible();
+  // "Neu aufnehmen" drops it, so does back (the page stays).
+  await page.getByRole('button', { name: 'Neu aufnehmen' }).click();
+  await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toHaveCount(0);
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(/\/photo/);
+  await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toHaveCount(0);
+  expect(hint).toBeNull();
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByLabel('Hinweis für die Analyse (optional)').fill('viel Parmesan');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+  expect(hint).toBe('viel Parmesan');
   await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toBeVisible();
   await page.getByRole('spinbutton', { name: 'Gramm' }).or(page.getByLabel('Gramm')).first().fill('180');
 
@@ -264,7 +288,7 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(dialog).toContainText('Eingetragen wird erst mit „Meal eintragen“');
   await expect(dialog.getByLabel('Name')).toHaveValue('Nudeln mit Soße');
   await dialog.getByRole('button', { name: 'Meal speichern' }).click();
-  await expect(page.getByText('„Nudeln mit Soße“ gespeichert')).toBeVisible();
+  await expect(page.getByText('„Nudeln mit Soße“ gespeichert', { exact: true })).toBeVisible();
   const chip = page.getByRole('button', { name: /Als Meal „Nudeln mit Soße“ gespeichert/ });
   await expect(chip).toContainText('Gespeichert');
   await expect(page.getByText(/Als Meal „Nudeln mit Soße“ gespeichert \(mit Foto\)/)).toBeVisible();
@@ -272,7 +296,7 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await chip.click();
   await dialog.getByLabel('Name').fill('Nudeln Bolo');
   await dialog.getByRole('button', { name: 'Meal speichern' }).click();
-  await expect(page.getByText('„Nudeln Bolo“ gespeichert')).toBeVisible();
+  await expect(page.getByText('„Nudeln Bolo“ gespeichert', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Meal eintragen' }).click();
 
   await expect(page.getByText('„Nudeln Bolo“ eingetragen')).toBeVisible();
@@ -327,6 +351,7 @@ test('AI result logged without saving becomes a named group without a saved meal
   );
   await page.goto('/photo?meal=1');
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   // Regression (WebKit, broken thumbnails): many review writes, a reload, the photo still shows.
   const grams = page.getByLabel('Gramm').first();

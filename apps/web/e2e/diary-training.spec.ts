@@ -111,6 +111,40 @@ test('swipe to delete a diary entry with undo, date picker on the title', async 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('15');
 });
 
+test('add menu: training, food (highlighted, middle), weight; the food page leads to the search', async ({
+  page,
+}) => {
+  await register(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Hinzufügen', exact: true });
+  await expect(sheet.getByRole('button')).toHaveText([
+    'Training eintragen',
+    'Essen eintragen',
+    'Gewicht eintragen',
+  ]);
+  const food = sheet.getByRole('button', { name: 'Essen eintragen' });
+  const training = sheet.getByRole('button', { name: 'Training eintragen' });
+  const bg = (el: Locator) => el.evaluate((e) => getComputedStyle(e).backgroundColor);
+  expect(await bg(food)).not.toBe(await bg(training));
+  await training.click();
+  await expect(page).toHaveURL(/\/exercise/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Training eintragen' })).toBeVisible();
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+  await sheet.getByRole('button', { name: 'Essen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Essen eintragen');
+  // Magnifier and camera icon replace each other: back leaves to the diary, no ping-pong.
+  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await expect(page).toHaveURL(/\/add\?/);
+  await page.getByRole('link', { name: 'Foto oder Barcode' }).click();
+  await expect(page).toHaveURL(/\/photo\?/);
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+});
+
 test('add menu stays compact on a desktop screen', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
@@ -152,13 +186,13 @@ test('the "+" of a meal opens the food page for that meal, the meal card has no 
 
   // The empty state of a meal goes there as well.
   await page.goto('/');
-  await mealCard(page, 'Abendessen').getByRole('link', { name: 'Essen eintragen' }).click();
+  await mealCard(page, 'Abendessen').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=2/);
 
   // So do the "+" and the empty state on the meal page, whose save icon is off while it is empty.
   await page.goto('/diary-meal?meal=3');
   await expect(page.getByRole('button', { name: 'Als Meal speichern' })).toBeDisabled();
-  await page.getByRole('main').getByRole('link', { name: 'Essen eintragen' }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=3/);
   await page.goto('/diary-meal?meal=3');
   await page.getByRole('link', { name: 'Essen zu Snacks eintragen' }).click();

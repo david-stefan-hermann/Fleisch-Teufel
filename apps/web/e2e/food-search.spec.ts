@@ -43,9 +43,9 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Was du mindestens zweimal einträgst')).toBeVisible();
 
-  // Header: photo and quick add (24 px icons), no barcode link (the photo page scans barcodes).
+  // Header: food page (camera) and quick add (24 px icons), no barcode link (the food page scans barcodes).
   await expect(page.getByRole('link', { name: 'Barcode scannen' })).toHaveCount(0);
-  for (const name of ['Foto analysieren', 'Schnelleingabe']) {
+  for (const name of ['Foto oder Barcode', 'Schnelleingabe']) {
     const icon = (await page.getByRole('link', { name }).locator('svg').boundingBox())!;
     expect(icon.width).toBe(24);
   }

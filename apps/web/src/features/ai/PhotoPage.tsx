@@ -1,5 +1,5 @@
 import { computeItem, get, N, sumNutrients, targetsForDate, type AiAnalysisResult } from '@ft/shared';
-import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Camera,
@@ -9,6 +9,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Search,
   Sparkles,
   Trash2,
   TriangleAlert,
@@ -48,16 +49,25 @@ import { rememberIntoStart } from '@/lib/into';
 import { compressImage } from './image';
 import { discardQueueItem, enqueuePhoto, imageBlob, processQueue } from './queue';
 
+/**
+ * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
+ * for the same meal. A plate photo first shows a preview with the optional hint; only "Analysieren"
+ * sends it to Claude. A finished analysis opens its review (`review` in the URL).
+ */
 export function PhotoPage() {
   const { date, meal, review } = useSearch({ from: '/authed/photo' });
   const navigate = useNavigate({ from: '/photo' });
   const db = useDb();
+  const settings = useSettings();
   const queue = useLiveQuery(() => db.aiQueue.orderBy('createdAt').reverse().toArray(), [db]);
   // The open analysis lives in the URL, so returning from the food search lands in it again.
   const setActiveId = (id: number | null) =>
     void navigate({ search: (s) => ({ ...s, review: id ?? undefined }), replace: id === null });
   const activeId = review ?? null;
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
+  // Photo waiting for "Analysieren" (preview). Leaving the page drops it.
+  const [shot, setShot] = useState<Blob | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
     endpoints.aiStatus().then(
@@ -72,36 +82,167 @@ export function PhotoPage() {
     return <ResultEditor key={active.localId} item={active} onClose={() => setActiveId(null)} />;
   }
 
+  const mealName = settings?.mealNames[meal];
   return (
-    <Page title="Foto / Scan" back withTabBar={false}>
-      {aiEnabled === false && (
-        <p role="alert" className="mb-4 flex gap-2 rounded-xl bg-warn/10 p-3 text-sm">
-          <TriangleAlert className="size-5 shrink-0 text-warn" aria-hidden />
-          Die Foto-Analyse ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).
-        </p>
+    <Page
+      title={
+        <>
+          Essen eintragen{' '}
+          {mealName && <span className="text-sm font-normal text-muted-foreground">{mealName}</span>}
+        </>
+      }
+      back
+      // In the preview, back discards the photo and returns to the camera.
+      onBack={shot ? () => setShot(null) : undefined}
+      withTabBar={false}
+      actions={
+        <Button variant="ghost" size="icon" asChild>
+          {/* Replaces the page: switching between food page and search never piles up history. */}
+          <Link to="/add" search={{ date, meal }} replace aria-label="Lebensmittel suchen">
+            <Search aria-hidden />
+          </Link>
+        </Button>
+      }
+      footer={
+        shot ? (
+          <Button size="lg" form="photo-preview" type="submit" disabled={analyzing}>
+            Analysieren
+          </Button>
+        ) : undefined
+      }
+    >
+      {shot ? (
+        <PhotoPreview
+          shot={shot}
+          busy={analyzing}
+          onBusyChange={setAnalyzing}
+          date={date}
+          meal={meal}
+          onDiscard={() => setShot(null)}
+          onQueued={(id) => {
+            setShot(null);
+            setActiveId(id);
+          }}
+        />
+      ) : (
+        <>
+          {aiEnabled === false && (
+            <p role="alert" className="mb-4 flex gap-2 rounded-xl bg-warn/10 p-3 text-sm">
+              <TriangleAlert className="size-5 shrink-0 text-warn" aria-hidden />
+              Die Foto-Analyse ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).
+            </p>
+          )}
+          <CameraCapture
+            onShot={setShot}
+            onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code }, replace: true })}
+          />
+          {queue && queue.length > 0 && (
+            <Section title="Analysen" className="mt-4">
+              <ul className="divide-y divide-border/70">
+                {queue.map((q) => (
+                  <QueueRow key={q.localId} item={q} onOpen={() => setActiveId(q.localId!)} />
+                ))}
+              </ul>
+            </Section>
+          )}
+          <p className="mt-4 text-xs text-muted-foreground text-pretty">
+            Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos zeigen erst eine Vorschau;
+            mit „Analysieren“ gehen sie an Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte
+            stammen immer aus dem BLS bzw. Open Food Facts; die KI schätzt nur, was und wie viel auf dem
+            Teller liegt (typisch ±20 bis 40&nbsp;%). Prüfe die Mengen vor dem Eintragen.
+          </p>
+        </>
       )}
-      <CameraCapture
-        date={date}
-        meal={meal}
-        onQueued={setActiveId}
-        onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code }, replace: true })}
-      />
-      {queue && queue.length > 0 && (
-        <Section title="Analysen" className="mt-4">
-          <ul className="divide-y divide-border/70">
-            {queue.map((q) => (
-              <QueueRow key={q.localId} item={q} onOpen={() => setActiveId(q.localId!)} />
-            ))}
-          </ul>
-        </Section>
-      )}
-      <p className="mt-4 text-xs text-muted-foreground text-pretty">
-        Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos gehen zur Analyse an Claude
-        (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw. Open Food
-        Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20 bis 40&nbsp;%). Prüfe
-        die Mengen vor dem Speichern.
-      </p>
     </Page>
+  );
+}
+
+/**
+ * A taken or picked photo before it goes to the AI: the optional hint can be added, "Analysieren"
+ * (page footer, submits this form) queues and analyzes it, "Neu aufnehmen" drops it.
+ */
+function PhotoPreview({
+  shot,
+  busy,
+  onBusyChange: setBusy,
+  date,
+  meal,
+  onDiscard,
+  onQueued,
+}: {
+  shot: Blob;
+  /** Analysis running (state of the page: its footer button is disabled meanwhile). */
+  busy: boolean;
+  onBusyChange: (busy: boolean) => void;
+  date: string;
+  meal: number;
+  onDiscard: () => void;
+  onQueued: (id: number) => void;
+}) {
+  const db = useDb();
+  const url = useObjectUrl(shot);
+  const [text, setText] = useState('');
+
+  async function analyze() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const compressed = await compressImage(shot);
+      const id = await enqueuePhoto(db, { date, meal, text }, compressed);
+      await processQueue(db);
+      const item = await db.aiQueue.get(id);
+      if (item?.status === 'done') return onQueued(id);
+      if (item?.status === 'pending')
+        toast('Offline. Das Foto wird analysiert, sobald du wieder verbunden bist.');
+      else if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+      onDiscard();
+    } catch {
+      toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
+      onDiscard();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      id="photo-preview"
+      className="grid gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void analyze();
+      }}
+    >
+      <div className="relative overflow-hidden rounded-2xl bg-black">
+        {url && <img src={url} alt="Aufgenommenes Foto" className="aspect-[3/4] w-full object-cover" />}
+        <Button
+          type="button"
+          variant="secondary"
+          className="absolute top-3 left-3 rounded-xl bg-black/55 text-white hover:bg-black/70"
+          disabled={busy}
+          onClick={onDiscard}
+        >
+          <RotateCcw aria-hidden /> Neu aufnehmen
+        </Button>
+        {busy && <AnalyzingOverlay />}
+      </div>
+      <div className="grid gap-1.5">
+        <Label htmlFor="ai-text">Hinweis für die Analyse (optional)</Label>
+        <Input
+          id="ai-text"
+          value={text}
+          disabled={busy}
+          maxLength={500}
+          enterKeyHint="go"
+          onChange={(e) => setText(e.target.value)}
+          placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
+          aria-describedby="ai-text-hint"
+        />
+        <p id="ai-text-hint" className="text-xs text-muted-foreground">
+          Erst mit „Analysieren“ geht das Foto an Claude.
+        </p>
+      </div>
+    </form>
   );
 }
 
@@ -114,33 +255,26 @@ const CAM_ERRORS: Record<ScannerError, string> = {
 
 /**
  * Live camera as the single entry point: a barcode in view is looked up immediately, the shutter
- * sends the frame to the AI, the gallery button (bottom left) analyzes a saved photo, the torch
- * toggle sits bottom right when the camera has one. The optional hint is typed before shooting so
- * that one tap on the shutter is all it takes.
+ * takes the frame for the preview, the gallery button (bottom left) picks a saved photo (one with a
+ * barcode goes straight to the product lookup), the torch toggle sits bottom right when the camera
+ * has one.
  *
  * iOS limit: a file input without `capture` always opens the action sheet (photo library / take
  * photo / choose file); no web API opens the photo library directly.
  */
 function CameraCapture({
-  date,
-  meal,
-  onQueued,
+  onShot,
   onBarcode,
 }: {
-  date: string;
-  meal: number;
-  onQueued: (id: number) => void;
+  onShot: (photo: Blob) => void;
   onBarcode: (code: string) => void;
 }) {
-  const db = useDb();
   const galleryInput = useRef<HTMLInputElement>(null);
   const fallbackCamera = useRef<HTMLInputElement>(null);
   const capture = useRef<CaptureFn | null>(null);
   const [camError, setCamError] = useState<ScannerError | null>(null);
-  const [text, setText] = useState('');
-  const [shot, setShot] = useState<Blob | null>(null);
-  const preview = useObjectUrl(shot);
   const [torch, setTorch] = useState<TorchState>(null);
+  // While a picked photo is checked for a barcode.
   const [busy, setBusy] = useState(false);
   const onError = useCallback((e: ScannerError) => setCamError(e), []);
   const barcodeSeen = useRef(false);
@@ -154,35 +288,11 @@ function CameraCapture({
     [onBarcode],
   );
 
-  async function analyze(image: Blob) {
-    setBusy(true);
-    setShot(image);
-    try {
-      const compressed = await compressImage(image);
-      const id = await enqueuePhoto(db, { date, meal, text }, compressed);
-      await processQueue(db);
-      const item = await db.aiQueue.get(id);
-      if (item?.status === 'done') {
-        onQueued(id);
-        return;
-      }
-      if (item?.status === 'pending')
-        toast('Offline. Das Foto wird analysiert, sobald du wieder verbunden bist.');
-      else if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
-      setText('');
-    } catch {
-      toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
-    } finally {
-      setBusy(false);
-      setShot(null);
-    }
-  }
-
   async function shoot() {
     const blob = await capture.current?.();
     if (!blob) return toast.error('Die Kamera liefert noch kein Bild.');
     navigator.vibrate?.(30);
-    await analyze(blob);
+    onShot(blob);
   }
 
   async function pick(file: File | undefined) {
@@ -190,11 +300,9 @@ function CameraCapture({
     setBusy(true);
     // A photographed barcode skips the AI entirely and goes to the product lookup.
     const code = await detectBarcodeInImage(file);
-    if (code) {
-      setBusy(false);
-      return onDetected(code);
-    }
-    await analyze(file);
+    setBusy(false);
+    if (code) return onDetected(code);
+    onShot(file);
   }
 
   const overlay = (
@@ -203,7 +311,7 @@ function CameraCapture({
         variant="secondary"
         size="icon-lg"
         className="rounded-xl bg-black/55 text-white hover:bg-black/70"
-        aria-label="Foto aus der Mediathek analysieren"
+        aria-label="Aus der Mediathek wählen"
         disabled={busy}
         onClick={() => galleryInput.current?.click()}
       >
@@ -211,7 +319,7 @@ function CameraCapture({
       </Button>
       <button
         type="button"
-        aria-label="Foto aufnehmen und analysieren"
+        aria-label="Foto aufnehmen"
         disabled={busy}
         onClick={() => void shoot()}
         className="grid size-[4.5rem] touch-manipulation place-items-center rounded-full border-4 border-white/90 bg-white/20 backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50 focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none motion-reduce:transition-none"
@@ -241,12 +349,7 @@ function CameraCapture({
           e.target.value = '';
         }}
       />
-      {preview ? (
-        <div className="relative overflow-hidden rounded-2xl bg-black">
-          <img src={preview} alt="Aufgenommenes Foto" className="aspect-[3/4] w-full object-cover" />
-          {busy && <AnalyzingOverlay />}
-        </div>
-      ) : camError ? (
+      {camError ? (
         <div className="grid gap-3 rounded-2xl border p-4">
           <p role="alert" className="text-sm">
             {CAM_ERRORS[camError]} Du kannst stattdessen ein Foto mit der Kamera-App aufnehmen oder aus der
@@ -291,16 +394,6 @@ function CameraCapture({
           {overlay}
         </BarcodeScanner>
       )}
-      <div className="grid gap-1.5">
-        <Label htmlFor="ai-text">Hinweis für die Analyse (optional)</Label>
-        <Input
-          id="ai-text"
-          value={text}
-          disabled={busy}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
-        />
-      </div>
     </div>
   );
 }
