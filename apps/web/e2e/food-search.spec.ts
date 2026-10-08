@@ -108,3 +108,42 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   );
   await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
 });
+
+test('own food: the pencil edits it, saving returns to the food page, deleting returns to the search', async ({
+  page,
+}) => {
+  await register(page);
+  await page.goto('/add?meal=0&tab=mine');
+  await page.getByRole('link', { name: 'Eigenes Lebensmittel anlegen' }).click();
+  await page.getByLabel('Name').fill('Omas Apfelkuchen');
+  await page.getByLabel('Kalorien').fill('285');
+  await page.getByRole('button', { name: 'Anlegen und eintragen' }).click();
+  await expect(page).toHaveURL(/\/food\//);
+  const foodUrl = page.url();
+  await expect(page.getByRole('heading', { level: 2, name: 'Omas Apfelkuchen' })).toBeVisible();
+  // No text link any more, the pencil sits in the header.
+  await expect(page.getByRole('link', { name: 'Bearbeiten', exact: true })).toHaveCount(0);
+
+  // An unsaved amount survives the way to the editor and back.
+  await page.getByLabel('Anzahl Portionen').fill('2');
+  await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
+  await expect(page).toHaveURL(/\/custom-food\/[^?]+\?from=food$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Lebensmittel bearbeiten' })).toBeVisible();
+  await page.getByLabel('Kalorien').fill('300');
+  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+  await expect(page.getByText('Gespeichert', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(foodUrl);
+  await expect(page.getByLabel('Anzahl Portionen')).toHaveValue('2');
+  await expect(page.getByRole('button', { name: /^600 kcal, Anteil/ })).toBeVisible();
+
+  // A fresh visit of the same food starts with the defaults again.
+  await page.goto('/add?meal=0&tab=mine');
+  await page.getByRole('link', { name: /Omas Apfelkuchen/ }).click();
+  await expect(page.getByLabel('Anzahl Portionen')).toHaveValue('1');
+
+  // Deleting in the editor does not land on the dead food page but on the search before it.
+  await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
+  await page.getByRole('button', { name: 'Lebensmittel löschen' }).click();
+  await expect(page).toHaveURL(/\/add\?/);
+  await expect(page.getByText('Omas Apfelkuchen gelöscht')).toBeVisible();
+});

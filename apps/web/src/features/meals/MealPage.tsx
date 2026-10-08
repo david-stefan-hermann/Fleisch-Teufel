@@ -26,5 +26,5 @@ export function MealPage() {
   if (search.date !== undefined && search.meal !== undefined)
     // A new key after an edit ("Meal bearbeiten" and back) starts again with all ingredients.
     return <MealLogView key={meal.updatedAt} meal={meal} date={search.date} mealIndex={search.meal} />;
-  return <MealEditor meal={meal} />;
+  return <MealEditor meal={meal} fromLog={search.from === 'log'} />;
 }

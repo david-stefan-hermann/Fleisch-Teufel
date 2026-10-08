@@ -13,6 +13,8 @@ import { defaultMealForNow } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
+import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
+import { goBackOr } from '@/lib/history';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -117,5 +119,51 @@ describe('fmtFixed', () => {
     expect(fmtFixed(84.555, 2)).toBe('84,56');
     expect(fmtFixed(1, 1)).toBe('1,0');
     expect(fmtFixed(1234.5, 0)).toBe('1.235');
+  });
+});
+
+describe('goBackOr', () => {
+  const history = (index: number | undefined) => {
+    const calls: number[] = [];
+    return { calls, location: { state: { __TSR_index: index } }, go: (d: number) => calls.push(d) };
+  };
+
+  it('goes back when the history has enough entries, else falls back', () => {
+    const h = history(3);
+    let fell = 0;
+    goBackOr(h, 2, () => fell++);
+    expect(h.calls).toEqual([-2]);
+    const first = history(1);
+    goBackOr(first, 2, () => fell++);
+    expect(first.calls).toEqual([]);
+    goBackOr(history(undefined), 1, () => fell++);
+    expect(fell).toBe(2);
+  });
+});
+
+describe('food page draft (pencil and back)', () => {
+  const draft = {
+    portion: { label: '1 Stück', grams: 120 },
+    quantity: 2,
+    meal: 3,
+    extraDays: ['2026-10-07'],
+  };
+
+  it('comes back only for the same history entry', () => {
+    stashFoodLogDraft('/food/x', 'k1', draft);
+    expect(peekFoodLogDraft('/food/x', 'k1')).toEqual(draft);
+    expect(peekFoodLogDraft('/food/x', 'k2')).toBeNull();
+    expect(peekFoodLogDraft('/food/y', 'k1')).toBeNull();
+    dropFoodLogDraft('/food/x');
+    expect(peekFoodLogDraft('/food/x', 'k1')).toBeNull();
+  });
+
+  it('ignores broken or foreign data and entries without a key', () => {
+    sessionStorage.setItem('ft:foodlog:/food/x', '{"entryKey":"k1","portion":{}}');
+    expect(peekFoodLogDraft('/food/x', 'k1')).toBeNull();
+    sessionStorage.setItem('ft:foodlog:/food/x', 'nope');
+    expect(peekFoodLogDraft('/food/x', 'k1')).toBeNull();
+    stashFoodLogDraft('/food/z', undefined, draft);
+    expect(sessionStorage.getItem('ft:foodlog:/food/z')).toBeNull();
   });
 });

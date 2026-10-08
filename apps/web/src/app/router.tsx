@@ -144,8 +144,16 @@ export const routes = {
     ...r('/custom-food/$id'),
     validateSearch: (
       s: Record<string, unknown>,
-    ): { barcode?: string; name?: string; date?: string; meal?: number; into?: string } =>
+    ): {
+      barcode?: string;
+      name?: string;
+      date?: string;
+      meal?: number;
+      into?: string;
+      from?: 'food';
+    } =>
       clean({
+        from: s.from === 'food' ? ('food' as const) : undefined,
         into: intoParam(s.into),
         barcode: strParam(s.barcode),
         name: strParam(s.name),
@@ -168,8 +176,13 @@ export const routes = {
   }),
   meal: createRoute({
     ...r('/meals/$mealId'),
-    validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number } =>
-      clean({ date: dateParam(s.date), meal: s.meal === undefined ? undefined : mealParam(s.meal) }),
+    // `from: 'log'`: the editor was opened from "Meal eintragen" (deleting returns past that page).
+    validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number; from?: 'log' } =>
+      clean({
+        date: dateParam(s.date),
+        meal: s.meal === undefined ? undefined : mealParam(s.meal),
+        from: s.from === 'log' ? ('log' as const) : undefined,
+      }),
     component: lazyRouteComponent(() => import('@/features/meals/MealPage'), 'MealPage'),
   }),
   diaryMeal: createRoute({

@@ -1,5 +1,5 @@
 import { completeNutrients, N, uuidv7, type CustomFood, type NutrientMap, type Portion } from '@ft/shared';
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { goBackOr } from '@/lib/history';
 
 const FIELDS = [
   { key: N.kcal, label: 'Kalorien', unit: 'kcal', required: true },
@@ -40,7 +41,9 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   const search = useSearch({ from: '/authed/custom-food/$id' });
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
   const isNew = existing === null;
+  const toList = () => void navigate({ to: '/custom-foods', replace: true });
   const [name, setName] = useState(existing?.name ?? search.name ?? '');
   const [brand, setBrand] = useState(existing?.brand ?? '');
   const [barcode, setBarcode] = useState(existing?.barcode ?? search.barcode ?? '');
@@ -90,7 +93,8 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       portions: allPortions,
     });
     toast.success(isNew ? 'Lebensmittel angelegt' : 'Gespeichert');
-    if (search.date !== undefined) {
+    // "Anlegen und eintragen" opens the new food's page; everything else closes the editor.
+    if (isNew && search.date !== undefined) {
       await navigate({
         to: '/food/$foodId',
         params: { foodId: record.id },
@@ -98,7 +102,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
         replace: true,
       });
     } else {
-      await navigate({ to: '/custom-foods', replace: true });
+      goBackOr(router.history, 1, toList);
     }
   }
 
@@ -121,7 +125,8 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                   onClick: () => void restoreRecord(db, 'customFoods', existing.id),
                 },
               });
-              await navigate({ to: '/custom-foods', replace: true });
+              // From the food page back past it (it would show the deleted food), else to the list.
+              goBackOr(router.history, search.from === 'food' ? 2 : 1, toList);
             }}
           >
             <Trash2 className="text-destructive" aria-hidden />

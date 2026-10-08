@@ -29,6 +29,7 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { compressImage } from '@/features/ai/image';
 import { useGoals } from '@/hooks/data';
 import { fmtPercent } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
 import { IngredientCard, isGramItem, minQuantity } from './IngredientCard';
 
@@ -40,23 +41,33 @@ const SCALE_MAX = 3;
  * total amount and nutrients. Nothing is logged here and nothing is written until "Speichern"; the
  * draft lives in `kv` (see `db/mealDraft.ts`) and leaving with changes asks first.
  */
-export function MealEditor({ meal }: { meal: Meal }) {
+export function MealEditor({ meal, fromLog = false }: { meal: Meal; fromLog?: boolean }) {
   const db = useDb();
   const draft = useLiveQuery(() => readMealDraft(db, meal.id), [db, meal.id]);
   const photo = useLiveQuery(() => readMealDraftPhoto(db, meal.id), [db, meal.id]);
   // Mount only once both answered, or the form would start from the saved meal and miss the draft.
   if (draft === undefined || photo === undefined) return null;
-  return <MealEditorForm key={meal.id} meal={meal} initial={draft ?? draftFromMeal(meal)} photo={photo} />;
+  return (
+    <MealEditorForm
+      key={meal.id}
+      meal={meal}
+      initial={draft ?? draftFromMeal(meal)}
+      photo={photo}
+      fromLog={fromLog}
+    />
+  );
 }
 
 function MealEditorForm({
   meal,
   initial,
   photo,
+  fromLog,
 }: {
   meal: Meal;
   initial: MealDraft;
   photo: MealDraftPhoto | null;
+  fromLog: boolean;
 }) {
   const db = useDb();
   const navigate = useNavigate();
@@ -90,9 +101,14 @@ function MealEditorForm({
 
   const dirty = isDirty(draft, meal);
   const into = `meal:${meal.id}`;
+  // Set right before leaving after a save or delete: the meal prop still shows the old state then.
+  const leaving = useRef(false);
   // The way through the ingredient search keeps the draft, so it does not count as leaving.
   const shouldBlockFn = useCallback<ShouldBlockFn>(
-    ({ next }) => dirty && !(next.pathname === '/add' && (next.search as { into?: string }).into === into),
+    ({ next }) =>
+      !leaving.current &&
+      dirty &&
+      !(next.pathname === '/add' && (next.search as { into?: string }).into === into),
     [dirty, into],
   );
   const blocker = useBlocker({ shouldBlockFn, withResolver: true, enableBeforeUnload: false });
@@ -111,13 +127,22 @@ function MealEditorForm({
     return true;
   }
 
+  /** Saving closes the editor: back to the page that opened it ("Meal eintragen" or the list). */
+  async function saveAndClose() {
+    if (!(await save())) return;
+    leaving.current = true;
+    goBackOr(router.history, 1, () => void navigate({ to: '/meals', ignoreBlocker: true }));
+  }
+
   async function remove() {
     await deleteRecord(db, 'meals', meal.id);
     await clearMealDraft(db, meal.id);
     toast(`${meal.name} gelöscht`, {
       action: { label: 'Rückgängig', onClick: () => void restoreRecord(db, 'meals', meal.id) },
     });
-    await navigate({ to: '/meals', ignoreBlocker: true });
+    leaving.current = true;
+    // From "Meal eintragen" back past that page (it would show a deleted meal), else to the list.
+    goBackOr(router.history, fromLog ? 2 : 1, () => void navigate({ to: '/meals', ignoreBlocker: true }));
   }
 
   function addIngredient() {
@@ -136,7 +161,7 @@ function MealEditorForm({
         </Button>
       }
       footer={
-        <Button size="lg" disabled={!dirty} onClick={() => void save()}>
+        <Button size="lg" disabled={!dirty} onClick={() => void saveAndClose()}>
           Speichern
         </Button>
       }

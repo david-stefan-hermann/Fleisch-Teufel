@@ -1,5 +1,6 @@
 import { get, N, rescaleItem, sumNutrients, targetsForDate, type Meal } from '@ft/shared';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -21,7 +22,8 @@ const FACTOR_MAX = 2;
 
 /**
  * Logging a saved meal (food search, tab "Eigene"): its ingredients read-only, a swipe leaves one
- * out of this entry only, the amount goes from 0,5× to 2×. "Meal bearbeiten" opens the editor.
+ * out of this entry only, the amount goes from 0,5× to 2×. The pencil ("Meal bearbeiten") opens the
+ * editor; saving there comes back here with the new ingredients (`MealPage` keys this view by `updatedAt`).
  */
 export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: string; mealIndex: number }) {
   const db = useDb();
@@ -71,6 +73,18 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
       title={meal.name}
       back
       withTabBar={false}
+      actions={
+        <Button variant="ghost" size="icon" asChild>
+          <Link
+            to="/meals/$mealId"
+            params={{ mealId: meal.id }}
+            search={{ from: 'log' }}
+            aria-label="Meal bearbeiten"
+          >
+            <Pencil aria-hidden />
+          </Link>
+        </Button>
+      }
       footer={
         <Button size="lg" onClick={() => void log()}>
           {fmt0(kcal)} kcal eintragen
@@ -100,20 +114,11 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
             ),
           )}
         </ul>
-        <div className="grid gap-2 border-t border-border/70 px-4 py-3">
-          {left.length > 0 && (
-            <p className="text-xs text-muted-foreground text-pretty">
-              Ohne {left.map((it) => it.name).join(', ')}. Das gespeicherte Meal bleibt unverändert.
-            </p>
-          )}
-          <Link
-            to="/meals/$mealId"
-            params={{ mealId: meal.id }}
-            className="justify-self-start text-sm font-medium text-primary underline underline-offset-2"
-          >
-            Meal bearbeiten
-          </Link>
-        </div>
+        {left.length > 0 && (
+          <p className="border-t border-border/70 px-4 py-3 text-xs text-muted-foreground text-pretty">
+            Ohne {left.map((it) => it.name).join(', ')}. Das gespeicherte Meal bleibt unverändert.
+          </p>
+        )}
       </Section>
       <Section title="Nährwerte">
         <NutrientBreakdown

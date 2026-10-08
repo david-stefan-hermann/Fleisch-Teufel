@@ -9,7 +9,7 @@ import {
   type FoodEntry,
   type Portion,
 } from '@ft/shared';
-import { Link, useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useParams, useRouter, useRouterState, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CalendarPlus, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -41,6 +41,7 @@ import { useGoals, useSettings } from '@/hooks/data';
 import { fmtDayShort, fmtGrams } from '@/lib/format';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { cn } from '@/lib/utils';
+import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
 export function FoodLogPage() {
@@ -139,10 +140,21 @@ interface FormProps {
   into: Into | null;
 }
 
+interface Initial {
+  portion: Portion;
+  quantity: number | null;
+  meal?: number;
+  extraDays?: string[];
+}
+
 /** Loads the data the form needs for its initial values, then mounts the editor. */
 function FoodLogForm(props: FormProps) {
   const { food, entry } = props;
   const db = useDb();
+  // Back from the custom food editor (pencil): the unsaved form state of this history entry.
+  const location = useRouterState({ select: (s) => s.location });
+  const [draft] = useState(() => peekFoodLogDraft(location.pathname, location.state.__TSR_key));
+  useEffect(() => dropFoodLogDraft(location.pathname), [location.pathname]);
   const custom = useLiveQuery(() => userPortions(db, food.id), [db, food.id]);
   const lastUsed = useLiveQuery(
     async () =>
@@ -160,9 +172,11 @@ function FoodLogForm(props: FormProps) {
   );
   if (custom === undefined || lastUsed === undefined) return <Skeleton className="h-64 rounded-2xl" />;
   const portions = portionsFor(food, custom);
-  // Initial portion: the entry's, else the last one used for this food, else the food's own serving / 100 g.
-  const initial: { portion: Portion; quantity: number } =
-    entry?.portionLabel && entry.portionGrams
+  // Initial portion: the stashed one, the entry's, else the last one used for this food, else the
+  // food's own serving / 100 g.
+  const initial: Initial = draft
+    ? draft
+    : entry?.portionLabel && entry.portionGrams
       ? { portion: { label: entry.portionLabel, grams: entry.portionGrams }, quantity: entry.quantity }
       : lastUsed?.portionLabel && lastUsed.portionGrams
         ? {
@@ -181,7 +195,7 @@ function FoodLogEditor({
   into,
   customPortions,
   initial,
-}: FormProps & { customPortions: Portion[]; initial: { portion: Portion; quantity: number } }) {
+}: FormProps & { customPortions: Portion[]; initial: Initial }) {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
@@ -194,11 +208,11 @@ function FoodLogEditor({
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
   const date = entry?.date ?? defaultDate ?? today();
   const targets = targetsForDate(goals ?? [], date);
-  const [meal, setMeal] = useState(entry?.meal ?? defaultMeal ?? 0);
+  const [meal, setMeal] = useState(initial.meal ?? entry?.meal ?? defaultMeal ?? 0);
   const [portion, setPortion] = useState<Portion | null>(initial.portion);
   const [quantity, setQuantity] = useState<number | null>(initial.quantity);
-  const [extraDays, setExtraDays] = useState<string[]>([]);
-  const [showDays, setShowDays] = useState(false);
+  const [extraDays, setExtraDays] = useState<string[]>(initial.extraDays ?? []);
+  const [showDays, setShowDays] = useState((initial.extraDays?.length ?? 0) > 0);
   const [portionDialog, setPortionDialog] = useState(false);
 
   const effectivePortion = portion ?? portions[0] ?? { label: '100 g', grams: 100 };
@@ -307,10 +321,36 @@ function FoodLogEditor({
         </Button>
       }
       actions={
-        entry ? (
-          <Button variant="ghost" size="icon" onClick={() => void remove()} aria-label="Eintrag löschen">
-            <Trash2 className="text-destructive" aria-hidden />
-          </Button>
+        food.source === 'custom' || entry ? (
+          <>
+            {food.source === 'custom' && (
+              <Button variant="ghost" size="icon" asChild>
+                {/* Edits the food, not the entry; the unsaved form state survives the way there and back. */}
+                <Link
+                  to="/custom-food/$id"
+                  params={{ id: food.id }}
+                  search={{ from: 'food' }}
+                  aria-label="Lebensmittel bearbeiten"
+                  onClick={() => {
+                    const { pathname, state } = router.state.location;
+                    stashFoodLogDraft(pathname, state.__TSR_key, {
+                      portion: effectivePortion,
+                      quantity,
+                      meal,
+                      extraDays,
+                    });
+                  }}
+                >
+                  <Pencil aria-hidden />
+                </Link>
+              </Button>
+            )}
+            {entry && (
+              <Button variant="ghost" size="icon" onClick={() => void remove()} aria-label="Eintrag löschen">
+                <Trash2 className="text-destructive" aria-hidden />
+              </Button>
+            )}
+          </>
         ) : undefined
       }
     >
@@ -322,15 +362,6 @@ function FoodLogEditor({
             {food.source === 'bls' ? 'BLS 4.0' : food.source === 'off' ? 'Open Food Facts' : 'Eigenes'}
           </Badge>
           {food.group && food.source === 'bls' && <span className="truncate">{food.group}</span>}
-          {food.source === 'custom' && (
-            <Link
-              to="/custom-food/$id"
-              params={{ id: food.id }}
-              className="inline-flex items-center gap-1 text-primary hover:underline"
-            >
-              <Pencil className="size-3" aria-hidden /> Bearbeiten
-            </Link>
-          )}
         </div>
       </div>
 

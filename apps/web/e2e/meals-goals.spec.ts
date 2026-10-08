@@ -233,9 +233,16 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('link', { name: /Porridge/ }).click();
   await expect(page.getByLabel('Name')).toHaveValue('Porridge');
   await expect(save).toBeDisabled();
+
+  // Saving from "Mehr" closes the editor too: back to the list, without asking.
+  await page.getByLabel('Name').fill('Porridge Deluxe');
+  await save.click();
+  await expect(page).toHaveURL(/\/meals$/);
+  await expect(ask).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Porridge Deluxe/ })).toBeVisible();
 });
 
-test('log a saved meal: leave out an ingredient for this entry, amount slider, edit link', async ({
+test('log a saved meal: leave out an ingredient for this entry, amount slider, pencil to the editor', async ({
   page,
 }) => {
   await register(page);
@@ -290,17 +297,28 @@ test('log a saved meal: leave out an ingredient for this entry, amount slider, e
   await page.goto('/meals');
   await expect(page.getByRole('link', { name: /Bowl/ })).toContainText(/3\sZutaten/);
 
-  // "Meal bearbeiten" opens the editor; back returns to logging with the saved changes.
+  // The pencil ("Meal bearbeiten") opens the editor; saving closes it and logging shows the changes,
+  // without asking about unsaved changes.
   await page.goto('/add?meal=1&tab=mine');
   await page.getByRole('link', { name: /Bowl/ }).click();
+  const logUrl = page.url();
   await page.getByRole('link', { name: 'Meal bearbeiten' }).click();
+  await expect(page).toHaveURL(/\/meals\/[^?]+\?from=log$/);
   await expect(page.getByRole('button', { name: 'Speichern', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Honig entfernen' }).click();
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByText('„Bowl“ gespeichert', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(logUrl);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /kcal eintragen$/ })).toHaveText('200 kcal eintragen');
   await expect(page.getByText('Honig', { exact: true })).toHaveCount(0);
+
+  // Deleting in the editor returns past "Meal eintragen" to the search; undo brings the meal back.
+  await page.getByRole('link', { name: 'Meal bearbeiten' }).click();
+  await page.getByRole('button', { name: 'Meal löschen' }).click();
+  await expect(page).toHaveURL(/\/add\?/);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByRole('link', { name: /Bowl/ })).toBeVisible();
 });
 
 test('AI result shows the photo, takes extra ingredients and becomes a meal with photo', async ({ page }) => {
