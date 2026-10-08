@@ -138,6 +138,9 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     background: var(--background);
+    /* No pinch or double-tap zoom (the app is sized for phones; inputs are 16px so iOS never zooms in).
+       Intersects with the children's touch-pan-y/touch-none, so it only removes zooming. */
+    touch-action: pan-x pan-y;
   }
   body {
     @apply bg-background text-foreground antialiased;

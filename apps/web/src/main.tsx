@@ -12,6 +12,11 @@ const TOAST_BOTTOM = 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)';
 registerServiceWorker();
 void requestPersistentStorage();
 
+// iOS WebKit ignores user-scalable=no and touch-action for pinch; its gesture events still zoom.
+for (const type of ['gesturestart', 'gesturechange']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <SessionProvider>

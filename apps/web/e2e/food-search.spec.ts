@@ -43,12 +43,11 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Was du mindestens zweimal einträgst')).toBeVisible();
 
-  // Header: food page (camera) and quick add (24 px icons), no barcode link (the food page scans barcodes).
+  // Header: only the food page (camera, 24 px icon); quick add and barcode live on the food page.
   await expect(page.getByRole('link', { name: 'Barcode scannen' })).toHaveCount(0);
-  for (const name of ['Foto oder Barcode', 'Schnelleingabe']) {
-    const icon = (await page.getByRole('link', { name }).locator('svg').boundingBox())!;
-    expect(icon.width).toBe(24);
-  }
+  await expect(page.getByRole('link', { name: 'Schnelleingabe' })).toHaveCount(0);
+  const icon = (await page.getByRole('link', { name: 'Foto oder Barcode' }).locator('svg').boundingBox())!;
+  expect(icon.width).toBe(24);
 
   // Typing in "Häufig" or "Kürzlich" shows search results; no tab is active meanwhile.
   await page.getByLabel('Lebensmittel suchen').fill('brötchen');

@@ -14,6 +14,7 @@ import {
   Trash2,
   TriangleAlert,
   X,
+  Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -97,12 +98,20 @@ export function PhotoPage() {
       onBack={shot ? () => setShot(null) : undefined}
       withTabBar={false}
       actions={
-        <Button variant="ghost" size="icon" asChild>
-          {/* Replaces the page: switching between food page and search never piles up history. */}
-          <Link to="/add" search={{ date, meal }} replace aria-label="Lebensmittel suchen">
-            <Search aria-hidden />
-          </Link>
-        </Button>
+        <>
+          {/* A new page on purpose: back from the quick add returns here. */}
+          <Button variant="ghost" size="icon" asChild>
+            <Link to="/quick-add" search={{ date, meal }} aria-label="Schnelleingabe">
+              <Zap aria-hidden />
+            </Link>
+          </Button>
+          <Button variant="ghost" size="icon" asChild>
+            {/* Replaces the page: switching between food page and search never piles up history. */}
+            <Link to="/add" search={{ date, meal }} replace aria-label="Lebensmittel suchen">
+              <Search aria-hidden />
+            </Link>
+          </Button>
+        </>
       }
       footer={
         shot ? (

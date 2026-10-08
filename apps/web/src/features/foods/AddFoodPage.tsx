@@ -1,7 +1,7 @@
 import { get, N, uuidv7, type Food, type Meal } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff, Zap } from 'lucide-react';
+import { Camera, ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -177,19 +177,12 @@ export function AddFoodPage() {
       withTabBar={false}
       actions={
         into ? undefined : (
-          <>
-            <Button variant="ghost" size="icon" asChild>
-              {/* Replaces the page: switching between search and food page never piles up history. */}
-              <Link to="/photo" search={{ date, meal }} replace aria-label="Foto oder Barcode">
-                <Camera className="size-6" aria-hidden />
-              </Link>
-            </Button>
-            <Button variant="ghost" size="icon" asChild>
-              <Link to="/quick-add" search={{ date, meal }} aria-label="Schnelleingabe">
-                <Zap className="size-6" aria-hidden />
-              </Link>
-            </Button>
-          </>
+          <Button variant="ghost" size="icon" asChild>
+            {/* Replaces the page: switching between search and food page never piles up history. */}
+            <Link to="/photo" search={{ date, meal }} replace aria-label="Foto oder Barcode">
+              <Camera className="size-6" aria-hidden />
+            </Link>
+          </Button>
         )
       }
       headerExtra={

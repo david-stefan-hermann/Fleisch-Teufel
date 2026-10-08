@@ -175,7 +175,7 @@ test('swipe to delete a diary entry with undo, date picker on the title', async 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('15');
 });
 
-test('add menu: training, food (highlighted, middle), weight; the food page leads to the search', async ({
+test('add menu: weight, food (highlighted, middle), training; the food page leads to the search', async ({
   page,
 }) => {
   await register(page);
@@ -183,9 +183,9 @@ test('add menu: training, food (highlighted, middle), weight; the food page lead
   await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'Hinzufügen', exact: true });
   await expect(sheet.getByRole('button')).toHaveText([
-    'Training eintragen',
-    'Essen eintragen',
     'Gewicht eintragen',
+    'Essen eintragen',
+    'Training eintragen',
   ]);
   const food = sheet.getByRole('button', { name: 'Essen eintragen' });
   const training = sheet.getByRole('button', { name: 'Training eintragen' });
@@ -200,6 +200,15 @@ test('add menu: training, food (highlighted, middle), weight; the food page lead
   await sheet.getByRole('button', { name: 'Essen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Essen eintragen');
+  // Quick add sits left of the magnifier and opens as a new page: back returns to the food page.
+  const quick = page.getByRole('link', { name: 'Schnelleingabe' });
+  expect((await quick.boundingBox())!.x).toBeLessThan(
+    (await page.getByRole('link', { name: 'Lebensmittel suchen' }).boundingBox())!.x,
+  );
+  await quick.click();
+  await expect(page).toHaveURL(/\/quick-add\?/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/photo\?/);
   // Magnifier and camera icon replace each other: back leaves to the diary, no ping-pong.
   await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
   await expect(page).toHaveURL(/\/add\?/);

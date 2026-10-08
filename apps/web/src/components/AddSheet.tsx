@@ -65,7 +65,7 @@ function AddSheet({
     fn();
   };
   // Three entries, all "… eintragen": food (camera, barcode, and the search behind the magnifier) in
-  // the middle and highlighted, where the thumb rests; training on the left, weight on the right.
+  // the middle and highlighted, where the thumb rests; weight on the left, training on the right.
   const items: {
     label: string;
     icon: ComponentType<{ className?: string }>;
@@ -73,9 +73,9 @@ function AddSheet({
     primary?: boolean;
   }[] = [
     {
-      label: 'Training eintragen',
-      icon: Dumbbell,
-      run: () => navigate({ to: '/exercise', search: { date } }),
+      label: 'Gewicht eintragen',
+      icon: Scale,
+      run: () => navigate({ to: '/progress', search: { log: true } }),
     },
     {
       label: 'Essen eintragen',
@@ -84,9 +84,9 @@ function AddSheet({
       primary: true,
     },
     {
-      label: 'Gewicht eintragen',
-      icon: Scale,
-      run: () => navigate({ to: '/progress', search: { log: true } }),
+      label: 'Training eintragen',
+      icon: Dumbbell,
+      run: () => navigate({ to: '/exercise', search: { date } }),
     },
   ];
   return (

@@ -47,3 +47,25 @@ test('onboarding date input fits the iPhone screen', async ({ page }, info) => {
   );
   expect(overflow).toBe(false);
 });
+
+test('no zoom: viewport forbids scaling, html blocks pinch, inputs are at least 16px', async ({ page }) => {
+  await page.goto('/login');
+  const viewport = await page.locator('meta[name="viewport"]').getAttribute('content');
+  expect(viewport).toContain('maximum-scale=1');
+  expect(viewport).toContain('user-scalable=no');
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).touchAction)).toBe(
+    'pan-x pan-y',
+  );
+  // Gesture events (iOS pinch) are cancelled.
+  const prevented = await page.evaluate(() => {
+    const e = new Event('gesturestart', { cancelable: true });
+    document.dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
+  const sizes = await page.evaluate(() =>
+    [...document.querySelectorAll('input')].map((i) => parseFloat(getComputedStyle(i).fontSize)),
+  );
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const s of sizes) expect(s).toBeGreaterThanOrEqual(16);
+});
