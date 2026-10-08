@@ -1,6 +1,7 @@
 import { useRouter } from '@tanstack/react-router';
 import { ChevronLeft } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
+import { PageFooter } from '@/components/PageFooter';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +16,10 @@ interface PageProps {
   withTabBar?: boolean;
   /** Content shown under the title inside the sticky header (e.g. tabs, search). */
   headerExtra?: ReactNode;
+  /** The page's primary action in a sticky bottom bar (`PageFooter`); implies no tab bar. */
+  footer?: ReactNode;
+  /** Replaces the back navigation (e.g. leave a sub-state of the page instead of the page). */
+  onBack?: () => void;
 }
 
 export function Page({
@@ -25,9 +30,12 @@ export function Page({
   className,
   withTabBar = true,
   headerExtra,
+  footer,
+  onBack,
 }: PageProps) {
   const router = useRouter();
   const goBack = () => {
+    if (onBack) return onBack();
     if (window.history.length > 1) router.history.back();
     else void router.navigate({ to: typeof back === 'string' ? back : '/' });
   };
@@ -58,14 +66,17 @@ export function Page({
         id="main"
         className={cn(
           'mx-auto w-full max-w-xl flex-1 px-4 pt-4',
-          withTabBar
-            ? 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+1.5rem)]'
-            : 'pb-[calc(var(--safe-bottom)+1.5rem)]',
+          footer
+            ? 'pb-4'
+            : withTabBar
+              ? 'pb-[calc(var(--tabbar-h)+var(--safe-bottom)+1.5rem)]'
+              : 'pb-[calc(var(--safe-bottom)+1.5rem)]',
           className,
         )}
       >
         {children}
       </main>
+      {footer && <PageFooter>{footer}</PageFooter>}
     </div>
   );
 }

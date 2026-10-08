@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-router';
 import { AddSheetProvider } from '@/components/AddSheet';
 import { TabBar } from '@/components/TabBar';
+import { ViewportVars } from '@/hooks/useVisualViewport';
 import { intoParam } from '@/lib/into';
 import { useSessionContext } from './session';
 import { AppBanners } from './AppBanners';
@@ -74,6 +75,7 @@ function AuthedLayout() {
   const showTabs = ['/', '/progress', '/reports', '/more'].includes(path);
   return (
     <AddSheetProvider>
+      <ViewportVars />
       <AppBanners />
       <Outlet />
       {showTabs && <TabBar />}

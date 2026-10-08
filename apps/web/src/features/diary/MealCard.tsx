@@ -29,6 +29,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -454,7 +455,7 @@ function SaveMealDialog({
             {entries.length} Einträge werden als wiederverwendbares Meal gespeichert.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-1.5">
+        <DialogBody className="gap-1.5">
           <Label htmlFor="meal-name">Name</Label>
           <Input
             id="meal-name"
@@ -463,7 +464,7 @@ function SaveMealDialog({
             autoComplete="off"
             placeholder="z. B. Mein Frühstück…"
           />
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen

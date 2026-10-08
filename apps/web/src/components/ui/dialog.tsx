@@ -48,7 +48,9 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
+          // Pinned to the top of the visual viewport (above the iOS keyboard, see useVisualViewport); the
+          // offset goes through `top` because `transform` belongs to the centering and the animation.
+          'fixed top-[calc(var(--vvt,0px)+var(--safe-top)+12px)] left-1/2 z-50 flex max-h-[calc(var(--vvh,100dvh)-var(--safe-top)-24px)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col gap-4 overflow-hidden rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-top-2 sm:max-w-lg',
           className,
         )}
         {...props}
@@ -72,7 +74,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
+      className={cn('flex shrink-0 flex-col gap-2 text-center sm:text-left', className)}
       {...props}
     />
   );
@@ -89,7 +91,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
+      className={cn('flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)}
       {...props}
     >
       {children}
@@ -99,6 +101,17 @@ function DialogFooter({
         </DialogPrimitive.Close>
       )}
     </div>
+  );
+}
+
+/** Scrollable middle part between header and footer; header and buttons stay visible above the keyboard. */
+function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn('-mx-6 -my-1 grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-1', className)}
+      {...props}
+    />
   );
 }
 
@@ -127,6 +140,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

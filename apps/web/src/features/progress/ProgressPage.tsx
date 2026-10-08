@@ -11,6 +11,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -273,7 +274,7 @@ function WeightDialog({
             Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
+        <DialogBody>
           <div className="tabular text-center">
             <output htmlFor="w-slider" className="text-4xl font-bold">
               {value === null ? NO_VALUE : fmt1(value)}
@@ -334,7 +335,7 @@ function WeightDialog({
               />
             </div>
           )}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen

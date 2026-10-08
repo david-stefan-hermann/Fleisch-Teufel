@@ -7,9 +7,11 @@ import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
+import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { UserDb } from '@/db/dexie';
+import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
@@ -53,6 +55,85 @@ describe('NumberField', () => {
     expect(input.value).toBe('3');
     fireEvent.change(input, { target: { value: '3,' } });
     expect(input.value).toBe('3,');
+  });
+});
+
+describe('NameDialog', () => {
+  function Host({ onConfirm }: { onConfirm: (name: string) => Promise<void> | void }) {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>öffnen</button>
+        <output data-testid="open">{String(open)}</output>
+        <NameDialog
+          open={open}
+          onOpenChange={setOpen}
+          title="Als Meal speichern"
+          description="3 Einträge werden als wiederverwendbares Meal gespeichert."
+          confirmLabel="Meal speichern"
+          defaultName="Mittagessen 8.10.2026"
+          onConfirm={onConfirm}
+        />
+      </>
+    );
+  }
+
+  it('prefills the name, refuses an empty one and confirms the trimmed name with Enter', async () => {
+    const onConfirm = vi.fn();
+    render(<Host onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByText('öffnen'));
+    const dialog = await screen.findByRole('dialog', { name: 'Als Meal speichern' });
+    const input = screen.getByLabelText('Name') as HTMLInputElement;
+    expect(input.value).toBe('Mittagessen 8.10.2026');
+    expect(document.activeElement).toBe(input);
+    fireEvent.change(input, { target: { value: '   ' } });
+    expect((screen.getByRole('button', { name: 'Meal speichern' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onConfirm).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: '  Bowl ' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(screen.getByTestId('open').textContent).toBe('false'));
+    expect(onConfirm).toHaveBeenCalledWith('Bowl');
+    expect(dialog.isConnected).toBe(false);
+  });
+
+  it('starts again from the default name after cancelling, and stays open when saving fails', async () => {
+    const onConfirm = vi.fn().mockRejectedValueOnce(new Error('boom'));
+    render(<Host onConfirm={onConfirm} />);
+    fireEvent.click(screen.getByText('öffnen'));
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Anders' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Abbrechen' }));
+    await waitFor(() => expect(screen.getByTestId('open').textContent).toBe('false'));
+    fireEvent.click(screen.getByText('öffnen'));
+    expect(((await screen.findByLabelText('Name')) as HTMLInputElement).value).toBe('Mittagessen 8.10.2026');
+    fireEvent.click(screen.getByRole('button', { name: 'Meal speichern' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Meal speichern' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    );
+    expect(screen.getByTestId('open').textContent).toBe('true');
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Mittagessen 8.10.2026');
+  });
+});
+
+describe('ViewportVars', () => {
+  it('mirrors the visual viewport as CSS variables and cleans up', () => {
+    const vv = Object.assign(new EventTarget(), { height: 844, offsetTop: 0 });
+    vi.stubGlobal('visualViewport', vv);
+    const style = document.documentElement.style;
+    const { unmount } = render(<ViewportVars />);
+    expect(style.getPropertyValue('--vvh')).toBe('844px');
+    expect(style.getPropertyValue('--vvt')).toBe('0px');
+    // Keyboard open on iOS: the visual viewport shrinks and scrolls down.
+    vv.height = 480;
+    vv.offsetTop = 120;
+    act(() => void vv.dispatchEvent(new Event('resize')));
+    expect(style.getPropertyValue('--vvh')).toBe('480px');
+    expect(style.getPropertyValue('--vvt')).toBe('120px');
+    unmount();
+    expect(style.getPropertyValue('--vvh')).toBe('');
   });
 });
 

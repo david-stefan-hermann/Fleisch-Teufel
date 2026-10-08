@@ -25,6 +25,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -497,7 +498,7 @@ function CustomTypeDialog({
             enthalten).
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
+        <DialogBody>
           <div className="grid gap-1.5">
             <Label htmlFor="ct-name">Name</Label>
             <Input
@@ -514,7 +515,7 @@ function CustomTypeDialog({
             onValueChange={setMet}
             error={met !== null && (met < 1 || met > 25) ? 'Zwischen 1 und 25.' : null}
           />
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen

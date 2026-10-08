@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -294,6 +295,17 @@ function FoodLogEditor({
       }
       back
       withTabBar={false}
+      footer={
+        <Button size="lg" className="w-full" disabled={!valid} onClick={() => void save()}>
+          {entry
+            ? 'Änderungen übernehmen'
+            : into
+              ? into.kind === 'meal'
+                ? 'Zum Meal hinzufügen'
+                : 'Zur Analyse hinzufügen'
+              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} eintragen`}
+        </Button>
+      }
       actions={
         entry ? (
           <Button variant="ghost" size="icon" onClick={() => void remove()} aria-label="Eintrag löschen">
@@ -454,18 +466,6 @@ function FoodLogEditor({
         </p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 border-t border-border/70 bg-background/90 px-4 pt-3 pb-[calc(var(--safe-bottom)+0.75rem)] backdrop-blur-md">
-        <Button size="lg" className="w-full" disabled={!valid} onClick={() => void save()}>
-          {entry
-            ? 'Änderungen übernehmen'
-            : into
-              ? into.kind === 'meal'
-                ? 'Zum Meal hinzufügen'
-                : 'Zur Analyse hinzufügen'
-              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} eintragen`}
-        </Button>
-      </div>
-
       <NewPortionDialog
         open={portionDialog}
         onOpenChange={setPortionDialog}
@@ -512,7 +512,7 @@ function NewPortionDialog({
             Zum Beispiel „Meine Müslischale“ oder „1 Scheibe“. Gilt auf allen deinen Geräten.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
+        <DialogBody>
           <div className="grid gap-1.5">
             <Label htmlFor="portion-label">Bezeichnung</Label>
             <Input
@@ -524,7 +524,7 @@ function NewPortionDialog({
             />
           </div>
           <NumberField label={`Menge in ${unit}`} value={grams} onValueChange={setGrams} unit={unit} />
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen

@@ -22,6 +22,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -344,20 +345,22 @@ function AmountDialog({
           <DialogTitle>{item.name}</DialogTitle>
           <DialogDescription>Menge in diesem Meal ändern.</DialogDescription>
         </DialogHeader>
-        <NumberField
-          label={byGram ? 'Menge' : `Anzahl · ${item.portionLabel}`}
-          unit={byGram ? unit : '×'}
-          value={quantity}
-          onValueChange={setQuantity}
-          error={quantity !== null && quantity <= 0 ? 'Bitte eine Menge größer 0 eingeben.' : null}
-        />
-        {preview && (
-          <p className="tabular text-sm text-muted-foreground">
-            {preview.grams !== null && !byGram ? `${fmtGrams(preview.grams, unit)} · ` : ''}
-            {fmt0(get(preview.nutrients, N.kcal))} kcal · P {fmt0(get(preview.nutrients, N.protein))} · K{' '}
-            {fmt0(get(preview.nutrients, N.carbs))} · F {fmt0(get(preview.nutrients, N.fat))}
-          </p>
-        )}
+        <DialogBody>
+          <NumberField
+            label={byGram ? 'Menge' : `Anzahl · ${item.portionLabel}`}
+            unit={byGram ? unit : '×'}
+            value={quantity}
+            onValueChange={setQuantity}
+            error={quantity !== null && quantity <= 0 ? 'Bitte eine Menge größer 0 eingeben.' : null}
+          />
+          {preview && (
+            <p className="tabular text-sm text-muted-foreground">
+              {preview.grams !== null && !byGram ? `${fmtGrams(preview.grams, unit)} · ` : ''}
+              {fmt0(get(preview.nutrients, N.kcal))} kcal · P {fmt0(get(preview.nutrients, N.protein))} · K{' '}
+              {fmt0(get(preview.nutrients, N.carbs))} · F {fmt0(get(preview.nutrients, N.fat))}
+            </p>
+          )}
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Abbrechen
