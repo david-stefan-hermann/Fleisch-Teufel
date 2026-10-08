@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { restoreRecord } from '@/db/write';
 import { describe } from '@/features/exercise/training';
-import { fmt1, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
+import { fmt2, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
 
 /** Rows shown per section; older tombstones stay in the database. */
 const LIMIT = 100;
@@ -51,7 +51,7 @@ export function TrashPage() {
               <li key={w.id} className="flex min-h-14 items-center gap-3 px-4 py-2">
                 <div className="tabular min-w-0 flex-1">
                   <div className="font-medium">
-                    {fmtDate(w.date)} · {fmt1(w.kg)}&nbsp;kg
+                    {fmtDate(w.date)} · {fmt2(w.kg)}&nbsp;kg
                   </div>
                   <div className="text-xs text-muted-foreground">gelöscht am {fmtDateOf(w.updatedAt)}</div>
                 </div>

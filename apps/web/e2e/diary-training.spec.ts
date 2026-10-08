@@ -358,16 +358,69 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   await expect(mealCard(page, 'Frühstück').getByText('Joghurt', { exact: true })).toBeVisible();
 });
 
-test('weight slider spans ±5 kg around the last weight', async ({ page }) => {
+test('weight: measuring tape snaps to 0,05 kg, exact value with two decimals', async ({ page }) => {
   await register(page);
   await page.goto('/progress');
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
+  // The dialog sits at the top, not in the middle.
+  expect((await dialog.boundingBox())!.y).toBeLessThan(40);
+  await expect(dialog.getByRole('button', { name: /kg (weniger|mehr)/ })).toHaveCount(0);
   await dialog.getByLabel('Genauer Wert').fill('84,5');
   await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('84,5 kg gespeichert')).toBeVisible();
+
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
-  await expect(dialog.getByText('79 kg', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('90 kg', { exact: true })).toBeVisible();
+  const tape = dialog.getByRole('slider', { name: 'Gewicht in Kilogramm' });
+  await expect(tape).toHaveAttribute('aria-valuenow', '84.5');
+  await expect(dialog.getByLabel('Genauer Wert')).toHaveValue('84,50');
+  await expect(dialog.locator('output')).toHaveText('84,50');
+  await tape.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(dialog.locator('output')).toHaveText('84,55');
+  await expect(dialog.getByLabel('Genauer Wert')).toHaveValue('84,55');
+
+  // Dragging: half the width is one kilogram; releasing snaps to the raster.
+  const box = (await tape.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width * 0.75, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.5, y, { steps: 5 });
+  await page.mouse.move(box.x + box.width * 0.25 - 3, y, { steps: 5 });
+  await page.mouse.up();
+  const after = Number(await tape.getAttribute('aria-valuenow'));
+  expect(after).toBeGreaterThan(85.5);
+  expect(after).toBeLessThan(85.7);
+  expect(Math.round(after * 100) % 5).toBe(0);
+
+  // Off the raster is fine when typed; out of range is not.
+  await dialog.getByLabel('Genauer Wert').fill('84,37');
+  await expect(dialog.locator('output')).toHaveText('84,37');
+  await dialog.getByLabel('Genauer Wert').fill('500');
+  await expect(dialog.getByText('Zwischen 20 und 400 kg.')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Speichern' })).toBeDisabled();
+  await dialog.getByLabel('Genauer Wert').fill('84,3');
+  await dialog.getByLabel('Genauer Wert').blur();
+  await expect(dialog.getByLabel('Genauer Wert')).toHaveValue('84,30');
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('84,3 kg gespeichert')).toBeVisible();
+});
+
+test('dialog scrolls its middle part on a short screen, the buttons stay visible', async ({ page }) => {
+  await register(page);
+  await page.setViewportSize({ width: 390, height: 400 });
+  await page.goto('/progress');
+  await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
+  const save = dialog.getByRole('button', { name: 'Speichern' });
+  const box = (await dialog.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(400);
+  await expect(save).toBeInViewport();
+  const body = dialog.locator('[data-slot=dialog-body]');
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await dialog.getByLabel('Genauer Wert').scrollIntoViewIfNeeded();
+  await expect(dialog.getByLabel('Genauer Wert')).toBeInViewport();
+  await expect(save).toBeInViewport();
 });
 
 test('weight entries delete by swipe only, with undo', async ({ page }) => {

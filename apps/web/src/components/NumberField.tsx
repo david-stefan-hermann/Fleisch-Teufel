@@ -1,7 +1,7 @@
 import { useId, useState, type ComponentProps } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { fmt2, parseDecimal } from '@/lib/format';
+import { fmt2, fmtFixed, parseDecimal } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 interface NumberFieldProps extends Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'type'> {
@@ -12,9 +12,12 @@ interface NumberFieldProps extends Omit<ComponentProps<typeof Input>, 'value' | 
   hint?: string;
   error?: string | null;
   integer?: boolean;
+  /** Fixed decimals shown while the field is not being edited ("80,00"); typing stays free. */
+  decimals?: 1 | 2;
 }
 
-const display = (v: number | null) => (v === null || Number.isNaN(v) ? '' : fmt2(v).replace(/\./g, ''));
+const display = (v: number | null, decimals?: 1 | 2) =>
+  v === null || Number.isNaN(v) ? '' : (decimals ? fmtFixed(v, decimals) : fmt2(v)).replace(/\./g, '');
 
 /** Decimal input that accepts "1,5" and "1.5" (iOS shows the decimal keypad). */
 export function NumberField({
@@ -25,20 +28,22 @@ export function NumberField({
   hint,
   error,
   integer,
+  decimals,
   className,
   id,
+  onBlur,
   ...rest
 }: NumberFieldProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
-  const [text, setText] = useState(() => display(value));
+  const [text, setText] = useState(() => display(value, decimals));
   // Follow external changes (e.g. +/- buttons, presets) unless the text already means that number.
   const [lastValue, setLastValue] = useState(value);
   if (value !== lastValue) {
     setLastValue(value);
     const parsed = parseDecimal(text);
     const same = value === null ? Number.isNaN(parsed) : parsed === value;
-    if (!same) setText(display(value));
+    if (!same) setText(display(value, decimals));
   }
   return (
     <div className={cn('grid content-start gap-1.5', className)}>
@@ -58,6 +63,11 @@ export function NumberField({
             onValueChange(Number.isNaN(n) ? null : integer ? Math.round(n) : n);
           }}
           onFocus={(e) => e.currentTarget.select()}
+          onBlur={(e) => {
+            // "84,3" becomes "84,30" once the field is left.
+            if (decimals && value !== null && parseDecimal(text) === value) setText(display(value, decimals));
+            onBlur?.(e);
+          }}
           className={cn('tabular', unit && 'pr-14')}
           {...rest}
         />

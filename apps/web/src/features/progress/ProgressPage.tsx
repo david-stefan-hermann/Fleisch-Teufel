@@ -1,6 +1,6 @@
 import { addDays, bmi, dayId, linearTrend, movingAverage, round, type WeightEntry } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { CalendarDays, Minus, Plus, Scale } from 'lucide-react';
+import { CalendarDays, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -20,11 +20,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
+import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useSettings, useToday, useWeights } from '@/hooks/data';
-import { fmt1, fmtDate, fmtRelativeDay, NO_VALUE } from '@/lib/format';
+import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
 const RANGES = [
   { id: '7', label: '7 T', days: 7 },
@@ -33,7 +33,7 @@ const RANGES = [
   { id: 'all', label: 'Alle', days: null },
 ] as const;
 
-const kg = (v: number) => `${fmt1(v)} kg`;
+const kg = (v: number) => `${fmt2(v)} kg`;
 
 export function ProgressPage() {
   const search = useSearch({ from: '/authed/progress' });
@@ -229,9 +229,6 @@ export function ProgressPage() {
   );
 }
 
-/** The weight slider spans this many kilograms below and above the starting weight. */
-const WEIGHT_SLIDER_RANGE_KG = 5;
-
 function WeightDialog({
   open,
   onOpenChange,
@@ -259,12 +256,8 @@ function WeightDialog({
     setValue(entry?.kg ?? last);
   }
   const valid = value !== null && value >= 20 && value <= 400;
-  // The slider covers a fixed window around the starting weight; the number field still takes anything.
+  // The tape starts at the last weight; "Genauer Wert" takes anything from 20 to 400 kg.
   const base = entry?.kg ?? last ?? 80;
-  const sliderMin = Math.max(20, Math.floor(base - WEIGHT_SLIDER_RANGE_KG));
-  const sliderMax = Math.min(400, Math.ceil(base + WEIGHT_SLIDER_RANGE_KG));
-  const sliderValue = value === null ? base : Math.min(sliderMax, Math.max(sliderMin, value));
-  const nudge = (delta: number) => setValue(round(Math.min(400, Math.max(20, (value ?? base) + delta)), 1));
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -276,35 +269,18 @@ function WeightDialog({
         </DialogHeader>
         <DialogBody>
           <div className="tabular text-center">
-            <output htmlFor="w-slider" className="text-4xl font-bold">
-              {value === null ? NO_VALUE : fmt1(value)}
-            </output>
+            <output className="text-4xl font-bold">{value === null ? NO_VALUE : fmtFixed(value, 2)}</output>
             <span className="ml-1 text-lg text-muted-foreground">kg</span>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" aria-label="0,1 kg weniger" onClick={() => nudge(-0.1)}>
-              <Minus aria-hidden />
-            </Button>
-            <Slider
-              id="w-slider"
-              aria-label="Gewicht in Kilogramm"
-              min={sliderMin}
-              max={sliderMax}
-              step={0.1}
-              value={[sliderValue]}
-              onValueChange={([v]) => v !== undefined && setValue(round(v, 1))}
-              className="flex-1"
-            />
-            <Button variant="outline" size="icon" aria-label="0,1 kg mehr" onClick={() => nudge(0.1)}>
-              <Plus aria-hidden />
-            </Button>
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{sliderMin} kg</span>
-            <span>{sliderMax} kg</span>
+          <div className="grid gap-1.5">
+            <TapeMeasure value={valid ? value : base} onChange={setValue} label="Gewicht in Kilogramm" />
+            <p className="text-center text-xs text-muted-foreground">
+              Ziehen oder wischen, rastet auf 0,05 kg ein
+            </p>
           </div>
           <NumberField
             label="Genauer Wert"
+            decimals={2}
             unit="kg"
             value={value}
             onValueChange={setValue}
@@ -344,7 +320,7 @@ function WeightDialog({
             disabled={!valid}
             onClick={async () => {
               await saveRecord(db, 'weightEntries', { id: dayId.weight(date), date, kg: round(value!, 2) });
-              toast.success(`${fmt1(value!)} kg gespeichert`);
+              toast.success(`${fmt2(value!)} kg gespeichert`);
               onOpenChange(false);
             }}
           >

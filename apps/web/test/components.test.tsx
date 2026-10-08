@@ -10,6 +10,7 @@ import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from
 import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
+import { TapeMeasure } from '@/components/TapeMeasure';
 import { UserDb } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
@@ -134,6 +135,131 @@ describe('ViewportVars', () => {
     expect(style.getPropertyValue('--vvt')).toBe('120px');
     unmount();
     expect(style.getPropertyValue('--vvh')).toBe('');
+  });
+});
+
+describe('NumberField with fixed decimals', () => {
+  function Fixed({ initial }: { initial: number }) {
+    const [v, setV] = useState<number | null>(initial);
+    return (
+      <>
+        <NumberField label="Genauer Wert" value={v} onValueChange={setV} decimals={2} />
+        <button onClick={() => setV(84.55)}>tape</button>
+      </>
+    );
+  }
+
+  it('shows two decimals, keeps typing free and formats again on blur', () => {
+    render(<Fixed initial={80} />);
+    const input = screen.getByLabelText('Genauer Wert') as HTMLInputElement;
+    expect(input.value).toBe('80,00');
+    fireEvent.change(input, { target: { value: '84,3' } });
+    expect(input.value).toBe('84,3');
+    fireEvent.blur(input);
+    expect(input.value).toBe('84,30');
+    fireEvent.click(screen.getByText('tape'));
+    expect(input.value).toBe('84,55');
+  });
+});
+
+describe('TapeMeasure', () => {
+  // jsdom has no layout: the tape is 340 px wide, ±1 kg visible → 170 px per kg.
+  function stubWidth(width: number) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private cb: ResizeObserverCallback) {}
+        observe(el: Element) {
+          this.cb([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+          void el;
+        }
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+  }
+  function Tape({ initial = 84.5 }: { initial?: number }) {
+    const [v, setV] = useState(initial);
+    return <TapeMeasure value={v} onChange={setV} label="Gewicht in Kilogramm" />;
+  }
+  const slider = () => screen.getByRole('slider', { name: 'Gewicht in Kilogramm' });
+
+  it('is an accessible slider with keyboard steps of 0,05 and 1 kg', () => {
+    stubWidth(340);
+    render(<Tape />);
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.5');
+    expect(slider().getAttribute('aria-valuetext')).toBe('84,50 kg');
+    expect(slider().getAttribute('aria-valuemin')).toBe('20');
+    expect(slider().getAttribute('aria-valuemax')).toBe('400');
+    fireEvent.keyDown(slider(), { key: 'ArrowRight' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.55');
+    fireEvent.keyDown(slider(), { key: 'ArrowLeft' });
+    fireEvent.keyDown(slider(), { key: 'ArrowLeft' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.45');
+    fireEvent.keyDown(slider(), { key: 'PageUp' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('85.45');
+    fireEvent.keyDown(slider(), { key: 'PageDown' });
+    fireEvent.keyDown(slider(), { key: 'PageDown' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('83.45');
+    fireEvent.keyDown(slider(), { key: 'End' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('400');
+    fireEvent.keyDown(slider(), { key: 'ArrowRight' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('400');
+    fireEvent.keyDown(slider(), { key: 'Home' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('20');
+  });
+
+  it('follows a drag (one kg per 170 px) and snaps to 0,05 on release', () => {
+    stubWidth(340);
+    render(<Tape />);
+    const el = slider();
+    el.setPointerCapture = () => undefined;
+    fireEvent.pointerDown(el, { pointerId: 1, button: 0, clientX: 300 });
+    // Dragging left by 170 px brings one more kilogram under the pointer.
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 130 });
+    expect(el.getAttribute('aria-valuenow')).toBe('85.5');
+    // In between it follows freely ...
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 125 });
+    expect(el.getAttribute('aria-valuenow')).toBe('85.53');
+    // ... and snaps to the raster when released.
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 125 });
+    expect(el.getAttribute('aria-valuenow')).toBe('85.55');
+    // Dragging right lowers the value and stops at the minimum.
+    fireEvent.pointerDown(el, { pointerId: 2, button: 0, clientX: 0 });
+    fireEvent.pointerMove(el, { pointerId: 2, clientX: 100_000 });
+    fireEvent.pointerUp(el, { pointerId: 2 });
+    expect(el.getAttribute('aria-valuenow')).toBe('20');
+  });
+
+  it('adds up small trackpad deltas', () => {
+    stubWidth(340);
+    render(<Tape />);
+    // 3 px are less than half a mark (8,5 px per 0,05 kg) ...
+    fireEvent.wheel(slider(), { deltaX: 3 });
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.5');
+    // ... but two of them together reach the next mark.
+    fireEvent.wheel(slider(), { deltaX: 3 });
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.55');
+    // Vertical scrolling is left to the page.
+    fireEvent.wheel(slider(), { deltaY: 200 });
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.55');
+  });
+
+  it('renders only the visible window: marks every 0,05, longer every 0,5, labels per kg', () => {
+    stubWidth(340);
+    render(<Tape initial={84.37} />);
+    const marks = [...document.querySelectorAll('[data-mark]')];
+    // ±1,2 kg around the nearest mark (84,35): 49 marks, labels 84 and 85 (83,15 to 85,55).
+    expect(marks).toHaveLength(49);
+    expect(marks.filter((m) => m.getAttribute('data-mark') === 'unit').map((m) => m.textContent)).toEqual([
+      '84',
+      '85',
+    ]);
+    expect(marks.filter((m) => m.getAttribute('data-mark') === 'half')).toHaveLength(3);
+    // An off-raster value stays as it is; the tape shows the nearest mark under the pointer.
+    expect(slider().getAttribute('aria-valuenow')).toBe('84.37');
+    const centre = marks.find((m) => (m as HTMLElement).style.left === 'calc(50% + 0px)');
+    expect(centre).toBeTruthy();
   });
 });
 
