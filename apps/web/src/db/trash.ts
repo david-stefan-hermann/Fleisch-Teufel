@@ -1,10 +1,10 @@
 /**
- * Trash ("Papierkorb"): deleted weight entries and saved meals. Deletes are soft (tombstones that
+ * Trash ("Papierkorb"): deleted weight entries, saved meals and saved trainings. Deletes are soft (tombstones that
  * sync and are never purged), so the trash is just a view on them; restoring is `restoreRecord`.
  * There is deliberately no "delete forever": the sync protocol has no purge, and a tombstone costs
  * a few bytes.
  */
-import type { Meal, WeightEntry } from '@ft/shared';
+import type { ExerciseTemplate, Meal, WeightEntry } from '@ft/shared';
 import type { UserDb } from './dexie';
 
 /** Deleted weight entries, most recently deleted first. */
@@ -23,11 +23,20 @@ export async function trashedMeals(db: UserDb): Promise<Meal[]> {
     .sortBy('updatedAt');
 }
 
-/** Number of items in the trash (weights and meals). */
+/** Deleted saved trainings, most recently deleted first. */
+export async function trashedTrainings(db: UserDb): Promise<ExerciseTemplate[]> {
+  return db.exerciseTemplates
+    .filter((t) => t.deleted)
+    .reverse()
+    .sortBy('updatedAt');
+}
+
+/** Number of items in the trash (weights, meals and saved trainings). */
 export async function trashCount(db: UserDb): Promise<number> {
-  const [w, m] = await Promise.all([
+  const [w, m, t] = await Promise.all([
     db.weightEntries.filter((r) => r.deleted).count(),
     db.meals.filter((r) => r.deleted).count(),
+    db.exerciseTemplates.filter((r) => r.deleted).count(),
   ]);
-  return w + m;
+  return w + m + t;
 }

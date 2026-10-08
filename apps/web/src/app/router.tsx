@@ -155,6 +155,17 @@ export const routes = {
     component: lazyRouteComponent(() => import('@/features/foods/CustomFoodPage'), 'CustomFoodPage'),
   }),
   meals: createRoute({ ...r('/meals'), component: MealsPage }),
+  trainings: createRoute({
+    ...r('/trainings'),
+    component: lazyRouteComponent(() => import('@/features/exercise/TrainingsPage'), 'TrainingsPage'),
+  }),
+  training: createRoute({
+    ...r('/trainings/$templateId'),
+    component: lazyRouteComponent(
+      () => import('@/features/exercise/TrainingEditorPage'),
+      'TrainingEditorPage',
+    ),
+  }),
   meal: createRoute({
     ...r('/meals/$mealId'),
     validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number } =>

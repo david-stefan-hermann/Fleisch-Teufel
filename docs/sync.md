@@ -16,7 +16,7 @@ Jeder synchronisierte Datensatz (Tabellen siehe `SYNC_SCHEMAS` in `packages/shar
 | `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                       |
 
 Grabsteine werden nie entfernt. Darauf baut der **Papierkorb** (Mehr → Papierkorb, `apps/web/src/db/trash.ts`)
-auf: er zeigt gelöschte Gewichtseinträge und Meals, „Wiederherstellen“ ist ein normaler Schreibvorgang
+auf: er zeigt gelöschte Gewichtseinträge, Meals und gespeicherte Trainings (`exerciseTemplates`), „Wiederherstellen“ ist ein normaler Schreibvorgang
 (`restoreRecord`: `deleted: false` mit neuer Version) und erreicht so alle Geräte. Endgültiges Löschen gibt
 es bewusst nicht, weil das Protokoll kein Purge kennt. Gewicht hat die deterministische ID `w:<Datum>`: ein
 neues Gewicht am selben Tag überschreibt den Grabstein, der Eintrag verschwindet dann aus dem Papierkorb.

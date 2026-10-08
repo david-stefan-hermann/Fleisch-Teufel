@@ -83,6 +83,70 @@ test('training with note, quick selection of recent and saved trainings', async 
   await expect(page.getByRole('button', { name: /^Bahntraining/ })).toHaveCount(0);
 });
 
+test('saved trainings: manage under "Mehr", edit with explicit save, trash', async ({ page }) => {
+  await register(page);
+  await page.goto('/exercise');
+  await page.getByLabel('Sportart suchen').fill('lauf');
+  await page
+    .getByRole('option', { name: /^Laufen/ })
+    .first()
+    .click();
+  await page.getByLabel('Dauer').fill('40');
+  await page.getByRole('button', { name: 'Als Training speichern' }).click();
+  await page.getByRole('dialog').getByLabel('Name').fill('Bahntraining');
+  await page.getByRole('dialog').getByRole('button', { name: 'Training speichern' }).click();
+  await expect(page.getByText('„Bahntraining“ gespeichert', { exact: true })).toBeVisible();
+
+  // "Verwalten" in the quick selection opens the list; so does "Mehr".
+  await page.reload();
+  await page.getByRole('link', { name: 'Verwalten' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Gespeicherte Trainings' })).toBeVisible();
+  await page.goto('/more');
+  await page.getByRole('link', { name: 'Gespeicherte Trainings' }).click();
+  const row = page.getByRole('link', { name: /Bahntraining/ });
+  await expect(row).toContainText(/Laufen.* · 40 Min\. · Mittel/);
+  await expect(row).toContainText(/\d+ kcal/);
+
+  // Editor: same fields as logging, "Speichern" only with changes, leaving with changes asks.
+  await row.click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Bahntraining' })).toBeVisible();
+  const save = page.getByRole('button', { name: 'Speichern', exact: true });
+  await expect(save).toBeDisabled();
+  await expect(page.getByText('Verbrauch beim aktuellen Gewicht')).toBeVisible();
+  await page.getByLabel('Name').fill('Intervalle');
+  await page.getByRole('button', { name: '60 Min.' }).click();
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  const ask = page.getByRole('dialog', { name: 'Änderungen verwerfen?' });
+  await expect(ask).toContainText('Du hast Bahntraining geändert.');
+  await ask.getByRole('button', { name: 'Weiter bearbeiten' }).click();
+  await save.click();
+  await expect(page.getByText('„Intervalle“ gespeichert', { exact: true })).toBeVisible();
+  await expect(save).toBeDisabled();
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(/\/trainings$/);
+  await expect(page.getByRole('link', { name: /Intervalle/ })).toContainText('60 Min.');
+
+  // Discarding keeps the saved state.
+  await page.getByRole('link', { name: /Intervalle/ }).click();
+  await page.getByLabel('Name').fill('Weg damit');
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await ask.getByRole('button', { name: 'Verwerfen' }).click();
+  await expect(page.getByRole('link', { name: /Intervalle/ })).toBeVisible();
+
+  // Delete from the editor, then restore from the trash.
+  await page.getByRole('link', { name: /Intervalle/ }).click();
+  await page.getByRole('button', { name: 'Training löschen' }).click();
+  await expect(page).toHaveURL(/\/trainings$/);
+  await expect(page.getByText('Noch keine gespeicherten Trainings')).toBeVisible();
+  await page.goto('/settings/trash');
+  await expect(page.getByText(/Laufen.* · 60 Min\. · Mittel · gelöscht am/)).toBeVisible();
+  await page.getByRole('button', { name: 'Intervalle wiederherstellen' }).click();
+  await expect(page.getByText('„Intervalle“ wiederhergestellt', { exact: true })).toBeVisible();
+  await expect(page.getByText('Keine gelöschten gespeicherten Trainings')).toBeVisible();
+  await page.goto('/exercise');
+  await expect(page.getByRole('button', { name: /^Intervalle/ })).toBeVisible();
+});
+
 test('swipe to delete a diary entry with undo, date picker on the title', async ({ page }) => {
   await register(page);
   await page.goto('/quick-add?meal=0');

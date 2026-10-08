@@ -1,13 +1,14 @@
-import type { Meal, WeightEntry } from '@ft/shared';
+import type { ExerciseTemplate, Meal, WeightEntry } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Scale, UtensilsCrossed } from 'lucide-react';
+import { Dumbbell, Scale, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { trashedMeals, trashedWeights } from '@/db/trash';
+import { trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { restoreRecord } from '@/db/write';
+import { describe } from '@/features/exercise/training';
 import { fmt1, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
 
 /** Rows shown per section; older tombstones stay in the database. */
@@ -17,6 +18,7 @@ export function TrashPage() {
   const db = useDb();
   const weights = useLiveQuery(() => trashedWeights(db), [db]);
   const meals = useLiveQuery(() => trashedMeals(db), [db]);
+  const trainings = useLiveQuery(() => trashedTrainings(db), [db]);
 
   async function restoreWeight(w: WeightEntry) {
     await restoreRecord(db, 'weightEntries', w.id);
@@ -26,11 +28,16 @@ export function TrashPage() {
     await restoreRecord(db, 'meals', m.id);
     toast.success(`„${m.name}“ wiederhergestellt`);
   }
+  async function restoreTraining(t: ExerciseTemplate) {
+    await restoreRecord(db, 'exerciseTemplates', t.id);
+    toast.success(`„${t.name}“ wiederhergestellt`);
+  }
 
   return (
     <Page title="Papierkorb" back="/more" withTabBar={false}>
       <p className="mb-4 px-1 text-sm text-muted-foreground text-pretty">
-        Gelöschte Gewichtseinträge und Meals bleiben hier und lassen sich auf allen Geräten wiederherstellen.
+        Gelöschte Gewichtseinträge, Meals und gespeicherte Trainings bleiben hier und lassen sich auf allen
+        Geräten wiederherstellen.
       </p>
 
       <Section title="Gewicht">
@@ -78,6 +85,34 @@ export function TrashPage() {
                   variant="outline"
                   onClick={() => void restoreMeal(m)}
                   aria-label={`${m.name} wiederherstellen`}
+                >
+                  Wiederherstellen
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <Section title="Gespeicherte Trainings">
+        {trainings?.length === 0 && (
+          <EmptyState icon={<Dumbbell />} title="Keine gelöschten gespeicherten Trainings" />
+        )}
+        {trainings && trainings.length > 0 && (
+          <ul className="divide-y divide-border/70 pb-1">
+            {trainings.slice(0, LIMIT).map((t) => (
+              <li key={t.id} className="flex min-h-16 items-center gap-3 px-4 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">{t.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {describe(t.typeName, t.minutes, t.intensity, null)} · gelöscht am{' '}
+                    {fmtDateOf(t.updatedAt)}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => void restoreTraining(t)}
+                  aria-label={`${t.name} wiederherstellen`}
                 >
                   Wiederherstellen
                 </Button>

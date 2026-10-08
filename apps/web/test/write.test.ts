@@ -13,7 +13,7 @@ import {
   saveExerciseTemplate,
   saveMealFromEntries,
 } from '@/db/entries';
-import { trashCount, trashedMeals, trashedWeights } from '@/db/trash';
+import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -46,7 +46,7 @@ describe('local writes', () => {
     expect((await d.weightEntries.get(w.id))!.deleted).toBe(false);
   });
 
-  it('lists deleted weights and meals in the trash, newest deletion first', async () => {
+  it('lists deleted weights, meals and saved trainings in the trash, newest deletion first', async () => {
     const d = db();
     const item = {
       foodId: null,
@@ -63,7 +63,24 @@ describe('local writes', () => {
     for (const date of ['2026-10-01', '2026-10-02', '2026-10-03'])
       await saveRecord(d, 'weightEntries', { id: dayId.weight(date), date, kg: 80 });
     const meal = await saveRecord(d, 'meals', { id: uuidv7(), name: 'Toast', items: [item], photoId: null });
+    const training = (name: string) => ({
+      name,
+      typeKey: 'running',
+      typeName: 'Laufen',
+      minutes: 30,
+      intensity: 'moderate' as const,
+      note: null,
+    });
+    const t1 = await saveExerciseTemplate(d, training('Bahntraining'));
+    const t2 = await saveExerciseTemplate(d, training('Dauerlauf'));
     expect(await trashCount(d)).toBe(0);
+    await deleteRecord(d, 'exerciseTemplates', t2);
+    await deleteRecord(d, 'exerciseTemplates', t1);
+    expect((await trashedTrainings(d)).map((t) => t.name)).toEqual(['Bahntraining', 'Dauerlauf']);
+    expect(await trashCount(d)).toBe(2);
+    await restoreRecord(d, 'exerciseTemplates', t1);
+    await restoreRecord(d, 'exerciseTemplates', t2);
+    expect(await trashedTrainings(d)).toEqual([]);
     await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-02'));
     await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-01'));
     await deleteRecord(d, 'meals', meal.id);

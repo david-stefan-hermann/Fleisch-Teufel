@@ -1,53 +1,29 @@
 import {
   DEFAULT_WEIGHT_KG,
-  EXERCISE_TYPE_MAP,
-  EXERCISE_TYPES,
-  INTENSITY_LABELS_DE,
   metFor,
   netExerciseKcal,
-  normalize,
   recentTrainings,
   round,
-  uuidv7,
   type ExerciseEntry,
   type Intensity,
 } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Plus, Save, Search, Trash2 } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { Check, Save, Trash2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { NameDialog } from '@/components/NameDialog';
-import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveExercise, saveExerciseTemplate } from '@/db/entries';
-import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { deleteRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight, useSettings } from '@/hooks/data';
-import { fmt0, fmt1, fmtDate, fmtDayLong, NO_VALUE } from '@/lib/format';
+import { fmt0, fmtDayLong } from '@/lib/format';
 import { cn } from '@/lib/utils';
-
-interface TypeOption {
-  key: string;
-  name: string;
-  met: { light?: number; moderate: number; vigorous?: number };
-  custom: boolean;
-}
+import { describe, sameSetup, useTypeOptions } from './training';
+import { SportPicker, TrainingFields, TrainingKcal } from './TrainingFields';
 
 /** Simple training log (feature #9): type, duration, intensity → MET-based kcal. */
 export function ExercisePage() {
@@ -66,7 +42,6 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   const navigate = useNavigate();
   const settings = useSettings();
   const weight = useCurrentWeight(date);
-  const customTypes = useLiveQuery(() => db.exerciseTypes.filter((t) => !t.deleted).toArray(), [db]);
   const templates = useLiveQuery(() => db.exerciseTemplates.filter((t) => !t.deleted).sortBy('name'), [db]);
   const recent = useLiveQuery(
     async () =>
@@ -81,34 +56,21 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
     [db],
   );
 
-  const options: TypeOption[] = useMemo(
-    () => [
-      ...(customTypes ?? []).map((t) => ({
-        key: t.id,
-        name: t.name,
-        met: { moderate: t.met },
-        custom: true,
-      })),
-      ...EXERCISE_TYPES.map((t) => ({ key: t.key, name: t.name, met: t.met, custom: false })),
-    ],
-    [customTypes],
-  );
+  const options = useTypeOptions();
   const [typeKey, setTypeKey] = useState<string | null>(entry?.typeKey ?? null);
   const [intensity, setIntensity] = useState<Intensity>(entry?.intensity ?? 'moderate');
   const [minutes, setMinutes] = useState<number | null>(entry?.minutes ?? 30);
   const [note, setNote] = useState(entry?.note ?? '');
   const [filter, setFilter] = useState('');
-  const [customOpen, setCustomOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
 
   const type = options.find((o) => o.key === typeKey) ?? null;
   const usedWeight = entry?.weightKg ?? weight ?? DEFAULT_WEIGHT_KG;
   const met = type ? metFor(type, intensity) : null;
   const kcal = met && minutes ? round(netExerciseKcal(met, usedWeight, minutes), 0) : 0;
-  const shown = filter ? options.filter((o) => normalize(o.name).includes(normalize(filter))) : options;
   const setup = { typeKey, minutes, intensity, note: note.trim() || null };
 
-  /** Fills the form from a template or an earlier training. */
+  /** Fills the form from a saved or an earlier training. */
   function apply(t: { typeKey: string; minutes: number; intensity: Intensity; note: string | null }) {
     if (!options.some((o) => o.key === t.typeKey)) {
       toast.error('Diese Sportart gibt es nicht mehr.');
@@ -156,7 +118,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             size="icon"
             aria-label="Als Training speichern"
             disabled={!type || !minutes}
-            onClick={() => setTemplateOpen(true)}
+            onClick={() => setSaveOpen(true)}
           >
             <Save aria-hidden />
           </Button>
@@ -187,7 +149,17 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         <Section title="Schnellauswahl">
           <div className="grid gap-3 pb-3">
             {templates && templates.length > 0 && (
-              <QuickList title="Gespeichert">
+              <QuickList
+                title="Gespeichert"
+                action={
+                  <Link
+                    to="/trainings"
+                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                  >
+                    Verwalten
+                  </Link>
+                }
+              >
                 {templates.map((t) => (
                   <li key={t.id}>
                     <SwipeToDelete
@@ -231,110 +203,47 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         </Section>
       )}
       <Section title="Sportart">
-        <div className="grid gap-3 px-4 pb-4">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              aria-label="Sportart suchen"
-              placeholder="Sportart suchen…"
-              autoComplete="off"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <ul
-            className="max-h-72 overflow-y-auto overscroll-contain rounded-xl border"
-            role="listbox"
-            aria-label="Sportarten"
-          >
-            {shown.map((o) => (
-              <li key={o.key} role="option" aria-selected={typeKey === o.key}>
-                <button
-                  type="button"
-                  onClick={() => setTypeKey(o.key)}
-                  className={cn(
-                    'flex min-h-11 w-full items-center justify-between px-3 text-left text-sm transition-colors focus-visible:bg-accent focus-visible:outline-none',
-                    typeKey === o.key ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
-                  )}
-                >
-                  <span>
-                    {o.name}
-                    {o.custom && <span className="ml-1 text-xs opacity-70">(eigene)</span>}
-                  </span>
-                  <span className="tabular text-xs opacity-70">MET {fmt1(o.met.moderate)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <Button variant="outline" size="sm" onClick={() => setCustomOpen(true)}>
-            <Plus aria-hidden /> Eigene Sportart
-          </Button>
-        </div>
+        <SportPicker
+          options={options}
+          typeKey={typeKey}
+          onSelect={setTypeKey}
+          filter={filter}
+          onFilterChange={setFilter}
+          onCustomCreated={(id) => {
+            setTypeKey(id);
+            setIntensity('moderate');
+          }}
+        />
       </Section>
 
       <Section>
         <div className="grid gap-4 p-4">
-          <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Intensität</span>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={intensity}
-              onValueChange={(v) => v && setIntensity(v as Intensity)}
-              className="w-full"
-              disabled={type?.custom}
-            >
-              {(['light', 'moderate', 'vigorous'] as const).map((i) => (
-                <ToggleGroupItem key={i} value={i} className="flex-1">
-                  {INTENSITY_LABELS_DE[i]}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-          </div>
-          <NumberField label="Dauer" unit="Min." value={minutes} onValueChange={setMinutes} integer />
-          <div className="flex flex-wrap gap-2">
-            {[15, 30, 45, 60, 90].map((m) => (
-              <Button
-                key={m}
-                size="sm"
-                variant={minutes === m ? 'default' : 'secondary'}
-                onClick={() => setMinutes(m)}
-              >
-                {m} Min.
-              </Button>
-            ))}
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="ex-note">Notiz (optional)</Label>
-            <Textarea
-              id="ex-note"
-              value={note}
-              maxLength={2000}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="z. B. Bankdrücken 3 × 8 à 60 kg, Kniebeugen 4 × 10…"
-              className="min-h-20"
-            />
-          </div>
-          <div className="rounded-xl bg-muted p-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm">Verbrauch (zusätzlich zum Grundumsatz)</span>
-              <span className="tabular text-2xl font-bold text-exercise">{fmt0(kcal)} kcal</span>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              (MET {met ? fmt1(met) : NO_VALUE} − 1) × {fmt1(usedWeight)} kg ×{' '}
-              {minutes ? fmt1(minutes / 60) : NO_VALUE} h
-              {weight === undefined &&
-                !entry &&
-                ' · Standardgewicht. Trage dein Gewicht ein für genauere Werte.'}
-              {settings?.addExerciseCalories === false &&
-                ' · Wird laut Einstellung nicht aufs Tagesziel angerechnet.'}
-            </p>
-          </div>
+          <TrainingFields
+            intensity={intensity}
+            onIntensityChange={setIntensity}
+            intensityDisabled={type?.custom}
+            minutes={minutes}
+            onMinutesChange={setMinutes}
+            note={note}
+            onNoteChange={setNote}
+          />
+          <TrainingKcal
+            label="Verbrauch (zusätzlich zum Grundumsatz)"
+            kcal={kcal}
+            met={met}
+            weightKg={usedWeight}
+            minutes={minutes}
+            note={
+              [
+                weight === undefined && !entry
+                  ? ' · Standardgewicht. Trage dein Gewicht ein für genauere Werte.'
+                  : '',
+                settings?.addExerciseCalories === false
+                  ? ' · Wird laut Einstellung nicht aufs Tagesziel angerechnet.'
+                  : '',
+              ].join('') || undefined
+            }
+          />
           <p className="text-xs text-muted-foreground">
             MET-Werte: Compendium of Physical Activities (Ainsworth 2011/Herrmann 2024), gerundet.{' '}
             <Link to="/about" className="underline">
@@ -344,8 +253,8 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         </div>
       </Section>
       <NameDialog
-        open={templateOpen}
-        onOpenChange={setTemplateOpen}
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
         title="Als Training speichern"
         description="Sportart, Dauer, Intensität und Notiz stehen danach in der Schnellauswahl und unter Mehr → Gespeicherte Trainings."
         confirmLabel="Training speichern"
@@ -367,40 +276,8 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
           toast.success(`„${name}“ gespeichert`);
         }}
       />
-      <CustomTypeDialog
-        open={customOpen}
-        onOpenChange={setCustomOpen}
-        onCreated={(id) => {
-          setTypeKey(id);
-          setIntensity('moderate');
-        }}
-      />
     </Page>
   );
-}
-
-function sameSetup(
-  a: { typeKey: string | null; minutes: number | null; intensity: Intensity; note: string | null },
-  b: { typeKey: string; minutes: number; intensity: Intensity; note: string | null },
-): boolean {
-  return (
-    a.typeKey === b.typeKey &&
-    a.minutes === b.minutes &&
-    a.intensity === b.intensity &&
-    (a.note ?? null) === (b.note?.trim() || null)
-  );
-}
-
-function describe(
-  typeName: string | null,
-  minutes: number,
-  intensity: Intensity,
-  note: string | null,
-  date?: string,
-): string {
-  return [typeName, `${fmt0(minutes)} Min.`, INTENSITY_LABELS_DE[intensity], date && fmtDate(date), note]
-    .filter(Boolean)
-    .join(' · ');
 }
 
 function QuickList({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
@@ -442,69 +319,5 @@ function QuickItem({
       </div>
       {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden />}
     </button>
-  );
-}
-
-function CustomTypeDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  onCreated: (id: string) => void;
-}) {
-  const db = useDb();
-  const [name, setName] = useState('');
-  const [met, setMet] = useState<number | null>(6);
-  const valid = name.trim().length > 0 && met !== null && met >= 1 && met <= 25;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Eigene Sportart</DialogTitle>
-          <DialogDescription>
-            MET = Vielfaches des Ruheumsatzes. Orientierung: Gehen 3,5 · Radfahren 7 · Joggen 10. Werte
-            findest du im Compendium of Physical Activities ({EXERCISE_TYPE_MAP.size} Arten sind schon
-            enthalten).
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <div className="grid gap-1.5">
-            <Label htmlFor="ct-name">Name</Label>
-            <Input
-              id="ct-name"
-              autoComplete="off"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="z. B. Stand-up-Paddling…"
-            />
-          </div>
-          <NumberField
-            label="MET-Wert"
-            value={met}
-            onValueChange={setMet}
-            error={met !== null && (met < 1 || met > 25) ? 'Zwischen 1 und 25.' : null}
-          />
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button
-            disabled={!valid}
-            onClick={async () => {
-              const id = uuidv7();
-              await saveRecord(db, 'exerciseTypes', { id, name: name.trim(), met: met! });
-              onCreated(id);
-              setName('');
-              onOpenChange(false);
-            }}
-          >
-            Anlegen
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

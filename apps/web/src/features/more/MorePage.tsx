@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import {
+  Dumbbell,
   ChevronRight,
   Database,
   Info,
@@ -72,6 +73,7 @@ export function MorePage() {
         <ul className="divide-y divide-border/70">
           <Row to="/custom-foods" icon={<Salad aria-hidden />} label="Eigene Lebensmittel" />
           <Row to="/meals" icon={<UtensilsCrossed aria-hidden />} label="Gespeicherte Meals" />
+          <Row to="/trainings" icon={<Dumbbell aria-hidden />} label="Gespeicherte Trainings" />
         </ul>
       </Section>
       <Section>
