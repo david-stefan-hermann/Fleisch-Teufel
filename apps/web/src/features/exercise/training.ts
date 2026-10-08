@@ -1,4 +1,4 @@
-import { EXERCISE_TYPES, INTENSITY_LABELS_DE, type Intensity } from '@ft/shared';
+import { EXERCISE_TYPES, INTENSITY_LABELS_DE, normalize, tokenize, type Intensity } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { useDb } from '@/app/session';
@@ -61,4 +61,15 @@ export function sameSetup(
     a.intensity === b.intensity &&
     (a.note ?? null) === (b.note?.trim() || null)
   );
+}
+
+/**
+ * Quick selection search: every word of the query occurs in one of the fields (name, sport, note),
+ * case and umlauts ignored like the food search. An empty query matches everything.
+ */
+export function matchesTraining(query: string, fields: (string | null | undefined)[]): boolean {
+  const words = tokenize(query);
+  if (words.length === 0) return true;
+  const haystack = normalize(fields.filter(Boolean).join(' '));
+  return words.every((w) => haystack.includes(w));
 }

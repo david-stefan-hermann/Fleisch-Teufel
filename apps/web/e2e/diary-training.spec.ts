@@ -76,6 +76,26 @@ test('training with note, quick selection of recent and saved trainings', async 
     'true',
   );
 
+  // One search filters both lists (name, sport, note); an empty part disappears with its heading.
+  await expect(page.getByRole('link', { name: 'Verwalten' })).toHaveCount(0);
+  const quick = page.getByLabel('Gespeicherte und letzte Trainings suchen');
+  const saved = page.getByRole('heading', { name: 'Gespeichert' });
+  const last = page.getByRole('heading', { name: 'Zuletzt' });
+  await quick.fill('bahn');
+  await expect(saved).toBeVisible();
+  await expect(last).toHaveCount(0);
+  await quick.fill('LAUF');
+  await expect(saved).toBeVisible();
+  await expect(last).toBeVisible();
+  await quick.fill('intervalle 400');
+  await expect(page.getByRole('button', { name: /^Bahntraining/ })).toBeVisible();
+  await expect(last).toBeVisible();
+  await quick.fill('schwimmen');
+  await expect(page.getByText('Kein Training gefunden.')).toBeVisible();
+  await expect(saved).toHaveCount(0);
+  await expect(last).toHaveCount(0);
+  await quick.fill('');
+
   // Swipe a saved training away.
   await swipeLeft(page, 'Bahntraining');
   await page.getByRole('button', { name: 'Bahntraining löschen' }).click();
@@ -97,10 +117,7 @@ test('saved trainings: manage under "Mehr", edit with explicit save, trash', asy
   await page.getByRole('dialog').getByRole('button', { name: 'Training speichern' }).click();
   await expect(page.getByText('„Bahntraining“ gespeichert', { exact: true })).toBeVisible();
 
-  // "Verwalten" in the quick selection opens the list; so does "Mehr".
-  await page.reload();
-  await page.getByRole('link', { name: 'Verwalten' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Gespeicherte Trainings' })).toBeVisible();
+  // Managed under "Mehr" (the quick selection has no "Verwalten" link any more).
   await page.goto('/more');
   await page.getByRole('link', { name: 'Gespeicherte Trainings' }).click();
   const row = page.getByRole('link', { name: /Bahntraining/ });

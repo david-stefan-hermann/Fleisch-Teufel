@@ -15,6 +15,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
+import { matchesTraining } from '@/features/exercise/training';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -165,5 +166,18 @@ describe('food page draft (pencil and back)', () => {
     expect(peekFoodLogDraft('/food/x', 'k1')).toBeNull();
     stashFoodLogDraft('/food/z', undefined, draft);
     expect(sessionStorage.getItem('ft:foodlog:/food/z')).toBeNull();
+  });
+});
+
+describe('training quick search', () => {
+  it('needs every word somewhere in name, sport or note, ignoring case and umlauts', () => {
+    const fields = ['Bahntraining', 'Laufen, 10 km/h', 'Intervalle 6 × 400 m'];
+    expect(matchesTraining('', fields)).toBe(true);
+    expect(matchesTraining('  ', fields)).toBe(true);
+    expect(matchesTraining('LAUF', fields)).toBe(true);
+    expect(matchesTraining('bahn 400', fields)).toBe(true);
+    expect(matchesTraining('bahn yoga', fields)).toBe(false);
+    expect(matchesTraining('rücken', ['Rückentraining', null, undefined])).toBe(true);
+    expect(matchesTraining('ruecken', ['Rückentraining'])).toBe(true);
   });
 });

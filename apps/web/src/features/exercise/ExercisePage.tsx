@@ -9,7 +9,7 @@ import {
 } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Save, Trash2 } from 'lucide-react';
+import { Check, Save, Search, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -17,12 +17,13 @@ import { NameDialog } from '@/components/NameDialog';
 import { Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { saveExercise, saveExerciseTemplate } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight, useSettings } from '@/hooks/data';
 import { fmt0, fmtDayLong } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { describe, sameSetup, useTypeOptions } from './training';
+import { describe, matchesTraining, sameSetup, useTypeOptions } from './training';
 import { SportPicker, TrainingFields, TrainingKcal } from './TrainingFields';
 
 /** Simple training log (feature #9): type, duration, intensity → MET-based kcal. */
@@ -57,6 +58,12 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   );
 
   const options = useTypeOptions();
+  // Filters both quick lists (name, sport, note); the sport search below stays separate.
+  const [quickQuery, setQuickQuery] = useState('');
+  const shownTemplates = (templates ?? []).filter((t) =>
+    matchesTraining(quickQuery, [t.name, t.typeName, t.note]),
+  );
+  const shownRecent = (recent ?? []).filter((r) => matchesTraining(quickQuery, [r.name, r.note]));
   const [typeKey, setTypeKey] = useState<string | null>(entry?.typeKey ?? null);
   const [intensity, setIntensity] = useState<Intensity>(entry?.intensity ?? 'moderate');
   const [minutes, setMinutes] = useState<number | null>(entry?.minutes ?? 30);
@@ -148,19 +155,27 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       {!entry && ((templates?.length ?? 0) > 0 || (recent?.length ?? 0) > 0) && (
         <Section title="Schnellauswahl">
           <div className="grid gap-3 pb-3">
-            {templates && templates.length > 0 && (
-              <QuickList
-                title="Gespeichert"
-                action={
-                  <Link
-                    to="/trainings"
-                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                  >
-                    Verwalten
-                  </Link>
-                }
-              >
-                {templates.map((t) => (
+            <div className="relative px-4">
+              <Search
+                className="pointer-events-none absolute top-1/2 left-7 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                inputMode="search"
+                enterKeyHint="search"
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Gespeicherte und letzte Trainings suchen"
+                placeholder="Gespeicherte und letzte Trainings suchen…"
+                value={quickQuery}
+                onChange={(e) => setQuickQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {shownTemplates.length > 0 && (
+              <QuickList title="Gespeichert">
+                {shownTemplates.map((t) => (
                   <li key={t.id}>
                     <SwipeToDelete
                       label={`${t.name} löschen`}
@@ -185,9 +200,9 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
                 ))}
               </QuickList>
             )}
-            {recent && recent.length > 0 && (
+            {shownRecent.length > 0 && (
               <QuickList title="Zuletzt">
-                {recent.map((r) => (
+                {shownRecent.map((r) => (
                   <li key={r.id}>
                     <QuickItem
                       title={r.name}
@@ -198,6 +213,9 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
                   </li>
                 ))}
               </QuickList>
+            )}
+            {shownTemplates.length === 0 && shownRecent.length === 0 && (
+              <p className="px-4 text-sm text-muted-foreground">Kein Training gefunden.</p>
             )}
           </div>
         </Section>
@@ -280,13 +298,10 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   );
 }
 
-function QuickList({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function QuickList({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 px-4 pb-1">
-        <h3 className="text-xs font-medium text-muted-foreground">{title}</h3>
-        {action}
-      </div>
+      <h3 className="px-4 pb-1 text-xs font-medium text-muted-foreground">{title}</h3>
       <ul className="divide-y divide-border/70 border-y border-border/70">{children}</ul>
     </div>
   );
