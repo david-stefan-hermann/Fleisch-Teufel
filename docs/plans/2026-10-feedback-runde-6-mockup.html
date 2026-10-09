@@ -1,0 +1,761 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Runde 6 Mockup</title>
+    <style>
+      /* Tokens from apps/web/src/index.css (oklch). Changed: --exercise green to blue (block 9 of round 6). */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.5 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.7 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.7 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+      }
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --border: oklch(0.91 0.008 60);
+        --protein: oklch(0.58 0.14 250);
+        --carbs: oklch(0.75 0.15 75);
+        --fat: oklch(0.6 0.16 320);
+        --exercise-old: oklch(0.62 0.13 165);
+        --exercise: oklch(0.5 0.12 230);
+        --over: oklch(0.58 0.19 27);
+        --over-2: oklch(0.4 0.17 27);
+        --over-good: oklch(0.53 0.13 155);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --protein: oklch(0.66 0.13 250);
+        --carbs: oklch(0.66 0.14 70);
+        --fat: oklch(0.62 0.15 320);
+        --exercise-old: oklch(0.62 0.13 165);
+        --exercise: oklch(0.67 0.12 230);
+        --over: oklch(0.68 0.17 27);
+        --over-2: oklch(0.48 0.16 27);
+        --over-good: oklch(0.6 0.13 155);
+      }
+      .old {
+        --exercise: var(--exercise-old);
+        --over-good: var(--over);
+      }
+      .mb {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .mb .lab {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .mb .track {
+        position: relative;
+        height: 8px;
+      }
+      .mb .track b {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 99px;
+      }
+      .mb .val {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .mb .val strong {
+        color: var(--foreground);
+      }
+      .mb .val.bad,
+      .mb .val.bad strong {
+        color: var(--over);
+      }
+      .mb .val.good,
+      .mb .val.good strong {
+        color: var(--over-good);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding-block: 24px 48px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 40px 0 8px;
+        text-wrap: balance;
+      }
+      h3 {
+        font-size: 14px;
+        margin: 0 0 8px;
+        text-align: center;
+        color: var(--page-muted);
+        font-weight: 600;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 68ch;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+      .note.new {
+        background: var(--new-bg);
+        border-color: var(--new-border);
+      }
+      .note ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+      code {
+        font-size: 13px;
+      }
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: center;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: oklch(0.25 0.005 40);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        display: flex;
+        flex-direction: column;
+      }
+      .caption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+      .status {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 26px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      header {
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .bar {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        gap: 4px;
+      }
+      .iconbtn {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--foreground);
+        flex-shrink: 0;
+      }
+      .iconbtn svg {
+        width: 18px;
+        height: 18px;
+      }
+      .title {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .sync {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-foreground);
+      }
+      .strip {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 16px 12px;
+      }
+      .days {
+        flex: 1;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        min-width: 0;
+      }
+      .day {
+        height: 56px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+      }
+      .day .wd {
+        opacity: 0.8;
+      }
+      .day .num {
+        font-size: 16px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.4;
+      }
+      .day.today:not(.sel) {
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .day.sel {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .day.sel .wd {
+        opacity: 1;
+      }
+      /* Fixed-height dot row: tiles never jump. Food left, training right. */
+      .dots {
+        margin-top: 2px;
+        height: 4px;
+        display: flex;
+        gap: 3px;
+      }
+      .dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 999px;
+      }
+      .dot.food {
+        background: var(--primary);
+      }
+      .dot.train {
+        background: var(--exercise);
+      }
+      .sel .dot.food {
+        background: var(--primary-foreground);
+      }
+      .ring .sel .dot.train {
+        box-shadow: 0 0 0 1px var(--primary-foreground);
+      }
+      main {
+        padding: 16px;
+        display: grid;
+        gap: 12px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px 16px;
+      }
+      .k {
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .kv {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .kv + .kv {
+        margin-top: 4px;
+      }
+      .bars {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .bars .lab {
+        font-size: 11px;
+        color: var(--muted-foreground);
+      }
+      .track {
+        height: 6px;
+        border-radius: 99px;
+        background: var(--muted);
+        overflow: hidden;
+        margin-top: 4px;
+      }
+      .track i {
+        display: block;
+        height: 100%;
+        border-radius: 99px;
+      }
+      .sect {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .sect small {
+        font-weight: 400;
+        font-size: 13px;
+        color: var(--muted-foreground);
+        margin-left: 6px;
+      }
+      .plus {
+        color: var(--primary);
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 400;
+      }
+      .exrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-top: 1px solid var(--border);
+        margin: 10px -16px -14px;
+        padding: 10px 16px;
+      }
+      .exrow .n {
+        font-weight: 500;
+      }
+      .exrow .kc {
+        font-weight: 600;
+        color: var(--exercise);
+        font-variant-numeric: tabular-nums;
+      }
+      .tk {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+      }
+      .tk .top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .tk .big {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--exercise);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .tk p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      /* Zoomed states */
+      .zgrid {
+        display: grid;
+        gap: 16px;
+      }
+      .zoomset {
+        border-radius: 20px;
+        padding: 16px;
+        background: var(--background);
+        color: var(--foreground);
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .zhead {
+        width: 100%;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+      .zcell {
+        text-align: center;
+        width: 112px;
+      }
+      .zcell .day {
+        width: 92px;
+        height: 128px;
+        margin: 0 auto;
+        border-radius: 22px;
+        font-size: 22px;
+      }
+      .zcell .day .num {
+        font-size: 32px;
+      }
+      .zcell .dots {
+        height: 10px;
+        gap: 8px;
+        margin-top: 6px;
+      }
+      .zcell .dot {
+        width: 10px;
+        height: 10px;
+      }
+      .ring .zcell .sel .dot.train {
+        box-shadow: 0 0 0 2.5px var(--primary-foreground);
+      }
+      .zcell .lbl {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        margin-top: 8px;
+        line-height: 1.3;
+      }
+      .compare {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .panel {
+        border-radius: 20px;
+        padding: 16px;
+        background: var(--background);
+        color: var(--foreground);
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+      .panel .ph {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+      .legend {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        align-items: center;
+        font-size: 14px;
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend i {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      .sr {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 13px;
+        background: var(--page);
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Runde 6: Trainingstage, Trainingsfarbe, Eiweiß-Überschuss</h1>
+      <p class="lead">
+        Mockup v3 zum Nachtrag vom 9. Oktober 2026. Heute ist Freitag, der 9. Oktober.
+      </p>
+
+      <div class="note new">
+        <strong>Entschieden (v3)</strong>
+        <ul>
+          <li>Punkte ohne Rand (Variante B), auch auf dem gewählten Tag.</li>
+          <li>Blau ist die neue Trainingsfarbe.</li>
+          <li>Grün für den Eiweiß-Überschuss ist im dunklen Design dunkler.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <strong>Neu gegenüber v1</strong>
+        <ul>
+          <li>Den gewählten Tag gibt es jetzt in zwei Varianten: mit Rand um den blauen Punkt (A, wie v1) und ohne (B).</li>
+          <li>
+            Die Trainingsfarbe wird überall blau statt grün. Der blaue Punkt nutzt dieselbe Farbe, eine eigene
+            Punktfarbe gibt es nicht mehr. Abschnitt 4 zeigt alle Stellen vorher und nachher.
+          </li>
+          <li>Abschnitt 5 zeigt den grünen Eiweiß-Überschuss aus Block 7.</li>
+        </ul>
+      </div>
+
+      <div class="note light" style="background: var(--card); color: var(--foreground); border-color: var(--border)">
+        <div class="legend">
+          <span><i style="background: var(--primary)"></i>Essen eingetragen (wie heute)</span>
+          <span><i style="background: var(--exercise)"></i>Training eingetragen (neu, Trainingsfarbe)</span>
+        </div>
+      </div>
+
+      <h2>1. Die Wochenleiste im Tagebuch</h2>
+      <p class="lead">Dienstag, Donnerstag und heute mit Training. Gewählt ist heute, Variante B (ohne Rand).</p>
+      <div class="phones" id="phones"></div>
+
+      <h2>2. Gewählter Tag: mit oder ohne Rand</h2>
+      <p class="lead">
+        Nur der gewählte Tag unterscheidet sich, alle anderen Tage sehen in beiden Varianten gleich aus. Ohne Rand liegt
+        der blaue Punkt direkt auf dem Rot. Beide Farben sind ungefähr gleich hell, der Punkt hebt sich also nur über den
+        Farbton ab. Mit Rand bleibt er auch bei Sonne auf dem Display und bei Rot-Grün-Schwäche klar sichtbar.
+      </p>
+      <div class="zgrid" id="zoom"></div>
+
+      <h2>3. Gewählter Tag nur mit Training</h2>
+      <p class="lead">
+        Hier ist der Unterschied am größten: Mittwoch ist gewählt, es gibt ein Training, aber kein Essen. Links A mit
+        Rand, rechts B ohne.
+      </p>
+      <div class="phones" id="phones2"></div>
+
+      <h2>4. Trainingsfarbe: vorher grün, nachher blau</h2>
+      <p class="lead">
+        Die Trainingsfarbe steckt heute an zwei Stellen: an den kcal in der Trainingskarte im Tagebuch und an der
+        Verbrauchsangabe beim Eintragen oder Bearbeiten eines Trainings (auch bei gespeicherten Trainings). Dazu kommt
+        neu der Punkt in der Wochenleiste.
+      </p>
+      <div class="compare" id="compare"></div>
+
+      <h2>5. Eiweiß über dem Ziel: grün statt rot (Block 7)</h2>
+      <p class="lead">
+        Zu viel Eiweiß ist gut, deshalb wird der überschrittene Teil beim Eiweiß grün, Balken und Zahl. Fett, Kohlenhydrate,
+        Kalorien und Mikronährstoffe mit Höchstwert bleiben rot. Beispiel: 182 g Eiweiß bei 140 g Ziel, 96 g Fett bei 80
+        g Ziel. Das gilt überall, wo Eiweiß gegen ein Ziel steht: Kalorienkarte, Nährwerte des Tages, je Mahlzeit und
+        Zutat, Berichte.
+      </p>
+      <div class="compare" id="protein"></div>
+
+      <div class="note">
+        <strong>Details</strong>
+        <ul>
+          <li>
+            Neue Trainingsfarbe <code>--exercise</code>: hell <code>oklch(0.5 0.12 230)</code>, dunkel
+            <code>oklch(0.67 0.12 230)</code> (bisher grün <code>oklch(0.62 0.13 165)</code>, nur ein Wert für beide
+            Designs). Als Text auf den Karten gut lesbar (Kontrast 5,0 bis 5,9 zu 1), gegen den roten Essenspunkt mit dem
+            Paletten-Checker geprüft, hell und dunkel, auch bei Farbschwäche.
+          </li>
+          <li>
+            <strong>Achtung, Blau ist schon Protein:</strong> Die Protein-Balken sind blau (<code>oklch(0.58 0.14 250)</code>).
+            Das neue Trainingsblau ist bewusst heller und etwas türkiser, damit es nicht genau gleich aussieht. Ganz
+            unterscheidbar sind die beiden aber nicht, vor allem bei Farbschwäche. Sie stehen nie im selben Diagramm,
+            deshalb ist das vertretbar. In Abschnitt 1 sieht man beide auf einem Bildschirm.
+          </li>
+          <li>
+            Eiweiß-Überschuss: neue Farbe <code>--over-good</code>, hell <code>oklch(0.53 0.13 155)</code>, dunkel
+            <code>oklch(0.6 0.13 155)</code> (v3: dunkler). Als Text mindestens 4,5:1 lesbar, gegen das Protein-Blau mit dem
+            Paletten-Checker geprüft. Über dem doppelten Ziel bleibt Eiweiß grün, ohne zweite, dunklere Stufe wie bei Rot.
+          </li>
+          <li>Gelöschte Trainings zählen nicht, genau wie gelöschte Essenseinträge beim roten Punkt.</li>
+          <li>
+            Screenreader lesen den Tag zum Beispiel als
+            <span class="sr">Dienstag, 6. Oktober, Essen eingetragen, Training eingetragen</span>.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      const svg = (p) =>
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+      const chevL = svg('<path d="m15 18-6-6 6-6"/>');
+      const chevR = svg('<path d="m9 18 6-6-6-6"/>');
+      const cloud =
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/><path d="m9 15 2 2 4-4"/></svg>';
+
+      const dots = (d) =>
+        `<span class="dots" aria-hidden="true">${d.food ? '<span class="dot food"></span>' : ''}${
+          d.train ? '<span class="dot train"></span>' : ''
+        }</span>`;
+      const tile = (d, i, sel, today) =>
+        `<div class="day${sel ? ' sel' : ''}${today ? ' today' : ''}"><span class="wd">${WD[i]}</span><span class="num">${d.n}</span>${dots(d)}</div>`;
+
+      function phone(theme, ring, week, selIdx, title, body, caption) {
+        return `<div><div class="phone"><div class="screen ${theme}${ring ? ' ring' : ''}">
+          <div class="status"><span>9:41</span><span>●●●</span></div>
+          <header>
+            <div class="bar">
+              <div class="title"><span class="iconbtn">${chevL}</span>${title}<span class="iconbtn">${chevR}</span></div>
+              <span class="sync">${cloud}</span>
+            </div>
+            <div class="strip">
+              <span class="iconbtn">${chevL}</span>
+              <ol class="days">${week.map((d, i) => `<li>${tile(d, i, i === selIdx, i === 4)}</li>`).join('')}</ol>
+              <span class="iconbtn">${chevR}</span>
+            </div>
+          </header>
+          <main>${body}</main>
+        </div></div><div class="caption">${caption}</div></div>`;
+      }
+
+      const calorieCard = (eaten, left, prot) => `
+        <div class="card">
+          <div class="kv"><span class="k">Ziel</span><span>2.300</span></div>
+          <div class="kv"><span class="k">Essen</span><span>− ${eaten}</span></div>
+          <div class="kv"><span class="k">Training</span><span>+ 380</span></div>
+          <div class="kv" style="border-top:1px solid var(--border);padding-top:4px;font-weight:700"><span>Übrig</span><span>${left}</span></div>
+          <div class="bars">
+            <div><div class="lab">Protein</div><div class="track"><i style="width:${prot}%;background:var(--protein)"></i></div></div>
+            <div><div class="lab">Kohlenhydrate</div><div class="track"><i style="width:58%;background:var(--carbs)"></i></div></div>
+            <div><div class="lab">Fett</div><div class="track"><i style="width:66%;background:var(--fat)"></i></div></div>
+          </div>
+        </div>`;
+      const exerciseCard = (name, sub, kcal) => `
+        <div class="card">
+          <div class="sect"><span>Training<small>${kcal} kcal</small></span><span class="plus">+</span></div>
+          <div class="exrow"><div style="flex:1;min-width:0"><div class="n">${name}</div><div class="k" style="font-size:12px">${sub}</div></div><span class="kc">+${kcal}</span></div>
+        </div>`;
+
+      const week1 = [
+        { n: 5, food: true },
+        { n: 6, food: true, train: true },
+        { n: 7, food: true },
+        { n: 8, food: true, train: true },
+        { n: 9, food: true, train: true },
+        { n: 10 },
+        { n: 11 },
+      ];
+      const body1 = calorieCard('2.040', 640, 72) + exerciseCard('Laufen', '40 Min. · Mittel', 380);
+      document.getElementById('phones').innerHTML =
+        phone('light', false, week1, 4, 'Heute', body1, 'Hell, Variante B') +
+        phone('dark', false, week1, 4, 'Heute', body1, 'Dunkel, Variante B');
+
+      const week2 = [
+        { n: 5, food: true },
+        { n: 6, food: true, train: true },
+        { n: 7, train: true },
+        { n: 8, food: true },
+        { n: 9, food: true, train: true },
+        { n: 10 },
+        { n: 11 },
+      ];
+      const body2 = exerciseCard('Radfahren', '60 Min. · Locker', 420);
+      document.getElementById('phones2').innerHTML =
+        phone('light', true, week2, 2, 'Mi., 7. Okt.', body2, 'Hell, A mit Rand') +
+        phone('light', false, week2, 2, 'Mi., 7. Okt.', body2, 'Hell, B ohne Rand') +
+        phone('dark', true, week2, 2, 'Mi., 7. Okt.', body2, 'Dunkel, A mit Rand') +
+        phone('dark', false, week2, 2, 'Mi., 7. Okt.', body2, 'Dunkel, B ohne Rand');
+
+      const same = [
+        { d: { n: 5 }, i: 0, l: 'Nichts eingetragen' },
+        { d: { n: 5, food: true }, i: 0, l: 'Nur Essen' },
+        { d: { n: 6, train: true }, i: 1, l: 'Nur Training' },
+        { d: { n: 7, food: true, train: true }, i: 2, l: 'Essen und Training' },
+      ];
+      const sel = [
+        { d: { n: 9, food: true }, l: 'Gewählt, nur Essen' },
+        { d: { n: 9, train: true }, l: 'Gewählt, nur Training' },
+        { d: { n: 9, food: true, train: true }, l: 'Gewählt, beides' },
+      ];
+      const cell = (d, i, s, l) => `<div class="zcell">${tile(d, i, s, false)}<div class="lbl">${l}</div></div>`;
+      const zset = (theme, label) =>
+        `<div class="zoomset ${theme}"><div class="zhead">${label}: nicht gewählte Tage (gleich in A und B)</div>${same
+          .map((s) => cell(s.d, s.i, false, s.l))
+          .join('')}</div>
+        <div class="zoomset ${theme} ring"><div class="zhead">${label}, Variante A: mit Rand</div>${sel
+          .map((s) => cell(s.d, 4, true, s.l))
+          .join('')}</div>
+        <div class="zoomset ${theme}"><div class="zhead">${label}, Variante B: ohne Rand</div>${sel
+          .map((s) => cell(s.d, 4, true, s.l))
+          .join('')}</div>`;
+      document.getElementById('zoom').innerHTML = zset('light', 'Hell') + zset('dark', 'Dunkel');
+
+      const kcalBox = `<div class="tk"><div class="top"><span style="font-size:14px">Verbrauch (zusätzlich zum Grundumsatz)</span><span class="big">380 kcal</span></div><p>(MET 8,3 − 1) × 78,4 kg × 0,7 h</p></div>`;
+      const panel = (theme, old) =>
+        `<div class="panel ${theme}${old ? ' old' : ''}"><div class="ph">${theme === 'light' ? 'Hell' : 'Dunkel'}, ${
+          old ? 'vorher (grün)' : 'nachher (blau)'
+        }</div>${exerciseCard('Laufen', '40 Min. · Mittel', 380)}<div class="k" style="font-size:12px">Training eintragen, unten auf der Seite:</div>${kcalBox}</div>`;
+      const bar = (label, value, target, color, good) => {
+        const fill = Math.min(100, (value / target) * 100);
+        const over = value > target;
+        const ex = over ? Math.min(100, ((value - target) / target) * 100) : 0;
+        const ex2 = over && !good ? Math.min(100, Math.max(0, ((value - 2 * target) / target) * 100)) : 0;
+        const tone = over ? (good ? 'good' : 'bad') : '';
+        return `<div style="min-width:0"><div class="lab">${label}</div><div class="track"><b style="width:${fill}%;background:var(${color})"></b>${
+          ex ? `<b style="width:${ex}%;background:var(${good ? '--over-good' : '--over'})"></b>` : ''
+        }${ex2 ? `<b style="width:${ex2}%;background:var(--over-2)"></b>` : ''}</div><div class="val ${tone}"><strong>${value}</strong> / ${target}&nbsp;g</div></div>`;
+      };
+      const ppanel = (theme, old) =>
+        `<div class="panel ${theme}${old ? ' old' : ''}"><div class="ph">${theme === 'light' ? 'Hell' : 'Dunkel'}, ${
+          old ? 'vorher (Eiweiß rot)' : 'nachher (Eiweiß grün)'
+        }</div><div class="card"><div class="k" style="margin-bottom:8px">Kalorienkarte, zugeklappt</div><div class="mb">${
+          bar('Protein', 182, 140, '--protein', !old) + bar('Kohlenhydrate', 190, 260, '--carbs', false) + bar('Fett', 96, 80, '--fat', false)
+        }</div></div><div class="card"><div class="k" style="margin-bottom:8px">Sehr viel Eiweiß (300 g von 140 g)</div><div class="mb">${
+          bar('Protein', 300, 140, '--protein', !old) + bar('Kohlenhydrate', 120, 260, '--carbs', false) + bar('Fett', 170, 80, '--fat', false)
+        }</div></div></div>`;
+      document.getElementById('protein').innerHTML =
+        ppanel('light', true) + ppanel('light', false) + ppanel('dark', true) + ppanel('dark', false);
+
+      document.getElementById('compare').innerHTML =
+        panel('light', true) + panel('light', false) + panel('dark', true) + panel('dark', false);
+    </script>
+  </body>
+</html>

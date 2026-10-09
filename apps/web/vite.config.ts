@@ -30,7 +30,7 @@ export default defineConfig({
       manifest: {
         id: '/',
         name: 'Fleisch-Teufel',
-        short_name: 'Fleisch-Teufel',
+        short_name: 'Fleisch Teufel',
         description: 'Ernährungstagebuch: Kalorien, Makros, Gewicht. Offline-fähig, selbst gehostet.',
         lang: 'de',
         dir: 'ltr',
