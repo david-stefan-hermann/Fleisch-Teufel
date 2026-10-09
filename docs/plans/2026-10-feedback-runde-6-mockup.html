@@ -122,7 +122,12 @@
         margin: 0;
         background: var(--page);
         color: var(--page-ink);
-        font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
         -webkit-font-smoothing: antialiased;
       }
       .wrap {
@@ -525,9 +530,7 @@
   <body>
     <div class="wrap">
       <h1>Runde 6: Trainingstage, Trainingsfarbe, Eiweiß-Überschuss</h1>
-      <p class="lead">
-        Mockup v3 zum Nachtrag vom 9. Oktober 2026. Heute ist Freitag, der 9. Oktober.
-      </p>
+      <p class="lead">Mockup v3 zum Nachtrag vom 9. Oktober 2026. Heute ist Freitag, der 9. Oktober.</p>
 
       <div class="note new">
         <strong>Entschieden (v3)</strong>
@@ -541,7 +544,10 @@
       <div class="note">
         <strong>Neu gegenüber v1</strong>
         <ul>
-          <li>Den gewählten Tag gibt es jetzt in zwei Varianten: mit Rand um den blauen Punkt (A, wie v1) und ohne (B).</li>
+          <li>
+            Den gewählten Tag gibt es jetzt in zwei Varianten: mit Rand um den blauen Punkt (A, wie v1) und
+            ohne (B).
+          </li>
           <li>
             Die Trainingsfarbe wird überall blau statt grün. Der blaue Punkt nutzt dieselbe Farbe, eine eigene
             Punktfarbe gibt es nicht mehr. Abschnitt 4 zeigt alle Stellen vorher und nachher.
@@ -550,7 +556,10 @@
         </ul>
       </div>
 
-      <div class="note light" style="background: var(--card); color: var(--foreground); border-color: var(--border)">
+      <div
+        class="note light"
+        style="background: var(--card); color: var(--foreground); border-color: var(--border)"
+      >
         <div class="legend">
           <span><i style="background: var(--primary)"></i>Essen eingetragen (wie heute)</span>
           <span><i style="background: var(--exercise)"></i>Training eingetragen (neu, Trainingsfarbe)</span>
@@ -558,38 +567,41 @@
       </div>
 
       <h2>1. Die Wochenleiste im Tagebuch</h2>
-      <p class="lead">Dienstag, Donnerstag und heute mit Training. Gewählt ist heute, Variante B (ohne Rand).</p>
+      <p class="lead">
+        Dienstag, Donnerstag und heute mit Training. Gewählt ist heute, Variante B (ohne Rand).
+      </p>
       <div class="phones" id="phones"></div>
 
       <h2>2. Gewählter Tag: mit oder ohne Rand</h2>
       <p class="lead">
-        Nur der gewählte Tag unterscheidet sich, alle anderen Tage sehen in beiden Varianten gleich aus. Ohne Rand liegt
-        der blaue Punkt direkt auf dem Rot. Beide Farben sind ungefähr gleich hell, der Punkt hebt sich also nur über den
-        Farbton ab. Mit Rand bleibt er auch bei Sonne auf dem Display und bei Rot-Grün-Schwäche klar sichtbar.
+        Nur der gewählte Tag unterscheidet sich, alle anderen Tage sehen in beiden Varianten gleich aus. Ohne
+        Rand liegt der blaue Punkt direkt auf dem Rot. Beide Farben sind ungefähr gleich hell, der Punkt hebt
+        sich also nur über den Farbton ab. Mit Rand bleibt er auch bei Sonne auf dem Display und bei
+        Rot-Grün-Schwäche klar sichtbar.
       </p>
       <div class="zgrid" id="zoom"></div>
 
       <h2>3. Gewählter Tag nur mit Training</h2>
       <p class="lead">
-        Hier ist der Unterschied am größten: Mittwoch ist gewählt, es gibt ein Training, aber kein Essen. Links A mit
-        Rand, rechts B ohne.
+        Hier ist der Unterschied am größten: Mittwoch ist gewählt, es gibt ein Training, aber kein Essen.
+        Links A mit Rand, rechts B ohne.
       </p>
       <div class="phones" id="phones2"></div>
 
       <h2>4. Trainingsfarbe: vorher grün, nachher blau</h2>
       <p class="lead">
-        Die Trainingsfarbe steckt heute an zwei Stellen: an den kcal in der Trainingskarte im Tagebuch und an der
-        Verbrauchsangabe beim Eintragen oder Bearbeiten eines Trainings (auch bei gespeicherten Trainings). Dazu kommt
-        neu der Punkt in der Wochenleiste.
+        Die Trainingsfarbe steckt heute an zwei Stellen: an den kcal in der Trainingskarte im Tagebuch und an
+        der Verbrauchsangabe beim Eintragen oder Bearbeiten eines Trainings (auch bei gespeicherten
+        Trainings). Dazu kommt neu der Punkt in der Wochenleiste.
       </p>
       <div class="compare" id="compare"></div>
 
       <h2>5. Eiweiß über dem Ziel: grün statt rot (Block 7)</h2>
       <p class="lead">
-        Zu viel Eiweiß ist gut, deshalb wird der überschrittene Teil beim Eiweiß grün, Balken und Zahl. Fett, Kohlenhydrate,
-        Kalorien und Mikronährstoffe mit Höchstwert bleiben rot. Beispiel: 182 g Eiweiß bei 140 g Ziel, 96 g Fett bei 80
-        g Ziel. Das gilt überall, wo Eiweiß gegen ein Ziel steht: Kalorienkarte, Nährwerte des Tages, je Mahlzeit und
-        Zutat, Berichte.
+        Zu viel Eiweiß ist gut, deshalb wird der überschrittene Teil beim Eiweiß grün, Balken und Zahl. Fett,
+        Kohlenhydrate, Kalorien und Mikronährstoffe mit Höchstwert bleiben rot. Beispiel: 182 g Eiweiß bei 140
+        g Ziel, 96 g Fett bei 80 g Ziel. Das gilt überall, wo Eiweiß gegen ein Ziel steht: Kalorienkarte,
+        Nährwerte des Tages, je Mahlzeit und Zutat, Berichte.
       </p>
       <div class="compare" id="protein"></div>
 
@@ -598,20 +610,23 @@
         <ul>
           <li>
             Neue Trainingsfarbe <code>--exercise</code>: hell <code>oklch(0.5 0.12 230)</code>, dunkel
-            <code>oklch(0.67 0.12 230)</code> (bisher grün <code>oklch(0.62 0.13 165)</code>, nur ein Wert für beide
-            Designs). Als Text auf den Karten gut lesbar (Kontrast 5,0 bis 5,9 zu 1), gegen den roten Essenspunkt mit dem
-            Paletten-Checker geprüft, hell und dunkel, auch bei Farbschwäche.
+            <code>oklch(0.67 0.12 230)</code> (bisher grün <code>oklch(0.62 0.13 165)</code>, nur ein Wert für
+            beide Designs). Als Text auf den Karten gut lesbar (Kontrast 5,0 bis 5,9 zu 1), gegen den roten
+            Essenspunkt mit dem Paletten-Checker geprüft, hell und dunkel, auch bei Farbschwäche.
           </li>
           <li>
-            <strong>Achtung, Blau ist schon Protein:</strong> Die Protein-Balken sind blau (<code>oklch(0.58 0.14 250)</code>).
-            Das neue Trainingsblau ist bewusst heller und etwas türkiser, damit es nicht genau gleich aussieht. Ganz
-            unterscheidbar sind die beiden aber nicht, vor allem bei Farbschwäche. Sie stehen nie im selben Diagramm,
-            deshalb ist das vertretbar. In Abschnitt 1 sieht man beide auf einem Bildschirm.
+            <strong>Achtung, Blau ist schon Protein:</strong> Die Protein-Balken sind blau (<code
+              >oklch(0.58 0.14 250)</code
+            >). Das neue Trainingsblau ist bewusst heller und etwas türkiser, damit es nicht genau gleich
+            aussieht. Ganz unterscheidbar sind die beiden aber nicht, vor allem bei Farbschwäche. Sie stehen
+            nie im selben Diagramm, deshalb ist das vertretbar. In Abschnitt 1 sieht man beide auf einem
+            Bildschirm.
           </li>
           <li>
-            Eiweiß-Überschuss: neue Farbe <code>--over-good</code>, hell <code>oklch(0.53 0.13 155)</code>, dunkel
-            <code>oklch(0.6 0.13 155)</code> (v3: dunkler). Als Text mindestens 4,5:1 lesbar, gegen das Protein-Blau mit dem
-            Paletten-Checker geprüft. Über dem doppelten Ziel bleibt Eiweiß grün, ohne zweite, dunklere Stufe wie bei Rot.
+            Eiweiß-Überschuss: neue Farbe <code>--over-good</code>, hell <code>oklch(0.53 0.13 155)</code>,
+            dunkel <code>oklch(0.6 0.13 155)</code> (v3: dunkler). Als Text mindestens 4,5:1 lesbar, gegen das
+            Protein-Blau mit dem Paletten-Checker geprüft. Über dem doppelten Ziel bleibt Eiweiß grün, ohne
+            zweite, dunklere Stufe wie bei Rot.
           </li>
           <li>Gelöschte Trainings zählen nicht, genau wie gelöschte Essenseinträge beim roten Punkt.</li>
           <li>
@@ -715,7 +730,8 @@
         { d: { n: 9, train: true }, l: 'Gewählt, nur Training' },
         { d: { n: 9, food: true, train: true }, l: 'Gewählt, beides' },
       ];
-      const cell = (d, i, s, l) => `<div class="zcell">${tile(d, i, s, false)}<div class="lbl">${l}</div></div>`;
+      const cell = (d, i, s, l) =>
+        `<div class="zcell">${tile(d, i, s, false)}<div class="lbl">${l}</div></div>`;
       const zset = (theme, label) =>
         `<div class="zoomset ${theme}"><div class="zhead">${label}: nicht gewählte Tage (gleich in A und B)</div>${same
           .map((s) => cell(s.d, s.i, false, s.l))
@@ -747,9 +763,13 @@
         `<div class="panel ${theme}${old ? ' old' : ''}"><div class="ph">${theme === 'light' ? 'Hell' : 'Dunkel'}, ${
           old ? 'vorher (Eiweiß rot)' : 'nachher (Eiweiß grün)'
         }</div><div class="card"><div class="k" style="margin-bottom:8px">Kalorienkarte, zugeklappt</div><div class="mb">${
-          bar('Protein', 182, 140, '--protein', !old) + bar('Kohlenhydrate', 190, 260, '--carbs', false) + bar('Fett', 96, 80, '--fat', false)
+          bar('Protein', 182, 140, '--protein', !old) +
+          bar('Kohlenhydrate', 190, 260, '--carbs', false) +
+          bar('Fett', 96, 80, '--fat', false)
         }</div></div><div class="card"><div class="k" style="margin-bottom:8px">Sehr viel Eiweiß (300 g von 140 g)</div><div class="mb">${
-          bar('Protein', 300, 140, '--protein', !old) + bar('Kohlenhydrate', 120, 260, '--carbs', false) + bar('Fett', 170, 80, '--fat', false)
+          bar('Protein', 300, 140, '--protein', !old) +
+          bar('Kohlenhydrate', 120, 260, '--carbs', false) +
+          bar('Fett', 170, 80, '--fat', false)
         }</div></div></div>`;
       document.getElementById('protein').innerHTML =
         ppanel('light', true) + ppanel('light', false) + ppanel('dark', true) + ppanel('dark', false);

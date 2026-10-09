@@ -47,16 +47,26 @@ Serve the production web build through the API (same origin, service worker acti
   Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
   without meal (`groupName`, AI review "Meal eintragen" without saving, via `logAiItems`). `groupDiaryEntries` (shared) builds
   diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.
+  A group carries its photo on every entry (`photoId`: the analysed photo, or the meal photo at logging time); the
+  row shows it before the meal's current photo, and its own `groupName` before the meal name. The group row is a
+  stretched link to the group editor; only "N Zutaten ⌄" (its own button above the link) expands the items.
+- Diary group editor: `/diary-group/$groupId?date=` (`features/diary/DiaryGroupPage.tsx`) changes only these
+  entries, never the saved meal: name, amounts, total amount (`scaleItems`, shared with the meal editor), remove
+  and add (`into=group:<id>`). Device draft in `db/groupDraft.ts` (`kv`); `saveGroupDraft` patches, soft-deletes
+  and adds entries of the same group. A name equal to the meal's stays `groupName: null`. `DiscardDialog apply`
+  says "Übernehmen".
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).
-- Food search with a target: `?into=meal:<id>` / `ai:<localId>` on `/add`, `/food/$foodId`, `/scan`,
-  `/custom-food/$id` adds to a saved meal / AI review instead of the diary (`src/lib/into.ts`; return via
+- Food search with a target: `?into=meal:<id>` / `ai:<localId>` / `group:<groupId>` (its day is `date`) on `/add`,
+  `/food/$foodId`, `/scan`, `/custom-food/$id` adds to a saved meal / AI review / diary group draft instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
   The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, one more Claude call, asks first when
   `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old result.
 - Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
   API `routes/photos.ts`. Images in IndexedDB are `ArrayBuffer` + type (`photos.bytes`, AI queue photos in the
-  `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them). Toasts sit at the bottom (iOS tints the status bar from top elements).
+  `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them).
+  Every image is compressed before it is stored or sent: `compressImage(blob, IMAGE_PRESETS.analysis | mealPhoto |
+label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter wins; size math in `fitSize`). Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
@@ -93,7 +103,12 @@ Serve the production web build through the API (same origin, service worker acti
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value
   placeholder `NO_VALUE` from `src/lib/format.ts`.
 - Excess bars (`TargetBar`): red `--over` up to twice the target, then dark red `--over-2` (bars only, text
-  stays `text-over`); micros with a maximum use `TargetBar` too (pass `over` for decimal comparisons).
+  stays `text-over`); micros with a maximum use `TargetBar` too (pass `over` for decimal comparisons). Protein is
+  the exception: more is good, so `overTone="good"` (`overToneOf`) shows its excess green (`--over-good`, bar and
+  text `OVER_TEXT`) without a second step.
+- Week strip (`features/diary/WeekStrip.tsx`): dot row of fixed height, red (left) for logged food, blue
+  (`bg-exercise`, right) for a training (`useTrainedDates`); no ring on the selected day. `--exercise` (blue) is
+  the training color everywhere, lighter and more cyan than `--protein`.
 - Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
   for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). `MacroBars` /
   `TargetBar` (`components/MacroBars.tsx`) only for progress towards a target (excess as red overlay).
@@ -124,7 +139,9 @@ Serve the production web build through the API (same origin, service worker acti
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).
 - AI: `apps/api/src/ai/*`: model `claude-opus-5-5` by default, structured output via `betaZodOutputFormat`,
   `fallbacks: 'default'`. Load the `claude-api` skill before changing it. In the meal photo analysis nutrients
-  never come from the model (it names foods and grams, the app looks them up). The food label reading
+  never come from the model (it names foods and grams, the app looks them up). `matchItem` (`ai/match.ts`) pushes
+  dry and instant products (`DRY_WORDS`: "Kartoffelpüree Instantpulver") down unless the name says prepared or the
+  item is the dry product; the prompt asks for search terms and grams of the food as eaten. The food label reading
   (`POST /api/ai/label`, `ai/label.ts`) is the one exception: the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
   form before saving.

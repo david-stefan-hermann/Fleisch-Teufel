@@ -132,11 +132,11 @@ Einträge über `[date+meal]`/`date` gefiltert nach `groupId` und mountet dann d
   Der kleinere Faktor gewinnt.
 - Benannte Voreinstellungen ersetzen die verstreuten Zahlen:
 
-  | Voreinstellung | Pixel | Qualität | Verwendung |
-  | --- | --- | --- | --- |
-  | `IMAGE_PRESETS.analysis` | 1 MP | 0,82 | `PhotoPage` |
-  | `IMAGE_PRESETS.mealPhoto` | 0,6 MP | 0,8 | `MealEditor` |
-  | `IMAGE_PRESETS.label` | 2 MP | 0,85 | `LabelCaptureSheet`; dort greift die 1080p-Grenze, also ca. 1440×1080 |
+  | Voreinstellung            | Pixel  | Qualität | Verwendung                                                            |
+  | ------------------------- | ------ | -------- | --------------------------------------------------------------------- |
+  | `IMAGE_PRESETS.analysis`  | 1 MP   | 0,82     | `PhotoPage`                                                           |
+  | `IMAGE_PRESETS.mealPhoto` | 0,6 MP | 0,8      | `MealEditor`                                                          |
+  | `IMAGE_PRESETS.label`     | 2 MP   | 0,85     | `LabelCaptureSheet`; dort greift die 1080p-Grenze, also ca. 1440×1080 |
 
 - Prüfen, dass jeder `storePhoto`-Aufruf ein so komprimiertes Bild bekommt:
   - `createAiMeal` und neu `logAiItems` bekommen das Bild aus `aiImages` (komprimiert).
@@ -250,3 +250,18 @@ Planablage in `docs/plans`. Ein Commit pro Block wie in Runde 5; Push nur nach R
   - Foto analysieren und ohne Speichern eintragen: Das Foto erscheint in der Tagebuchzeile.
   - Zeile antippen, Menge ändern, Zutat hinzufügen, übernehmen.
   - Die Größe des gespeicherten Fotos in IndexedDB prüfen.
+
+## Umsetzung (2026-10-09)
+
+Alle Blöcke umgesetzt, Commits `4dc5a1d` bis zum Doku-Commit. Abweichungen vom Plan:
+
+- Block 4 und 5 sind ein gemeinsamer Commit, weil die Zeile auf die neue Route verlinkt.
+- Das Hütchen hat eine Trefferfläche von 32 px Höhe statt 44 px. Mehr geht nicht, ohne dass es den Namen darüber
+  überdeckt (dann würde ein Tipp auf den Namen aufklappen statt den Editor öffnen). Die Fläche ist dafür breiter.
+- Block 3: Auch „Meal eintragen“ eines gespeicherten Meals (nicht nur der KI-Weg) schreibt das Meal-Foto des
+  Moments an die Einträge, damit `photoId` überall dieselbe Bedeutung hat.
+- Block 8: Das Pulver bleibt nur dann als Alternative sichtbar, wenn es unter die fünf besten Kandidaten kommt
+  (bei Bratensoße ja, bei Kartoffelpüree verdrängen es die fünf zubereiteten Varianten). „trocken“ allein zählt
+  nicht als Trockenwort (sonst träfe es trockenen Wein).
+- Der Verwerfen-Dialog bekam die Variante `apply` („Übernehmen“ statt „Speichern“, Wording-Regel).
+- Nebenbei: Der Papierkorb-Test war wackelig (zwei Löschungen in derselben Millisekunde), jetzt stabil.
