@@ -31,13 +31,11 @@ export function parseDecimal(input: string): number {
 }
 
 const dayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-const dayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 const dateNumeric = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const monthYear = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
 const timeShort = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 
 export const fmtDayLong = (d: ISODate) => dayLong.format(parseISODate(d));
-export const fmtDayShort = (d: ISODate) => dayShort.format(parseISODate(d));
 export const fmtDate = (d: ISODate) => dateNumeric.format(parseISODate(d));
 /** Calendar date of a timestamp (e.g. when a record was deleted). */
 export const fmtDateOf = (ms: number) => dateNumeric.format(new Date(ms));

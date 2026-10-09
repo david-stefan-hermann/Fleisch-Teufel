@@ -1,5 +1,4 @@
 import {
-  addDays,
   computeItem,
   portionsFor,
   targetsForDate,
@@ -11,7 +10,7 @@ import {
 } from '@ft/shared';
 import { Link, useNavigate, useParams, useRouter, useRouterState, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CalendarPlus, Minus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Minus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -39,9 +38,8 @@ import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
-import { fmtDayShort, fmtGrams } from '@/lib/format';
+import { fmtGrams } from '@/lib/format';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
-import { cn } from '@/lib/utils';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
@@ -145,7 +143,6 @@ interface Initial {
   portion: Portion;
   quantity: number | null;
   meal?: number;
-  extraDays?: string[];
 }
 
 /** Loads the data the form needs for its initial values, then mounts the editor. */
@@ -219,8 +216,6 @@ function FoodLogEditor({
   const [meal, setMeal] = useState(initial.meal ?? entry?.meal ?? defaultMeal ?? 0);
   const [portion, setPortion] = useState<Portion | null>(initial.portion);
   const [quantity, setQuantity] = useState<number | null>(initial.quantity);
-  const [extraDays, setExtraDays] = useState<string[]>(initial.extraDays ?? []);
-  const [showDays, setShowDays] = useState((initial.extraDays?.length ?? 0) > 0);
   const [portionDialog, setPortionDialog] = useState(false);
 
   const effectivePortion = portion ?? portions[0] ?? { label: '100 g', grams: 100 };
@@ -294,11 +289,8 @@ function FoodLogEditor({
       await saveRecord(db, 'foodEntries', { ...entry, ...base });
       toast.success('Änderungen übernommen');
     } else {
-      const dates = [date, ...extraDays];
-      await logFoodEntry(db, base, dates);
-      toast.success(
-        dates.length > 1 ? `${food.name} an ${dates.length} Tagen eingetragen` : `${food.name} eingetragen`,
-      );
+      await logFoodEntry(db, base, date);
+      toast.success(`${food.name} eingetragen`);
     }
     await rememberFood(db, food);
     await navigate({ to: '/', search: { date: entry?.date ?? date } });
@@ -356,7 +348,6 @@ function FoodLogEditor({
                       portion: effectivePortion,
                       quantity,
                       meal,
-                      extraDays,
                     });
                   }}
                 >
@@ -458,44 +449,6 @@ function FoodLogEditor({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          )}
-          {!entry && !into && (
-            <div>
-              <button
-                type="button"
-                className="flex items-center gap-2 text-sm text-primary hover:underline focus-visible:underline focus-visible:outline-none"
-                aria-expanded={showDays}
-                onClick={() => setShowDays(!showDays)}
-              >
-                <CalendarPlus className="size-4" aria-hidden /> Auch an weiteren Tagen eintragen
-                {extraDays.length > 0 && <Badge>{extraDays.length}</Badge>}
-              </button>
-              {showDays && (
-                <div className="mt-2 grid grid-cols-4 gap-2">
-                  {Array.from({ length: 14 }, (_, i) => addDays(date, i - 6))
-                    .filter((d) => d !== date)
-                    .map((d) => {
-                      const on = extraDays.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          aria-pressed={on}
-                          onClick={() =>
-                            setExtraDays(on ? extraDays.filter((x) => x !== d) : [...extraDays, d])
-                          }
-                          className={cn(
-                            'h-11 rounded-lg border text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                            on ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent',
-                          )}
-                        >
-                          {fmtDayShort(d)}
-                        </button>
-                      );
-                    })}
-                </div>
-              )}
             </div>
           )}
         </div>

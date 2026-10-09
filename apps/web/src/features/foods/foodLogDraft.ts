@@ -1,7 +1,7 @@
 import type { Portion } from '@ft/shared';
 
 /**
- * Unsaved form state of the food page (portion, amount, meal, extra days) while the pencil opens the
+ * Unsaved form state of the food page (portion, amount, meal) while the pencil opens the
  * custom food editor. The page is mounted anew on return; the state only comes back for the same
  * history entry (`__TSR_key`), so a later visit of the same food starts fresh.
  */
@@ -9,7 +9,6 @@ export interface FoodLogDraft {
   portion: Portion;
   quantity: number | null;
   meal: number;
-  extraDays: string[];
 }
 
 interface Stored extends FoodLogDraft {
@@ -39,11 +38,10 @@ export function peekFoodLogDraft(pathname: string, entryKey: string | undefined)
       typeof s.portion?.label === 'string' &&
       typeof s.portion.grams === 'number' &&
       (s.quantity === null || typeof s.quantity === 'number') &&
-      typeof s.meal === 'number' &&
-      Array.isArray(s.extraDays) &&
-      s.extraDays.every((d) => typeof d === 'string');
+      typeof s.meal === 'number';
     if (!valid) return null;
-    return { portion: s.portion!, quantity: s.quantity!, meal: s.meal!, extraDays: s.extraDays! };
+    // Older drafts may carry `extraDays` (multi-day logging, removed in round 7); it is ignored.
+    return { portion: s.portion!, quantity: s.quantity!, meal: s.meal! };
   } catch {
     return null;
   }

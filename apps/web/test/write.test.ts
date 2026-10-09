@@ -116,7 +116,7 @@ describe('local writes', () => {
     expect(await d.outbox.count()).toBe(0);
   });
 
-  it('logs one item on several days with ordered timestamps', async () => {
+  it('logs one food on one day', async () => {
     const d = db();
     await logFoodEntry(
       d,
@@ -135,11 +135,12 @@ describe('local writes', () => {
         mealId: null,
         aiAnalysisId: null,
       },
-      ['2026-10-07', '2026-10-08', '2026-10-09'],
+      '2026-10-09',
     );
-    const all = await d.foodEntries.orderBy('loggedAt').toArray();
-    expect(all.map((e) => e.date)).toEqual(['2026-10-07', '2026-10-08', '2026-10-09']);
-    expect(new Set(all.map((e) => e.id)).size).toBe(3);
+    const all = await d.foodEntries.toArray();
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ date: '2026-10-09', groupId: null, groupName: null, photoId: null });
+    expect(await d.outbox.count()).toBe(1);
   });
 
   it('saves an AI analysis as a meal with photo without logging, then logs it attached to the meal', async () => {

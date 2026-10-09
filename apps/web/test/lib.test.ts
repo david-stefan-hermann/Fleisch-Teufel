@@ -150,7 +150,6 @@ describe('food page draft (pencil and back)', () => {
     portion: { label: '1 Stück', grams: 120 },
     quantity: 2,
     meal: 3,
-    extraDays: ['2026-10-07'],
   };
 
   it('comes back only for the same history entry', () => {
@@ -160,6 +159,14 @@ describe('food page draft (pencil and back)', () => {
     expect(peekFoodLogDraft('/food/y', 'k1')).toBeNull();
     dropFoodLogDraft('/food/x');
     expect(peekFoodLogDraft('/food/x', 'k1')).toBeNull();
+  });
+
+  it('reads drafts of older versions that still carry extra days', () => {
+    sessionStorage.setItem(
+      'ft:foodlog:/food/x',
+      JSON.stringify({ ...draft, extraDays: ['2026-10-07'], entryKey: 'k1' }),
+    );
+    expect(peekFoodLogDraft('/food/x', 'k1')).toEqual(draft);
   });
 
   it('ignores broken or foreign data and entries without a key', () => {

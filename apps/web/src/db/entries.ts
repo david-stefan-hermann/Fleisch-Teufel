@@ -20,20 +20,17 @@ export type NewFoodEntry = Omit<
   'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId'
 >;
 
-/** Logs the same item on one or more days (multi-day log). */
-export async function logFoodEntry(db: UserDb, item: NewFoodEntry, dates: string[]): Promise<void> {
-  const now = Date.now();
-  for (const [i, date] of dates.entries()) {
-    await saveRecord(db, 'foodEntries', {
-      ...item,
-      id: uuidv7(),
-      date,
-      loggedAt: now + i,
-      groupId: null,
-      groupName: null,
-      photoId: null,
-    });
-  }
+/** Logs one food on a day (the food page). */
+export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string): Promise<void> {
+  await saveRecord(db, 'foodEntries', {
+    ...item,
+    id: uuidv7(),
+    date,
+    loggedAt: Date.now(),
+    groupId: null,
+    groupName: null,
+    photoId: null,
+  });
 }
 
 export async function saveExercise(
