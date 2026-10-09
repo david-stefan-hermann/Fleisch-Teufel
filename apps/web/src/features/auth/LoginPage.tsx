@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { endpoints, errorMessage } from '@/lib/api';
+import { AppLogo } from '@/components/AppLogo';
 
 export function LoginPage() {
   const { session, needsReauth, serverInfo, signIn } = useSessionContext();
@@ -54,7 +55,7 @@ export function LoginPage() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 pt-[var(--safe-top)] pb-[var(--safe-bottom)]">
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
-        <img src="/pwa-192x192.png" width={72} height={72} alt="" className="rounded-2xl shadow-sm" />
+        <AppLogo size={72} />
         <h1 className="text-2xl font-bold tracking-tight" translate="no">
           Fleisch-Teufel
         </h1>

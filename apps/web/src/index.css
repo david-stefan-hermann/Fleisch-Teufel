@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* Inter (SIL OFL 1.1), self-hosted: only the Latin subsets German needs, precached for offline use. */
 @font-face {
@@ -68,35 +68,35 @@
   --tabbar-h: 3.75rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    --background: oklch(0.18 0.006 40);
-    --foreground: oklch(0.95 0.006 60);
-    --card: oklch(0.225 0.008 40);
-    --card-foreground: var(--foreground);
-    --popover: oklch(0.24 0.008 40);
-    --popover-foreground: var(--foreground);
-    --primary: oklch(0.64 0.17 25);
-    --primary-foreground: oklch(0.15 0.01 40);
-    --secondary: oklch(0.27 0.008 40);
-    --secondary-foreground: var(--foreground);
-    --muted: oklch(0.27 0.008 40);
-    --muted-foreground: oklch(0.7 0.012 50);
-    --accent: oklch(0.3 0.01 40);
-    --accent-foreground: var(--foreground);
-    --destructive: oklch(0.65 0.19 27);
-    --border: oklch(0.32 0.008 40);
-    --input: oklch(0.36 0.01 40);
-    --ring: oklch(0.6 0.15 25);
-    /* Validated with the dataviz palette checker against the dark card surface. */
-    --protein: oklch(0.66 0.13 250);
-    --carbs: oklch(0.66 0.14 70);
-    --fat: oklch(0.62 0.15 320);
-    --good: oklch(0.72 0.13 155);
-    --over: oklch(0.68 0.17 27);
-    --over-2: oklch(0.48 0.16 27);
-    --bar-neutral: oklch(0.53 0.008 50);
-  }
+/* Dark theme: class set before the first paint by public/theme-init.js, then by src/lib/appearance.ts
+   (system, light or dark, chosen under Mehr → Aussehen). */
+:root.dark {
+  --background: oklch(0.18 0.006 40);
+  --foreground: oklch(0.95 0.006 60);
+  --card: oklch(0.225 0.008 40);
+  --card-foreground: var(--foreground);
+  --popover: oklch(0.24 0.008 40);
+  --popover-foreground: var(--foreground);
+  --primary: oklch(0.64 0.17 25);
+  --primary-foreground: oklch(0.15 0.01 40);
+  --secondary: oklch(0.27 0.008 40);
+  --secondary-foreground: var(--foreground);
+  --muted: oklch(0.27 0.008 40);
+  --muted-foreground: oklch(0.7 0.012 50);
+  --accent: oklch(0.3 0.01 40);
+  --accent-foreground: var(--foreground);
+  --destructive: oklch(0.65 0.19 27);
+  --border: oklch(0.32 0.008 40);
+  --input: oklch(0.36 0.01 40);
+  --ring: oklch(0.6 0.15 25);
+  /* Validated with the dataviz palette checker against the dark card surface. */
+  --protein: oklch(0.66 0.13 250);
+  --carbs: oklch(0.66 0.14 70);
+  --fat: oklch(0.62 0.15 320);
+  --good: oklch(0.72 0.13 155);
+  --over: oklch(0.68 0.17 27);
+  --over-2: oklch(0.48 0.16 27);
+  --bar-neutral: oklch(0.53 0.008 50);
 }
 
 @theme inline {

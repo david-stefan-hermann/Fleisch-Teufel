@@ -11,9 +11,10 @@
  * surface gap and square tops; segment series usually set `legend: false`, and a `kind: 'legend'`
  * series carries the real value into the legend.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import uPlot, { type AlignedData, type Options, type Series } from 'uplot';
 import 'uplot/dist/uPlot.min.css';
+import { useAppearance } from '@/lib/appearance';
 import { NO_VALUE } from '@/lib/format';
 import { xOf } from '@/lib/time';
 
@@ -52,19 +53,6 @@ function cssVar(name: string, el: Element): string {
   return getComputedStyle(el).getPropertyValue(name).trim() || '#888';
 }
 
-function usePrefersDark(): boolean {
-  const [dark, setDark] = useState(
-    () => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const on = () => setDark(mq.matches);
-    mq?.addEventListener('change', on);
-    return () => mq?.removeEventListener('change', on);
-  }, []);
-  return dark;
-}
-
 const dateFmt = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
 const dateLong = new Intl.DateTimeFormat('de-DE', {
   weekday: 'short',
@@ -76,7 +64,8 @@ const dateLong = new Intl.DateTimeFormat('de-DE', {
 export function Chart({ data, series, height = 220, title, yRange, xRange }: ChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
-  const dark = usePrefersDark();
+  // Colors are read from CSS variables: rebuild when the app theme changes.
+  const dark = useAppearance().mode === 'dark';
   // Latest props for the long-lived plot (formatters, ranges, data at build time).
   const latest = useRef({ data, series, yRange, xRange });
   useEffect(() => {

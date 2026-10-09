@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
-    "icons": "pwa-assets-generator",
+    "icons": "node scripts/icons.mjs",
     "e2e": "playwright test"
   },
   "dependencies": {

@@ -1,3 +1,4 @@
+import { AppLogo } from '@/components/AppLogo';
 import { Page, Section } from '@/components/Page';
 import { useSessionContext } from '@/app/session';
 
@@ -6,7 +7,7 @@ export function AboutPage() {
   return (
     <Page title="Über" back="/more" withTabBar={false}>
       <div className="mb-6 flex flex-col items-center gap-2 text-center">
-        <img src="/pwa-192x192.png" width={64} height={64} alt="" className="rounded-2xl" />
+        <AppLogo size={64} />
         <h2 className="text-xl font-bold" translate="no">
           Fleisch-Teufel
         </h2>

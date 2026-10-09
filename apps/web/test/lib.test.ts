@@ -15,6 +15,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
+import { resolveAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
 
@@ -232,5 +233,15 @@ describe('report chart: calories split by macros', () => {
 
   it('keeps the series objects stable across periods (the chart only swaps data)', () => {
     expect(buildChart(rows, 'kcal').series).toBe(buildChart(rows.slice(0, 1), 'kcal').series);
+  });
+});
+
+describe('appearance', () => {
+  it('resolves the app theme and the icon variant', () => {
+    expect(resolveAppearance('system', 'auto', true)).toMatchObject({ mode: 'dark', iconMode: 'dark' });
+    expect(resolveAppearance('system', 'auto', false)).toMatchObject({ mode: 'light', iconMode: 'light' });
+    expect(resolveAppearance('light', 'auto', true)).toMatchObject({ mode: 'light', iconMode: 'light' });
+    expect(resolveAppearance('dark', 'light', false)).toMatchObject({ mode: 'dark', iconMode: 'light' });
+    expect(resolveAppearance('light', 'dark', false)).toMatchObject({ mode: 'light', iconMode: 'dark' });
   });
 });

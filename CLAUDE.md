@@ -113,6 +113,11 @@ Serve the production web build through the API (same origin, service worker acti
   `legend: false` (no legend row, table column or cursor point), a `kind: 'legend'` series carries the total
   (report kcal: `features/reports/chartData.ts`, grey `--bar-neutral` for days without macros). Report choices
   navigate with `resetScroll: false`.
+- Appearance (Mehr → Aussehen, per device in `localStorage`): app theme system/light/dark and logo variant
+  (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
+  `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.
+  Dark tokens live under `:root.dark`; never use `prefers-color-scheme` directly (use `useAppearance().mode`).
+  Logo sources and the icon script: `docs/logo/README.md`; show the logo with `AppLogo`.
 - No pinch or double-tap zoom (viewport `user-scalable=no`, `touch-action: pan-x pan-y` on `html`, iOS
   `gesturestart` cancelled in `main.tsx`). Every input needs at least 16 px text (`Input`/`NumberField` have it),
   or iOS zooms in on focus.

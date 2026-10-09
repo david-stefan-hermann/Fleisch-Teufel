@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Database,
   Info,
+  Palette,
   ListOrdered,
   Salad,
   Target,
@@ -21,6 +22,10 @@ import { Switch } from '@/components/ui/switch';
 import { trashCount } from '@/db/trash';
 import { patchRecord, saveRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
+import { useAppearance } from '@/lib/appearance';
+
+const THEME_LABEL = { system: 'Wie das System', light: 'Hell', dark: 'Dunkel' } as const;
+const ICON_LABEL = { auto: 'wie die App', light: 'hell', dark: 'dunkel' } as const;
 
 function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: string; hint?: string }) {
   return (
@@ -45,6 +50,7 @@ export function MorePage() {
   const settings = useSettings();
   const sync = useSyncState();
   const trashed = useLiveQuery(() => trashCount(db), [db]);
+  const look = useAppearance();
   return (
     <Page title="Mehr">
       <Section>
@@ -98,6 +104,12 @@ export function MorePage() {
       </Section>
       <Section>
         <ul className="divide-y divide-border/70">
+          <Row
+            to="/settings/appearance"
+            icon={<Palette aria-hidden />}
+            label="Aussehen"
+            hint={`${THEME_LABEL[look.theme]} · Icon ${ICON_LABEL[look.icon]}`}
+          />
           <Row
             to="/settings/data"
             icon={<Database aria-hidden />}
