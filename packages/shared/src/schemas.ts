@@ -175,6 +175,12 @@ export const foodEntrySchema = z.object({
    * Null for groups from a saved meal (their name comes from the meal) and for records from older app versions.
    */
   groupName: z.string().trim().max(120).nullable().default(null),
+  /**
+   * Photo of the group (`photos` id), the same on every entry of the group: the analysed photo of an AI
+   * analysis or the meal photo at logging time. Diary rows prefer it to the saved meal's current photo.
+   * Defaults to null for records from older app versions.
+   */
+  photoId: idSchema.nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
 

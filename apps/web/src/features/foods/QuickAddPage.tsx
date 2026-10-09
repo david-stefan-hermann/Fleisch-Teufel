@@ -81,6 +81,7 @@ function QuickAddForm({
         loggedAt: Date.now(),
         groupId: null,
         groupName: null,
+        photoId: null,
       });
     toast.success(`${fmt0(kcal!)} kcal eingetragen`);
     await navigate({ to: '/', search: { date: entry?.date ?? date } });

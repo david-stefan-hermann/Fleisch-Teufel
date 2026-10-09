@@ -17,7 +17,7 @@ import { patchRecord, restoreRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<
   FoodEntry,
-  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName'
+  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId'
 >;
 
 /** Logs the same item on one or more days (multi-day log). */
@@ -31,6 +31,7 @@ export async function logFoodEntry(db: UserDb, item: NewFoodEntry, dates: string
       loggedAt: now + i,
       groupId: null,
       groupName: null,
+      photoId: null,
     });
   }
 }
@@ -111,6 +112,7 @@ export async function logItems(
       aiAnalysisId: opts.aiAnalysisId ?? null,
       groupId,
       groupName,
+      photoId: null,
     });
   }
   return items.length;

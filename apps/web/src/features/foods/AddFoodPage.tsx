@@ -166,6 +166,7 @@ export function AddFoodPage() {
       aiAnalysisId: null,
       groupId: null,
       groupName: null,
+      photoId: null,
     });
     toast.success(`${r.name} eingetragen`);
   }

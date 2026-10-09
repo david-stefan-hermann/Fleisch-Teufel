@@ -24,6 +24,7 @@ const entry = (id: string, loggedAt: number, kcal: number, groupId: string | nul
   aiAnalysisId: null,
   groupId,
   groupName: null as string | null,
+  photoId: null as string | null,
 });
 
 describe('groupDiaryEntries', () => {
@@ -118,10 +119,11 @@ describe('recentTrainings', () => {
 });
 
 describe('schema defaults for older clients', () => {
-  it('fills groupId, groupName and note with null when missing', () => {
-    const { groupId: _omit, groupName: _name, ...old } = entry('x', 1, 10);
+  it('fills groupId, groupName, photoId and note with null when missing', () => {
+    const { groupId: _omit, groupName: _name, photoId: _photo, ...old } = entry('x', 1, 10);
     expect(foodEntrySchema.parse(old).groupId).toBeNull();
     expect(foodEntrySchema.parse(old).groupName).toBeNull();
+    expect(foodEntrySchema.parse(old).photoId).toBeNull();
     expect(foodEntrySchema.parse({ ...old, groupName: '  Bowl ' }).groupName).toBe('Bowl');
     expect(() => foodEntrySchema.parse({ ...old, groupName: 'x'.repeat(121) })).toThrow();
     const ex = exerciseEntrySchema.parse({

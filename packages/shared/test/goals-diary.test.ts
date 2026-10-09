@@ -36,6 +36,7 @@ const entry = (date: string, meal: number, kcal: number, extra: Record<string, n
   aiAnalysisId: null,
   groupId: null,
   groupName: null,
+  photoId: null,
 });
 
 const exercise = (date: string, kcal: number): ExerciseEntry => ({

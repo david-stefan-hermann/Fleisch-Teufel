@@ -157,6 +157,7 @@ export const foodEntries = pgTable(
     aiAnalysisId: text(),
     groupId: text(),
     groupName: text(),
+    photoId: text(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
