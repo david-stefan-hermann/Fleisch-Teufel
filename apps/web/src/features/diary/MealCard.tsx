@@ -15,6 +15,7 @@ import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
 import { readExpanded, setGroupExpanded } from './expandedGroups';
+import { warmUpCamera } from '@/components/cameraWarmup';
 
 export function entryAmountLabel(
   e: Pick<FoodEntry, 'source' | 'quantity' | 'portionLabel' | 'portionGrams' | 'grams'>,
@@ -71,7 +72,13 @@ export function MealCard({
       action={
         // At a meal only food makes sense: straight to the food page for this meal.
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/photo" search={{ date, meal }} aria-label={`Essen zu ${name} eintragen`}>
+          <Link
+            to="/photo"
+            preload="intent"
+            onClick={warmUpCamera}
+            search={{ date, meal }}
+            aria-label={`Essen zu ${name} eintragen`}
+          >
             <Plus className="size-5 text-primary" aria-hidden />
           </Link>
         </Button>
@@ -80,6 +87,8 @@ export function MealCard({
       {entries.length === 0 ? (
         <Link
           to="/photo"
+          preload="intent"
+          onClick={warmUpCamera}
           search={{ date, meal }}
           className={cn(
             'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',

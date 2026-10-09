@@ -1,10 +1,11 @@
 import { today } from '@ft/shared';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { Dumbbell, Scale } from 'lucide-react';
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ComponentType,
@@ -13,6 +14,7 @@ import {
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { defaultMealForNow } from '@/lib/meals';
 import { cn } from '@/lib/utils';
+import { warmUpCamera } from './cameraWarmup';
 import { ScanFoodIcon } from './ScanFoodIcon';
 
 /** Target of the sheet: day and meal for "Essen eintragen" (default: the shown day, the meal of the hour). */
@@ -57,9 +59,15 @@ function AddSheet({
   target: AddSheetTarget;
 }) {
   const navigate = useNavigate();
+  const router = useRouter();
   const search = useSearch({ strict: false }) as { date?: string };
   const date = target.date ?? search.date ?? today();
   const meal = target.meal ?? defaultMealForNow();
+  // Loads the code of the food page while the sheet is open, so the tap only waits for the camera.
+  useEffect(() => {
+    const photo = router.routesByPath['/photo'];
+    if (open && photo) void router.loadRouteChunk(photo)?.catch(() => {});
+  }, [open, router]);
   const go = (fn: () => void) => {
     onOpenChange(false);
     fn();
@@ -80,7 +88,11 @@ function AddSheet({
     {
       label: 'Essen eintragen',
       icon: ScanFoodIcon,
-      run: () => navigate({ to: '/photo', search: { date, meal } }),
+      run: () => {
+        // The camera starts while the sheet closes and the page changes.
+        warmUpCamera();
+        return navigate({ to: '/photo', search: { date, meal } });
+      },
       primary: true,
     },
     {

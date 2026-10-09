@@ -10,6 +10,7 @@ import { Flashlight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { CAMERA_CONSTRAINTS, takeWarmStream } from './cameraWarmup';
 
 prepareZXingModule({
   overrides: {
@@ -165,10 +166,8 @@ export function BarcodeScanner({
     async function start() {
       if (!navigator.mediaDevices?.getUserMedia) return onError('unsupported');
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
-        });
+        // The tap that opened the page may have started the camera already (`warmUpCamera`).
+        stream = (await takeWarmStream()) ?? (await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS));
       } catch (e) {
         const name = (e as DOMException).name;
         return onError(

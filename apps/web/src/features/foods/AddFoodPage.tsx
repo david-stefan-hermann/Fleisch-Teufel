@@ -31,6 +31,7 @@ import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { parseInto, type Into } from '@/lib/into';
 import { entryAmountLabel } from '@/features/diary/MealCard';
+import { warmUpCamera } from '@/components/cameraWarmup';
 
 type Tab = 'frequent' | 'recent' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
@@ -185,7 +186,14 @@ export function AddFoodPage() {
         into ? undefined : (
           <Button variant="ghost" size="icon" asChild>
             {/* Replaces the page: switching between search and food page never piles up history. */}
-            <Link to="/photo" search={{ date, meal }} replace aria-label="Foto oder Barcode">
+            <Link
+              to="/photo"
+              preload="intent"
+              onClick={warmUpCamera}
+              search={{ date, meal }}
+              replace
+              aria-label="Foto oder Barcode"
+            >
               <Camera className="size-6" aria-hidden />
             </Link>
           </Button>

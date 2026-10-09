@@ -1,0 +1,1755 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Runde 7 Mockup</title>
+    <style>
+      /* Tokens from apps/web/src/index.css (oklch). */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.5 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+        --bad-bg: oklch(0.96 0.03 27);
+        --bad-border: oklch(0.85 0.07 27);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.7 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+          --bad-bg: oklch(0.24 0.04 27);
+          --bad-border: oklch(0.42 0.08 27);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.7 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+        --bad-bg: oklch(0.24 0.04 27);
+        --bad-border: oklch(0.42 0.08 27);
+      }
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --over: oklch(0.58 0.19 27);
+        --protein: oklch(0.58 0.14 250);
+        --carbs: oklch(0.75 0.15 75);
+        --fat: oklch(0.6 0.16 320);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --over: oklch(0.68 0.17 27);
+        --protein: oklch(0.66 0.13 250);
+        --carbs: oklch(0.66 0.14 70);
+        --fat: oklch(0.62 0.15 320);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-block: 24px 48px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 40px 0 8px;
+        text-wrap: balance;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 72ch;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+      }
+      .note.new {
+        background: var(--new-bg);
+        border-color: var(--new-border);
+      }
+      .note.bad {
+        background: var(--bad-bg);
+        border-color: var(--bad-border);
+      }
+      .note ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+      code {
+        font-size: 13px;
+      }
+      .themebar {
+        display: flex;
+        gap: 6px;
+        margin: 8px 0 0;
+        font-size: 13px;
+      }
+      .themebar button {
+        font: inherit;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .themebar button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+      }
+
+      /* Phone frames */
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: oklch(0.25 0.005 40);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        display: flex;
+        flex-direction: column;
+        min-height: 640px;
+      }
+      .caption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin-top: 8px;
+        max-width: 375px;
+      }
+      .status {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 26px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .bar {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        padding: 0 8px;
+        gap: 4px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .bar .t {
+        flex: 1;
+        font-size: 18px;
+        font-weight: 600;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ib {
+        width: 40px;
+        height: 40px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        color: var(--foreground);
+      }
+      .ib svg,
+      .sq svg,
+      .btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      main {
+        flex: 1;
+        padding: 16px;
+        display: grid;
+        gap: 16px;
+        align-content: start;
+      }
+      .footer {
+        padding: 12px 16px 20px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .btn {
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .btn.primary {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.outline {
+        border: 1px solid var(--border);
+        background: var(--card);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        min-width: 0;
+      }
+      .cardbody {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+        padding: 16px;
+      }
+      .sect-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+        padding: 12px 16px 0;
+      }
+      .h-food {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .meta {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 13px;
+        color: var(--muted-foreground);
+        margin-top: 4px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 99px;
+        background: var(--muted);
+        color: var(--foreground);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .sel {
+        height: 40px;
+        border: 1px solid var(--input);
+        border-radius: 10px;
+        padding: 0 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 15px;
+        background: transparent;
+        min-width: 0;
+      }
+      .sel span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .sel .chev {
+        width: 16px;
+        height: 16px;
+        color: var(--muted-foreground);
+        flex-shrink: 0;
+      }
+      .ihead {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .ihead .name {
+        font-weight: 600;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .ihead .right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .chip {
+        display: inline-block;
+        margin-top: 4px;
+        padding: 2px 8px;
+        border-radius: 99px;
+        background: var(--muted);
+        font-size: 12px;
+        font-weight: 400;
+      }
+      .disc {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        margin: 4px -16px -16px;
+        padding: 12px 16px;
+        color: var(--muted-foreground);
+        font-size: 14px;
+      }
+      .nutr {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        padding: 12px 16px 16px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .nutr b {
+        display: block;
+        font-size: 16px;
+        color: var(--foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .gone {
+        border: 1px dashed var(--over);
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        color: var(--over);
+        text-decoration: line-through;
+      }
+
+      /* Amount editor */
+      .amt {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+      .amt-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .amt-head .sel {
+        height: 36px;
+        max-width: 62%;
+        font-size: 14px;
+      }
+      .unitsel {
+        appearance: none;
+        font: inherit;
+        color: inherit;
+        height: 36px;
+        max-width: 62%;
+        border: 1px solid var(--input);
+        border-radius: 10px;
+        padding: 0 30px 0 10px;
+        background: transparent
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+          no-repeat right 8px center;
+        font-size: 14px;
+        text-overflow: ellipsis;
+      }
+      .unitsel.full {
+        max-width: none;
+        width: 100%;
+        height: 40px;
+        font-size: 15px;
+      }
+      .unitsel option {
+        color: initial;
+      }
+      .rng {
+        position: relative;
+        padding: 6px 0 18px;
+      }
+      .rng input {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 24px;
+        margin: 0;
+        background: transparent;
+        touch-action: pan-y;
+        --p: 0%;
+      }
+      .rng input::-webkit-slider-runnable-track {
+        height: 6px;
+        border-radius: 99px;
+        background: linear-gradient(to right, var(--primary) var(--p), var(--muted) var(--p));
+      }
+      .rng input::-moz-range-track {
+        height: 6px;
+        border-radius: 99px;
+        background: linear-gradient(to right, var(--primary) var(--p), var(--muted) var(--p));
+      }
+      .rng input::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        margin-top: -7px;
+        border-radius: 99px;
+        background: white;
+        border: 1px solid var(--primary);
+        box-shadow: 0 1px 2px oklch(0 0 0 / 0.25);
+      }
+      .rng input::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 99px;
+        background: white;
+        border: 1px solid var(--primary);
+      }
+      .rng.pinned input::-webkit-slider-thumb {
+        background: var(--primary);
+      }
+      .rng.pinned input::-moz-range-thumb {
+        background: var(--primary);
+      }
+      .ticks {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 0;
+        height: 16px;
+        font-size: 11px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .ticks span {
+        position: absolute;
+        transform: translateX(-50%);
+        white-space: nowrap;
+      }
+      .ticks span:first-child {
+        transform: none;
+        left: -10px !important;
+      }
+      .ticks span:last-child {
+        transform: translateX(-100%);
+        left: calc(100% + 10px) !important;
+      }
+      .amt-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .sq {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        color: var(--foreground);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        cursor: pointer;
+        padding: 0;
+      }
+      .field {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+      }
+      .field input {
+        width: 100%;
+        height: 44px;
+        border: 1px solid var(--input);
+        border-radius: 12px;
+        background: transparent;
+        color: var(--foreground);
+        font: inherit;
+        font-size: 16px;
+        padding: 0 44px 0 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .field input:focus {
+        outline: 3px solid color-mix(in oklch, var(--primary) 40%, transparent);
+        outline-offset: 0;
+      }
+      .field .u {
+        position: absolute;
+        right: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--muted-foreground);
+        pointer-events: none;
+      }
+      .field.err input {
+        border-color: var(--over);
+      }
+      .eq {
+        font-size: 13px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: 4.5rem;
+        text-align: right;
+      }
+      .errmsg {
+        font-size: 13px;
+        color: var(--over);
+        min-height: 0;
+      }
+      .errmsg:empty {
+        display: none;
+      }
+      /* Variant B: slider and field in one row */
+      .amt.b .line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 7.5rem;
+        gap: 12px;
+        align-items: center;
+      }
+      .amt.b .rng {
+        padding: 0;
+      }
+
+      /* Panels (variants side by side, card only) */
+      .panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 16px;
+      }
+      .panel {
+        background: var(--background);
+        color: var(--foreground);
+        border-radius: 18px;
+        padding: 14px;
+        display: grid;
+        gap: 12px;
+        align-content: start;
+      }
+      .panel .ph {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+
+      /* Bug comparison strips */
+      .strip-row {
+        display: grid;
+        grid-template-columns: 6.5rem minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .strip {
+        position: relative;
+        height: 6px;
+        border-radius: 99px;
+        background: var(--muted);
+        margin: 10px 8px;
+      }
+      .strip b {
+        position: absolute;
+        inset: 0 auto 0 0;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .strip i {
+        position: absolute;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        border-radius: 99px;
+        background: white;
+        border: 1px solid var(--primary);
+      }
+      .strip i.pinned {
+        background: var(--primary);
+      }
+      .strip-cap {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        margin: -6px 0 6px 5.1rem;
+      }
+
+      /* Desktop frames */
+      .desks {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+        gap: 24px;
+      }
+      .desk-outer {
+        width: 100%;
+        aspect-ratio: 1280 / 800;
+        overflow: hidden;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+        position: relative;
+        background: oklch(0.25 0.005 40);
+      }
+      .desk {
+        width: 1280px;
+        height: 800px;
+        transform-origin: 0 0;
+        position: absolute;
+        top: 0;
+        left: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--background);
+        color: var(--foreground);
+      }
+      .chrome {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 16px;
+        background: color-mix(in oklch, var(--muted) 80%, var(--background));
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .chrome .dots i {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 99px;
+        background: var(--input);
+        margin-right: 6px;
+      }
+      .chrome .url {
+        flex: 1;
+        max-width: 520px;
+        height: 28px;
+        border-radius: 99px;
+        background: var(--background);
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+      }
+      .desk-body {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+      .col {
+        width: 576px;
+        margin: 0 auto;
+        padding: 0 0 80px;
+        display: grid;
+        gap: 14px;
+      }
+      .col .bar {
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .daycard {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 16px;
+        margin: 0 16px;
+      }
+      .daycard .row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 15px;
+      }
+      .daycard .row + .row {
+        border-top: 1px solid var(--border);
+      }
+      .daycard .k {
+        color: var(--muted-foreground);
+      }
+      .tabbar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 64px;
+        border-top: 1px solid var(--border);
+        background: var(--card);
+        display: flex;
+        justify-content: center;
+      }
+      .tabbar ol {
+        width: 576px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .tabbar .plus {
+        width: 48px;
+        height: 48px;
+        border-radius: 99px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        display: grid;
+        place-items: center;
+        font-size: 26px;
+      }
+      .dbanner {
+        margin: 8px 16px 0;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 14px;
+        padding: 10px 12px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        font-size: 14px;
+        box-shadow: 0 1px 3px oklch(0 0 0 / 0.06);
+      }
+      .dbanner .grow {
+        flex: 1;
+        min-width: 0;
+      }
+      .dbanner .link {
+        color: var(--primary);
+        font-weight: 600;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .dbanner.open {
+        align-items: flex-start;
+        padding: 14px;
+      }
+      .qr {
+        width: 132px;
+        height: 132px;
+        background: white;
+        border-radius: 10px;
+        padding: 8px;
+        flex-shrink: 0;
+      }
+      .qr svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .steps {
+        margin: 6px 0 0;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .steps b {
+        color: var(--foreground);
+      }
+      .sidecard {
+        position: absolute;
+        top: 24px;
+        left: calc(50% + 288px + 32px);
+        width: 280px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 18px;
+        padding: 18px;
+        display: grid;
+        gap: 12px;
+        box-shadow: 0 2px 8px oklch(0 0 0 / 0.06);
+        font-size: 14px;
+      }
+      .sidecard .qr {
+        width: 168px;
+        height: 168px;
+        justify-self: center;
+      }
+      .sidecard .x,
+      .dbanner .x {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-foreground);
+        flex-shrink: 0;
+      }
+      .sidecard .x {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+      }
+      .sidecard h4,
+      .dbanner h4 {
+        margin: 0;
+        font-size: 15px;
+      }
+      .desk-cap {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin-top: 8px;
+      }
+      /* NutrientBreakdown, variant item */
+      .nb {
+        padding: 4px 16px 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .nb .head {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .nb .kc {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 700;
+        padding: 2px 6px;
+        margin: -2px -6px;
+        border-radius: 8px;
+        background: color-mix(in oklch, var(--foreground) 6%, transparent);
+      }
+      .nb .kc small {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .nb .split {
+        display: flex;
+        height: 8px;
+        border-radius: 99px;
+        overflow: hidden;
+        background: var(--muted);
+        margin: 10px 0 14px;
+      }
+      .nb .split i {
+        display: block;
+        height: 100%;
+      }
+      .nb ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .nb .mrow {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .nb .mrow .l {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+      }
+      .nb .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+        flex-shrink: 0;
+      }
+      .nb .mrow .v {
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      .nb .mrow .v b {
+        color: var(--foreground);
+      }
+      .nb .share {
+        height: 6px;
+        border-radius: 99px;
+        background: var(--muted);
+        margin-top: 4px;
+        overflow: hidden;
+      }
+      .nb .share i {
+        display: block;
+        height: 100%;
+        border-radius: 99px;
+      }
+      .nb .more {
+        margin-top: 8px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+      .nb .more svg {
+        width: 16px;
+        height: 16px;
+      }
+      .ibanner {
+        margin: 8px 8px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 6px 8px 8px;
+        border: 1px solid var(--border);
+        background: var(--card);
+        border-radius: 14px;
+        box-shadow: 0 2px 8px oklch(0 0 0 / 0.08);
+        font-size: 14px;
+      }
+      .ibanner.play {
+        animation: slidein 0.35s ease-out 3s both;
+      }
+      @keyframes slidein {
+        from {
+          transform: translateY(-130%);
+          opacity: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ibanner.play {
+          animation: none;
+        }
+      }
+      .appicon {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        flex-shrink: 0;
+        background: url(data:image/png;base64,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)
+          center / cover;
+        box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.08);
+      }
+      .dark .appicon {
+        background-image: url(data:image/png;base64,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);
+      }
+      .appicon.big {
+        width: 56px;
+        height: 56px;
+        border-radius: 13px;
+      }
+      .ibanner .t {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.25;
+      }
+      .ibanner .t b {
+        display: block;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ibanner .t span {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .pill {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        font-weight: 600;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        flex-shrink: 0;
+        white-space: nowrap;
+      }
+      .ibanner .x {
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+        color: var(--muted-foreground);
+        flex-shrink: 0;
+      }
+      .ibanner .x svg {
+        width: 16px;
+        height: 16px;
+      }
+      .screen {
+        position: relative;
+      }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        background: oklch(0 0 0 / 0.45);
+        display: flex;
+        flex-direction: column;
+        padding: 56px 12px 12px;
+      }
+      .overlay.bottom {
+        justify-content: flex-end;
+      }
+      .dlg {
+        background: var(--card);
+        color: var(--foreground);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+        display: grid;
+        gap: 10px;
+        font-size: 14px;
+      }
+      .dlg h4 {
+        margin: 0;
+        font-size: 17px;
+      }
+      .dlg .muted {
+        color: var(--muted-foreground);
+        font-size: 13px;
+      }
+      .chromesheet {
+        background: oklch(0.97 0 0);
+        color: oklch(0.2 0 0);
+        border-radius: 20px 20px 0 0;
+        margin: 0 -12px -12px;
+        padding: 20px;
+        display: grid;
+        gap: 14px;
+        font-family: Roboto, system-ui, sans-serif;
+      }
+      .dark .chromesheet {
+        background: oklch(0.25 0 0);
+        color: oklch(0.95 0 0);
+      }
+      .replay {
+        font: inherit;
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Runde 7: Mengen-Editor und Install-Banner</h1>
+      <p class="lead">
+        Mockup v4 vom 9. Oktober 2026. Die Slider auf dieser Seite sind echt: ziehen, tippen, Feld verlassen.
+        Plan: <code>docs/plans/2026-10-feedback-runde-7.md</code>, Schritt 0.
+      </p>
+      <div class="themebar" role="group" aria-label="Seitenhintergrund">
+        <button type="button" data-set-theme="system" aria-pressed="true">System</button>
+        <button type="button" data-set-theme="light" aria-pressed="false">Hell</button>
+        <button type="button" data-set-theme="dark" aria-pressed="false">Dunkel</button>
+      </div>
+
+      <div class="note new">
+        <strong>Entschieden</strong>
+        <ul>
+          <li>Mengen-Editor Variante A (gestapelt: Slider mit Skala, darunter − Feld +).</li>
+          <li>
+            Der Slider startet genau in der Mitte: Ende = 2 × Startmenge, die mittlere Markierung der Skala
+            ist die Startmenge.
+          </li>
+          <li>Raster: 1 g bzw. 1 ml, bei Portionen 0,1 (also 1,1 Portionen statt gleich 1,5).</li>
+          <li>
+            „Nährwerte dieser Menge“ zeigt die Nährwertübersicht der App (kcal, Energieverteilung, Makros,
+            „Weitere Nährstoffe“).
+          </li>
+          <li>
+            Install-Banner im Stil der App-Store-Banner vieler Webseiten (Abschnitt 5): erscheint nach ein
+            paar Sekunden oben, sieht aus wie das Banner „Eine neue Version ist da“, mit App-Icon, Name und
+            Knopf.
+          </li>
+          <li>Immer nur ein Banner oben: Sitzung abgelaufen vor Update vor Install (Abschnitt 5c).</li>
+        </ul>
+      </div>
+      <div class="note">
+        <strong>Neu gegenüber v3</strong>
+        <ul>
+          <li>
+            Abschnitt 5c: Install-Banner und Update-Banner zusammen. Es ist immer nur ein Banner sichtbar,
+            nichts überlappt.
+          </li>
+        </ul>
+        <strong>Neu gegenüber v2</strong>
+        <ul>
+          <li>
+            Abschnitt 5 neu: ein Install-Banner wie die App-Store-Banner anderer Webseiten statt der
+            aufklappbaren Leisten. Gleiche Form wie das Update-Banner der App. Gilt für iPhone, Android und
+            Desktop.
+          </li>
+          <li>v2: Skala startet in der Mitte, Raster 1 g / 0,1, Nährwertübersicht wie in der App.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <strong>Noch offen</strong>
+        <ul>
+          <li>
+            Soll die KI-Review auch die Einheit wechseln können (heute nur Gramm)? Im Mockup ja, damit der
+            Editor überall gleich ist.
+          </li>
+        </ul>
+      </div>
+
+      <h2>1. Der Fehler heute und die neue Skala</h2>
+      <p class="lead">
+        Heute rechnet der Slider sein Ende bei jeder Bewegung aus dem aktuellen Wert neu (2,5 × Wert). Beim
+        Ziehen schiebt darum jeder Schritt das Ende weiter nach außen, bis die Zahl explodiert. Neu legt die
+        Startmenge den Bereich fest: Sie steht in der Mitte, das Ende ist das Doppelte, und beim Ziehen bleibt
+        das so. Liegt ein getippter Wert über dem Ende, steht der Daumen gefüllt am Ende; beim Verlassen des
+        Felds wird der Wert die neue Mitte.
+      </p>
+      <div class="panels" id="bug"></div>
+
+      <h2>2. Der Mengen-Editor</h2>
+      <p class="lead">
+        Haferflocken, Startmenge 60 g: Daumen in der Mitte, Skala 0 / 60 g / 120 g. Raster 1 g. Die Einheit
+        oben rechts wechselt zwischen Gramm und Portionen, die Menge bleibt dabei gleich und wird die neue
+        Mitte. Zum Ausprobieren: Feld auf 600 setzen und verlassen.
+      </p>
+      <div class="panels" id="variants"></div>
+
+      <h2>3. Überall derselbe Editor</h2>
+      <p class="lead">
+        Eintragen, Eintrag bearbeiten, Zutat in der KI-Review und im Meal-Editor (in Stück). Auf der
+        Eintrageseite fällt „Auch an weiteren Tagen eintragen“ weg. Gesamtmenge-Slider und „Meal eintragen“
+        bleiben wie sie sind.
+      </p>
+      <div class="phones" id="places"></div>
+
+      <h2>4. Große Zahlen laufen nicht mehr aus der Karte</h2>
+      <p class="lead">
+        Höchstens 9.999 g oder ml und 99 Portionen. Kopf und Feld bleiben in der Karte, die kcal rutschen nie
+        unter den Namen. Ein größerer Wert wird nicht übernommen, das Feld sagt warum.
+      </p>
+      <div class="phones" id="big"></div>
+
+      <h2>5. Install-Banner</h2>
+      <p class="lead">
+        Wie die „App laden“-Banner vieler Webseiten: Etwa 3 Sekunden nach dem Öffnen gleitet oben ein Banner
+        herein, in der Form des Banners „Eine neue Version ist da“. App-Icon, Name, eine Zeile Nutzen, Knopf,
+        Schließen. Es erscheint nur im Browser, nie in der installierten App, und nach dem Schließen nicht
+        wieder. Was der Knopf tut, hängt vom Gerät ab.
+      </p>
+      <p><button type="button" class="replay" id="replay">Einblenden abspielen (nach 3 s)</button></p>
+      <div class="phones" id="mobile"></div>
+      <h2 style="margin-top: 32px">5b. Am Computer</h2>
+      <p class="lead">
+        Gleiches Banner über der App-Spalte. Am Computer ergibt die Installation wenig Sinn, darum führt der
+        Knopf aufs Handy: Ein Dialog zeigt einen QR-Code mit der Adresse der App (im Mockup ein Platzhalter).
+      </p>
+      <div class="desks" id="desks"></div>
+      <h2 style="margin-top: 32px">5c. Zusammen mit „Eine neue Version ist da“</h2>
+      <p class="lead">
+        Oben steht immer höchstens ein Banner, darum kann nichts überlappen. Reihenfolge: „Sitzung
+        abgelaufen“, dann „Eine neue Version ist da“, dann das Install-Banner. Solange das Update-Banner da
+        ist, wartet das Install-Banner. „Aktualisieren“ lädt die App neu; 3 Sekunden danach kommt das
+        Install-Banner. Die Banner schieben den Inhalt nach unten und liegen nie darüber.
+      </p>
+      <div class="phones" id="both"></div>
+
+      <div class="note">
+        <strong>Details</strong>
+        <ul>
+          <li>
+            Skala: Ende = 2 × Startmenge, nie über dem Höchstwert des Felds. Startmenge = Menge beim Öffnen,
+            nach einem Einheitenwechsel oder nach dem Verlassen des Felds; Ziehen ändert sie nie.
+          </li>
+          <li>
+            Beschriftung unter dem Slider: 0, Startmenge (Mitte), Ende. Der Slider schreibt beim Ziehen nur
+            lokal und speichert beim Loslassen.
+          </li>
+          <li>− und + springen um einen Rasterschritt (1 g, 0,1 Portionen); Gedrückthalten wiederholt.</li>
+          <li>
+            Install-Banner: erscheint 3 s nach dem Start, nur im Browser (nicht standalone), höchstens einmal
+            pro Sitzung, nach dem Schließen nie wieder auf diesem Gerät. Steht unter „Eine neue Version ist
+            da“, wenn beide da sind.
+          </li>
+          <li>
+            iPhone: Safari lässt Webseiten nicht selbst installieren, darum zeigt „Installieren“ die drei
+            Schritte. Android/Chrome: „Installieren“ öffnet den Installationsdialog von Chrome. Computer:
+            „Aufs Handy“ zeigt den QR-Code (im Browser erzeugt, funktioniert offline).
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <script>
+      // ---------- helpers ----------
+      const nf = (v, d = 1) => new Intl.NumberFormat('de-DE', { maximumFractionDigits: d }).format(v);
+      const svg = (p, w = 2) =>
+        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+      const I = {
+        back: svg('<path d="m15 18-6-6 6-6"/>'),
+        chev: svg('<path d="m6 9 6 6 6-6"/>'),
+        minus: svg('<path d="M5 12h14"/>'),
+        plus: svg('<path d="M5 12h14M12 5v14"/>'),
+        trash: svg('<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>'),
+        pencil: svg('<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+        save: svg(
+          '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+        ),
+        redo: svg('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
+        x: svg('<path d="M18 6 6 18M6 6l12 12"/>'),
+        phone: svg('<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>'),
+        share: svg('<path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>'),
+        add: svg('<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/>'),
+      };
+
+      const MAX = { g: 9999, ml: 9999, p: 99 };
+      /** Fixed slider end: the start amount sits exactly in the middle; dragging never changes it. */
+      function rangeEnd(ref) {
+        return ref * 2;
+      }
+
+      // ---------- interactive amount editor ----------
+      // cfg: { food, kcal100, units: [{label, grams}] (grams: null = the base unit g/ml), unit, value,
+      //        variant: 'a'|'b', unitFull?, onKcal? (id of an element showing kcal) }
+      const editors = [];
+      function editor(cfg) {
+        const id = editors.length;
+        const st = { ...cfg };
+        st.ref = st.value;
+        st.end = capEnd(st, rangeEnd(st.ref));
+        editors.push(st);
+        return `<div class="amt ${cfg.variant}" data-amt="${id}"></div>`;
+      }
+      /** The slider never reaches past the field's maximum. */
+      function capEnd(st, end) {
+        return Math.min(unitOf(st).grams !== null ? MAX.p : MAX[base(st)], end);
+      }
+      function unitOf(st) {
+        return st.units[st.unit];
+      }
+      function base(st) {
+        return st.units[0].label === 'ml' ? 'ml' : 'g';
+      }
+      function gramsOf(st) {
+        const u = unitOf(st);
+        return u.grams === null ? st.value : st.value * u.grams;
+      }
+      function unitSym(st) {
+        const u = unitOf(st);
+        return u.grams === null ? base(st) : '×';
+      }
+      function renderEditor(el) {
+        const st = editors[+el.dataset.amt];
+        const isP = unitOf(st).grams !== null;
+        const step = isP ? 0.1 : 1;
+        const opts = st.units
+          .map(
+            (u, i) =>
+              `<option value="${i}" ${i === st.unit ? 'selected' : ''}>${
+                u.grams === null
+                  ? u.label === 'ml'
+                    ? 'Milliliter'
+                    : 'Gramm'
+                  : `${u.label} (${nf(u.grams)} ${base(st)})`
+              }</option>`,
+          )
+          .join('');
+        const sel = `<select class="unitsel${st.variant === 'b' ? ' full' : ''}" aria-label="Einheit">${opts}</select>`;
+        const fmtTick = (v) => (isP ? `${nf(v)} ×` : `${nf(v, 0)} ${base(st)}`);
+        const refPos = Math.min(100, (st.ref / st.end) * 100);
+        const ticks = `<div class="ticks"><span>0</span>${
+          st.ref > 0 && refPos < 90 && refPos > 10
+            ? `<span style="left:${refPos}%">${fmtTick(st.ref)}</span>`
+            : ''
+        }<span>${fmtTick(st.end)}</span></div>`;
+        const range = `<div class="rng"><input type="range" min="0" max="${st.end}" step="${step}" aria-label="Menge ${st.food}"/>${
+          st.variant === 'a' ? ticks : ''
+        }</div>`;
+        const field = `<div class="field"><input inputmode="decimal" aria-label="${isP ? 'Anzahl' : st.units[0].label === 'ml' ? 'Milliliter' : 'Gramm'}"/><span class="u">${unitSym(st)}</span></div>`;
+        const eq = isP ? `<div class="eq" data-eq></div>` : '';
+        if (st.variant === 'a') {
+          el.innerHTML = `<div class="amt-head"><span class="lbl">Menge</span>${sel}</div>${range}<div class="amt-row"><button type="button" class="sq" data-d="-1" aria-label="Weniger">${I.minus}</button>${field}<button type="button" class="sq" data-d="1" aria-label="Mehr">${I.plus}</button>${eq}</div><div class="errmsg"></div>`;
+        } else {
+          el.innerHTML = `${sel}<div class="line">${range}${field}</div>${isP ? `<div class="eq" data-eq style="text-align:left"></div>` : ''}<div class="errmsg"></div>`;
+        }
+        wire(el, st, step);
+      }
+      function sync(el, st, { field = true } = {}) {
+        const r = el.querySelector('input[type=range]');
+        const f = el.querySelector('.field input');
+        const v = Math.min(st.value, st.end);
+        r.value = v;
+        r.style.setProperty('--p', `${(v / st.end) * 100}%`);
+        el.querySelector('.rng').classList.toggle('pinned', st.value > st.end);
+        if (field) f.value = nf(st.value, 2);
+        const eq = el.querySelector('[data-eq]');
+        if (eq) eq.textContent = `= ${nf(gramsOf(st), 0)} ${base(st)}`;
+        if (st.onKcal) {
+          const k = document.getElementById(st.onKcal);
+          if (k) k.textContent = `${nf((gramsOf(st) * st.kcal100) / 100, 0)} kcal`;
+        }
+        if (st.onNutr) st.onNutr(gramsOf(st));
+      }
+      function wire(el, st, step) {
+        const r = el.querySelector('input[type=range]');
+        const f = el.querySelector('.field input');
+        const fw = el.querySelector('.field');
+        const err = el.querySelector('.errmsg');
+        const isP = unitOf(st).grams !== null;
+        const max = isP ? MAX.p : MAX[base(st)];
+        const grow = () => {
+          if (st.value > st.end) {
+            st.ref = st.value;
+            st.end = Math.min(max, rangeEnd(st.value));
+            renderEditor(el);
+          }
+        };
+        r.addEventListener('input', () => {
+          st.value = +r.value;
+          err.textContent = '';
+          fw.classList.remove('err');
+          sync(el, st);
+        });
+        f.addEventListener('input', () => {
+          const v = Number(f.value.replace(/\./g, '').replace(',', '.'));
+          if (!f.value.trim() || !Number.isFinite(v) || v <= 0) {
+            err.textContent = 'Bitte eine Menge größer 0 eingeben.';
+            fw.classList.add('err');
+            return;
+          }
+          if (v > max) {
+            err.textContent = `Höchstens ${nf(max, 0)} ${isP ? 'Portionen' : base(st)}.`;
+            fw.classList.add('err');
+            return;
+          }
+          err.textContent = '';
+          fw.classList.remove('err');
+          st.value = v;
+          sync(el, st, { field: false });
+        });
+        f.addEventListener('blur', () => {
+          if (fw.classList.contains('err')) return;
+          sync(el, st);
+          grow();
+        });
+        el.querySelectorAll('.sq').forEach((b) =>
+          b.addEventListener('click', () => {
+            const d = +b.dataset.d;
+            st.value = Math.max(step, Math.min(max, Math.round((st.value + d * step) * 100) / 100));
+            err.textContent = '';
+            fw.classList.remove('err');
+            sync(el, st);
+            grow();
+          }),
+        );
+        el.querySelector('select').addEventListener('change', (e) => {
+          const g = gramsOf(st);
+          st.unit = +e.target.value;
+          const u = unitOf(st);
+          st.value = u.grams === null ? Math.round(g) : Math.max(0.1, Math.round((g / u.grams) * 10) / 10);
+          st.ref = st.value;
+          st.end = capEnd(st, rangeEnd(st.ref));
+          renderEditor(el);
+        });
+        sync(el, st);
+      }
+
+      // ---------- frames ----------
+      function phone(theme, title, actions, body, footer, caption) {
+        return `<div><div class="phone"><div class="screen ${theme}">
+          <div class="status"><span>9:41</span><span>●●●</span></div>
+          <div class="bar"><span class="ib">${I.back}</span><span class="t">${title}</span>${actions}</div>
+          <main>${body}</main>
+          ${footer ? `<div class="footer"><div class="btn primary">${footer}</div></div>` : ''}
+        </div></div><div class="caption">${caption}</div></div>`;
+      }
+      const nutrBlock = (id) =>
+        `<div class="card"><div class="sect-title">Nährwerte dieser Menge</div><div class="nb" id="${id}"></div></div>`;
+      const OATS = { kcal: 368, p: 13.5, c: 58.7, f: 7 };
+      /** Same math as shared energyBreakdown: macro energy 4/4/9, shares of the macro energy. */
+      function nutrFill(id, food) {
+        return (g) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const k = g / 100;
+          const m = [
+            ['Protein', food.p * k, 4, '--protein'],
+            ['Kohlenhydrate', food.c * k, 4, '--carbs'],
+            ['Fett', food.f * k, 9, '--fat'],
+          ].map(([l, gr, f, c]) => ({ l, gr, kc: gr * f, c }));
+          const tot = m.reduce((a, x) => a + x.kc, 0) || 1;
+          el.innerHTML = `<div class="head"><span class="kc">${nf(food.kcal * k, 0)}<small>kcal</small></span></div>
+            <div class="split" role="img" aria-label="Energieverteilung">${m
+              .map((x) => `<i style="width:${(x.kc / tot) * 100}%;background:var(${x.c})"></i>`)
+              .join('')}</div>
+            <ul>${m
+              .map(
+                (x) =>
+                  `<li><div class="mrow"><span class="l"><span class="dot" style="background:var(${x.c})"></span>${x.l}</span><span class="v"><b>${nf(
+                    x.gr,
+                  )} g</b> · ${nf((x.kc / tot) * 100, 0)} % · ${nf(x.kc, 0)} kcal</span></div><div class="share"><i style="width:${
+                    (x.kc / tot) * 100
+                  }%;background:var(${x.c})"></i></div></li>`,
+              )
+              .join('')}</ul>
+            <div class="more"><span>Weitere Nährstoffe</span>${I.chev}</div>`;
+        };
+      }
+      const oatUnits = [
+        { label: 'g', grams: null },
+        { label: '1 Portion', grams: 40 },
+        { label: '1 EL', grams: 10 },
+      ];
+
+      // ---------- 1. bug ----------
+      const strip = (label, pct, pinned) =>
+        `<div class="strip-row"><span>${label}</span><div class="strip"><b style="width:${pct}%"></b><i class="${pinned ? 'pinned' : ''}" style="left:${pct}%"></i></div></div>`;
+      const capt = (t) => `<div style="font-size:12px;color:var(--muted-foreground)">${t}</div>`;
+      const bugPanel = (theme, old) => {
+        const rows = old
+          ? strip('Start 80 g', 40) + strip('gezogen', 40) + strip('weiter', 40)
+          : strip('Start 80 g', 50) +
+            strip('ganz rechts', 100) +
+            strip('getippt 3.050', 100, true) +
+            strip('Feld verlassen', 50);
+        const cap = old
+          ? capt(
+              'Das Ende wächst mit dem Wert mit (200 g, 500 g, 1.250 g, ...), der Daumen bleibt stehen und die Zahl explodiert.',
+            )
+          : capt(
+              'Ende fest 160 g, ganz rechts sind es genau 160 g. 3.050 g getippt: Daumen gefüllt am Ende, nach dem Verlassen des Felds ist 3.050 g die neue Mitte (Ende 6.100 g).',
+            );
+        return `<div class="panel ${theme}"><div class="ph">${theme === 'light' ? 'Hell' : 'Dunkel'}, ${
+          old ? 'heute' : 'neu (Start in der Mitte, fester Bereich)'
+        }</div><div class="card" style="padding:8px 12px">${rows}</div>${cap}</div>`;
+      };
+      document.getElementById('bug').innerHTML =
+        bugPanel('light', true) + bugPanel('light', false) + bugPanel('dark', true) + bugPanel('dark', false);
+
+      // ---------- 2. variants ----------
+      const varPanel = (theme, variant) =>
+        `<div class="panel ${theme}"><div class="ph">${theme === 'light' ? 'Hell' : 'Dunkel'}</div><div class="card"><div class="cardbody">${editor(
+          {
+            food: 'Haferflocken',
+            kcal100: 368,
+            units: oatUnits,
+            unit: 0,
+            value: 60,
+            variant,
+          },
+        )}</div></div></div>`;
+      document.getElementById('variants').innerHTML = varPanel('light', 'a') + varPanel('dark', 'a');
+
+      // ---------- 3. places ----------
+      const mealSel = `<div style="display:grid;gap:6px"><span class="lbl">Mahlzeit</span><div class="sel"><span>Frühstück</span><span class="chev">${I.chev}</span></div></div>`;
+      function logPage(theme, edit) {
+        const nid = `n-${theme}-${edit ? 'e' : 'n'}`;
+        const ed = editor({
+          food: 'Haferflocken',
+          kcal100: 368,
+          units: oatUnits,
+          unit: 1,
+          value: edit ? 1.5 : 1,
+          variant: 'a',
+          onNutr: nutrFill(nid, OATS),
+        });
+        const body = `<div><h2 class="h-food">Haferflocken</h2><div class="meta"><span class="badge">BLS 4.0</span><span>Getreideprodukte</span></div></div>
+          <div class="card"><div class="cardbody">${ed}${mealSel}${
+            edit ? '' : '<div class="gone">Auch an weiteren Tagen eintragen (entfällt)</div>'
+          }</div></div>${nutrBlock(nid)}`;
+        return phone(
+          theme,
+          edit ? 'Eintrag bearbeiten' : 'Essen eintragen',
+          edit ? `<span class="ib">${I.trash}</span>` : '',
+          body,
+          edit ? 'Änderungen übernehmen' : 'Eintragen',
+          `${theme === 'light' ? 'Hell' : 'Dunkel'}, ${edit ? 'Eintrag bearbeiten' : 'neu eintragen'}`,
+        );
+      }
+      function aiCard(theme, name, dbName, kcal100, grams, opts = {}) {
+        const kid = `k-${theme}-${editors.length}`;
+        const ed = editor({
+          food: name,
+          kcal100,
+          units: [{ label: 'g', grams: null }, ...(opts.units ?? [])],
+          unit: 0,
+          value: grams,
+          variant: 'a',
+          onKcal: kid,
+        });
+        return `<div class="card"><div class="cardbody">
+          <div class="ihead"><div class="name">${name}<div><span class="chip">KI: mittel</span></div></div><div class="right"><span id="${kid}">${nf(
+            (grams * kcal100) / 100,
+            0,
+          )} kcal</span><span class="ib">${I.trash}</span></div></div>
+          <div style="display:grid;gap:6px"><span class="lbl">Lebensmittel aus der Datenbank</span><div class="sel"><span>${dbName}</span><span class="chev">${I.chev}</span></div></div>
+          ${ed}
+          <div class="disc"><span>Nährwerte</span><span class="chev" style="width:16px;height:16px">${I.chev}</span></div>
+        </div></div>`;
+      }
+      function aiPage(theme) {
+        const body =
+          aiCard(theme, 'Kartoffelpüree', 'Kartoffelpüree mit Milch 3,5 % Fett · 88 kcal/100 g', 88, 180) +
+          aiCard(theme, 'Erbsen', 'Grüne Erbsen gekocht · 80 kcal/100 g', 80, 80, {
+            units: [{ label: '1 EL', grams: 15 }],
+          });
+        return phone(
+          theme,
+          'Ergebnis prüfen',
+          `<span class="ib">${I.redo}</span><span class="ib">${I.save}</span><span class="ib">${I.x}</span>`,
+          body,
+          'Meal eintragen',
+          `${theme === 'light' ? 'Hell' : 'Dunkel'}, KI-Review`,
+        );
+      }
+      function mealPage(theme) {
+        const kid = `k-${theme}-${editors.length}`;
+        const ed = editor({
+          food: 'Ei',
+          kcal100: 137,
+          units: [
+            { label: 'g', grams: null },
+            { label: '1 Stück', grams: 60 },
+          ],
+          unit: 1,
+          value: 2,
+          variant: 'a',
+          onKcal: kid,
+        });
+        const body = `<div class="card"><div class="cardbody">
+          <div class="ihead"><div class="name">Ei, Hühnerei gekocht</div><div class="right"><span id="${kid}">164 kcal</span><span class="ib">${I.trash}</span></div></div>
+          ${ed}
+          <div class="disc"><span>Nährwerte · 2 × 1 Stück</span><span class="chev" style="width:16px;height:16px">${I.chev}</span></div>
+        </div></div>`;
+        return phone(
+          theme,
+          'Frühstück klassisch',
+          `<span class="ib">${I.save}</span>`,
+          body,
+          null,
+          `${theme === 'light' ? 'Hell' : 'Dunkel'}, Meal-Editor, Zutat in Stück (auch Tagebuch-Gruppe)`,
+        );
+      }
+      document.getElementById('places').innerHTML =
+        logPage('light', false) +
+        logPage('dark', false) +
+        logPage('light', true) +
+        logPage('dark', true) +
+        aiPage('light') +
+        aiPage('dark') +
+        mealPage('light') +
+        mealPage('dark');
+
+      // ---------- 4. big numbers ----------
+      function bigPage(theme) {
+        const body = aiCard(
+          theme,
+          'Kartoffelpüree',
+          'Kartoffelpüree mit Milch 3,5 % Fett · 88 kcal/100 g',
+          88,
+          9999,
+        );
+        return phone(
+          theme,
+          'Ergebnis prüfen',
+          `<span class="ib">${I.redo}</span><span class="ib">${I.save}</span><span class="ib">${I.x}</span>`,
+          body,
+          'Meal eintragen',
+          `${theme === 'light' ? 'Hell' : 'Dunkel'}, 9.999 g (Höchstwert). Tippe 12000 ins Feld für den Hinweis.`,
+        );
+      }
+      document.getElementById('big').innerHTML = bigPage('light') + bigPage('dark');
+
+      // ---------- 5. install banner ----------
+      function qrSvg(seed) {
+        const n = 25;
+        let s = seed;
+        const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+        const finder = (x, y) =>
+          `<rect x="${x}" y="${y}" width="7" height="7" fill="#111"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="#111"/>`;
+        const inFinder = (x, y) => (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9);
+        let cells = '';
+        for (let y = 0; y < n; y++)
+          for (let x = 0; x < n; x++)
+            if (!inFinder(x, y) && rnd() > 0.52)
+              cells += `<rect x="${x}" y="${y}" width="1" height="1" fill="#111"/>`;
+        return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="QR-Code (Platzhalter)">${cells}${finder(
+          0,
+          0,
+        )}${finder(n - 7, 0)}${finder(0, n - 7)}</svg>`;
+      }
+      const diaryCol = (banner) => `<div class="col">
+          ${banner}
+          <div class="bar" style="margin:0 8px"><span class="ib">${I.back}</span><span class="t" style="text-align:center">Heute</span><span class="ib" style="transform:scaleX(-1)">${I.back}</span></div>
+          <div class="daycard"><div class="row"><span class="k">Ziel</span><span>2.300</span></div><div class="row"><span class="k">Essen</span><span>1.240</span></div><div class="row"><span class="k">Training</span><span>+ 380</span></div><div class="row" style="font-weight:700"><span>Übrig</span><span>1.440</span></div></div>
+          <div class="daycard"><div class="row" style="font-weight:600"><span>Frühstück</span><span>520 kcal</span></div><div class="row"><span>Haferflocken</span><span class="k">60 g · 221</span></div><div class="row"><span>Milch 1,5 %</span><span class="k">250 ml · 118</span></div></div>
+          <div class="daycard"><div class="row" style="font-weight:600"><span>Mittagessen</span><span>720 kcal</span></div><div class="row"><span>Kartoffelpüree, Erbsen</span><span class="k">3 Zutaten</span></div></div>
+        </div>`;
+      const tabbar = `<div class="tabbar"><ol><li>Tagebuch</li><li>Berichte</li><li><span class="plus">+</span></li><li>Lebensmittel</li><li>Mehr</li></ol></div>`;
+      const ib = (sub, btn, play) =>
+        `<div class="ibanner${play ? ' play' : ''}" role="status"><span class="appicon" aria-hidden="true"></span><div class="t"><b>Fleisch-Teufel</b><span>${sub}</span></div><span class="pill">${btn}</span><span class="x" aria-label="Schließen">${I.x}</span></div>`;
+      const MOBILE_SUB = 'Kostenlos, ohne App Store';
+      const mDiary = `<div class="card" style="padding:12px 16px"><div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted-foreground)">Ziel</span><span>2.300</span></div><div style="display:flex;justify-content:space-between;padding:4px 0"><span style="color:var(--muted-foreground)">Essen</span><span>1.240</span></div><div style="display:flex;justify-content:space-between;padding:4px 0;font-weight:700;border-top:1px solid var(--border)"><span>Übrig</span><span>1.440</span></div></div>
+        <div class="card" style="padding:12px 16px"><div style="display:flex;justify-content:space-between;font-weight:600"><span>Frühstück</span><span>520 kcal</span></div><div style="display:flex;justify-content:space-between;padding-top:8px"><span>Haferflocken</span><span style="color:var(--muted-foreground)">60 g · 221</span></div></div>`;
+      const inl = (icon) =>
+        `<span style="display:inline-block;width:15px;height:15px;vertical-align:-2px">${icon}</span>`;
+      const iosDialog = `<div class="overlay"><div class="dlg"><div style="display:flex;gap:12px;align-items:center"><span class="appicon big" aria-hidden="true"></span><div><h4>Zum Home-Bildschirm hinzufügen</h4><div class="muted">Dann startet Fleisch-Teufel wie eine App, im Vollbild und mit dauerhaft gespeicherten Daten.</div></div></div>
+          <ol class="steps" style="list-style:decimal;padding-left:18px;font-size:14px">
+            <li>In Safari auf ${inl(I.share)} <b>Teilen</b> tippen.</li>
+            <li><b>„Zum Home-Bildschirm“</b> ${inl(I.add)} wählen.</li>
+            <li>Oben rechts <b>„Hinzufügen“</b> tippen.</li>
+          </ol>
+          <div class="btn primary">Verstanden</div></div></div>`;
+      const chromeDialog = `<div class="overlay bottom"><div class="chromesheet"><div style="display:flex;gap:12px;align-items:center"><span class="appicon" aria-hidden="true"></span><div><b>Fleisch-Teufel</b><div style="font-size:12px;opacity:.7">fleisch-teufel.…</div></div></div><div style="font-size:15px;font-weight:600">App installieren?</div><div style="display:flex;justify-content:flex-end;gap:20px;font-weight:600;color:oklch(0.5 0.15 260)"><span>Abbrechen</span><span>Installieren</span></div></div></div>`;
+      function phoneB(theme, banner, overlay, caption) {
+        return `<div><div class="phone"><div class="screen ${theme}">
+          <div class="status"><span>9:41</span><span>●●●</span></div>
+          ${banner}
+          <div class="bar"><span class="t" style="text-align:center">Heute</span></div>
+          <main>${mDiary}</main>
+          ${overlay}
+        </div></div><div class="caption">${caption}</div></div>`;
+      }
+      function renderMobile() {
+        document.getElementById('mobile').innerHTML =
+          phoneB('light', ib(MOBILE_SUB, 'Installieren', true), '', 'Hell, iPhone: erscheint nach 3 s') +
+          phoneB('dark', ib(MOBILE_SUB, 'Installieren', true), '', 'Dunkel, iPhone') +
+          phoneB(
+            'light',
+            ib(MOBILE_SUB, 'Installieren'),
+            iosDialog,
+            'iPhone, nach „Installieren“: Safari kann nicht selbst installieren, also die drei Schritte',
+          ) +
+          phoneB(
+            'dark',
+            ib(MOBILE_SUB, 'Installieren'),
+            chromeDialog,
+            'Android mit Chrome, nach „Installieren“: der Dialog von Chrome (nicht von uns gestaltet)',
+          );
+      }
+      renderMobile();
+      const dl = svg('<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>');
+      const upd = `<div class="ibanner" role="status" style="padding:10px 10px 10px 14px"><div class="t" style="font-size:14px">Eine neue Version ist da.</div><span class="pill" style="gap:6px"><span style="width:15px;height:15px;display:inline-grid">${dl}</span>Aktualisieren</span></div>`;
+      document.getElementById('both').innerHTML =
+        phoneB('light', upd, '', 'Update da: nur das Update-Banner, das Install-Banner wartet') +
+        phoneB(
+          'light',
+          ib(MOBILE_SUB, 'Installieren', true),
+          '',
+          'Nach „Aktualisieren“ (neu geladen): 3 s später das Install-Banner',
+        ) +
+        phoneB('dark', upd, '', 'Dunkel, Update da') +
+        phoneB('dark', ib(MOBILE_SUB, 'Installieren', true), '', 'Dunkel, danach das Install-Banner');
+      document.getElementById('replay').addEventListener('click', () => {
+        renderMobile();
+        document.querySelectorAll('#both .ibanner.play').forEach((el) => {
+          el.classList.remove('play');
+          void el.offsetWidth;
+          el.classList.add('play');
+        });
+      });
+
+      const qrDialog = `<div class="overlay" style="padding-top:80px;align-items:center"><div class="dlg" style="width:380px"><div style="display:flex;gap:12px;align-items:center"><span class="appicon big" aria-hidden="true"></span><div><h4>Fleisch-Teufel aufs Handy holen</h4><div class="muted">Code mit der Handykamera scannen, dann im Browser installieren.</div></div></div>
+          <div class="qr" style="width:200px;height:200px;justify-self:center">${qrSvg(7)}</div>
+          <ul class="steps"><li><b>iPhone:</b> in Safari öffnen, Teilen, „Zum Home-Bildschirm“.</li><li><b>Android:</b> in Chrome öffnen, „Installieren“ antippen.</li></ul>
+          <div class="btn outline">Schließen</div></div></div>`;
+      const DESK_SUB = 'Als App aufs Handy holen, kostenlos';
+      function desk(theme, dialog, cap) {
+        const banner = `<div style="margin:0 8px">${ib(DESK_SUB, 'Aufs Handy')}</div>`;
+        return `<div><div class="desk-outer"><div class="desk ${theme}">
+            <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">fleisch-teufel.…/diary</span></div>
+            <div class="desk-body screen" style="border-radius:0;min-height:0">${diaryCol(banner)}${tabbar}${dialog ? qrDialog : ''}</div>
+          </div></div><div class="desk-cap">${cap}</div></div>`;
+      }
+      document.getElementById('desks').innerHTML =
+        desk('light', false, 'Hell, Banner über der Spalte') +
+        desk('dark', true, 'Dunkel, nach „Aufs Handy“');
+      const fit = () =>
+        document.querySelectorAll('.desk-outer').forEach((o) => {
+          o.firstElementChild.style.transform = `scale(${o.clientWidth / 1280})`;
+        });
+      fit();
+      addEventListener('resize', fit);
+
+      // ---------- mount editors ----------
+      document.querySelectorAll('[data-amt]').forEach(renderEditor);
+
+      // ---------- page theme ----------
+      document.querySelectorAll('[data-set-theme]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const t = b.dataset.setTheme;
+          if (t === 'system') document.documentElement.removeAttribute('data-theme');
+          else document.documentElement.dataset.theme = t;
+          document
+            .querySelectorAll('[data-set-theme]')
+            .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        }),
+      );
+    </script>
+  </body>
+</html>

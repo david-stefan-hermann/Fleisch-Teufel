@@ -14,6 +14,7 @@ import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { saveMealFromEntries } from '@/db/entries';
 import { fmt0, fmtDate, fmtRelativeDay } from '@/lib/format';
 import { DiaryRows } from './MealCard';
+import { warmUpCamera } from '@/components/cameraWarmup';
 
 /**
  * One diary meal (Frühstück, Mittagessen, ...) of a day, opened from its card header: the nutrient
@@ -61,7 +62,13 @@ export function DiaryMealPage() {
             <Save aria-hidden />
           </Button>
           <Button variant="ghost" size="icon" asChild>
-            <Link to="/photo" search={{ date, meal }} aria-label={`Essen zu ${name} eintragen`}>
+            <Link
+              to="/photo"
+              preload="intent"
+              onClick={warmUpCamera}
+              search={{ date, meal }}
+              aria-label={`Essen zu ${name} eintragen`}
+            >
               <Plus className="text-primary" aria-hidden />
             </Link>
           </Button>
@@ -87,7 +94,7 @@ export function DiaryMealPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<UtensilsCrossed />} title="Noch nichts eingetragen">
                 <Button variant="outline" className="mt-2" asChild>
-                  <Link to="/photo" search={{ date, meal }}>
+                  <Link to="/photo" preload="intent" onClick={warmUpCamera} search={{ date, meal }}>
                     <Plus aria-hidden /> Essen eintragen
                   </Link>
                 </Button>
