@@ -121,6 +121,19 @@ export function useLoggedDates(from: ISODate, to: ISODate): Set<string> | undefi
   }, [db, from, to]);
 }
 
+/** Days in [from, to] with at least one training (blue dot in the week strip). */
+export function useTrainedDates(from: ISODate, to: ISODate): Set<string> | undefined {
+  const db = useDb();
+  return useLiveQuery(async () => {
+    const list = await db.exerciseEntries
+      .where('date')
+      .between(from, to, true, true)
+      .filter((e) => !e.deleted)
+      .toArray();
+    return new Set(list.map((e) => e.date));
+  }, [db, from, to]);
+}
+
 /** Name and photo of saved meals by id (also deleted ones: diary groups keep showing them). */
 export function useMealInfo(
   ids: (string | null)[],
