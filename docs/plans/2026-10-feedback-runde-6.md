@@ -256,8 +256,10 @@ Planablage in `docs/plans`. Ein Commit pro Block wie in Runde 5; Push nur nach R
 Alle Blöcke umgesetzt, Commits `4dc5a1d` bis zum Doku-Commit. Abweichungen vom Plan:
 
 - Block 4 und 5 sind ein gemeinsamer Commit, weil die Zeile auf die neue Route verlinkt.
-- Das Hütchen hat eine Trefferfläche von 32 px Höhe statt 44 px. Mehr geht nicht, ohne dass es den Namen darüber
-  überdeckt (dann würde ein Tipp auf den Namen aufklappen statt den Editor öffnen). Die Fläche ist dafür breiter.
+- Das Hütchen: 44 px Höhe hätten den Namen halb überdeckt (gemessen klappte ein Tipp auf die untere Namenshälfte
+  auf). Entschieden (User): breiter statt höher. Die Trefferfläche ist das `::before` des Buttons auf der Zeile:
+  linke Zeilenhälfte, von unter der Namenszeile bis zum Zeilenende (24 px hoch, 178 px breit auf dem iPhone). Mehr
+  Höhe geht nicht, ohne den Namen zu überdecken.
 - Block 3: Auch „Meal eintragen“ eines gespeicherten Meals (nicht nur der KI-Weg) schreibt das Meal-Foto des
   Moments an die Einträge, damit `photoId` überall dieselbe Bedeutung hat.
 - Block 8: Das Pulver bleibt nur dann als Alternative sichtbar, wenn es unter die fünf besten Kandidaten kommt

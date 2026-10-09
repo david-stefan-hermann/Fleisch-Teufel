@@ -311,7 +311,9 @@ function GroupRow({
                   {name}
                 </Link>
               </div>
-              {/* Above the stretched link; the padding enlarges the tap area without making the row taller. */}
+              {/* The tap area is the button's ::before, placed on the row (the nearest positioned ancestor):
+                  left half of the row from below the name line (top-8 = padding + one line) to the bottom,
+                  above the stretched link. Wider instead of higher: the name stays free, the row its height. */}
               <button
                 type="button"
                 aria-expanded={expanded}
@@ -322,7 +324,7 @@ function GroupRow({
                   e.stopPropagation();
                   toggle();
                 }}
-                className="relative z-10 -mx-2 -my-2 flex items-center gap-1 rounded-md px-2 py-2 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                className="flex items-center gap-1 rounded-md text-xs text-muted-foreground before:absolute before:top-8 before:bottom-0 before:left-0 before:z-10 before:w-1/2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
               >
                 {fmtIngredients(entries.length)}
                 <ChevronDown
