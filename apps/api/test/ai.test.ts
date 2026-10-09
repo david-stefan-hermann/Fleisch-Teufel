@@ -1,8 +1,9 @@
-import type { AiItem } from '@ft/shared';
+import { indexItem, search, type AiItem } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer, type LabelInput } from '../src/ai/analyze.js';
 import type { LabelReading } from '../src/ai/label.js';
-import { matchItem } from '../src/ai/match.js';
+import { matchItem, type LocalSearch } from '../src/ai/match.js';
+import { blsToFood, loadBls } from '../src/foods/catalog.js';
 import { costUsd } from '../src/ai/pricing.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
@@ -104,6 +105,16 @@ describe('pricing', () => {
   });
 });
 
+/** Local search over the real BLS 4.0 file (the test context only has a small fixture). */
+let realSearch: LocalSearch | null = null;
+function realBlsSearch(): LocalSearch {
+  if (!realSearch) {
+    const index = loadBls().foods.map(blsToFood).map(indexItem);
+    realSearch = (q, n) => search(index, q, n).map((h) => ({ food: h.item, score: h.score }));
+  }
+  return realSearch;
+}
+
 describe('matching', () => {
   it('prefers the preparation-specific BLS food', () => {
     const r = matchItem(
@@ -112,6 +123,74 @@ describe('matching', () => {
     );
     expect(r[0]!.food.id).toBe('bls:V411180');
     expect(r.map((x) => x.food.id)).toContain('bls:V411100');
+  });
+
+  it('never picks the instant powder for a prepared food (Köttbullar with mash and gravy)', () => {
+    const search = realBlsSearch();
+    const mash = matchItem(
+      item({ name: 'Kartoffelpüree', grams: 200, searchTerms: ['Kartoffelpüree', 'Kartoffelbrei'] }),
+      search,
+    );
+    // Before: "Kartoffelpüree Instantpulver" (329 kcal, 71 g carbs per 100 g) came first.
+    expect(mash[0]!.food.name).not.toMatch(/pulver/i);
+    expect(mash[0]!.food.name).toMatch(/^Kartoffelpüree/);
+    expect(mash[0]!.food.nutrients.ENERCC).toBeLessThan(120);
+    const gravy = matchItem(
+      item({ name: 'Bratensoße', grams: 80, searchTerms: ['Bratensoße', 'Soße'] }),
+      search,
+    );
+    expect(gravy[0]!.food.name).toMatch(/Bratensoße/);
+    expect(gravy[0]!.food.name).not.toMatch(/Instantpulver$/);
+    // The powder stays a choice further down.
+    expect(gravy.map((c) => c.food.name)).toContain('Bratensoße Instantpulver');
+  });
+
+  it('pushes down dry products unless the item is the dry product', () => {
+    const food = (id: string, name: string) => ({
+      id,
+      source: 'bls' as const,
+      sourceId: id,
+      name,
+      nameEn: null,
+      brand: null,
+      group: null,
+      unit: 'g' as const,
+      nutrients: {},
+      portions: [],
+    });
+    const hits = [
+      { food: food('p', 'Erbsensuppe Instantpulver'), score: 80 },
+      { food: food('z', 'Erbsensuppe aus Instantpulver, zubereitet mit Wasser'), score: 70 },
+      { food: food('k', 'Erbsensuppe Konserve'), score: 72 },
+      { food: food('t', 'Linsen Trockenprodukt'), score: 60 },
+    ];
+    const search = () => hits;
+    const soup = matchItem(item({ name: 'Erbsensuppe', searchTerms: ['Erbsensuppe'] }), search);
+    // Prepared (with a small boost) and canned before the powder; dry lentils at the end.
+    expect(soup.map((c) => c.food.id)).toEqual(['z', 'k', 'p', 't']);
+    // Packaged items get no boost for "zubereitet".
+    const packaged = matchItem(
+      item({ name: 'Erbsensuppe', packaged: true, searchTerms: ['Erbsensuppe'] }),
+      search,
+    );
+    expect(packaged.map((c) => c.food.id).slice(0, 2)).toEqual(['k', 'z']);
+    // Asked for the powder itself: no penalty.
+    const powder = matchItem(
+      item({ name: 'Erbsensuppe Pulver', searchTerms: ['Erbsensuppe Instantpulver'] }),
+      search,
+    );
+    expect(powder[0]!.food.id).toBe('p');
+  });
+
+  it('keeps protein powder and dry wine as they are', () => {
+    const search = realBlsSearch();
+    const wine = matchItem(item({ name: 'Weißwein', searchTerms: ['Weißwein trocken', 'Weißwein'] }), search);
+    expect(wine[0]!.food.name).toMatch(/^Weißwein/);
+    const milkPowder = matchItem(
+      item({ name: 'Magermilchpulver', searchTerms: ['Magermilchpulver'] }),
+      search,
+    );
+    expect(milkPowder[0]!.food.name).toBe('Magermilchpulver');
   });
 
   it('returns no candidates for unknown foods', () => {
