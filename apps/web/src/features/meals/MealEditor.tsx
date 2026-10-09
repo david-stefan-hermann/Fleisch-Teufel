@@ -26,7 +26,7 @@ import {
   type MealDraftPhoto,
 } from '@/db/mealDraft';
 import { deleteRecord, restoreRecord } from '@/db/write';
-import { compressImage } from '@/features/ai/image';
+import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { useGoals } from '@/hooks/data';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
@@ -259,7 +259,7 @@ function PhotoSection({
     if (!file) return;
     setBusy(true);
     try {
-      const blob = await compressImage(file, 600_000, 0.8);
+      const blob = await compressImage(file, IMAGE_PRESETS.mealPhoto);
       await setMealDraftPhoto(db, meal.id, {
         bytes: await blob.arrayBuffer(),
         type: blob.type || 'image/jpeg',

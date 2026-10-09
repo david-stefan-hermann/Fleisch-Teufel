@@ -39,7 +39,11 @@ export class PhotoHttpError extends Error {
   }
 }
 
-/** Saves an (already compressed) image locally and queues it for upload; returns its id. */
+/**
+ * Saves an image locally and queues it for upload; returns its id. Callers pass an image already
+ * compressed with `compressImage` (`features/ai/image.ts`: a preset and at most 1080p); every
+ * caller does: AI meal and AI diary group (the queue photo), meal editor (`MealEditor` pick).
+ */
 export async function storePhoto(db: UserDb, blob: Blob): Promise<string> {
   const id = uuidv7();
   const bytes = await blob.arrayBuffer();

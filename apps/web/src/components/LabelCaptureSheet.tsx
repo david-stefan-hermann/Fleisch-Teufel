@@ -15,13 +15,11 @@ import {
 import { FullscreenOverlay } from '@/components/FullscreenOverlay';
 import { useObjectUrl } from '@/components/MealPhoto';
 import { Button } from '@/components/ui/button';
-import { compressImage } from '@/features/ai/image';
+import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { ApiError, endpoints, errorMessage, OfflineError } from '@/lib/api';
 
 /** Front, nutrition table and barcode: all go to Claude in one call. */
 export const MAX_LABEL_PHOTOS = 3;
-/** Label text needs more pixels than a plate photo (small print in the nutrition table). */
-const LABEL_PIXELS = 2_000_000;
 
 const LABEL_STEPS = ['Suche die Nährwerttabelle', 'Lese die Werte ab', 'Prüfe den Barcode'] as const;
 
@@ -98,7 +96,7 @@ export function LabelCaptureSheet({
     request.current = controller;
     setBusy(true);
     try {
-      const images = await Promise.all(shots.map((s) => compressImage(s.blob, LABEL_PIXELS, 0.85)));
+      const images = await Promise.all(shots.map((s) => compressImage(s.blob, IMAGE_PRESETS.label)));
       const label = await endpoints.readLabel(images, controller.signal);
       if (controller.signal.aborted) return;
       onResult(label, code);

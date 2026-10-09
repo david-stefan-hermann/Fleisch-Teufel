@@ -67,7 +67,7 @@ import { endpoints } from '@/lib/api';
 import { fmt0, fmtGrams, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
-import { compressImage } from './image';
+import { compressImage, IMAGE_PRESETS } from './image';
 import { discardQueueItem, enqueuePhoto, imageBlob, loadQueueImage, processQueue, reanalyze } from './queue';
 
 /**
@@ -225,7 +225,7 @@ function PhotoPreview({
     if (busy) return;
     setBusy(true);
     try {
-      const compressed = await compressImage(shot);
+      const compressed = await compressImage(shot, IMAGE_PRESETS.analysis);
       const id = await enqueuePhoto(db, { date, meal, text }, compressed);
       await processQueue(db);
       const item = await db.aiQueue.get(id);
