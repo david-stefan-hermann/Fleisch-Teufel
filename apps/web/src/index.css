@@ -59,6 +59,9 @@
   --over: oklch(0.58 0.19 27);
   /* Second excess step (above twice the target); bars only, never text. */
   --over-2: oklch(0.4 0.17 27);
+  /* Excess of a target where more is good (protein): bar and text. >= 4.5:1 on the card, checked
+     against --protein with the dataviz palette checker (light and dark). */
+  --over-good: oklch(0.53 0.13 155);
   --exercise: oklch(0.62 0.13 165);
   /* Report bar of a day without macros (absence, so grey); >= 3:1 against the card. */
   --bar-neutral: oklch(0.64 0.01 50);
@@ -96,6 +99,7 @@
   --good: oklch(0.72 0.13 155);
   --over: oklch(0.68 0.17 27);
   --over-2: oklch(0.48 0.16 27);
+  --over-good: oklch(0.6 0.13 155);
   --bar-neutral: oklch(0.53 0.008 50);
 }
 
@@ -130,6 +134,7 @@
   --color-warn: var(--warn);
   --color-over: var(--over);
   --color-over-2: var(--over-2);
+  --color-over-good: var(--over-good);
   --color-exercise: var(--exercise);
 }
 

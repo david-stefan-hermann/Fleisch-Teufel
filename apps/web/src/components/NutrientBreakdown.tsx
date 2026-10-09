@@ -14,7 +14,7 @@ import {
 import catalog from '@ft/shared/nutrients-catalog.json';
 import { ChevronDown } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
-import { isOverTarget, MACRO_BG, TargetBar } from '@/components/MacroBars';
+import { isOverTarget, MACRO_BG, OVER_TEXT, overToneOf, TargetBar } from '@/components/MacroBars';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { fmt0, fmtGrams, fmtPercent, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -124,8 +124,9 @@ export function NutrientBreakdown({
           const label = LABEL.get(MACRO_CODE[k])!;
           const target = targets[TARGET_G[k]];
           const over = relative && isOverTarget(m.grams, target);
+          const tone = overToneOf(k);
           const grams = (
-            <span className={cn('font-semibold', over ? 'text-over' : 'text-foreground')}>
+            <span className={cn('font-semibold', over ? OVER_TEXT[tone] : 'text-foreground')}>
               {fmtGrams(m.grams)}
             </span>
           );
@@ -153,6 +154,7 @@ export function NutrientBreakdown({
                   value={m.grams}
                   target={target}
                   color={MACRO_BG[k]}
+                  overTone={tone}
                   label={label}
                   valueText={`${fmtGrams(m.grams)} von ${fmtGrams(target)}`}
                 />

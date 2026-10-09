@@ -324,7 +324,7 @@ describe('MacroBars', () => {
     );
     const part = (name: string, p: string) =>
       screen.getByRole('meter', { name }).querySelector(`[data-part=${p}]`);
-    // 120 %: red only.
+    // 120 % (protein: green, see below).
     expect(width(part('Protein', 'excess'))).toBeCloseTo(20, 5);
     expect(part('Protein', 'excess2')).toBeNull();
     // 250 %: red full, dark red half.
@@ -336,6 +336,33 @@ describe('MacroBars', () => {
     // The text stays in the normal red.
     expect(screen.getByText('165').className).toContain('text-over');
     expect(screen.getByText('165').className).not.toContain('over-2');
+  });
+
+  it('shows protein above the target in green, bar and grams; fat stays red', () => {
+    render(
+      <MacroBars
+        macros={[
+          { key: 'protein', label: 'Protein', value: 182, target: 140 },
+          { key: 'fat', label: 'Fett', value: 96, target: 80 },
+        ]}
+      />,
+    );
+    const excess = (name: string) => screen.getByRole('meter', { name }).querySelector('[data-part=excess]')!;
+    expect(excess('Protein').className).toContain('bg-over-good');
+    expect(excess('Protein').getAttribute('data-tone')).toBe('good');
+    expect(width(excess('Protein'))).toBeCloseTo(30, 5);
+    expect(screen.getByText('182').className).toContain('text-over-good');
+    expect(excess('Fett').className).toContain('bg-over');
+    expect(excess('Fett').className).not.toContain('over-good');
+    expect(screen.getByText('96').className).toContain('text-over');
+    expect(screen.getByText('96').className).not.toContain('over-good');
+  });
+
+  it('keeps protein green above twice the target, without a second step', () => {
+    render(<MacroBars macros={[{ key: 'protein', label: 'Protein', value: 300, target: 140 }]} />);
+    const meter = screen.getByRole('meter', { name: 'Protein' });
+    expect(width(meter.querySelector('[data-part=excess]'))).toBe(100);
+    expect(meter.querySelector('[data-part=excess2]')).toBeNull();
   });
 
   it('caps the second step at the full width (400 %)', () => {
@@ -431,6 +458,21 @@ describe('NutrientBreakdown', () => {
     const fat = screen.getByRole('meter', { name: 'Fett' });
     expect(fat.querySelector('[data-part=excess]')).not.toBeNull();
     expect(screen.getByText('76 g').className).toContain('text-over');
+  });
+
+  it('day variant: protein above the target is green, the rest stays red', () => {
+    render(
+      <NutrientBreakdown
+        variant="day"
+        nutrients={{ ENERCC: 1900, PROT625: targets.proteinG + 40, CHO: 100, FAT: 76 }}
+        targets={targets}
+      />,
+    );
+    const protein = screen.getByRole('meter', { name: 'Protein' }).querySelector('[data-part=excess]')!;
+    expect(protein.className).toContain('bg-over-good');
+    const proteinGrams = screen.getByText(`${targets.proteinG + 40} g`);
+    expect(proteinGrams.className).toContain('text-over-good');
+    expect(screen.getByText('76 g').className).not.toContain('over-good');
   });
 
   it('shows micros with their daily target only after opening "Weitere Nährstoffe"', async () => {
