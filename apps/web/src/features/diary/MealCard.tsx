@@ -153,7 +153,8 @@ export function DiaryRows({
           <li key={row.groupId}>
             <GroupRow
               groupId={row.groupId}
-              name={(row.mealId && mealInfo?.get(row.mealId)?.name) || row.groupName || 'Meal'}
+              // Own name first: a group renamed in its editor keeps that name, else it follows the saved meal.
+              name={row.groupName || (row.mealId && mealInfo?.get(row.mealId)?.name) || 'Meal'}
               // The photo kept on the entries (AI analysis, meal photo at logging time) before the meal's current one.
               photoId={row.entries[0]?.photoId || (row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
               entries={row.entries}
@@ -240,8 +241,10 @@ function NutrientSummary({ nutrients }: { nutrients: NutrientMap }) {
 }
 
 /**
- * Entries logged together (from a saved meal, or as a named group from an AI analysis): one row,
- * expandable to the single items.
+ * Entries logged together (from a saved meal, or as a named group from an AI analysis): one row.
+ * Tapping the row opens the group editor (`/diary-group/$groupId`); only "N Zutaten ⌄" expands the
+ * single items. The row is a stretched link with the toggle button above it (a button cannot sit
+ * inside a link); swipe and long-press drag still work on the whole row.
  */
 function GroupRow({
   groupId,
@@ -271,6 +274,7 @@ function GroupRow({
     setGroupExpanded(groupId, !expanded);
   }
   const fromPhoto = entries.some((e) => e.source === 'ai');
+  const listId = `group-items-${groupId}`;
   return (
     <>
       {/* Only the group row is draggable (the whole meal moves), not its expanded ingredients. */}
@@ -286,12 +290,7 @@ function GroupRow({
         }}
       >
         <SwipeToDelete label={`${name} löschen`} onDelete={() => onDelete(entries)} disabled={dragging}>
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={toggle}
-            className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-          >
+          <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
             {photoId && (
               <MealPhoto photoId={photoId} alt="" className="size-10 shrink-0 rounded-lg" placeholder />
             )}
@@ -302,9 +301,29 @@ function GroupRow({
                 ) : (
                   <ListPlus className="size-4 shrink-0 text-muted-foreground" aria-label="Meal" />
                 )}
-                <span className="truncate">{name}</span>
+                <Link
+                  to="/diary-group/$groupId"
+                  params={{ groupId }}
+                  search={{ date }}
+                  draggable={false}
+                  className="truncate after:absolute after:inset-0 focus-visible:outline-none"
+                >
+                  {name}
+                </Link>
               </div>
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              {/* Above the stretched link; the padding enlarges the tap area without making the row taller. */}
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={listId}
+                aria-label={`${fmtIngredients(entries.length)} von ${name}`}
+                draggable={false}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggle();
+                }}
+                className="relative z-10 -mx-2 -my-2 flex items-center gap-1 rounded-md px-2 py-2 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
                 {fmtIngredients(entries.length)}
                 <ChevronDown
                   className={cn(
@@ -313,14 +332,14 @@ function GroupRow({
                   )}
                   aria-hidden
                 />
-              </div>
+              </button>
             </div>
             <NutrientSummary nutrients={nutrients} />
-          </button>
+          </div>
         </SwipeToDelete>
       </MaybeDraggable>
       {expanded && (
-        <ul className="border-t border-border/70 bg-muted/40" aria-label={`Zutaten von ${name}`}>
+        <ul id={listId} className="border-t border-border/70 bg-muted/40" aria-label={`Zutaten von ${name}`}>
           {entries.map((e) => (
             <li key={e.id} className="border-b border-border/50 last:border-b-0">
               <EntryRow

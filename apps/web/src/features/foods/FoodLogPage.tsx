@@ -35,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { addFoodToDraft } from '@/db/aiDraft';
 import { addItemToMeal, logFoodEntry } from '@/db/entries';
+import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/db/groupDraft';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
@@ -199,10 +200,17 @@ function FoodLogEditor({
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
-  const targetMeal = useLiveQuery(
-    async () => (into?.kind === 'meal' ? ((await db.meals.get(into.mealId)) ?? null) : null),
-    [db, into?.kind === 'meal' ? into.mealId : null],
-  );
+  // Name of the target in the title: the saved meal, or the diary group being edited.
+  const targetName = useLiveQuery(async () => {
+    if (into?.kind === 'meal') return (await db.meals.get(into.mealId))?.name ?? null;
+    if (into?.kind === 'group') {
+      const draft = await readGroupDraft(db, into.groupId);
+      if (draft) return draft.name.trim() || null;
+      const entries = await groupEntries(db, into.groupId, defaultDate ?? today());
+      return entries.length ? groupName(db, entries) : null;
+    }
+    return null;
+  }, [db, into?.kind, into?.kind === 'meal' ? into.mealId : into?.kind === 'group' ? into.groupId : null]);
   const settings = useSettings();
   const goals = useGoals();
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
@@ -227,32 +235,41 @@ function FoodLogEditor({
   const unit = food.unit;
 
   async function addToTarget(target: Into) {
+    const item = {
+      foodId: food.id,
+      source: food.source,
+      name: food.name,
+      brand: food.brand,
+      grams,
+      portionLabel: effectivePortion.label,
+      portionGrams: effectivePortion.grams,
+      quantity: q,
+      per100: food.nutrients,
+      nutrients,
+    };
     if (target.kind === 'meal') {
-      const ok = await addItemToMeal(db, target.mealId, {
-        foodId: food.id,
-        source: food.source,
-        name: food.name,
-        brand: food.brand,
-        grams,
-        portionLabel: effectivePortion.label,
-        portionGrams: effectivePortion.grams,
-        quantity: q,
-        per100: food.nutrients,
-        nutrients,
-      });
-      if (!ok) return void toast.error('Das Meal gibt es nicht mehr.');
+      if (!(await addItemToMeal(db, target.mealId, item)))
+        return void toast.error('Das Meal gibt es nicht mehr.');
+    } else if (target.kind === 'group') {
+      if (!(await addItemToGroupDraft(db, target.groupId, date, item)))
+        return void toast.error('Den Eintrag gibt es nicht mehr.');
     } else {
       await addFoodToDraft(db, target.localId, food, grams);
     }
     await rememberFood(db, food);
     toast.success(`${food.name} hinzugefügt`);
-    returnFromInto(
-      router.history,
-      () =>
-        void (target.kind === 'meal'
-          ? navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true })
-          : navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true })),
-    );
+    returnFromInto(router.history, () => {
+      if (target.kind === 'meal')
+        void navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true });
+      else if (target.kind === 'group')
+        void navigate({
+          to: '/diary-group/$groupId',
+          params: { groupId: target.groupId },
+          search: { date },
+          replace: true,
+        });
+      else void navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true });
+    });
   }
 
   async function save() {
@@ -302,9 +319,9 @@ function FoodLogEditor({
         entry
           ? 'Eintrag bearbeiten'
           : into
-            ? into.kind === 'meal'
-              ? `Zu „${targetMeal?.name ?? 'Meal'}“`
-              : 'Zur Foto-Analyse'
+            ? into.kind === 'ai'
+              ? 'Zur Foto-Analyse'
+              : `Zu „${targetName ?? 'Meal'}“`
             : 'Eintragen'
       }
       back
@@ -316,7 +333,9 @@ function FoodLogEditor({
             : into
               ? into.kind === 'meal'
                 ? 'Zum Meal hinzufügen'
-                : 'Zur Analyse hinzufügen'
+                : into.kind === 'group'
+                  ? 'Zum Eintrag hinzufügen'
+                  : 'Zur Analyse hinzufügen'
               : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} eintragen`}
         </Button>
       }

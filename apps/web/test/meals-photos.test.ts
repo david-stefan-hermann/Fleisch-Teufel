@@ -504,6 +504,13 @@ describe('into parameter', () => {
     expect(parseInto('ai:x')).toBeNull();
     expect(parseInto('meal:<script>')).toBeNull();
     expect(formatInto({ kind: 'ai', localId: 3 })).toBe('ai:3');
+    // A diary group being edited (its day travels in the `date` search param).
+    expect(parseInto('group:0199c3a0-7f1e-7abc-8def-0123456789ab')).toEqual({
+      kind: 'group',
+      groupId: '0199c3a0-7f1e-7abc-8def-0123456789ab',
+    });
+    expect(parseInto('group:')).toBeNull();
+    expect(formatInto({ kind: 'group', groupId: 'g1' })).toBe('group:g1');
   });
 
   it('returns to the screen that opened the search', () => {

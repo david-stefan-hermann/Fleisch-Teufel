@@ -197,6 +197,14 @@ export const routes = {
     validateSearch: validateMeal,
     component: lazyRouteComponent(() => import('@/features/diary/DiaryMealPage'), 'DiaryMealPage'),
   }),
+  // One diary group (saved meal or AI analysis logged together) on its day: edits only these entries.
+  diaryGroup: createRoute({
+    ...r('/diary-group/$groupId'),
+    validateSearch: (s: Record<string, unknown>): { date: string } => ({
+      date: dateParam(s.date) ?? today(),
+    }),
+    component: lazyRouteComponent(() => import('@/features/diary/DiaryGroupPage'), 'DiaryGroupPage'),
+  }),
   onboarding: createRoute({
     ...r('/onboarding'),
     component: lazyRouteComponent(() => import('@/features/goals/OnboardingPage'), 'OnboardingPage'),

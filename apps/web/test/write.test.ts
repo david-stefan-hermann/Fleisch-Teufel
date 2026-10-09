@@ -1,4 +1,4 @@
-import { dayId, groupDiaryEntries, uuidv7 } from '@ft/shared';
+import { dayId, groupDiaryEntries, rescaleItem, uuidv7, type MealItem } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
@@ -13,6 +13,16 @@ import {
   saveExerciseTemplate,
   saveMealFromEntries,
 } from '@/db/entries';
+import {
+  addItemToGroupDraft,
+  draftFromEntries,
+  groupEntries,
+  groupName,
+  isGroupDirty,
+  readGroupDraft,
+  saveGroupDraft,
+  writeGroupDraft,
+} from '@/db/groupDraft';
 import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 
@@ -504,5 +514,119 @@ describe('local writes', () => {
     await saveExercise(d, { ...data, minutes: 45, note: 'Intervalle' }, x!);
     expect(await d.exerciseEntries.count()).toBe(1);
     expect(await d.exerciseEntries.get(x!.id)).toMatchObject({ minutes: 45, note: 'Intervalle' });
+  });
+});
+
+describe('diary group editor (only these entries, never the saved meal)', () => {
+  const food = (name: string, kcalPer100: number): MealItem => ({
+    foodId: `bls:${name}`,
+    source: 'bls',
+    name,
+    brand: null,
+    grams: 100,
+    portionLabel: '1 g',
+    portionGrams: 1,
+    quantity: 100,
+    per100: { ENERCC: kcalPer100 },
+    nutrients: { ENERCC: kcalPer100 },
+  });
+
+  /** A saved meal "Bowl" with a photo, logged once to lunch on 2026-10-09. */
+  async function setup() {
+    const d = db();
+    const items = [food('Reis', 130), food('Huhn', 110)];
+    await saveRecord(d, 'meals', { id: 'm1', name: 'Bowl', items, photoId: 'p1' });
+    await logItems(
+      d,
+      items,
+      { date: '2026-10-09', meal: 1 },
+      { mealId: 'm1', photoId: 'p1', aiAnalysisId: 'a1' },
+    );
+    const entries = await groupEntries(
+      d,
+      (await d.foodEntries.toCollection().first())!.groupId!,
+      '2026-10-09',
+    );
+    const mealBefore = await d.meals.get('m1');
+    return { d, entries, mealBefore, groupId: entries[0]!.groupId! };
+  }
+
+  it('starts the draft from the entries with the name the diary shows', async () => {
+    const { d, entries, groupId } = await setup();
+    expect(await groupName(d, entries)).toBe('Bowl');
+    const draft = draftFromEntries(entries, 'Bowl');
+    expect(draft).toMatchObject({ groupId, date: '2026-10-09', name: 'Bowl' });
+    expect(draft.items.map((i) => [i.name, i.entryId])).toEqual([
+      ['Reis', entries[0]!.id],
+      ['Huhn', entries[1]!.id],
+    ]);
+    expect(isGroupDirty(draft, entries, 'Bowl')).toBe(false);
+    expect(isGroupDirty({ ...draft, name: '  ' }, entries, 'Bowl')).toBe(false);
+    expect(isGroupDirty({ ...draft, name: 'Große Bowl' }, entries, 'Bowl')).toBe(true);
+    expect(isGroupDirty({ ...draft, items: draft.items.slice(1) }, entries, 'Bowl')).toBe(true);
+  });
+
+  it('changes amounts, removes and adds ingredients and renames; the saved meal stays', async () => {
+    const { d, entries, mealBefore, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    const reis = draft.items[0]!;
+    await writeGroupDraft(d, {
+      ...draft,
+      name: ' Große Bowl ',
+      // Reis doubled, Huhn removed.
+      items: [{ ...rescaleItem(reis, 200), entryId: reis.entryId }],
+    });
+    // "Zutat hinzufügen" through the food search appends to the device draft.
+    expect(await addItemToGroupDraft(d, groupId, '2026-10-09', food('Mais', 90))).toBe(true);
+    expect(await saveGroupDraft(d, (await readGroupDraft(d, groupId))!)).toBe(true);
+
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live.map((e) => [e.name, e.grams, e.nutrients.ENERCC, e.groupName])).toEqual([
+      ['Reis', 200, 260, 'Große Bowl'],
+      ['Mais', 100, 90, 'Große Bowl'],
+    ]);
+    // The new entry belongs to the same group, meal, photo and analysis, after the last entry.
+    expect(live[1]).toMatchObject({
+      groupId,
+      mealId: 'm1',
+      photoId: 'p1',
+      aiAnalysisId: 'a1',
+      date: '2026-10-09',
+      meal: 1,
+    });
+    expect(live[1]!.loggedAt).toBeGreaterThan(Math.max(...entries.map((e) => e.loggedAt)));
+    // Huhn is a tombstone (soft delete, syncs), not gone.
+    expect(await d.foodEntries.get(entries[1]!.id)).toMatchObject({ deleted: true });
+    // Reis, Huhn and Mais are queued with their new versions; the meal is not written again.
+    for (const e of [...live, (await d.foodEntries.get(entries[1]!.id))!])
+      expect(await d.outbox.get(`foodEntries:${e.id}`)).toMatchObject({ updatedAt: e.updatedAt });
+    expect(await d.outbox.get('meals:m1')).toMatchObject({ updatedAt: mealBefore!.updatedAt });
+    expect(await d.meals.get('m1')).toEqual(mealBefore);
+    // The draft is gone.
+    expect(await readGroupDraft(d, groupId)).toBeNull();
+  });
+
+  it('keeps following the saved meal name when the name was not changed', async () => {
+    const { d, entries, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    const huhn = draft.items[1]!;
+    await saveGroupDraft(d, {
+      ...draft,
+      items: [draft.items[0]!, { ...rescaleItem(huhn, 50), entryId: huhn.entryId }],
+    });
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live.map((e) => e.groupName)).toEqual([null, null]);
+    // Only the changed entry was written.
+    expect(live[0]!.updatedAt).toBe(entries[0]!.updatedAt);
+    expect(live[1]!.updatedAt).toBeGreaterThan(entries[1]!.updatedAt);
+  });
+
+  it('refuses an empty group and reports a group that is gone', async () => {
+    const { d, entries, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    await expect(saveGroupDraft(d, { ...draft, items: [] })).rejects.toThrow();
+    for (const e of entries) await deleteRecord(d, 'foodEntries', e.id);
+    expect(await saveGroupDraft(d, draft)).toBe(false);
+    expect(await addItemToGroupDraft(d, groupId, '2026-10-09', food('Mais', 90))).toBe(false);
   });
 });

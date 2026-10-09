@@ -1,4 +1,4 @@
-import { rescaleItem, sumNutrients, targetsForDate, today, type Meal, type MealItem } from '@ft/shared';
+import { sumNutrients, targetsForDate, today, type Meal, type MealItem } from '@ft/shared';
 import { useBlocker, useNavigate, useRouter, type ShouldBlockFn } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Plus, Trash2, X } from 'lucide-react';
@@ -31,10 +31,7 @@ import { useGoals } from '@/hooks/data';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
-import { IngredientCard, isGramItem, minQuantity } from './IngredientCard';
-
-const SCALE_MIN = 0.25;
-const SCALE_MAX = 3;
+import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from './IngredientCard';
 
 /**
  * Editor of a saved meal (Mehr → Gespeicherte Meals): photo, name, ingredients with amount sliders,
@@ -89,14 +86,7 @@ function MealEditorForm({
   };
   const rescale = (factor: number) => {
     setScale(factor);
-    commit({
-      ...draft,
-      items: scaleBase.map((it) => {
-        const q = it.quantity * factor;
-        const rounded = isGramItem(it) ? Math.round(q) : Math.round(q * 10) / 10;
-        return rescaleItem(it, Math.max(minQuantity(it), rounded));
-      }),
-    });
+    commit({ ...draft, items: scaleItems(scaleBase, factor) });
   };
 
   const dirty = isDirty(draft, meal);

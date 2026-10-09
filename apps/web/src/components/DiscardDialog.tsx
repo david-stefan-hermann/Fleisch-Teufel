@@ -19,6 +19,7 @@ export function DiscardDialog({
   onKeepEditing,
   onDiscard,
   onSave,
+  apply = false,
 }: {
   open: boolean;
   /** What was changed, e.g. the meal name. */
@@ -27,6 +28,8 @@ export function DiscardDialog({
   onDiscard: () => Promise<void> | void;
   /** Saves; the dialog leaves the page afterwards (via the blocker). */
   onSave: () => Promise<void> | void;
+  /** Editing a diary entry: the action is "Übernehmen" instead of "Speichern" (wording rule). */
+  apply?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<void> | void) => {
@@ -43,7 +46,9 @@ export function DiscardDialog({
         <DialogHeader>
           <DialogTitle>Änderungen verwerfen?</DialogTitle>
           <DialogDescription>
-            Du hast {name} geändert. Ohne Speichern gehen die Änderungen verloren.
+            {apply
+              ? `Du hast ${name} geändert. Wenn du die Änderungen nicht übernimmst, gehen sie verloren.`
+              : `Du hast ${name} geändert. Ohne Speichern gehen die Änderungen verloren.`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -59,7 +64,7 @@ export function DiscardDialog({
             Verwerfen
           </Button>
           <Button disabled={busy} onClick={() => void run(onSave)}>
-            Speichern
+            {apply ? 'Übernehmen' : 'Speichern'}
           </Button>
         </DialogFooter>
       </DialogContent>

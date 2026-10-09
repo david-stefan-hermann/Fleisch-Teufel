@@ -538,7 +538,9 @@ test('AI result logged without saving becomes a named group without a saved meal
   const group = page.getByRole('button', { name: /Reis mit Hähnchen/ });
   await expect(group).toBeVisible();
   await expect(group).toContainText(/2\sZutaten/);
-  await expect(group.getByLabel('aus Foto')).toBeVisible();
+  // The analysed photo is kept on the entries and shown on the row.
+  const groupPhoto = page.getByRole('listitem').filter({ has: group }).locator('img').first();
+  await expect.poll(() => groupPhoto.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
   await group.click();
   await expect(page.getByRole('list', { name: 'Zutaten von Reis mit Hähnchen' })).toContainText(
     'Reis gekocht',

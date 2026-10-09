@@ -18,6 +18,22 @@ export function isGramItem(item: Pick<MealItem, 'portionLabel'>): boolean {
 /** Smallest amount an ingredient can be set to (it keeps its nutrients per unit that way). */
 export const minQuantity = (item: Pick<MealItem, 'portionLabel'>) => (isGramItem(item) ? 1 : 0.1);
 
+/** Range of the "Gesamtmenge" slider of the meal and diary group editors. */
+export const SCALE_MIN = 0.25;
+export const SCALE_MAX = 3;
+
+/**
+ * "Gesamtmenge": scales every ingredient of `base` (the amounts after the last manual change) by
+ * `factor`, grams to whole numbers, pieces to tenths, never below `minQuantity`. Extra fields stay.
+ */
+export function scaleItems<T extends MealItem>(base: readonly T[], factor: number): T[] {
+  return base.map((it) => {
+    const q = it.quantity * factor;
+    const rounded = isGramItem(it) ? Math.round(q) : Math.round(q * 10) / 10;
+    return rescaleItem(it, Math.max(minQuantity(it), rounded));
+  });
+}
+
 /**
  * One ingredient of the meal editor, laid out like an ingredient of the AI review: name, kcal and
  * remove in the head, then a slider with a number field. Gram ingredients move in 5 g steps, piece

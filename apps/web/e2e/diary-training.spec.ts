@@ -308,6 +308,82 @@ test('an expanded meal group stays open after visiting one of its entries', asyn
   await expect(page.getByRole('list', { name: 'Zutaten von Bowl' })).toBeVisible();
 });
 
+test('a diary group: the row opens its editor, the chevron expands, the saved meal stays', async ({
+  page,
+}) => {
+  await register(page);
+  await quickAdd(page, 0, 'Joghurt', '150');
+  await quickAdd(page, 0, 'Beeren', '50');
+  await saveDiaryMeal(page, 'Frühstück', 'Bowl');
+  await page.goto('/add?meal=1&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('button', { name: '200 kcal eintragen' }).click();
+  const lunch = mealCard(page, 'Mittagessen');
+
+  // Only the chevron expands; the page stays.
+  const toggle = lunch.getByRole('button', { name: '2 Zutaten von Bowl' });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('list', { name: 'Zutaten von Bowl' })).toBeVisible();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  // The row opens the editor of this entry.
+  await lunch.getByRole('link', { name: 'Bowl', exact: true }).click();
+  await expect(page).toHaveURL(/\/diary-group\/.+date=/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Bowl' })).toBeVisible();
+  await expect(
+    page.getByText('Ändert nur diesen Eintrag. Das gespeicherte Meal „Bowl“ bleibt, wie es ist.'),
+  ).toBeVisible();
+  const apply = page.getByRole('button', { name: 'Änderungen übernehmen' });
+  await expect(apply).toBeDisabled();
+  await page.getByLabel('Name').fill('Große Bowl');
+  await page
+    .getByLabel(/^Anzahl/)
+    .first()
+    .fill('2');
+  await expect(apply).toBeEnabled();
+
+  // Adding an ingredient goes through the search and back into the editor (device draft).
+  await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
+  await expect(page).toHaveURL(/\/add\?.*into=group/);
+  await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
+  await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Zu „Große Bowl“' })).toBeVisible();
+  await page.getByLabel('Portion', { exact: true }).click();
+  await page.getByRole('option', { name: '1 g' }).click();
+  await page.getByLabel('Anzahl Portionen').fill('50');
+  await page.getByRole('button', { name: 'Zum Eintrag hinzufügen' }).click();
+  await expect(page).toHaveURL(/\/diary-group\//);
+  await expect(page.getByText('Hafer Flocken', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Name')).toHaveValue('Große Bowl');
+
+  // Leaving with changes asks first.
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  const discard = page.getByRole('dialog', { name: 'Änderungen verwerfen?' });
+  await expect(discard).toContainText('Wenn du die Änderungen nicht übernimmst');
+  await discard.getByRole('button', { name: 'Weiter bearbeiten' }).click();
+
+  await apply.click();
+  await expect(page.getByText('Änderungen übernommen')).toBeVisible();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  const renamed = lunch.getByRole('link', { name: 'Große Bowl', exact: true });
+  await expect(renamed).toBeVisible();
+  await expect(lunch.getByRole('button', { name: '3 Zutaten von Große Bowl' })).toBeVisible();
+  // Joghurt twice (300) + Beeren (50) + 50 g Hafer Flocken (174).
+  await expect(
+    lunch.getByRole('listitem').filter({ has: page.getByRole('link', { name: 'Große Bowl', exact: true }) }),
+  ).toContainText('524');
+
+  // The saved meal is unchanged.
+  await page.goto('/meals');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await expect(page.getByLabel('Name')).toHaveValue('Bowl');
+  await expect(page.getByLabel(/^Anzahl/).first()).toHaveValue('1');
+  await expect(page.getByText('Hafer Flocken', { exact: true })).toHaveCount(0);
+});
+
 test('drag an entry to another meal, with undo', async ({ page }) => {
   await register(page);
   await quickAdd(page, 0, 'Banane', '105');

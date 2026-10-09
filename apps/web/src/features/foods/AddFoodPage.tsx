@@ -14,6 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addFoodToDraft } from '@/db/aiDraft';
 import type { UserDb } from '@/db/dexie';
 import { addItemToMeal } from '@/db/entries';
+import { addItemToGroupDraft } from '@/db/groupDraft';
+import { mealItem } from '@/db/mealDraft';
 import { saveRecord } from '@/db/write';
 import {
   filterOwn,
@@ -151,8 +153,11 @@ export function AddFoodPage() {
 
   async function quickRelog(r: RecentFood) {
     if (into) {
-      await addRecentToTarget(db, into, r);
-      toast.success(`${r.name} hinzugefügt`);
+      if (await addRecentToTarget(db, into, r, date)) toast.success(`${r.name} hinzugefügt`);
+      else
+        toast.error(
+          into.kind === 'group' ? 'Den Eintrag gibt es nicht mehr.' : 'Das Meal gibt es nicht mehr.',
+        );
       return;
     }
     const { id: _id, updatedAt: _u, deleted: _d, ...rest } = r.last;
@@ -345,7 +350,7 @@ export function AddFoodPage() {
 
       {tab === 'mine' && !filteringOwn && (
         <>
-          {/* Saved meals cannot be part of a saved meal or an AI review. */}
+          {/* Saved meals cannot be part of a saved meal, an AI review or a diary group. */}
           {!into && (
             <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
               <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
@@ -384,27 +389,17 @@ export function AddFoodPage() {
 
 type FoodLinkSearch = { date: string; meal: number; into?: string };
 
-/** "+" on a recent food in `into` mode: same amount as last time, into the meal / analysis. */
-async function addRecentToTarget(db: UserDb, into: Into, r: RecentFood): Promise<void> {
-  const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
-    r.last;
-  if (into.kind === 'meal') {
-    await addItemToMeal(db, into.mealId, {
-      foodId,
-      source,
-      name,
-      brand,
-      grams,
-      portionLabel,
-      portionGrams,
-      quantity,
-      per100,
-      nutrients,
-    });
-    return;
-  }
+/**
+ * "+" on a recent food in `into` mode: same amount as last time, into the meal / analysis / diary
+ * group (`date` is the group's day). Returns false when the target is gone.
+ */
+async function addRecentToTarget(db: UserDb, into: Into, r: RecentFood, date: string): Promise<boolean> {
+  const item = mealItem(r.last);
+  if (into.kind === 'meal') return addItemToMeal(db, into.mealId, item);
+  if (into.kind === 'group') return addItemToGroupDraft(db, into.groupId, date, item);
   const food = await getFood(db, r.foodId);
-  if (food) await addFoodToDraft(db, into.localId, food, grams ?? 100);
+  if (food) await addFoodToDraft(db, into.localId, food, item.grams ?? 100);
+  return true;
 }
 
 function FoodRow({ food, search }: { food: Food; search: FoodLinkSearch }) {

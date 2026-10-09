@@ -1,12 +1,15 @@
 /**
- * Target of the food search when it is not the diary: a saved meal being edited, or the
- * ingredient list of an AI photo analysis under review. Carried as `?into=meal:<id>` / `ai:<n>`
- * through search → food page (and barcode scan), so the normal search UI can be reused.
+ * Target of the food search when it is not the diary: a saved meal being edited, the ingredient
+ * list of an AI photo analysis under review, or a diary group being edited (its day is the `date`
+ * search param). Carried as `?into=meal:<id>` / `ai:<n>` / `group:<id>` through search → food page
+ * (and barcode scan), so the normal search UI can be reused.
  */
-export type Into = { kind: 'meal'; mealId: string } | { kind: 'ai'; localId: number };
+export type Into =
+  { kind: 'meal'; mealId: string } | { kind: 'ai'; localId: number } | { kind: 'group'; groupId: string };
 
 const MEAL = /^meal:([A-Za-z0-9_-]{1,64})$/;
 const AI = /^ai:(\d{1,9})$/;
+const GROUP = /^group:([A-Za-z0-9_-]{1,64})$/;
 
 export function parseInto(v: unknown): Into | null {
   if (typeof v !== 'string') return null;
@@ -14,11 +17,20 @@ export function parseInto(v: unknown): Into | null {
   if (m) return { kind: 'meal', mealId: m[1]! };
   const a = AI.exec(v);
   if (a) return { kind: 'ai', localId: Number(a[1]) };
+  const g = GROUP.exec(v);
+  if (g) return { kind: 'group', groupId: g[1]! };
   return null;
 }
 
 export function formatInto(into: Into): string {
-  return into.kind === 'meal' ? `meal:${into.mealId}` : `ai:${into.localId}`;
+  switch (into.kind) {
+    case 'meal':
+      return `meal:${into.mealId}`;
+    case 'ai':
+      return `ai:${into.localId}`;
+    case 'group':
+      return `group:${into.groupId}`;
+  }
 }
 
 /** Router validator helper: keeps only well-formed values. */
