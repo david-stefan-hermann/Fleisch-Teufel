@@ -84,9 +84,10 @@ function MealEditorForm({
     setScale(1);
     setScaleBase(items);
   };
+  // While the slider is dragged only the screen follows; the draft is written when it is let go.
   const rescale = (factor: number) => {
     setScale(factor);
-    commit({ ...draft, items: scaleItems(scaleBase, factor) });
+    setDraft({ ...draft, items: scaleItems(scaleBase, factor) });
   };
 
   const dirty = isDirty(draft, meal);
@@ -175,10 +176,12 @@ function MealEditorForm({
           key={i}
           index={i}
           item={item}
-          base={scaleBase[i]?.quantity ?? item.quantity}
           removable={draft.items.length > 1}
           targets={targets}
-          onChange={(next) => commitItems(draft.items.map((it, j) => (j === i ? next : it)))}
+          onChange={(next) =>
+            setDraft({ ...draft, items: draft.items.map((it, j) => (j === i ? next : it)) })
+          }
+          onCommit={(next) => commitItems(draft.items.map((it, j) => (j === i ? next : it)))}
           onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
         />
       ))}
@@ -212,6 +215,7 @@ function MealEditorForm({
               step={0.05}
               value={[scale]}
               onValueChange={([v]) => v !== undefined && rescale(v)}
+              onValueCommit={() => void writeMealDraft(db, draft)}
             />
           </div>
           <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />

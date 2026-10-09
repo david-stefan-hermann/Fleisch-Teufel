@@ -17,6 +17,8 @@ import { TapeMeasure } from '@/components/TapeMeasure';
 import { UserDb } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
+import { IngredientCard } from '@/features/meals/IngredientCard';
+import type { MealItem } from '@ft/shared';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
@@ -1077,5 +1079,93 @@ describe('camera fade-in', () => {
       expect((screen.getByLabelText('Kamerabild') as HTMLVideoElement).srcObject).toBeTruthy(),
     );
     expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ingredient amount slider', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  const oats: MealItem = {
+    foodId: 'oats',
+    source: 'bls',
+    name: 'Haferflocken',
+    brand: null,
+    grams: 80,
+    portionLabel: '1 g',
+    portionGrams: 1,
+    quantity: 80,
+    per100: { kcal: 368 },
+    nutrients: { kcal: 294.4 },
+  };
+
+  function Card({ onCommit }: { onCommit: (q: number) => void }) {
+    const [item, setItem] = useState(oats);
+    return (
+      <>
+        <IngredientCard
+          item={item}
+          index={0}
+          removable
+          targets={targetsForDate([], '2026-10-09')}
+          onChange={setItem}
+          onCommit={(next) => {
+            setItem(next);
+            onCommit(next.quantity);
+          }}
+          onRemove={() => {}}
+        />
+        <button onClick={() => setItem((it) => ({ ...it, quantity: 300, grams: 300 }))}>scale</button>
+      </>
+    );
+  }
+
+  it('keeps its range while the amount changes (start in the middle, end 2 × start)', () => {
+    const onCommit = vi.fn();
+    render(<Card onCommit={onCommit} />);
+    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
+    expect(thumb.getAttribute('aria-valuemax')).toBe('160');
+    expect(thumb.getAttribute('aria-valuenow')).toBe('80');
+    for (let i = 0; i < 30; i++) fireEvent.keyDown(thumb, { key: 'End' });
+    // The old slider pushed its end out with every step; now the end stays at 160 g.
+    expect(thumb.getAttribute('aria-valuemax')).toBe('160');
+    expect(thumb.getAttribute('aria-valuenow')).toBe('160');
+    fireEvent.keyDown(thumb, { key: 'ArrowLeft' });
+    expect(thumb.getAttribute('aria-valuenow')).toBe('159'); // 1 g raster
+    expect(onCommit).toHaveBeenLastCalledWith(159);
+  });
+
+  it('a typed amount becomes the new middle once the field is left', () => {
+    render(<Card onCommit={() => {}} />);
+    const field = screen.getByLabelText('Gramm');
+    fireEvent.change(field, { target: { value: '3050' } });
+    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
+    expect(thumb.getAttribute('aria-valuemax')).toBe('160'); // pinned to the end while typing
+    fireEvent.blur(field);
+    expect(thumb.getAttribute('aria-valuemax')).toBe('6100');
+    expect(thumb.getAttribute('aria-valuenow')).toBe('3050');
+  });
+
+  it('does not accept more than 9.999 g', () => {
+    const onCommit = vi.fn();
+    render(<Card onCommit={onCommit} />);
+    fireEvent.change(screen.getByLabelText('Gramm'), { target: { value: '12000' } });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.getByText('Zwischen 1 und 9.999 g.')).toBeTruthy();
+  });
+
+  it('follows an amount changed from outside (Gesamtmenge)', () => {
+    render(<Card onCommit={() => {}} />);
+    fireEvent.click(screen.getByText('scale'));
+    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
+    expect(thumb.getAttribute('aria-valuemax')).toBe('600');
   });
 });

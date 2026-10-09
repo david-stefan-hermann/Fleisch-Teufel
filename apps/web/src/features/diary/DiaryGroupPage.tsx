@@ -113,9 +113,10 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
     setScale(1);
     setScaleBase(items);
   };
+  // While the slider is dragged only the screen follows; the draft is written when it is let go.
   const rescale = (factor: number) => {
     setScale(factor);
-    commit({ ...draft, items: scaleItems(scaleBase, factor) });
+    setDraft({ ...draft, items: scaleItems(scaleBase, factor) });
   };
 
   const dirty = isGroupDirty(draft, entries, data.name);
@@ -205,10 +206,15 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
           key={item.entryId ?? `new-${i}`}
           index={i}
           item={item}
-          base={scaleBase[i]?.quantity ?? item.quantity}
           removable={draft.items.length > 1}
           targets={targets}
           onChange={(next: MealItem) =>
+            setDraft({
+              ...draft,
+              items: draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)),
+            })
+          }
+          onCommit={(next: MealItem) =>
             commitItems(draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)))
           }
           onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
@@ -246,6 +252,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
               step={0.05}
               value={[scale]}
               onValueChange={([v]) => v !== undefined && rescale(v)}
+              onValueCommit={() => void writeGroupDraft(db, draft)}
             />
           </div>
           <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />

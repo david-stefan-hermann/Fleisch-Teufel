@@ -7,7 +7,8 @@ import { Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { rowSliderMax } from '@/lib/amounts';
+import { useSliderStart } from '@/hooks/useSliderStart';
+import { clampAmount, MAX_AMOUNT, sliderRange } from '@/lib/amounts';
 import { fmt0 } from '@/lib/format';
 
 /** Ingredients counted in grams (1 g / 1 ml portions); everything else counts pieces of a portion. */
@@ -36,26 +37,27 @@ export function scaleItems<T extends MealItem>(base: readonly T[], factor: numbe
 
 /**
  * One ingredient of the meal editor, laid out like an ingredient of the AI review: name, kcal and
- * remove in the head, then a slider with a number field. Gram ingredients move in 5 g steps, piece
- * ingredients ("Anzahl · Stück") in halves. "Nährwerte" at the bottom opens the overview of the
- * current amount (it follows slider and field).
+ * remove in the head, then a slider with a number field. Gram ingredients move in 1 g steps, piece
+ * ingredients ("Anzahl · Stück") in tenths; the slider starts in the middle. "Nährwerte" at the
+ * bottom opens the overview of the current amount (it follows slider and field).
  */
 export function IngredientCard({
   item,
   index,
-  base,
   removable,
   targets,
   onChange,
+  onCommit,
   onRemove,
 }: {
   item: MealItem;
   index: number;
-  /** Reference quantity for the slider range (the amount before "Gesamtmenge" scaled it). */
-  base: number;
   removable: boolean;
   targets: ResolvedTargets;
+  /** Live change while the slider is dragged (show it, do not save it yet). */
   onChange: (item: MealItem) => void;
+  /** Final change: drag ended, a typed amount. Save it. */
+  onCommit: (item: MealItem) => void;
   onRemove: () => void;
 }) {
   const grams = isGramItem(item);
@@ -63,14 +65,20 @@ export function IngredientCard({
   const min = minQuantity(item);
   // A typed amount below the minimum (or empty) is not applied; the field says why.
   const [invalid, setInvalid] = useState(false);
+  const kind = grams ? 'base' : 'portion';
+  const max = MAX_AMOUNT[kind];
+  // The range comes from the start amount (middle), never from the value being dragged.
+  const slider = useSliderStart(item.quantity);
+  const range = sliderRange(slider.start, kind);
   const set = (q: number | null) => {
-    const ok = q !== null && q >= min;
+    const ok = q !== null && q >= min && q <= max;
     setInvalid(!ok);
-    if (ok) onChange(rescaleItem(item, Math.round(q * 100) / 100));
+    if (ok) {
+      const next = Math.round(q * 100) / 100;
+      slider.own(next);
+      onCommit(rescaleItem(item, next));
+    }
   };
-  const max = grams
-    ? rowSliderMax(base, item.quantity)
-    : Math.max(10, Math.ceil(base * 2.5), Math.ceil(item.quantity));
   const id = `ingredient-${index}`;
   return (
     <Section>
@@ -96,11 +104,22 @@ export function IngredientCard({
         <div className="grid grid-cols-[1fr_7rem] items-end gap-3">
           <Slider
             aria-label={`Menge ${item.name}`}
-            min={grams ? 5 : 0.5}
-            max={max}
-            step={grams ? 5 : 0.5}
-            value={[item.quantity]}
-            onValueChange={([v]) => v !== undefined && set(v)}
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={[Math.min(item.quantity, range.max)]}
+            onPointerDown={slider.startDrag}
+            onValueChange={([v]) => {
+              if (v === undefined) return;
+              const q = clampAmount(v, kind);
+              slider.own(q);
+              setInvalid(false);
+              onChange(rescaleItem(item, q));
+            }}
+            onValueCommit={([v]) => {
+              slider.endDrag();
+              if (v !== undefined) onCommit(rescaleItem(item, clampAmount(v, kind)));
+            }}
             className="mb-4"
           />
           <NumberField
@@ -109,8 +128,15 @@ export function IngredientCard({
             unit={grams ? unit : '×'}
             value={item.quantity}
             onValueChange={set}
+            onBlur={() => slider.recenter(item.quantity)}
             integer={grams}
-            error={invalid ? (grams ? `Mindestens 1 ${unit}.` : 'Mindestens 0,1.') : null}
+            error={
+              invalid
+                ? grams
+                  ? `Zwischen 1 und ${fmt0(max)} ${unit}.`
+                  : `Zwischen 0,1 und ${fmt0(max)}.`
+                : null
+            }
           />
         </div>
         <NutrientsDisclosure title={entryAmountLabel(item)} nutrients={item.nutrients} targets={targets} />

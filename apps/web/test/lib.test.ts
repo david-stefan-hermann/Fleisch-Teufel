@@ -18,6 +18,7 @@ import { goBackOr } from '@/lib/history';
 import { resolveAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
+import { clampAmount, MAX_AMOUNT, roundAmount, sliderRange } from '@/lib/amounts';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -243,5 +244,56 @@ describe('appearance', () => {
     expect(resolveAppearance('light', 'auto', true)).toMatchObject({ mode: 'light', iconMode: 'light' });
     expect(resolveAppearance('dark', 'light', false)).toMatchObject({ mode: 'dark', iconMode: 'light' });
     expect(resolveAppearance('light', 'dark', false)).toMatchObject({ mode: 'light', iconMode: 'dark' });
+  });
+});
+
+describe('amount slider range', () => {
+  it('puts the start exactly in the middle', () => {
+    for (const start of [20, 80, 3050]) {
+      const { min, max } = sliderRange(start, 'base');
+      expect(min).toBe(0);
+      expect((start - min) / (max - min)).toBe(0.5);
+    }
+    expect(sliderRange(1.1, 'portion')).toEqual({ min: 0, max: 2.2, step: 0.1 });
+    expect(sliderRange(60, 'base').step).toBe(1);
+  });
+
+  it('shows 20 g, 80 g and 3050 g at different places of one range', () => {
+    // The bug: the end followed the value, so every amount sat at the same spot.
+    const { max } = sliderRange(80, 'base');
+    const at = (g: number) => Math.min(g, max) / max;
+    expect(new Set([at(20), at(80), at(3050)]).size).toBe(3);
+  });
+
+  it('does not grow while the value is dragged to the end again and again', () => {
+    const start = 80;
+    let value = start;
+    for (let i = 0; i < 20; i++) value = sliderRange(start, 'base').max;
+    expect(value).toBe(160);
+  });
+
+  it('never ends beyond the maximum of the field', () => {
+    expect(sliderRange(6000, 'base').max).toBe(MAX_AMOUNT.base);
+    expect(sliderRange(80, 'portion').max).toBe(MAX_AMOUNT.portion);
+  });
+
+  it('falls back to 100 g or one portion without a start amount', () => {
+    expect(sliderRange(null, 'base').max).toBe(200);
+    expect(sliderRange(0, 'portion').max).toBe(2);
+  });
+
+  it('keeps tiny starts usable', () => {
+    expect(sliderRange(0.1, 'portion').max).toBe(0.2);
+    expect(sliderRange(0.5, 'base').max).toBe(2);
+  });
+
+  it('clamps and rounds to the raster', () => {
+    expect(clampAmount(0, 'base')).toBe(1);
+    expect(clampAmount(12.6, 'base')).toBe(13);
+    expect(clampAmount(1e21, 'base')).toBe(9999);
+    expect(clampAmount(0.30000000000000004, 'portion')).toBe(0.3);
+    expect(clampAmount(0, 'portion')).toBe(0.1);
+    expect(clampAmount(150, 'portion')).toBe(99);
+    expect(roundAmount(1.15, 'portion')).toBe(1.2);
   });
 });

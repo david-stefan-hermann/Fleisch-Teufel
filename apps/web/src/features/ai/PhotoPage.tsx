@@ -6,6 +6,7 @@ import {
   sumNutrients,
   targetsForDate,
   type AiAnalysisResult,
+  type ResolvedTargets,
 } from '@ft/shared';
 import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -62,7 +63,8 @@ import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
-import { rowSliderMax } from '@/lib/amounts';
+import { useSliderStart } from '@/hooks/useSliderStart';
+import { clampAmount, MAX_AMOUNT, sliderRange } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
 import { fmt0, fmtGrams, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
@@ -546,9 +548,11 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     setScaleBase(rowGrams(next));
   };
   const update = (key: string, patch: Partial<AiDraftRow>) => commitRows(patchRow(draft, key, patch));
+  /** Live change while a slider is dragged: only the screen follows, saved when it is let go. */
+  const preview = (key: string, patch: Partial<AiDraftRow>) => setDraft(patchRow(draft, key, patch));
   const rescale = (factor: number) => {
     setScale(factor);
-    commit(scaleDraft(draft, scaleBase, factor));
+    setDraft(scaleDraft(draft, scaleBase, factor));
   };
 
   const resolved = rows
@@ -709,105 +713,17 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             Ändern und oben auf ↻ tippen, um neu zu analysieren.
           </p>
         </div>
-        {rows.map((r) => {
-          const food = r.candidates.find((c) => c.id === r.foodId);
-          const kcal = food && r.grams ? (get(food.nutrients, N.kcal) * r.grams) / 100 : 0;
-          return (
-            <Section key={r.key}>
-              <div className="grid gap-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold">{r.name}</div>
-                    {r.confidence ? (
-                      <Badge variant={r.confidence === 'low' ? 'outline' : 'secondary'} className="mt-1">
-                        KI: {CONFIDENCE[r.confidence]}
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="mt-1">
-                        von dir hinzugefügt
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="tabular font-semibold">{fmt0(kcal)} kcal</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={`${r.name} entfernen`}
-                      onClick={() => commitRows({ ...draft, rows: rows.filter((x) => x.key !== r.key) })}
-                    >
-                      <Trash2 aria-hidden />
-                    </Button>
-                  </div>
-                </div>
-                {r.candidates.length > 1 ? (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor={`cand-${r.key}`}>Lebensmittel aus der Datenbank</Label>
-                    <Select value={r.foodId ?? ''} onValueChange={(v) => update(r.key, { foodId: v })}>
-                      <SelectTrigger
-                        id={`cand-${r.key}`}
-                        className="h-auto min-h-11 w-full py-2 text-left whitespace-normal"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {r.candidates.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                            {c.brand ? ` (${c.brand})` : ''} · {fmt0(get(c.nutrients, N.kcal))} kcal/100 g
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : r.candidates.length === 1 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {r.candidates[0]!.name}
-                    {r.candidates[0]!.brand ? ` (${r.candidates[0]!.brand})` : ''} ·{' '}
-                    {fmt0(get(r.candidates[0]!.nutrients, N.kcal))} kcal/100 g
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Kein passendes Lebensmittel gefunden, wird nicht gespeichert.{' '}
-                    <button
-                      type="button"
-                      onClick={() => searchIngredient(r.name)}
-                      className="text-primary underline"
-                    >
-                      Selbst suchen
-                    </button>
-                  </p>
-                )}
-                <div className="grid grid-cols-[1fr_7rem] items-end gap-3">
-                  <Slider
-                    aria-label={`Menge ${r.name}`}
-                    min={0}
-                    // Based on the scale reference, so scaling up does not pin the thumb to the end.
-                    max={rowSliderMax(scaleBase[r.key] ?? r.grams, r.grams)}
-                    step={5}
-                    value={[r.grams ?? 0]}
-                    onValueChange={([v]) => update(r.key, { grams: v ?? 0 })}
-                    className="mb-4"
-                  />
-                  <NumberField
-                    label="Gramm"
-                    unit={food?.unit ?? 'g'}
-                    value={r.grams}
-                    onValueChange={(g) => update(r.key, { grams: g })}
-                    integer
-                  />
-                </div>
-                {food && r.grams ? (
-                  <NutrientsDisclosure
-                    title={fmtGrams(r.grams, food.unit)}
-                    nutrients={scaleNutrients(food.nutrients, r.grams)}
-                    targets={targets}
-                  />
-                ) : null}
-              </div>
-            </Section>
-          );
-        })}
+        {rows.map((r) => (
+          <ReviewRow
+            key={r.key}
+            row={r}
+            targets={targets}
+            onPreview={(patch) => preview(r.key, patch)}
+            onChange={(patch) => update(r.key, patch)}
+            onRemove={() => commitRows({ ...draft, rows: rows.filter((x) => x.key !== r.key) })}
+            onSearch={() => searchIngredient(r.name)}
+          />
+        ))}
         <Button variant="outline" className="mb-4 w-full" onClick={() => searchIngredient()}>
           <Plus aria-hidden /> Zutat hinzufügen
         </Button>
@@ -837,6 +753,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
                   step={0.05}
                   value={[scale]}
                   onValueChange={([v]) => v !== undefined && rescale(v)}
+                  onValueCommit={() => commit(draft)}
                 />
               </div>
             )}
@@ -897,5 +814,136 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         onConfirm={saveAsMeal}
       />
     </Page>
+  );
+}
+
+/**
+ * One ingredient of the review: name, confidence, kcal and remove in the head, the database choice,
+ * then the amount. Slider ticks only preview (`onPreview`); letting go, typing and choosing save.
+ */
+function ReviewRow({
+  row: r,
+  targets,
+  onPreview,
+  onChange,
+  onRemove,
+  onSearch,
+}: {
+  row: AiDraftRow;
+  targets: ResolvedTargets;
+  onPreview: (patch: Partial<AiDraftRow>) => void;
+  onChange: (patch: Partial<AiDraftRow>) => void;
+  onRemove: () => void;
+  onSearch: () => void;
+}) {
+  const food = r.candidates.find((c) => c.id === r.foodId);
+  const kcal = food && r.grams ? (get(food.nutrients, N.kcal) * r.grams) / 100 : 0;
+  // The range comes from the start amount (middle), never from the value being dragged.
+  const slider = useSliderStart(r.grams);
+  const range = sliderRange(slider.start, 'base');
+  const [invalid, setInvalid] = useState(false);
+  return (
+    <Section>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-semibold break-words">{r.name}</div>
+            {r.confidence ? (
+              <Badge variant={r.confidence === 'low' ? 'outline' : 'secondary'} className="mt-1">
+                KI: {CONFIDENCE[r.confidence]}
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="mt-1">
+                von dir hinzugefügt
+              </Badge>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="tabular font-semibold">{fmt0(kcal)} kcal</span>
+            <Button variant="ghost" size="icon" aria-label={`${r.name} entfernen`} onClick={onRemove}>
+              <Trash2 aria-hidden />
+            </Button>
+          </div>
+        </div>
+        {r.candidates.length > 1 ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor={`cand-${r.key}`}>Lebensmittel aus der Datenbank</Label>
+            <Select value={r.foodId ?? ''} onValueChange={(v) => onChange({ foodId: v })}>
+              <SelectTrigger
+                id={`cand-${r.key}`}
+                className="h-auto min-h-11 w-full py-2 text-left whitespace-normal"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {r.candidates.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.brand ? ` (${c.brand})` : ''} · {fmt0(get(c.nutrients, N.kcal))} kcal/100 g
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : r.candidates.length === 1 ? (
+          <p className="text-sm text-muted-foreground">
+            {r.candidates[0]!.name}
+            {r.candidates[0]!.brand ? ` (${r.candidates[0]!.brand})` : ''} ·{' '}
+            {fmt0(get(r.candidates[0]!.nutrients, N.kcal))} kcal/100 g
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Kein passendes Lebensmittel gefunden, wird nicht gespeichert.{' '}
+            <button type="button" onClick={onSearch} className="text-primary underline">
+              Selbst suchen
+            </button>
+          </p>
+        )}
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] items-end gap-3">
+          <Slider
+            aria-label={`Menge ${r.name}`}
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={[Math.min(r.grams ?? 0, range.max)]}
+            onPointerDown={slider.startDrag}
+            onValueChange={([v]) => {
+              if (v === undefined) return;
+              const g = clampAmount(v, 'base');
+              slider.own(g);
+              setInvalid(false);
+              onPreview({ grams: g });
+            }}
+            onValueCommit={([v]) => {
+              slider.endDrag();
+              if (v !== undefined) onChange({ grams: clampAmount(v, 'base') });
+            }}
+            className="mb-4"
+          />
+          <NumberField
+            label="Gramm"
+            unit={food?.unit ?? 'g'}
+            value={r.grams}
+            onValueChange={(g) => {
+              const ok = g === null || (g > 0 && g <= MAX_AMOUNT.base);
+              setInvalid(!ok);
+              if (!ok) return;
+              slider.own(g);
+              onChange({ grams: g });
+            }}
+            onBlur={() => slider.recenter(r.grams)}
+            integer
+            error={invalid ? `Zwischen 1 und ${fmt0(MAX_AMOUNT.base)} ${food?.unit ?? 'g'}.` : null}
+          />
+        </div>
+        {food && r.grams ? (
+          <NutrientsDisclosure
+            title={fmtGrams(r.grams, food.unit)}
+            nutrients={scaleNutrients(food.nutrients, r.grams)}
+            targets={targets}
+          />
+        ) : null}
+      </div>
+    </Section>
   );
 }
