@@ -305,6 +305,9 @@ function CameraCapture({
   const capture = useRef<CaptureFn | null>(null);
   const [camError, setCamError] = useState<ScannerError | null>(null);
   const [torch, setTorch] = useState<TorchState>(null);
+  // The shutter waits for the first camera frame.
+  const [camReady, setCamReady] = useState(false);
+  const onReady = useCallback(() => setCamReady(true), []);
   // While a picked photo is checked for a barcode.
   const [busy, setBusy] = useState(false);
   const onError = useCallback((e: ScannerError) => setCamError(e), []);
@@ -351,7 +354,7 @@ function CameraCapture({
       <button
         type="button"
         aria-label="Foto aufnehmen"
-        disabled={busy}
+        disabled={busy || !camReady}
         onClick={() => void shoot()}
         className="grid size-[4.5rem] touch-manipulation place-items-center rounded-full border-4 border-white/90 bg-white/20 backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50 focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none motion-reduce:transition-none"
       >
@@ -421,6 +424,7 @@ function CameraCapture({
           paused={busy}
           captureRef={capture}
           onTorchState={setTorch}
+          onReady={onReady}
         >
           {overlay}
         </BarcodeScanner>

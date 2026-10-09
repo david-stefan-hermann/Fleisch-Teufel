@@ -1015,3 +1015,67 @@ describe('torch', () => {
     expect(button.className).toContain('top-3');
   });
 });
+
+describe('camera fade-in', () => {
+  function fakeCamera() {
+    const track = { getCapabilities: () => ({}), stop: vi.fn(), readyState: 'live' };
+    const stream = { getVideoTracks: () => [track], getTracks: () => [track] };
+    const getUserMedia = vi.fn(async () => stream);
+    vi.stubGlobal('navigator', { ...navigator, mediaDevices: { getUserMedia } });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    return getUserMedia;
+  }
+
+  it('keeps the video transparent over a placeholder until the first frame', async () => {
+    fakeCamera();
+    const onReady = vi.fn();
+    const { container } = render(
+      <BarcodeScanner frame="photo" onDetected={() => {}} onError={() => {}} onReady={onReady} />,
+    );
+    const video = screen.getByLabelText('Kamerabild');
+    expect(video.className).toContain('opacity-0');
+    expect(video.className).not.toContain('opacity-100');
+    expect(container.querySelector('.lucide-camera')).not.toBeNull();
+    fireEvent.loadedData(video);
+    fireEvent.playing(video); // a second event does not report twice
+    await waitFor(() => expect(video.className).toContain('opacity-100'));
+    expect(video.className).toContain('motion-reduce:transition-none');
+    expect(container.querySelector('.lucide-camera')).toBeNull();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a painted frame when the browser can tell', async () => {
+    fakeCamera();
+    let frame: (() => void) | undefined;
+    Object.defineProperty(HTMLVideoElement.prototype, 'requestVideoFrameCallback', {
+      configurable: true,
+      value: (cb: () => void) => {
+        frame = cb;
+        return 1;
+      },
+    });
+    try {
+      render(<BarcodeScanner frame="photo" onDetected={() => {}} onError={() => {}} />);
+      const video = screen.getByLabelText('Kamerabild');
+      fireEvent.loadedData(video);
+      await act(async () => {});
+      expect(video.className).not.toContain('opacity-100');
+      act(() => frame?.());
+      expect(video.className).toContain('opacity-100');
+    } finally {
+      delete (HTMLVideoElement.prototype as { requestVideoFrameCallback?: unknown })
+        .requestVideoFrameCallback;
+    }
+  });
+
+  it('uses a warmed-up stream instead of asking again', async () => {
+    const { warmUpCamera } = await import('@/components/cameraWarmup');
+    const getUserMedia = fakeCamera();
+    warmUpCamera();
+    render(<BarcodeScanner onDetected={() => {}} onError={() => {}} />);
+    await waitFor(() =>
+      expect((screen.getByLabelText('Kamerabild') as HTMLVideoElement).srcObject).toBeTruthy(),
+    );
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+  });
+});

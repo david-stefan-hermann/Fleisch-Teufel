@@ -6,7 +6,7 @@
 import { validGtin } from '@ft/shared';
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
-import { Flashlight } from 'lucide-react';
+import { Camera, Flashlight } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -100,6 +100,7 @@ export function BarcodeScanner({
   children,
   frame = 'barcode',
   onTorchState,
+  onReady,
 }: {
   onDetected: (code: string) => void;
   onError: (e: ScannerError) => void;
@@ -115,8 +116,31 @@ export function BarcodeScanner({
    * Without it the scanner shows its own toggle top right. Pass a state setter (stable identity).
    */
   onTorchState?: (s: TorchState) => void;
+  /** Called once the first camera frame is on screen (e.g. to enable a shutter). */
+  onReady?: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
+  // Until the first frame arrives the video stays transparent over a dark placeholder, then fades in.
+  const [ready, setReady] = useState(false);
+  const readyAsked = useRef(false);
+  const markReady = () => {
+    if (readyAsked.current) return;
+    readyAsked.current = true;
+    const v = video.current;
+    let fired = false;
+    const done = () => {
+      if (fired) return;
+      fired = true;
+      setReady(true);
+      onReady?.();
+    };
+    // `loadeddata` can fire before the frame is painted (black flash on iOS); wait for it when
+    // possible, but never longer than half a second (a paused video gets no frame callbacks).
+    if (v && 'requestVideoFrameCallback' in v) {
+      v.requestVideoFrameCallback(done);
+      setTimeout(done, 500);
+    } else done();
+  };
   useEffect(() => {
     if (!captureRef) return;
     captureRef.current = async () => {
@@ -219,13 +243,23 @@ export function BarcodeScanner({
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-black">
+      {!ready && (
+        <div className="absolute inset-0 grid place-items-center text-white/60" aria-hidden>
+          <Camera className="size-10 animate-pulse motion-reduce:animate-none" />
+        </div>
+      )}
       <video
         ref={video}
-        className="aspect-[3/4] w-full object-cover"
+        className={cn(
+          'relative aspect-[3/4] w-full object-cover opacity-0 transition-opacity duration-150 motion-reduce:transition-none',
+          ready && 'opacity-100',
+        )}
         playsInline
         muted
         autoPlay
         aria-label="Kamerabild"
+        onLoadedData={markReady}
+        onPlaying={markReady}
       />
       {frame === 'barcode' ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
