@@ -70,8 +70,9 @@ export async function saveExerciseTemplate(
 
 /**
  * Logs items into a diary meal. With `mealId` (a saved meal) or `groupName` (a group without a
- * saved meal, e.g. an AI analysis logged with "Nur eintragen") all entries share one `groupId`,
+ * saved meal, e.g. an AI analysis logged with "Meal eintragen") all entries share one `groupId`,
  * so the diary shows them as one expandable row; `factor` scales every item (0.5 = half).
+ * `photoId` goes on every entry of the group (the diary row shows it before the meal's photo).
  */
 export async function logItems(
   db: UserDb,
@@ -82,6 +83,7 @@ export async function logItems(
     mealId?: string | null;
     aiAnalysisId?: string | null;
     groupName?: string | null;
+    photoId?: string | null;
   } = {},
 ): Promise<number> {
   const factor = opts.factor ?? 1;
@@ -112,7 +114,7 @@ export async function logItems(
       aiAnalysisId: opts.aiAnalysisId ?? null,
       groupId,
       groupName,
-      photoId: null,
+      photoId: groupId ? (opts.photoId ?? null) : null,
     });
   }
   return items.length;
@@ -168,7 +170,8 @@ export async function createAiMeal(
 /**
  * "Meal eintragen" of an AI analysis that was saved as a meal: the meal first takes over the current
  * ingredients and name (it always matches what gets logged; a meal deleted meanwhile comes back),
- * then the items are logged as a group attached to it. Returns the number of logged entries.
+ * then the items are logged as a group attached to it. The entries keep the meal's photo of this
+ * moment, also when the meal gets another photo later. Returns the number of logged entries.
  */
 export async function logAiMeal(
   db: UserDb,
@@ -189,12 +192,17 @@ export async function logAiMeal(
       items: mealItems,
       photoId: null,
     });
-  return logItems(db, mealItems, target, { mealId, aiAnalysisId: analysis.analysisId });
+  return logItems(db, mealItems, target, {
+    mealId,
+    aiAnalysisId: analysis.analysisId,
+    photoId: existing?.photoId ?? null,
+  });
 }
 
 /**
  * "Meal eintragen" of an AI analysis that was not saved: logs the confirmed items as one named group in the diary,
- * without a saved meal and without storing the photo. Returns the number of logged entries.
+ * without a saved meal. The analysed photo is stored (and uploaded) and shown on the diary row.
+ * Returns the number of logged entries.
  */
 export async function logAiItems(
   db: UserDb,
@@ -202,10 +210,14 @@ export async function logAiItems(
   items: { food: Food; grams: number }[],
   target: { date: string; meal: number },
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
+  /** The analysed photo (already compressed by the AI queue); null keeps the row without photo. */
+  photo: Blob | null = null,
 ): Promise<number> {
+  const photoId = photo ? await storePhoto(db, photo) : null;
   return logItems(db, aiMealItems(items), target, {
     groupName: name.trim() || 'Meal vom Foto',
     aiAnalysisId: analysis.analysisId,
+    photoId,
   });
 }
 

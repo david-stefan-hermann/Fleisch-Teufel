@@ -68,7 +68,7 @@ import { fmt0, fmtGrams, fmtIngredients, fmtPercent, fmtTime } from '@/lib/forma
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
 import { compressImage } from './image';
-import { discardQueueItem, enqueuePhoto, imageBlob, processQueue, reanalyze } from './queue';
+import { discardQueueItem, enqueuePhoto, imageBlob, loadQueueImage, processQueue, reanalyze } from './queue';
 
 /**
  * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
@@ -591,7 +591,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     if (id) await patchRecord(db, 'meals', id, { name: newName });
     else {
       const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
-      id = await createAiMeal(db, newName, items, image ?? null);
+      id = await createAiMeal(db, newName, items, image ?? (await loadQueueImage(db, item)));
     }
     commit({ ...draft, mealName: newName, savedMealId: id });
     toast.success(`„${newName}“ gespeichert`);
@@ -599,13 +599,14 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
 
   /**
    * "Meal eintragen": attached to the saved meal (which takes over the current ingredients) when
-   * the review was saved, otherwise as one named group without a meal and without the photo.
+   * the review was saved, otherwise as one named group without a meal. Both keep the photo.
    */
   async function log() {
     const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
     const target = { date: item.date, meal };
     if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result);
-    else await logAiItems(db, name, items, target, result);
+    // Read before `discardQueueItem` drops the queue photo; `image` is undefined while still loading.
+    else await logAiItems(db, name, items, target, result, image ?? (await loadQueueImage(db, item)));
     for (const r of resolved) await rememberFood(db, r.food);
     await discardQueueItem(db, item.localId!);
     if (savedMealId)

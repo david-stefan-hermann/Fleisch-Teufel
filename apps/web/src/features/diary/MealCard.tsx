@@ -154,7 +154,8 @@ export function DiaryRows({
             <GroupRow
               groupId={row.groupId}
               name={(row.mealId && mealInfo?.get(row.mealId)?.name) || row.groupName || 'Meal'}
-              photoId={(row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
+              // The photo kept on the entries (AI analysis, meal photo at logging time) before the meal's current one.
+              photoId={row.entries[0]?.photoId || (row.mealId && mealInfo?.get(row.mealId)?.photoId) || null}
               entries={row.entries}
               nutrients={row.nutrients}
               date={date}

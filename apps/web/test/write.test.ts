@@ -75,6 +75,8 @@ describe('local writes', () => {
     const t2 = await saveExerciseTemplate(d, training('Dauerlauf'));
     expect(await trashCount(d)).toBe(0);
     await deleteRecord(d, 'exerciseTemplates', t2);
+    // Two deletions in the same millisecond would tie on updatedAt.
+    await new Promise((r) => setTimeout(r, 3));
     await deleteRecord(d, 'exerciseTemplates', t1);
     expect((await trashedTrainings(d)).map((t) => t.name)).toEqual(['Bahntraining', 'Dauerlauf']);
     expect(await trashCount(d)).toBe(2);
@@ -82,6 +84,7 @@ describe('local writes', () => {
     await restoreRecord(d, 'exerciseTemplates', t2);
     expect(await trashedTrainings(d)).toEqual([]);
     await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-02'));
+    await new Promise((r) => setTimeout(r, 3));
     await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-01'));
     await deleteRecord(d, 'meals', meal.id);
     expect((await trashedWeights(d)).map((w) => w.date)).toEqual(['2026-10-01', '2026-10-02']);
@@ -190,6 +193,8 @@ describe('local writes', () => {
     expect(entries[0]!.groupId).toBeTruthy();
     // The name comes from the saved meal.
     expect(entries[0]!.groupName).toBeNull();
+    // The entry keeps the meal's photo of this moment.
+    expect(entries[0]!.photoId).toBe(meal!.photoId);
   });
 
   it('brings back a saved AI meal that was deleted before logging', async () => {
@@ -258,7 +263,7 @@ describe('local writes', () => {
     expect((await d.meals.get(id))!.items).toEqual(entriesToMealItems(entries));
   });
 
-  it('logs an unsaved AI analysis as a named group without a meal or photo ("Meal eintragen")', async () => {
+  it('logs an unsaved AI analysis as a named group without a meal ("Meal eintragen")', async () => {
     const d = db();
     const food = {
       id: 'bls:R',
@@ -304,6 +309,67 @@ describe('local writes', () => {
     // The diary shows them as one group carrying the name.
     const [row] = groupDiaryEntries(entries);
     expect(row).toMatchObject({ kind: 'group', mealId: null, groupName: 'Bowl vom Foto' });
+  });
+
+  it('keeps the analysed photo on every entry of an unsaved AI analysis', async () => {
+    const d = db();
+    const food = {
+      id: 'bls:R',
+      source: 'bls' as const,
+      sourceId: 'R',
+      name: 'Reis gekocht',
+      nameEn: null,
+      brand: null,
+      group: null,
+      unit: 'g' as const,
+      nutrients: { ENERCC: 130 },
+      portions: [],
+    };
+    const photo = new Blob([new Uint8Array([7, 8, 9])], { type: 'image/jpeg' });
+    await logAiItems(
+      d,
+      'Köttbullar',
+      [
+        { food, grams: 200 },
+        { food: { ...food, id: 'bls:S', sourceId: 'S', name: 'Soße' }, grams: 80 },
+      ],
+      { date: '2026-10-09', meal: 2 },
+      { analysisId: 'a4' },
+      photo,
+    );
+    const entries = await d.foodEntries.toArray();
+    const photoId = entries[0]!.photoId;
+    expect(photoId).toBeTruthy();
+    expect(entries.map((e) => e.photoId)).toEqual([photoId, photoId]);
+    // Stored on the device and queued for upload; still no saved meal.
+    const stored = await d.photos.get(photoId!);
+    expect(stored).toMatchObject({ type: 'image/jpeg', uploaded: 0 });
+    expect(new Uint8Array(stored!.bytes!)).toEqual(new Uint8Array([7, 8, 9]));
+    expect(await d.meals.count()).toBe(0);
+  });
+
+  it('puts the photo only on grouped entries', async () => {
+    const d = db();
+    const item = {
+      foodId: null,
+      source: 'quick' as const,
+      name: 'Tee',
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 2 },
+    };
+    await logItems(d, [item, item], { date: '2026-10-07', meal: 0 }, { mealId: 'm1', photoId: 'p1' });
+    await logItems(d, [item], { date: '2026-10-07', meal: 1 }, { photoId: 'p2' });
+    const entries = await d.foodEntries.orderBy('loggedAt').toArray();
+    expect(entries.map((e) => [e.meal, e.photoId])).toEqual([
+      [0, 'p1'],
+      [0, 'p1'],
+      [1, null],
+    ]);
   });
 
   it('names an unnamed group and never groups plain logs', async () => {

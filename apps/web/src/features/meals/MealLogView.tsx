@@ -68,7 +68,12 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
   }
 
   async function log() {
-    const n = await logItems(db, kept, { date, meal: target }, { factor, mealId: meal.id });
+    const n = await logItems(
+      db,
+      kept,
+      { date, meal: target },
+      { factor, mealId: meal.id, photoId: meal.photoId ?? null },
+    );
     toast.success(`${meal.name}: ${fmtIngredients(n)} eingetragen`);
     await navigate({ to: '/', search: { date } });
   }
