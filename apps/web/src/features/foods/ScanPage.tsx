@@ -12,7 +12,7 @@ import { useAiStatus } from '@/hooks/useAiStatus';
 
 const ERRORS: Record<ScannerError, string> = {
   permission:
-    'Kein Kamerazugriff. Erlaube die Kamera in den iOS-Einstellungen (Safari → Kamera) oder gib den Code unten ein.',
+    'Kein Kamerazugriff. Stelle in den iOS-Einstellungen unter Apps → Safari → Kamera „Erlauben“ ein oder gib den Code unten ein.',
   'no-camera': 'Keine Kamera gefunden. Gib den Code unten ein.',
   unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff. Gib den Code unten ein.',
   other: 'Die Kamera konnte nicht gestartet werden. Gib den Code unten ein.',

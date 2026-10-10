@@ -4,6 +4,21 @@ Projekt: `/projects/Fleisch-Teufel`. Abgelegt als `docs/plans/2026-10-feedback-r
 Ablauf wie in den Runden 4 bis 6: zuerst das Mockup (Schritt 0) für Mengen-Editor und Desktop-Banner, erst nach dem OK
 des Users die Blöcke.
 
+**Stand 2026-10-10: umgesetzt** (Blöcke 1 bis 7, ein Commit je Block, nicht gepusht). Abweichungen und Ergänzungen
+gegenüber dem Plan:
+
+- Block 1: Statt `router.preloadRoute` lädt das Add-Menü den Code der Essen-Seite schon beim Öffnen
+  (`loadRouteChunk`); die `/photo`-Links laden ihn mit `preload="intent"`.
+- Block 3: Neben dem Slider schreibt auch die Gesamtmenge den Draft erst beim Loslassen.
+- Block 5: Die Einheitenauswahl gibt es überall (auch KI-Review und Zutaten in Meal-Editor und Tagebuch-Gruppe:
+  Gramm, Portionen des Lebensmittels, eigene Portionen, Haushaltsmaße). „100 g“-Mengen erscheinen als Gramm. Ein
+  per Feld getippter Wert darf feiner als das Raster sein (1,25 Portionen), nur Slider und −/+ rasten.
+  E2E fand dabei einen Fehler: Schnelleinträge ohne Portion verloren beim Ändern der Anzahl ihre kcal (behoben,
+  Test in `lib.test.ts`).
+- Block 6: Auf anderen Geräten (weder iPhone, Android noch Computer) erscheint das Banner nur, wenn der Browser
+  `beforeinstallprompt` liefert.
+- Block 7: Kamera-Hinweis lautet jetzt „Stelle in den iOS-Einstellungen unter Apps → Safari → Kamera „Erlauben“ ein.“
+
 ## Context
 
 Rückmeldung des Users (2026-10-09):

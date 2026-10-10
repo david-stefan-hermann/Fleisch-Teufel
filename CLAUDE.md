@@ -62,6 +62,16 @@ Serve the production web build through the API (same origin, service worker acti
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
   The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, one more Claude call, asks first when
   `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old result.
+- Camera start: the taps that open `/photo` (add sheet tile, meal "+", search camera icon) call `warmUpCamera()`
+  (`components/cameraWarmup.ts`) before navigating, so iOS starts the camera during the page change; the scanner
+  takes the stream with `takeWarmStream()` (same `CAMERA_CONSTRAINTS`), an unused one stops after 3 s. The camera
+  never runs without a visible picture otherwise (the user rejected keeping it alive). The video fades in on the
+  first frame; shutters wait for `onReady`.
+- Top banners (`app/AppBanners.tsx`): only one at a time, session expired > update > install. The install banner
+  (store-banner style, app icon, after `INSTALL_DELAY_MS` without another banner, never standalone, closed for good
+  via `ft.installHintDismissed`) shows the Safari steps on iOS, Chrome's dialog on Android (`beforeinstallprompt`
+  kept by `captureInstallPrompt` in `app/pwa.ts`) and a QR code (`uqr`) of the app on a computer (`isDesktop`).
+  E2E specs set the dismissed key so the banner stays out of the way.
 - Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
   API `routes/photos.ts`. Images in IndexedDB are `ArrayBuffer` + type (`photos.bytes`, AI queue photos in the
   `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them).
@@ -98,6 +108,16 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   picker and fields shared with logging (`features/exercise/TrainingFields.tsx`, `training.ts`). Trash covers
   weights, meals and saved trainings.
 - Weight entry uses `TapeMeasure` (0,05 raster, `role=slider`); weights display with up to two decimals.
+- Food amounts use one component, `components/AmountEditor.tsx` (food page, AI review rows, `IngredientCard` of the
+  meal and diary group editors): unit select (base "Gramm"/"Milliliter" = the `1 g`/`1 ml` portion first, then
+  `editorPortions`; "100 g" amounts show as grams via `normalizeAmount`), slider with the scale 0 / start / end,
+  −/+ (repeat while held) and field, "= X g" for portions. The slider range comes from a start amount in the middle
+  (`sliderRange` in `lib/amounts.ts`: end = 2 × start, capped at `MAX_AMOUNT` 9.999 g / 99 portions; raster 1 g /
+  0,1), held by `useSliderStart`: it never follows the dragged value (that made the slider explode in round 7), only
+  a typed amount on blur, a unit switch, −/+ beyond the end or a change from outside. `onChange` is live (drag),
+  `onCommit` final: drafts are written on commit, not per tick (also for "Gesamtmenge"). A unit switch keeps the
+  grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
+  `aiMealItems` logs with its count. The food page logs on one day only (no multi-day logging any more).
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value

@@ -24,7 +24,8 @@ export type ScannerError = 'permission' | 'no-camera' | 'unsupported' | 'other';
 
 /** Why the camera does not run; pages append what to do instead. */
 export const CAM_ERRORS: Record<ScannerError, string> = {
-  permission: 'Kein Kamerazugriff. Erlaube die Kamera in den iOS-Einstellungen (Safari → Kamera).',
+  permission:
+    'Kein Kamerazugriff. Stelle in den iOS-Einstellungen unter Apps → Safari → Kamera „Erlauben“ ein.',
   'no-camera': 'Keine Kamera gefunden.',
   unsupported: 'Dieser Browser unterstützt keinen Kamerazugriff.',
   other: 'Die Kamera konnte nicht gestartet werden.',
