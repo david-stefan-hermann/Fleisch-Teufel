@@ -23,9 +23,10 @@ import {
   convertAmount,
   editorPortions,
   MAX_AMOUNT,
+  nearestIndex,
   normalizeAmount,
   roundAmount,
-  sliderRange,
+  wheelValues,
 } from '@/lib/amounts';
 import { itemPortion, itemWithAmount } from '@/features/meals/IngredientCard';
 import type { MealItem } from '@ft/shared';
@@ -264,54 +265,42 @@ describe('appearance', () => {
   });
 });
 
-describe('amount slider range', () => {
-  it('puts the start exactly in the middle', () => {
-    for (const start of [20, 80, 3050]) {
-      const { min, max } = sliderRange(start, 'base');
-      expect(min).toBe(0);
-      expect((start - min) / (max - min)).toBe(0.5);
-    }
-    expect(sliderRange(1.1, 'portion')).toEqual({ min: 0, max: 2.2, step: 0.1 });
-    expect(sliderRange(60, 'base').step).toBe(1);
+describe('amount wheel', () => {
+  it('runs in 5 g steps to 1.000 g and in half portions to 10', () => {
+    const g = wheelValues('base');
+    expect(g.slice(0, 3)).toEqual([5, 10, 15]);
+    expect(g.at(-1)).toBe(1000);
+    expect(g).toHaveLength(200);
+    const p = wheelValues('portion');
+    expect(p.slice(0, 4)).toEqual([0.5, 1, 1.5, 2]);
+    expect(p.at(-1)).toBe(10);
   });
 
-  it('shows 20 g, 80 g and 3050 g at different places of one range', () => {
-    // The bug: the end followed the value, so every amount sat at the same spot.
-    const { max } = sliderRange(80, 'base');
-    const at = (g: number) => Math.min(g, max) / max;
-    expect(new Set([at(20), at(80), at(3050)]).size).toBe(3);
+  it('gives an amount off the raster its own place', () => {
+    expect(wheelValues('base', 137).slice(26, 29)).toEqual([135, 137, 140]);
+    expect(wheelValues('portion', 1.25).slice(1, 4)).toEqual([1, 1.25, 1.5]);
+    // Beyond the raster it sits at the end; on the raster nothing is added.
+    expect(wheelValues('base', 2500).at(-1)).toBe(2500);
+    expect(wheelValues('base', 60)).toHaveLength(200);
+    expect(wheelValues('base', 0)).toHaveLength(200);
+    expect(wheelValues('base', MAX_AMOUNT.base + 1)).toHaveLength(200);
   });
 
-  it('does not grow while the value is dragged to the end again and again', () => {
-    const start = 80;
-    let value = start;
-    for (let i = 0; i < 20; i++) value = sliderRange(start, 'base').max;
-    expect(value).toBe(160);
+  it('finds the row of an amount', () => {
+    const g = wheelValues('base', 137);
+    expect(g[nearestIndex(g, 137)]).toBe(137);
+    expect(g[nearestIndex(g, 62)]).toBe(60);
+    expect(nearestIndex(g, null)).toBe(0);
   });
 
-  it('never ends beyond the maximum of the field', () => {
-    expect(sliderRange(6000, 'base').max).toBe(MAX_AMOUNT.base);
-    expect(sliderRange(80, 'portion').max).toBe(MAX_AMOUNT.portion);
-  });
-
-  it('falls back to 100 g or one portion without a start amount', () => {
-    expect(sliderRange(null, 'base').max).toBe(200);
-    expect(sliderRange(0, 'portion').max).toBe(2);
-  });
-
-  it('keeps tiny starts usable', () => {
-    expect(sliderRange(0.1, 'portion').max).toBe(0.2);
-    expect(sliderRange(0.5, 'base').max).toBe(2);
-  });
-
-  it('clamps and rounds to the raster', () => {
+  it('clamps and rounds computed amounts', () => {
     expect(clampAmount(0, 'base')).toBe(1);
     expect(clampAmount(12.6, 'base')).toBe(13);
     expect(clampAmount(1e21, 'base')).toBe(9999);
     expect(clampAmount(0.30000000000000004, 'portion')).toBe(0.3);
-    expect(clampAmount(0, 'portion')).toBe(0.1);
+    expect(clampAmount(0, 'portion')).toBe(0.01);
     expect(clampAmount(150, 'portion')).toBe(99);
-    expect(roundAmount(1.15, 'portion')).toBe(1.2);
+    expect(roundAmount(1.254, 'portion')).toBe(1.25);
   });
 });
 
@@ -329,13 +318,14 @@ describe('amount editor units', () => {
     expect(editorPortions('ml', [])[0]).toEqual({ label: '1 ml', grams: 1 });
   });
 
-  it('converts between units keeping the grams, on the raster of the new unit', () => {
+  it('converts between units keeping the grams', () => {
     const g = { label: '1 g', grams: 1 };
     const el = { label: 'Esslöffel (EL)', grams: 15 };
-    expect(convertAmount(80, g, el)).toBe(5.3);
-    expect(convertAmount(5.3, el, g)).toBe(80);
+    expect(convertAmount(80, g, el)).toBe(5.33);
+    expect(convertAmount(5.33, el, g)).toBe(80);
+    expect(convertAmount(30, g, { label: 'Schale', grams: 300 })).toBe(0.1);
     expect(convertAmount(2, el, g)).toBe(30);
-    expect(convertAmount(1, g, { label: 'Schale', grams: 300 })).toBe(0.1);
+    expect(convertAmount(1, g, { label: 'Schale', grams: 300 })).toBe(0.01);
     expect(convertAmount(null, g, el)).toBeNull();
   });
 

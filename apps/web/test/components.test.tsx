@@ -1,5 +1,5 @@
 import { targetsForDate, uuidv7 } from '@ft/shared';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BarcodeScanner, TorchButton, type TorchState } from '@/components/BarcodeScanner';
@@ -1082,7 +1082,7 @@ describe('camera fade-in', () => {
   });
 });
 
-describe('ingredient amount slider', () => {
+describe('ingredient amount wheel', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'ResizeObserver',
@@ -1127,30 +1127,49 @@ describe('ingredient amount slider', () => {
     );
   }
 
-  it('keeps its range while the amount changes (start in the middle, end 2 × start)', () => {
+  const wheel = () => screen.getByRole('slider', { name: 'Menge Haferflocken' });
+
+  it('turns in 5 g steps and saves where it stops', () => {
     const onCommit = vi.fn();
     render(<Card onCommit={onCommit} />);
-    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
-    expect(thumb.getAttribute('aria-valuemax')).toBe('160');
-    expect(thumb.getAttribute('aria-valuenow')).toBe('80');
-    for (let i = 0; i < 30; i++) fireEvent.keyDown(thumb, { key: 'End' });
-    // The old slider pushed its end out with every step; now the end stays at 160 g.
-    expect(thumb.getAttribute('aria-valuemax')).toBe('160');
-    expect(thumb.getAttribute('aria-valuenow')).toBe('160');
-    fireEvent.keyDown(thumb, { key: 'ArrowLeft' });
-    expect(thumb.getAttribute('aria-valuenow')).toBe('159'); // 1 g raster
-    expect(onCommit).toHaveBeenLastCalledWith(159);
+    expect(wheel().getAttribute('aria-valuenow')).toBe('80');
+    fireEvent.keyDown(wheel(), { key: 'ArrowDown' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('85');
+    expect(onCommit).toHaveBeenLastCalledWith(85);
+    expect((screen.getByLabelText('Menge') as HTMLInputElement).value).toBe('85');
+    fireEvent.keyDown(wheel(), { key: 'End' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('1000');
+    fireEvent.keyDown(wheel(), { key: 'Home' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('5');
   });
 
-  it('a typed amount becomes the new middle once the field is left', () => {
+  it('a typed amount off the raster gets its own place on the wheel and keeps it', () => {
     render(<Card onCommit={() => {}} />);
-    const field = screen.getByLabelText('Menge');
-    fireEvent.change(field, { target: { value: '3050' } });
-    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
-    expect(thumb.getAttribute('aria-valuemax')).toBe('160'); // pinned to the end while typing
-    fireEvent.blur(field);
-    expect(thumb.getAttribute('aria-valuemax')).toBe('6100');
-    expect(thumb.getAttribute('aria-valuenow')).toBe('3050');
+    fireEvent.change(screen.getByLabelText('Menge'), { target: { value: '137' } });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('137');
+    expect(wheel().getAttribute('aria-valuetext')).toBe('137');
+    fireEvent.keyDown(wheel(), { key: 'ArrowDown' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('140');
+    fireEvent.keyDown(wheel(), { key: 'ArrowUp' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('137');
+    fireEvent.keyDown(wheel(), { key: 'ArrowUp' });
+    expect(wheel().getAttribute('aria-valuenow')).toBe('135');
+    // Beyond the raster of the wheel: typed only, shown as its last row.
+    fireEvent.change(screen.getByLabelText('Menge'), { target: { value: '3050' } });
+    expect(wheel().getAttribute('aria-valuetext')).toBe('3.050');
+  });
+
+  it('switching the unit keeps the grams', () => {
+    const onCommit = vi.fn();
+    render(<Card onCommit={onCommit} />);
+    const units = screen.getByRole('listbox', { name: 'Einheit für Haferflocken' });
+    fireEvent.click(within(units).getByRole('option', { name: /Esslöffel/ }));
+    expect(onCommit).toHaveBeenLastCalledWith(5.33);
+    expect((screen.getByLabelText('Menge') as HTMLInputElement).value).toBe('5,33');
+    expect(screen.getByText('= 80 g')).toBeTruthy();
+    // Portions turn in halves.
+    fireEvent.keyDown(wheel(), { key: 'ArrowDown' });
+    expect(onCommit).toHaveBeenLastCalledWith(5.5);
   });
 
   it('does not accept more than 9.999 g', () => {
@@ -1164,7 +1183,6 @@ describe('ingredient amount slider', () => {
   it('follows an amount changed from outside (Gesamtmenge)', () => {
     render(<Card onCommit={() => {}} />);
     fireEvent.click(screen.getByText('scale'));
-    const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
-    expect(thumb.getAttribute('aria-valuemax')).toBe('600');
+    expect(wheel().getAttribute('aria-valuenow')).toBe('300');
   });
 });

@@ -1,0 +1,1047 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <title>Runde 8 Mockup</title>
+    <style>
+      /* Tokens from apps/web/src/index.css (oklch). */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.5 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.7 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+      }
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --over: oklch(0.58 0.19 27);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --over: oklch(0.68 0.17 27);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        touch-action: pan-x pan-y;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 40px 0 8px;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 74ch;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        max-width: 90ch;
+      }
+      .note.new {
+        background: var(--new-bg);
+        border-color: var(--new-border);
+      }
+      .note ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+      .note a {
+        color: inherit;
+      }
+      .pc {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 4px 24px;
+        max-width: 90ch;
+        color: var(--page-muted);
+        font-size: 14px;
+        margin: 0 0 16px;
+      }
+      .pc b {
+        color: var(--page-ink);
+      }
+      .themebar {
+        display: flex;
+        gap: 6px;
+        margin: 12px 0 0;
+      }
+      .themebar button {
+        font: inherit;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .themebar button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+      }
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        justify-content: center;
+        align-items: flex-start;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: oklch(0.25 0.005 40);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        display: flex;
+        flex-direction: column;
+      }
+      .caption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin-top: 8px;
+        max-width: 375px;
+      }
+      .bar {
+        height: 52px;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        font-size: 18px;
+        font-weight: 600;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .bar .back {
+        margin-right: 10px;
+        color: var(--muted-foreground);
+      }
+      main {
+        padding: 16px;
+        display: grid;
+        gap: 14px;
+      }
+      .h-food {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .meta {
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 16px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+      }
+      .tabular {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Amount editor parts */
+      .amt-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      select.unit {
+        font: inherit;
+        font-size: 16px;
+        height: 40px;
+        max-width: 64%;
+        padding: 0 30px 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--input);
+        background: var(--card)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E")
+          no-repeat right 10px center;
+        color: var(--foreground);
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      .field {
+        position: relative;
+        display: flex;
+        align-items: center;
+        height: 44px;
+        border: 1px solid var(--input);
+        border-radius: 12px;
+        background: var(--card);
+        padding: 0 12px;
+        flex: 1;
+        min-width: 0;
+      }
+      .field:focus-within {
+        outline: 2px solid var(--primary);
+        outline-offset: -1px;
+      }
+      .field input {
+        all: unset;
+        flex: 1;
+        min-width: 0;
+        width: 100%;
+        font-size: 16px;
+        font-variant-numeric: tabular-nums;
+      }
+      .field .sfx {
+        color: var(--muted-foreground);
+        font-size: 14px;
+        padding-left: 6px;
+      }
+      .field.big {
+        height: 64px;
+        justify-content: center;
+      }
+      .field.big input {
+        font-size: 30px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .field.big .sfx {
+        font-size: 16px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .sum {
+        font-size: 14px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      .sum b {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+
+      /* A: ruler */
+      .ruler-wrap {
+        position: relative;
+        margin: 0 -16px;
+      }
+      .ruler-wrap::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        width: 3px;
+        height: 34px;
+        margin-left: -1px;
+        border-radius: 2px;
+        background: var(--primary);
+        pointer-events: none;
+      }
+      .ruler-wrap::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        pointer-events: none;
+        background: linear-gradient(to right, var(--card), transparent 18%, transparent 82%, var(--card));
+      }
+      .ruler {
+        display: flex;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        height: 58px;
+        cursor: grab;
+        touch-action: pan-x;
+      }
+      .ruler::-webkit-scrollbar {
+        display: none;
+      }
+      .ruler::before,
+      .ruler::after {
+        content: '';
+        flex: 0 0 50%;
+      }
+      .tape {
+        position: relative;
+        flex: none;
+        height: 100%;
+        --tick: color-mix(in oklch, var(--foreground) 35%, transparent);
+        --tick-major: color-mix(in oklch, var(--foreground) 70%, transparent);
+        background-repeat: no-repeat;
+      }
+      .tape span {
+        position: absolute;
+        top: 30px;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      /* B: chips */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        font: inherit;
+        font-size: 15px;
+        height: 40px;
+        padding: 0 14px;
+        border-radius: 99px;
+        border: 1px solid var(--border);
+        background: var(--muted);
+        color: var(--foreground);
+        cursor: pointer;
+        font-variant-numeric: tabular-nums;
+      }
+      .chip[aria-pressed='true'] {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .chip small {
+        opacity: 0.7;
+        font-size: 12px;
+        margin-right: 4px;
+      }
+
+      /* C: fixed slider */
+      .fixed {
+        position: relative;
+        padding-bottom: 20px;
+      }
+      .fixed input[type='range'] {
+        width: 100%;
+        height: 28px;
+        margin: 0;
+        accent-color: var(--primary);
+      }
+      .fixed .scale {
+        position: absolute;
+        inset: auto 10px 0 10px;
+        height: 16px;
+        font-size: 11px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+      }
+      .fixed .scale span {
+        position: absolute;
+        transform: translateX(-50%);
+        white-space: nowrap;
+      }
+
+      /* D: wheel */
+      .wheels {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1.6fr;
+        gap: 8px;
+        height: 132px;
+      }
+      .wheels::before {
+        content: '';
+        position: absolute;
+        inset: 44px 0;
+        border-radius: 10px;
+        background: var(--muted);
+      }
+      .wheels::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(var(--card), transparent 35%, transparent 65%, var(--card));
+      }
+      .wheel {
+        position: relative;
+        overflow-y: auto;
+        scroll-snap-type: y mandatory;
+        scrollbar-width: none;
+        padding: 44px 0;
+        touch-action: pan-y;
+      }
+      .wheel::-webkit-scrollbar {
+        display: none;
+      }
+      .wheel div {
+        height: 44px;
+        line-height: 44px;
+        text-align: center;
+        font-size: 20px;
+        scroll-snap-align: center;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 0 6px;
+      }
+      .wheel.units div {
+        font-size: 17px;
+      }
+
+      /* Diary */
+      .mealcard {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        overflow: hidden;
+      }
+      .mealhead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        font-weight: 600;
+      }
+      .mealhead .k {
+        font-weight: 500;
+        color: var(--muted-foreground);
+        font-size: 14px;
+      }
+      .drow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .drow .tx {
+        flex: 1;
+        min-width: 0;
+      }
+      .drow .n {
+        font-size: 15px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .drow .s {
+        font-size: 13px;
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .drow .s.err {
+        color: var(--over);
+      }
+      .drow .kc {
+        font-size: 15px;
+        font-variant-numeric: tabular-nums;
+      }
+      .drow .kc.none {
+        color: var(--muted-foreground);
+      }
+      .thumb {
+        position: relative;
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        flex: none;
+        background:
+          radial-gradient(circle at 35% 40%, oklch(0.8 0.13 80) 0 22%, transparent 23%),
+          radial-gradient(circle at 65% 62%, oklch(0.62 0.15 140) 0 20%, transparent 21%),
+          radial-gradient(circle at 50% 50%, oklch(0.96 0.01 80) 0 44%, transparent 45%), oklch(0.5 0.05 50);
+      }
+      .thumb.wait {
+        filter: saturate(0.6);
+      }
+      .thumb .ov {
+        position: absolute;
+        inset: 0;
+        border-radius: 10px;
+        background: oklch(0 0 0 / 0.45);
+        display: grid;
+        place-items: center;
+      }
+      .spin {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2.5px solid oklch(1 0 0 / 0.35);
+        border-top-color: white;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--muted-foreground);
+        flex: none;
+      }
+      .offline {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        font-size: 13px;
+        color: var(--muted-foreground);
+        padding: 0 4px;
+      }
+      table.units {
+        border-collapse: collapse;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+      table.units td,
+      table.units th {
+        text-align: left;
+        padding: 4px 16px 4px 0;
+        vertical-align: top;
+        border-top: 1px solid var(--note-border);
+      }
+      table.units s {
+        color: var(--page-muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Runde 8: Mengeneingabe neu gedacht (Mockup v2)</h1>
+      <p class="lead">
+        Die Telefone unter D sind bedienbar: drehen, tippen, Einheit wechseln. Am besten direkt am iPhone
+        ausprobieren. Einmal mit Gramm (Haferflocken), einmal mit einer Portion (Toastbrot, 1,5 Scheiben).
+      </p>
+      <div class="note new">
+        <b>Neu gegenüber v1</b>
+        <ul>
+          <li>A (Lineal), B (Schnellwahl) und C (fester Slider) sind raus. Es bleibt D, das Wheel.</li>
+          <li>D hat jetzt zusätzlich ein Eingabefeld. Rolle und Feld zeigen immer dieselbe Menge.</li>
+          <li>
+            E: kein "bitte prüfen" mehr. Dafür zwei Möglichkeiten, was nach der Analyse passiert (E1, E2).
+          </li>
+        </ul>
+      </div>
+      <div class="themebar" role="group" aria-label="Darstellung">
+        <button type="button" data-theme="light" aria-pressed="true">Hell</button>
+        <button type="button" data-theme="dark" aria-pressed="false">Dunkel</button>
+      </div>
+
+      <div class="note new">
+        <b>In allen Varianten schon drin</b>
+        <ul>
+          <li>Kein − und + mehr am Feld.</li>
+          <li>Portionen rasten beim Ziehen auf 0,5. Getippt geht weiter jeder Wert (1,25).</li>
+          <li>
+            Das Einheiten-Menü zeigt nur, was zum Lebensmittel passt. Ein Einheitenwechsel behält die Gramm.
+            <table class="units">
+              <tr>
+                <th></th>
+                <th>Heute</th>
+                <th>Neu</th>
+              </tr>
+              <tr>
+                <td>Toastbrot</td>
+                <td>Gramm, Scheibe, <s>TL, EL, Tasse, Glas, Becher, Schale</s></td>
+                <td>Gramm, Scheibe (eigene Portion)</td>
+              </tr>
+              <tr>
+                <td>Haferflocken</td>
+                <td>Gramm, TL, EL, <s>Tasse, Glas, Becher</s>, Schale</td>
+                <td>Gramm, EL, Schale</td>
+              </tr>
+              <tr>
+                <td>Olivenöl</td>
+                <td>Gramm, TL, EL, <s>Tasse, Glas, Becher, Schale</s></td>
+                <td>Gramm, TL, EL</td>
+              </tr>
+              <tr>
+                <td>Apfelsaft</td>
+                <td>Milliliter, TL, EL, Tasse, Glas, Becher, <s>Schale</s></td>
+                <td>Milliliter, TL, EL, Tasse, Glas, Becher</td>
+              </tr>
+            </table>
+          </li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <b>Recherche in Kürze</b>
+        <ul>
+          <li>
+            Apple empfiehlt, einen Slider mit einem Textfeld zu ergänzen, besonders bei großen Wertebereichen.
+            Das Feld ist das genaue Element, der Slider die Ergänzung (<a
+              href="https://developer.apple.com/design/human-interface-guidelines/sliders"
+              >HIG Sliders</a
+            >). Wheels sind für mittellange, vorhersehbare Listen gedacht (<a
+              href="https://developer.apple.com/design/human-interface-guidelines/pickers"
+              >HIG Pickers</a
+            >).
+          </li>
+          <li>
+            Nielsen Norman Group: Slider passen, wenn der genaue Wert egal ist; beim Loslassen verrutscht der
+            Daumen (<a href="https://www.nngroup.com/articles/gui-slider-controls/">NN/g</a>). Smashing
+            Magazine rät zu editierbarem Wert, Schnellwahl-Knöpfen und einer nichtlinearen Skala (<a
+              href="https://www.smashingmagazine.com/2017/07/designing-perfect-slider/"
+              >Smashing</a
+            >).
+          </li>
+          <li>
+            Andere Apps: belegt sind MacroFactor (eigene Zahlentastatur, merkt sich die letzte Menge je
+            Lebensmittel, <a href="https://macrofactor.com/new-food-logger/">Quelle</a>) und Cronometer
+            (Zahlenfeld plus Portions-Auswahl). Lose It nutzt laut einer Sekundärquelle Wheels. Für
+            MyFitnessPal, Yazio, FDDB und Lifesum ließ sich im Web nichts Belastbares finden; nach meiner
+            Erinnerung nutzen sie Feld plus Einheit, keinen Slider. Tempo kommt dort aus Vorbelegung und
+            gemerkten Mengen.
+          </li>
+          <li>
+            Grenzen der PWA auf iOS: kein natives Wheel für freie Werte, kein verlässliches haptisches
+            Feedback (<code>navigator.vibrate</code> fehlt). Ein Lineal muss also ohne spürbare Rasten
+            funktionieren.
+          </li>
+        </ul>
+      </div>
+
+      <h2>D. Wheel mit Eingabefeld</h2>
+      <p class="lead">
+        Zwei Rollen: Anzahl und Einheit. Darunter das Feld für alle, die lieber tippen. Die Rolle geht bei
+        Gramm in 5er Schritten bis 1.000 g, bei Portionen in 0,5er Schritten bis 10. Ein getippter Wert
+        dazwischen (137 g, 1,25 Scheiben) bekommt seinen eigenen Platz auf der Rolle, damit beide nie
+        Verschiedenes zeigen. Größere Mengen gehen über das Feld.
+      </p>
+      <div class="pc">
+        <div><b>Zum Ausprobieren:</b> 137 ins Feld tippen und das Feld verlassen, dann weiterdrehen.</div>
+        <div><b>Einheit wechseln</b> (rechte Rolle) behält die Gramm.</div>
+      </div>
+      <div class="phones" data-variant="D"></div>
+
+      <h2>E. Offline-Analyse steht sofort im Tagebuch</h2>
+      <p class="lead">
+        Ein Foto, das ohne Internet aufgenommen wurde, erscheint gleich in seiner Mahlzeit, ohne kcal, und
+        zählt nicht in die Summen. Offen ist, was passiert, sobald die Analyse fertig ist:
+      </p>
+      <div class="pc">
+        <div>
+          <b>E1: wird von selbst eingetragen.</b> Aus dem Platzhalter wird ein normaler Eintrag mit kcal. Wer
+          will, tippt ihn an und ändert Mengen oder Zutaten; niemand muss.
+        </div>
+        <div>
+          <b>E2: bleibt ein stiller Platzhalter.</b> Die Zeile nennt nur das Ergebnis, ohne Aufforderung. kcal
+          zählen erst, wenn man sie antippt und einträgt.
+        </div>
+      </div>
+      <div class="phones" id="diary"></div>
+    </div>
+
+    <script>
+      const de = (v, d = 2) => v.toLocaleString('de-DE', { maximumFractionDigits: d });
+      const FOODS = {
+        hafer: {
+          name: 'Haferflocken',
+          meta: 'BLS 4.0 · Getreide & Getreideprodukte',
+          kcal: 372,
+          units: [
+            { l: 'Gramm', g: 1 },
+            { l: 'Esslöffel (EL) (15 g)', s: 'EL', g: 15 },
+            { l: 'Schale / Schüssel (300 g)', s: 'Schale', g: 300 },
+          ],
+          u: 0,
+          q: 60,
+          last: { u: 0, q: 60 },
+        },
+        toast: {
+          name: 'Toastbrot',
+          meta: 'BLS 4.0 · Brot & Kleingebäck',
+          kcal: 262,
+          units: [
+            { l: 'Gramm', g: 1 },
+            { l: 'Scheibe (25 g)', s: 'Scheibe', g: 25 },
+          ],
+          u: 1,
+          q: 1.5,
+          last: { u: 1, q: 2 },
+        },
+      };
+      const el = (tag, cls, html) => {
+        const e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (html !== undefined) e.innerHTML = html;
+        return e;
+      };
+
+      function mount(host, variant, key) {
+        const food = FOODS[key];
+        const s = { u: food.u, q: food.q };
+        const wrapper = el('div');
+        const phone = el('div', 'phone');
+        const screen = el('div', 'screen light');
+        screen.append(el('div', 'bar', '<span class="back">‹</span>Essen eintragen'));
+        const main = el('main');
+        main.append(
+          el('div', '', `<h3 class="h-food">${food.name}</h3><div class="meta">${food.meta}</div>`),
+        );
+        const card = el('div', 'card');
+        main.append(card);
+        screen.append(main);
+        phone.append(screen);
+        wrapper.append(phone, el('div', 'caption', key === 'hafer' ? 'Gramm' : 'Portion, 0,5er Raster'));
+        host.append(wrapper);
+
+        const unit = () => food.units[s.u];
+        const base = () => unit().g === 1;
+        const step = () => (base() ? 1 : 0.5);
+        const sfx = () => (base() ? 'g' : '×');
+        let listeners = [];
+        // Every control registers an updater; `from` skips the control that caused the change.
+        const set = (q, from) => {
+          s.q = q;
+          listeners.forEach((l) => l.id !== from && l.fn());
+        };
+        const on = (id, fn) => listeners.push({ id, fn });
+
+        function head() {
+          const h = el('div', 'amt-head', '<span class="lbl">Menge</span>');
+          const sel = el('select', 'unit');
+          sel.setAttribute('aria-label', 'Einheit');
+          food.units.forEach((u, i) => sel.add(new Option(u.l, i, false, i === s.u)));
+          sel.onchange = () => switchUnit(+sel.value);
+          h.append(sel);
+          return h;
+        }
+        function switchUnit(i) {
+          const grams = s.q * unit().g;
+          s.u = i;
+          s.q = base()
+            ? Math.max(1, Math.round(grams))
+            : Math.max(0.01, Math.round((grams / unit().g) * 100) / 100);
+          render();
+        }
+        function field(big) {
+          const f = el('label', 'field' + (big ? ' big' : ''));
+          const inp = el('input');
+          inp.type = 'text';
+          inp.inputMode = 'decimal';
+          inp.setAttribute('aria-label', 'Menge');
+          const show = () => (inp.value = de(s.q));
+          show();
+          inp.onfocus = () => inp.select();
+          inp.oninput = () => {
+            const v = parseFloat(inp.value.replace(',', '.'));
+            if (v > 0 && v <= (base() ? 9999 : 99)) set(Math.round(v * 100) / 100, 'field');
+          };
+          inp.onblur = show;
+          on('field', show);
+          f.append(inp, el('span', 'sfx', sfx()));
+          return f;
+        }
+        function sum() {
+          const o = el('div', 'sum tabular');
+          const show = () => {
+            const g = s.q * unit().g;
+            o.innerHTML =
+              (base() ? '' : `= ${de(g, 1)} g · `) + `<b>${de((g * food.kcal) / 100, 0)} kcal</b>`;
+          };
+          show();
+          on('sum', show);
+          return o;
+        }
+
+        function ruler() {
+          const px = base() ? 8 : 30;
+          const major = base() ? 10 : 2;
+          const count = base() ? 2000 : 40;
+          const wrap = el('div', 'ruler-wrap');
+          const r = el('div', 'ruler');
+          const tape = el('div', 'tape');
+          tape.style.width = count * px + 1 + 'px';
+          tape.style.backgroundImage =
+            `repeating-linear-gradient(to right, var(--tick-major) 0 1.5px, transparent 1.5px ${px * major}px),` +
+            `repeating-linear-gradient(to right, var(--tick) 0 1px, transparent 1px ${px}px)`;
+          tape.style.backgroundSize = '100% 22px, 100% 12px';
+          const every = base() ? 10 : 2;
+          for (let n = 0; n <= count; n += every) {
+            const lab = el('span', '', de(n * step()));
+            lab.style.left = n * px + 'px';
+            tape.append(lab);
+          }
+          r.append(tape);
+          wrap.append(r);
+          let quiet = 0;
+          let timer;
+          const place = () => {
+            quiet = Date.now() + 250;
+            r.scrollLeft = (s.q / step()) * px;
+          };
+          r.addEventListener('scroll', () => {
+            if (Date.now() < quiet) return;
+            const n = Math.max(1, Math.min(count, Math.round(r.scrollLeft / px)));
+            const q = n * step();
+            if (q !== s.q) set(q, 'ruler');
+            clearTimeout(timer);
+            // Settle on the mark once the scrolling stops.
+            timer = setTimeout(() => {
+              if (Math.abs(r.scrollLeft - n * px) > 0.5) r.scrollTo({ left: n * px, behavior: 'smooth' });
+            }, 140);
+          });
+          // Mouse drag for trying it on a computer.
+          let drag = null;
+          r.onpointerdown = (e) => {
+            if (e.pointerType !== 'mouse') return;
+            drag = { x: e.clientX, left: r.scrollLeft };
+            r.setPointerCapture(e.pointerId);
+          };
+          r.onpointermove = (e) => drag && (r.scrollLeft = drag.left - (e.clientX - drag.x));
+          r.onpointerup = r.onpointercancel = () => (drag = null);
+          on('ruler', place);
+          requestAnimationFrame(place);
+          return wrap;
+        }
+
+        function chips() {
+          const c = el('div', 'chips');
+          const vals = base() ? [30, 50, 100, 150, 200] : [0.5, 1, 1.5, 2, 3];
+          const list = [];
+          if (food.last.u === s.u) list.push({ q: food.last.q, last: true });
+          vals.forEach((q) => list.some((x) => x.q === q) || list.push({ q }));
+          const btns = list.map((x) => {
+            const b = el('button', 'chip', (x.last ? '<small>Zuletzt</small>' : '') + de(x.q) + ' ' + sfx());
+            b.type = 'button';
+            b.onclick = () => set(x.q, 'chips-click');
+            c.append(b);
+            return { b, q: x.q };
+          });
+          const show = () => btns.forEach((x) => x.b.setAttribute('aria-pressed', String(x.q === s.q)));
+          show();
+          on('chips', show);
+          return c;
+        }
+
+        // Position 0..1000 on the track. Grams: 0..200 g on the first 60 %, 200..1000 g on the rest.
+        const toQ = (p) => {
+          if (!base()) return Math.max(0.5, Math.round((p / 1000) * 10) / 2);
+          const g =
+            p <= 600
+              ? Math.round(((p / 600) * 200) / 5) * 5
+              : 200 + Math.round((((p - 600) / 400) * 800) / 25) * 25;
+          return Math.max(5, g);
+        };
+        const toP = (q) => {
+          if (!base()) return Math.min(1000, (q / 5) * 1000);
+          return q <= 200 ? (q / 200) * 600 : Math.min(1000, 600 + ((q - 200) / 800) * 400);
+        };
+        function fixed() {
+          const w = el('div', 'fixed');
+          const r = el('input');
+          r.type = 'range';
+          r.min = 0;
+          r.max = 1000;
+          r.setAttribute('aria-label', 'Menge');
+          const show = () => (r.value = toP(s.q));
+          show();
+          r.oninput = () => set(toQ(+r.value), 'fixed');
+          on('fixed', show);
+          const scale = el('div', 'scale');
+          (base() ? [0, 50, 100, 200, 500, 1000] : [0, 1, 2, 3, 4, 5]).forEach((v) => {
+            const t = el('span', '', de(v));
+            t.style.left = toP(v) / 10 + '%';
+            scale.append(t);
+          });
+          w.append(r, scale);
+          return w;
+        }
+
+        function wheels() {
+          const w = el('div', 'wheels');
+          const vals = [];
+          if (base()) for (let g = 5; g <= 1000; g += 5) vals.push(g);
+          else for (let n = 0.5; n <= 10; n += 0.5) vals.push(n);
+          // A typed amount off the raster gets its own place on the wheel.
+          if (!vals.includes(s.q) && s.q < vals[vals.length - 1]) vals.push(s.q);
+          vals.sort((x, y) => x - y);
+          const nearest = () =>
+            vals.reduce((b, v, i) => (Math.abs(v - s.q) < Math.abs(vals[b] - s.q) ? i : b), 0);
+          const a = el('div', 'wheel');
+          vals.forEach((v) => a.append(el('div', '', de(v))));
+          const b = el('div', 'wheel units');
+          food.units.forEach((u) => b.append(el('div', '', u.s ? `${u.s} (${u.g} g)` : 'Gramm')));
+          w.append(a, b);
+          let quiet = Date.now() + 300;
+          const place = () => {
+            quiet = Date.now() + 300;
+            a.scrollTop = nearest() * 44;
+          };
+          requestAnimationFrame(() => {
+            place();
+            b.scrollTop = s.u * 44;
+          });
+          on('wheel', place);
+          a.addEventListener('scroll', () => {
+            if (Date.now() < quiet) return;
+            const q = vals[Math.max(0, Math.min(vals.length - 1, Math.round(a.scrollTop / 44)))];
+            if (q !== s.q) set(q, 'wheel');
+          });
+          let timer;
+          b.addEventListener('scroll', () => {
+            if (Date.now() < quiet) return;
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+              const i = Math.max(0, Math.min(food.units.length - 1, Math.round(b.scrollTop / 44)));
+              if (i !== s.u) switchUnit(i);
+            }, 220);
+          });
+          return w;
+        }
+
+        function render() {
+          listeners = [];
+          card.replaceChildren();
+          const row = el('div', 'row');
+          const f = field();
+          // Leaving the field rebuilds the wheel, so a typed amount off the raster appears on it.
+          f.querySelector('input').addEventListener('blur', () => render());
+          row.append(f, sum());
+          card.append(el('div', 'amt-head', '<span class="lbl">Menge</span>'), wheels(), row);
+        }
+        render();
+      }
+
+      document.querySelectorAll('.phones[data-variant]').forEach((host) => {
+        mount(host, host.dataset.variant, 'hafer');
+        mount(host, host.dataset.variant, 'toast');
+      });
+
+      // E: diary with placeholder rows
+      const row = (thumb, name, status, kcal, cls = '') =>
+        `<div class="drow">${thumb}<div class="tx"><div class="n">${name}</div><div class="s ${cls}">${status}</div></div><div class="kc ${kcal === '–' ? 'none' : ''} tabular">${kcal}</div></div>`;
+      const diary = (title, total, rows, caption, banner = '') =>
+        `<div><div class="phone"><div class="screen light"><div class="bar">Tagebuch · Heute</div><main>${banner}
+          <div class="mealcard"><div class="mealhead"><span>Mittagessen</span><span class="k tabular">${total}</span></div>${rows}</div>
+        </main></div></div><div class="caption">${caption}</div></div>`;
+      const apple = row('', 'Apfel', '150 g', '78');
+      const waiting = row(
+        '<div class="thumb wait"></div>',
+        'Nudeln mit Pesto',
+        '<span class="dot"></span>Gespeichert, wird analysiert sobald du online bist',
+        '–',
+      );
+      const failed = row(
+        '<div class="thumb wait"></div>',
+        'Foto-Analyse',
+        'Analyse fehlgeschlagen',
+        '–',
+        'err',
+      );
+      document.getElementById('diary').innerHTML =
+        diary(
+          '',
+          '78 kcal',
+          apple + waiting,
+          'Offline (E1 und E2 gleich): das Foto ist da, der Titel ist dein Hinweistext, sonst "Foto-Analyse". Die Summe bleibt bei 78 kcal.',
+          '<div class="offline"><span class="dot"></span>Offline. Deine Einträge sind auf diesem Gerät gespeichert.</div>',
+        ) +
+        diary(
+          '',
+          '690 kcal',
+          apple +
+            row('<div class="thumb"></div>', 'Nudeln mit Pesto', '4 Zutaten ⌄ · aus Foto', '612') +
+            failed,
+          'E1, wieder online: der Eintrag steht mit kcal im Tagebuch und zählt in die Summe. Tippen öffnet ihn zum Ändern wie jede andere Gruppe. Darunter eine fehlgeschlagene Analyse.',
+        ) +
+        diary(
+          '',
+          '78 kcal',
+          apple +
+            row('<div class="thumb"></div>', 'Nudeln mit Pesto', '4 Lebensmittel erkannt', '–') +
+            failed,
+          'E2, wieder online: nur das Ergebnis, keine Aufforderung, keine kcal. Tippen öffnet die Analyse; dort trägt man sie ein.',
+        );
+
+      // Theme switch for the page and every phone.
+      document.querySelectorAll('.themebar button').forEach((b) => {
+        b.onclick = () => {
+          const t = b.dataset.theme;
+          document.documentElement.dataset.theme = t;
+          document.querySelectorAll('.screen').forEach((sc) => (sc.className = 'screen ' + t));
+          document
+            .querySelectorAll('.themebar button')
+            .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        };
+      });
+    </script>
+  </body>
+</html>

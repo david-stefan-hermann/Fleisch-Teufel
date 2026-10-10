@@ -155,8 +155,6 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('tab', { name: 'Häufig' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
-  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
-  await page.getByRole('option', { name: 'Gramm' }).click();
   await page.getByLabel('Menge', { exact: true }).fill('50');
   await expect(page.getByLabel('Mahlzeit')).toHaveCount(0);
   await page.getByRole('button', { name: 'Zum Meal hinzufügen' }).click();
@@ -183,17 +181,19 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await expect(grams).toHaveValue('50');
   await grams.fill('100');
   await expect(page.getByText('348 kcal', { exact: true })).toBeVisible();
-  // "Nährwerte" in the card shows the overview of the amount and follows the slider.
+  // "Nährwerte" in the card shows the overview of the amount and follows the wheel.
   await page.getByRole('button', { name: 'Nährwerte' }).nth(1).click();
   await expect(page.getByRole('button', { name: /^348 kcal, Anteil/ })).toBeVisible();
-  // The slider moves in 1 g steps; its range starts in the middle (0 / 50 g / 100 g, set before the field).
-  const slider = page.getByRole('slider', { name: 'Menge Hafer Flocken' });
-  await expect(slider).toHaveAttribute('aria-valuemax', '200');
-  await slider.focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(grams).toHaveValue('101');
-  await expect(page.getByRole('button', { name: /^351 kcal, Anteil/ })).toBeVisible();
-  await expect(slider).toHaveAttribute('aria-valuemax', '200');
+  // The wheel turns in 5 g steps and the field follows.
+  const wheel = page.getByRole('slider', { name: 'Menge Hafer Flocken' });
+  await wheel.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(grams).toHaveValue('105');
+  await expect(page.getByRole('button', { name: /^365 kcal, Anteil/ })).toBeVisible();
+  // Turned by scrolling: two rows further is 115 g, saved once it stops.
+  await wheel.evaluate((el) => el.scrollBy(0, 88));
+  await expect(grams).toHaveValue('115');
+  await expect(wheel).toHaveAttribute('aria-valuenow', '115');
 
   await page.locator('input[type=file]').nth(1).setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Foto von Mein Frühstück' })).toBeVisible();

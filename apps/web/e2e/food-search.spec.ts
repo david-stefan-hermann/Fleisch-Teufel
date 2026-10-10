@@ -184,8 +184,6 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   // On the food page the overview shows the computed kcal and all ten values.
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: /Omas Apfelkuchen/ }).click();
-  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
-  await page.getByRole('option', { name: 'Gramm' }).click();
   await page.getByLabel('Menge', { exact: true }).fill('100');
   await expect(page.getByRole('button', { name: /^289 kcal, Anteil/ })).toBeVisible();
 
@@ -217,7 +215,7 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   await expect(page).toHaveURL(/\/custom-foods$/);
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: /Proteinriegel/ }).click();
-  await expect(page.getByRole('combobox', { name: /^Einheit für/ })).toHaveText('Portion (45 g)');
+  await expect(page.getByRole('option', { name: 'Portion (45 g)' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('= 45 g')).toBeVisible();
   await expect(page.getByRole('button', { name: /^175 kcal, Anteil/ })).toBeVisible();
 });

@@ -1,9 +1,7 @@
 import type { Portion } from '@ft/shared';
 
 /**
- * Amount math of the amount sliders. The range comes from a start amount that sits exactly in the
- * middle (end = 2 × start); it never comes from the value being dragged, or every step would push
- * the end further out (the "exploding slider" of round 7).
+ * Amount math of the amount editor: a wheel on a coarse raster plus a field for any value.
  */
 
 /** Highest amount a field accepts: grams/millilitres, or pieces of a portion. */
@@ -12,34 +10,47 @@ export const MAX_AMOUNT = { base: 9999, portion: 99 } as const;
 /** Whether an amount counts the base unit (1 g / 1 ml) or pieces of a portion. */
 export type AmountKind = 'base' | 'portion';
 
-/** Raster of slider, field rounding and −/+: 1 g / 1 ml, or tenths of a portion. */
-export const amountStep = (kind: AmountKind) => (kind === 'base' ? 1 : 0.1);
+/** Raster of the wheel: 5 g / 5 ml, or half portions. */
+export const amountStep = (kind: AmountKind) => (kind === 'base' ? 5 : 0.5);
+
+/** Where the raster of the wheel ends; larger amounts are typed. */
+export const WHEEL_MAX = { base: 1000, portion: 10 } as const;
 
 export const maxAmount = (kind: AmountKind) => MAX_AMOUNT[kind];
 
-/** Rounds to the raster (avoids float noise like 0.30000000000000004). */
+/** Precision of an amount: whole grams, hundredths of a portion (avoids float noise). */
 export function roundAmount(v: number, kind: AmountKind): number {
-  return kind === 'base' ? Math.round(v) : Math.round(v * 10) / 10;
+  return kind === 'base' ? Math.round(v) : Math.round(v * 100) / 100;
 }
 
-/** Start amount when there is none yet (empty field): 100 g / 100 ml or one portion. */
-export const defaultStart = (kind: AmountKind) => (kind === 'base' ? 100 : 1);
+/** A computed amount in its precision, above 0 (0 is never an amount) and at most the maximum. */
+export function clampAmount(v: number, kind: AmountKind): number {
+  return Math.min(maxAmount(kind), Math.max(kind === 'base' ? 1 : 0.01, roundAmount(v, kind)));
+}
 
 /**
- * Slider range for a start amount: 0 to 2 × start (capped at `MAX_AMOUNT`), so the start sits
- * exactly in the middle. A missing or non-positive start falls back to `defaultStart`.
+ * Amounts on the wheel, ascending: the raster up to `WHEEL_MAX`, plus `extra` (a typed or stored
+ * amount off the raster, e.g. 137 g or 1,25 portions) at its place, so wheel and field can always
+ * show the same amount.
  */
-export function sliderRange(start: number | null, kind: AmountKind): { min: 0; max: number; step: number } {
-  const s = start !== null && start > 0 ? start : defaultStart(kind);
+export function wheelValues(kind: AmountKind, extra: number | null = null): number[] {
   const step = amountStep(kind);
-  const max = Math.min(maxAmount(kind), Math.max(2 * step, roundAmount(2 * s, kind)));
-  return { min: 0, max, step };
+  const out: number[] = [];
+  for (let i = 1; i * step <= WHEEL_MAX[kind]; i++) out.push(i * step);
+  if (extra !== null && extra > 0 && extra <= maxAmount(kind) && !out.includes(extra)) {
+    out.push(extra);
+    out.sort((a, b) => a - b);
+  }
+  return out;
 }
 
-/** A slider or −/+ value on the raster, at least one step (0 is never an amount) and at most the maximum. */
-export function clampAmount(v: number, kind: AmountKind): number {
-  const step = amountStep(kind);
-  return Math.min(maxAmount(kind), Math.max(step, roundAmount(v, kind)));
+/** Index of the wheel amount closest to `value` (the first one without a value). */
+export function nearestIndex(values: readonly number[], value: number | null): number {
+  if (value === null) return 0;
+  let best = 0;
+  for (let i = 1; i < values.length; i++)
+    if (Math.abs(values[i]! - value) < Math.abs(values[best]! - value)) best = i;
+  return best;
 }
 
 const BASE_LABEL = /^1\s?(g|ml)$/;
@@ -54,7 +65,7 @@ export const amountKind = (p: Pick<Portion, 'label'>): AmountKind => (isBasePort
 
 /**
  * Units of the amount editor: the base unit first, then the portions. "100 g" is left out (grams
- * cover it, with a 1 g raster instead of 10 g), unless it is the current portion of an older entry.
+ * cover it), unless it is the current portion of an older entry.
  * The current portion is always offered, duplicates (same label) only once.
  */
 export function editorPortions(unit: 'g' | 'ml', portions: readonly Portion[], current?: Portion): Portion[] {
@@ -77,7 +88,7 @@ export function editorPortions(unit: 'g' | 'ml', portions: readonly Portion[], c
   return out;
 }
 
-/** The same amount in another unit (grams stay), on the raster of the new unit. */
+/** The same amount in another unit: the grams stay (whole grams, hundredths of a portion). */
 export function convertAmount(quantity: number | null, from: Portion, to: Portion): number | null {
   if (quantity === null || !(quantity > 0)) return null;
   return clampAmount((quantity * from.grams) / to.grams, amountKind(to));

@@ -348,8 +348,6 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Zu „Große Bowl“' })).toBeVisible();
-  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
-  await page.getByRole('option', { name: 'Gramm' }).click();
   await page.getByLabel('Menge', { exact: true }).fill('50');
   await page.getByRole('button', { name: 'Zum Eintrag hinzufügen' }).click();
   await expect(page).toHaveURL(/\/diary-group\//);
