@@ -701,3 +701,76 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
   await expect(page.getByText(/1 Lebensmittel erkannt, bitte prüfen/)).toHaveCount(1);
 });
+
+test('a photo taken offline shows in the diary right away and is logged once analysed', async ({
+  page,
+  context,
+}) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  await page.goto('/photo?meal=1');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await context.setOffline(true);
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
+
+  // Offline: straight to the diary, where the photo waits in its meal without kcal.
+  await expect(page.getByText(/^Offline gespeichert\./)).toBeVisible();
+  await expect(page).toHaveURL(/\/\?date=|\/$/);
+  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+  const waiting = lunch.getByRole('link', { name: /Foto-Analyse/ });
+  await expect(waiting).toContainText('Gespeichert, wird analysiert sobald du online bist');
+  await expect(waiting.getByLabel('noch keine Kalorien')).toBeVisible();
+  await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).not.toContainText('kcal');
+  await expect.poll(() => waiting.locator('img').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
+
+  // Back online the analysis runs and the result is logged by itself, as a normal group.
+  const item = (name: string, id: string, kcal: number, grams: number) => ({
+    name,
+    grams,
+    confidence: 'high',
+    preparation: null,
+    packaged: false,
+    searchTerms: [],
+    candidates: [
+      {
+        food: {
+          id,
+          source: 'bls',
+          sourceId: id,
+          name,
+          nameEn: null,
+          brand: null,
+          group: null,
+          unit: 'g',
+          nutrients: { ENERCC: kcal, PROT625: 10, CHO: 20, FAT: 5 },
+          portions: [],
+        },
+        score: 1,
+      },
+    ],
+  });
+  await page.route('**/api/ai/analyze', (r) =>
+    r.fulfill({
+      json: {
+        analysisId: '00000000-0000-7000-8000-000000000008',
+        dishName: 'Reis mit Hähnchen',
+        items: [item('Reis gekocht', 'bls:R', 130, 200), item('Hähnchenbrust', 'bls:H', 110, 150)],
+        notes: null,
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+      },
+    }),
+  );
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.getByText('„Reis mit Hähnchen“ analysiert und eingetragen')).toBeVisible();
+  await expect(waiting).toHaveCount(0);
+  await expect(lunch.getByText('Reis mit Hähnchen', { exact: true })).toBeVisible();
+  await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).toContainText('425 kcal');
+  // Nothing is left to review on the food page.
+  await page.goto('/photo?meal=1');
+  await expect(page.getByRole('button', { name: /Lebensmittel erkannt/ })).toHaveCount(0);
+});

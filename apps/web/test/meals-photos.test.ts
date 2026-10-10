@@ -418,6 +418,60 @@ describe('AI review: re-analyze with the hint', () => {
     expect(await reanalyze(d, id, 'x')).toBe('pending');
     expect(await reanalyze(d, id, 'y')).toBe('busy');
     expect((await d.aiQueue.get(id))!.result!.dishName).toBe('Nudeln');
+    // A re-analysis that waits keeps its review; only a first analysis is logged by itself.
+    expect((await d.aiQueue.get(id))!.deferred).toBeUndefined();
+  });
+
+  it('logs a photo taken offline by itself once it is analysed', async () => {
+    const d = db();
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    await processQueue(d);
+    // Waiting: still in the queue (the diary shows it as a placeholder), nothing logged.
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'pending', deferred: true });
+    expect(await d.foodEntries.count()).toBe(0);
+
+    server(analysis('Nudeln', 250));
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.aiImages.count()).toBe(0);
+    const entries = await d.foodEntries.toArray();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      date: '2026-10-07',
+      meal: 1,
+      source: 'ai',
+      name: 'Nudeln',
+      grams: 250,
+      groupName: 'Nudeln',
+      aiAnalysisId: 'a-Nudeln',
+    });
+    // The analysed photo went along as the photo of the group.
+    expect(entries[0]!.photoId).toBeTruthy();
+    expect(await d.photos.count()).toBe(1);
+  });
+
+  it('keeps an offline photo without any usable item as a normal review', async () => {
+    const d = db();
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    await processQueue(d);
+    server({ ...analysis('Nudeln', 250), items: [] });
+    await processQueue(d);
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'done', deferred: false });
+    expect(await d.foodEntries.count()).toBe(0);
+  });
+
+  it('does not log an analysis that ran right away', async () => {
+    const d = db();
+    server(analysis('Nudeln', 250));
+    const id = await analyzed(d);
+    expect((await d.aiQueue.get(id))!.status).toBe('done');
+    expect(await d.foodEntries.count()).toBe(0);
   });
 });
 

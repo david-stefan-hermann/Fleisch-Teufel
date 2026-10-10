@@ -15,6 +15,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
+import type { AiQueueItem } from '@/db/dexie';
 
 export const DEFAULT_SETTINGS: Settings = {
   id: SETTINGS_ID,
@@ -106,6 +107,18 @@ export function useDaySummary(date: ISODate): DaySummary | undefined {
   const settings = useSettings();
   if (!entries || !exercises || !goals || !settings) return undefined;
   return summarizeDay({ date, entries, exercises, goals, settings });
+}
+
+/**
+ * Photos of a day that are not analysed yet (waiting for a connection, running, failed): the
+ * placeholder rows of the diary. They live on this device only and count in no sum.
+ */
+export function usePendingAnalyses(date: ISODate): AiQueueItem[] | undefined {
+  const db = useDb();
+  return useLiveQuery(
+    () => db.aiQueue.filter((i) => i.date === date && !i.result).sortBy('createdAt'),
+    [db, date],
+  );
 }
 
 /** Dates in [from, to] that have at least one diary entry (week strip dots). */

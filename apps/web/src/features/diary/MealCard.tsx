@@ -8,11 +8,12 @@ import { MealPhoto } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
-import type { UserDb } from '@/db/dexie';
+import type { AiQueueItem, UserDb } from '@/db/dexie';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
 import { readExpanded, setGroupExpanded } from './expandedGroups';
 import { warmUpCamera } from '@/components/cameraWarmup';
@@ -34,12 +35,15 @@ export function MealCard({
   name,
   entries,
   totals,
+  pending = [],
 }: {
   date: ISODate;
   meal: number;
   name: string;
   entries: FoodEntry[];
   totals: NutrientMap;
+  /** Photos of this meal that are not analysed yet (placeholder rows below the entries). */
+  pending?: AiQueueItem[];
 }) {
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
   const kcal = get(totals, N.kcal);
@@ -84,7 +88,7 @@ export function MealCard({
         </Button>
       }
     >
-      {entries.length === 0 ? (
+      {entries.length === 0 && pending.length === 0 ? (
         <Link
           to="/photo"
           preload="intent"
@@ -98,7 +102,20 @@ export function MealCard({
           {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
         </Link>
       ) : (
-        <DiaryRows entries={entries} date={date} meal={meal} draggable />
+        <>
+          {entries.length > 0 && <DiaryRows entries={entries} date={date} meal={meal} draggable />}
+          {pending.length > 0 && (
+            <ul
+              className={cn('divide-y divide-border/70', entries.length > 0 && 'border-t border-border/70')}
+            >
+              {pending.map((item) => (
+                <li key={item.localId}>
+                  <PendingAnalysisRow item={item} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </Section>
   );

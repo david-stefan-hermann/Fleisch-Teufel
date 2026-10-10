@@ -71,7 +71,8 @@ import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
-import { discardQueueItem, enqueuePhoto, imageBlob, loadQueueImage, processQueue, reanalyze } from './queue';
+import { discardQueueItem, enqueuePhoto, loadQueueImage, processQueue, reanalyze } from './queue';
+import { useAiImage } from './useAiImage';
 
 /**
  * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
@@ -221,6 +222,7 @@ function PhotoPreview({
   onQueued: (id: number) => void;
 }) {
   const db = useDb();
+  const navigate = useNavigate();
   const url = useObjectUrl(shot);
   const [text, setText] = useState('');
 
@@ -233,9 +235,14 @@ function PhotoPreview({
       await processQueue(db);
       const item = await db.aiQueue.get(id);
       if (item?.status === 'done') return onQueued(id);
-      if (item?.status === 'pending')
-        toast('Offline. Das Foto wird analysiert, sobald du wieder verbunden bist.');
-      else if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+      if (item?.status === 'pending') {
+        // Offline: the photo is safe and already shows in the diary; it is logged once analysed.
+        toast(
+          'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
+        );
+        return void navigate({ to: '/', search: { date } });
+      }
+      if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
       onDiscard();
     } catch {
       toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
@@ -436,20 +443,6 @@ function CameraCapture({
   );
 }
 
-/**
- * Photo of a queue item: the `aiImages` row (re-read only when that row changes, not on every
- * status change of the item), or the inline Blob of an item from an older app version.
- * `undefined` while loading, `null` when there is none.
- */
-function useAiImage(item: AiQueueItem): Blob | null | undefined {
-  const db = useDb();
-  const legacy = item.image ?? null;
-  return useLiveQuery(async () => {
-    const row = item.localId !== undefined ? await db.aiImages.get(item.localId) : undefined;
-    return row ? imageBlob(row) : legacy;
-  }, [db, item.localId, legacy]);
-}
-
 function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   const db = useDb();
   const image = useAiImage(item);
@@ -549,7 +542,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     setScaleBase(rowGrams(next));
   };
   const update = (key: string, patch: Partial<AiDraftRow>) => commitRows(patchRow(draft, key, patch));
-  /** Live change while a slider is dragged: only the screen follows, saved when it is let go. */
+  /** Live change while a wheel turns: only the screen follows, saved when it stops. */
   const preview = (key: string, patch: Partial<AiDraftRow>) => setDraft(patchRow(draft, key, patch));
   const rescale = (factor: number) => {
     setScale(factor);

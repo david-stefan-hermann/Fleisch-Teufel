@@ -1,14 +1,18 @@
 /**
  * AI photo queue: photos taken offline are stored in IndexedDB and analyzed as soon as the
- * server is reachable (app start, coming online, opening the photo screen).
+ * server is reachable (app start, coming online, opening the photo screen). Until then they show
+ * as placeholder rows in the diary (`PendingAnalysisRow`), afterwards they are logged by themselves.
  *
  * The photo of an item lives in `aiImages` (bytes, same `localId`), not on the queue item itself:
  * the item is rewritten on every status change and review edit, which on WebKit made an inline
  * Blob read earlier unreadable (see `AiImage` in `db/dexie.ts`).
  */
 import type { AiAnalysisResult } from '@ft/shared';
-import { draftFromResult } from '@/db/aiDraft';
+import { toast } from 'sonner';
+import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiImage, AiQueueItem, UserDb } from '@/db/dexie';
+import { logAiItems } from '@/db/entries';
+import { rememberFood } from '@/foods/foodService';
 import { api, ApiError, OfflineError, errorMessage } from '@/lib/api';
 
 export async function analyzePhoto(image: Blob, text: string): Promise<AiAnalysisResult> {
@@ -89,8 +93,36 @@ export async function processQueue(db: UserDb): Promise<void> {
   return current;
 }
 
+/**
+ * Logs the analysed photos that had to wait for a connection (`deferred`) into the diary, as a
+ * named group with the photo, exactly like "Meal eintragen" of an unchanged review: first
+ * candidate of every item, the model's grams. The diary row leads to the group editor for changes.
+ * An analysis without any usable item stays in the queue as a normal review.
+ */
+export async function logDeferred(db: UserDb): Promise<void> {
+  const ready = (await db.aiQueue.toArray()).filter((i) => i.status === 'done' && i.deferred && i.result);
+  for (const item of ready) {
+    const draft = item.draft ?? draftFromResult(item);
+    const items: AiItem[] = draft.rows.flatMap((r) => {
+      const food = r.candidates.find((c) => c.id === r.foodId);
+      return food && r.grams && r.grams > 0 ? [{ food, grams: r.grams, portion: r.portion }] : [];
+    });
+    if (items.length === 0) {
+      await db.aiQueue.update(item.localId!, { deferred: false });
+      continue;
+    }
+    const image = await loadQueueImage(db, item);
+    await logAiItems(db, draft.mealName, items, { date: item.date, meal: draft.meal }, item.result!, image);
+    for (const i of items) await rememberFood(db, i.food);
+    await discardQueueItem(db, item.localId!);
+    toast.success(`„${draft.mealName}“ analysiert und eingetragen`);
+  }
+}
+
 async function runQueue(db: UserDb): Promise<void> {
   await migrateLegacyImages(db);
+  // Analysed but not logged yet (app closed in between).
+  await logDeferred(db);
   // Items stuck in "analyzing" (app closed mid-request) are retried.
   await db.aiQueue
     .where('localId')
@@ -123,9 +155,14 @@ async function runQueue(db: UserDb): Promise<void> {
           : undefined;
         await db.aiQueue.update(item.localId!, { status: 'done', result, error: undefined, draft });
       });
+      await logDeferred(db);
     } catch (e) {
       if (e instanceof OfflineError) {
-        await db.aiQueue.update(item.localId!, { status: 'pending' });
+        // A first analysis that has to wait is logged by itself later; a re-analysis keeps its review.
+        await db.aiQueue.update(item.localId!, {
+          status: 'pending',
+          ...(item.result ? {} : { deferred: true }),
+        });
         break;
       }
       // A failed re-analysis keeps the previous result and review rows.

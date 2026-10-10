@@ -110,7 +110,7 @@ export function itemWithAmount(item: MealItem, amount: { portion: Portion; quant
 
 /**
  * One ingredient of the meal editor and the diary group editor, laid out like an ingredient of the
- * AI review: name, kcal and remove in the head, then the amount editor (unit, slider, −/+ and
+ * AI review: name, kcal and remove in the head, then the amount editor (wheels for amount and unit, and
  * field). "Nährwerte" at the bottom opens the overview of the current amount (it follows the
  * editor).
  */
@@ -125,9 +125,9 @@ export function IngredientCard({
   item: MealItem;
   removable: boolean;
   targets: ResolvedTargets;
-  /** Live change while the slider is dragged or −/+ held (show it, do not save it yet). */
+  /** Live change while the amount wheel turns (show it, do not save it yet). */
   onChange: (item: MealItem) => void;
-  /** Final change: slider let go, typed, unit switched. Save it. */
+  /** Final change: wheel stopped, typed, unit switched. Save it. */
   onCommit: (item: MealItem) => void;
   onRemove: () => void;
 }) {

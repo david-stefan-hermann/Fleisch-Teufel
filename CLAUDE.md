@@ -109,15 +109,26 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   weights, meals and saved trainings.
 - Weight entry uses `TapeMeasure` (0,05 raster, `role=slider`); weights display with up to two decimals.
 - Food amounts use one component, `components/AmountEditor.tsx` (food page, AI review rows, `IngredientCard` of the
-  meal and diary group editors): unit select (base "Gramm"/"Milliliter" = the `1 g`/`1 ml` portion first, then
-  `editorPortions`; "100 g" amounts show as grams via `normalizeAmount`), slider with the scale 0 / start / end,
-  −/+ (repeat while held) and field, "= X g" for portions. The slider range comes from a start amount in the middle
-  (`sliderRange` in `lib/amounts.ts`: end = 2 × start, capped at `MAX_AMOUNT` 9.999 g / 99 portions; raster 1 g /
-  0,1), held by `useSliderStart`: it never follows the dragged value (that made the slider explode in round 7), only
-  a typed amount on blur, a unit switch, −/+ beyond the end or a change from outside. `onChange` is live (drag),
-  `onCommit` final: drafts are written on commit, not per tick (also for "Gesamtmenge"). A unit switch keeps the
-  grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
-  `aiMealItems` logs with its count. The food page logs on one day only (no multi-day logging any more).
+  meal and diary group editors): two picker wheels (`components/Wheel.tsx`, scroll-snap, three rows; amount as
+  `role=slider`, unit as `listbox`), below them the field and "= X g" for portions. No slider, no −/+ (round 8).
+  The amount wheel runs on a raster (`wheelValues` in `lib/amounts.ts`: 5 g up to 1.000 g, half portions up to 10);
+  the field takes any amount up to `MAX_AMOUNT`, and one off the raster (137 g, 1,25 portions) gets its own row on
+  the wheel and keeps it while the wheel turns (`extra` in the editor). `onChange` is live (turning), `onCommit`
+  final (wheel stopped, typed, unit switched): drafts are written on commit. The wheel reports its stop through
+  state and an effect, never straight from its timer (a stale closure overwrote newer state). A unit switch keeps
+  the grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
+  `aiMealItems` logs with its count. "Eigene Portion" is a button next to the label (food page). The food page logs
+  on one day only.
+- Units offered for a food: `portionsFor` (shared `foods.ts`) adds only the household measures that fit
+  (`householdPortionsFor`: name words first, then the BLS group letter, drinks by unit ml; no cup for toast). Pass
+  the food's `name` when there is no full `Food` (ingredient without a loaded food). Grams, the food's own and the
+  user's portions are always offered, and `editorPortions` keeps the current portion of an older entry.
+- Photos waiting for analysis: a first analysis that had to wait for a connection gets `deferred` on its `aiQueue`
+  item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
+  (`usePendingAnalyses`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
+  review). Once analysed, `logDeferred` (`features/ai/queue.ts`) logs it as a normal group with the photo (first
+  candidate, the model's grams) and removes it from the queue; changes go through the diary group editor. An
+  analysis that ran right away still opens the review, and one without any usable item stays a normal review.
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value

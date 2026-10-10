@@ -58,6 +58,11 @@ export interface AiQueueItem {
   result?: AiAnalysisResult;
   /** Review state of a done analysis (rows edited/added by the user), kept across navigation. */
   draft?: AiDraft;
+  /**
+   * The first analysis had to wait for a connection. Such a photo shows as a placeholder row in the
+   * diary and is logged by itself once analysed (`logDeferred`), without a review.
+   */
+  deferred?: boolean;
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */

@@ -34,7 +34,7 @@ import { rememberIntoStart } from '@/lib/into';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from './IngredientCard';
 
 /**
- * Editor of a saved meal (Mehr → Gespeicherte Meals): photo, name, ingredients with amount sliders,
+ * Editor of a saved meal (Mehr → Gespeicherte Meals): photo, name, ingredients with amount wheels,
  * total amount and nutrients. Nothing is logged here and nothing is written until "Speichern"; the
  * draft lives in `kv` (see `db/mealDraft.ts`) and leaving with changes asks first.
  */

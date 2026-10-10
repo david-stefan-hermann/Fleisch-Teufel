@@ -5,7 +5,15 @@ import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useDayEntries, useDayExercises, useDaySummary, useGoals, useSettings, useToday } from '@/hooks/data';
+import {
+  useDayEntries,
+  useDayExercises,
+  useDaySummary,
+  useGoals,
+  usePendingAnalyses,
+  useSettings,
+  useToday,
+} from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
 import { CalorieCard } from './CalorieCard';
 import { DiaryDnd } from './DiaryDnd';
@@ -21,6 +29,7 @@ export function DiaryPage() {
   const summary = useDaySummary(date);
   const entries = useDayEntries(date);
   const exercises = useDayExercises(date);
+  const pending = usePendingAnalyses(date);
   const settings = useSettings();
   const goals = useGoals();
   const navigate = useNavigate();
@@ -105,6 +114,7 @@ export function DiaryPage() {
                 name={settings.mealNames[m] ?? `Mahlzeit ${m + 1}`}
                 entries={entries.filter((e) => e.meal === m)}
                 totals={summary.perMeal[m] ?? {}}
+                pending={pending?.filter((p) => p.meal === m)}
               />
             ))}
           </DiaryDnd>

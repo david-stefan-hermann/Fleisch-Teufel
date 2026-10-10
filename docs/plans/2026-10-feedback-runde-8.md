@@ -68,7 +68,30 @@ ein Eingabefeld**. E gefällt, aber **kein "bitte prüfen"**: niemand soll zum P
 Mockup v2 (gleiche Datei): nur noch D mit Feld (Rolle 5-g-Schritte bis 1.000 g bzw. 0,5 bis 10 Portionen; ein
 getippter Wert abseits des Rasters bekommt nach Verlassen des Felds einen eigenen Platz auf der Rolle) und E in
 zwei Fassungen: E1 Analyse wird nach dem Ergebnis von selbst eingetragen (normaler Gruppeneintrag mit kcal),
-E2 stiller Platzhalter "N Lebensmittel erkannt" ohne kcal. Entscheidung E1/E2 offen.
+E2 stiller Platzhalter "N Lebensmittel erkannt" ohne kcal.
+
+Entschieden (2026-10-10): **E1**, und D auch in den kompakten Zutatenkarten ("probieren wir mal aus").
+
+## Umgesetzt (2026-10-10)
+
+Die Blöcke 1, 2 und 4 des Plans unten sind in der Wheel-Variante aufgegangen; die Abschnitte in Teil C zeigen
+den Planungsstand davor.
+
+- **Block 1, Mengeneingabe als Wheel mit Feld** (`components/Wheel.tsx`, `components/AmountEditor.tsx`,
+  `lib/amounts.ts`): zwei Rollen (Menge, Einheit), Raster 5 g bis 1.000 g bzw. 0,5 bis 10 Portionen, Feld für
+  jeden Wert; ein Wert abseits des Rasters bekommt einen eigenen Platz auf der Rolle. Slider, −/+,
+  `sliderRange` und `useSliderStart` sind entfernt. "Eigene Portion" ist ein Knopf neben dem Label.
+  Abweichung vom Mockup: der Wert abseits des Rasters erscheint schon beim Tippen auf der Rolle, nicht erst
+  nach Verlassen des Felds.
+- **Block 2, sinnvolle Einheiten** (`packages/shared/src/foods.ts`, `householdPortionsFor`): Namenswörter vor
+  BLS-Gruppe vor Einheit; 4.010 der 7.140 BLS-Lebensmittel bekommen keine Haushaltsmaße mehr.
+- **Block 3, Offline-Foto im Tagebuch (E1)**: Platzhalterzeile `features/diary/PendingAnalysisRow.tsx` für jedes
+  Foto ohne Ergebnis; ein Foto, das auf Verbindung warten musste (`deferred`), wird nach der Analyse von
+  `logDeferred` selbst eingetragen (erster Treffer je Zutat, Gramm des Modells) und meldet das mit einem Toast.
+  Offline führt "Analysieren" direkt ins Tagebuch. Eine Analyse, die sofort lief, öffnet weiter die Prüfung.
+  Verwerfen und Wiederholen bleiben auf der Seite "Essen eintragen" (kein Wischen in der Platzhalterzeile).
+- Nebenbei gefunden: Das Wheel meldet sein Anhalten über State und Effekt statt direkt aus dem Timer, sonst
+  konnte ein veralteter Callback eine gleichzeitige Änderung (Foto im Meal-Editor) überschreiben.
 
 ## Teil B: Mockups
 
