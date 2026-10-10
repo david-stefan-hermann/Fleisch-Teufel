@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
 
 /** Height of one row in px (three rows are visible). */
@@ -38,6 +38,15 @@ export function Wheel({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Turned by hand since the last `onSettle` (scrolling to a choice from outside reports nothing).
   const turned = useRef(false);
+  // The wheel stops a moment after the last scroll event, outside of any React event. Reporting it
+  // from the timer would call an `onSettle` whose closure may be older than state set meanwhile
+  // (and overwrite that state), so the stop goes through state and is reported after the render.
+  const [stopped, setStopped] = useState<{ row: number } | null>(null);
+  useEffect(() => {
+    if (stopped) onSettle(stopped.row);
+    // Only a new stop reports, not a new callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopped]);
   const last = items.length - 1;
   const clamp = (i: number) => Math.max(0, Math.min(last, i));
   const rowAt = (el: HTMLElement) => clamp(Math.round(el.scrollTop / ROW));
@@ -65,7 +74,7 @@ export function Wheel({
     timer.current = setTimeout(() => {
       if (!turned.current) return;
       turned.current = false;
-      onSettle(rowAt(el));
+      setStopped({ row: rowAt(el) });
     }, SETTLE_MS);
   };
   /** Keyboard and taps: straight to the row, reported as final. */
