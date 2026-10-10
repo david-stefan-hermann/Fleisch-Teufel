@@ -69,7 +69,11 @@ function useItemPortions(item: MealItem): { unit: 'g' | 'ml'; portions: Portion[
   if (!item.per100 || !(current.grams > 0)) return { unit, portions: [current] };
   return {
     unit,
-    portions: editorPortions(unit, portionsFor(food ?? { portions: [], unit }, own ?? []), current),
+    portions: editorPortions(
+      unit,
+      portionsFor(food ?? { portions: [], unit, name: item.name }, own ?? []),
+      current,
+    ),
   };
 }
 

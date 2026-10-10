@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { foodFromCompactBls, parseServingGrams, portionsFor } from '../src/foods.js';
+import { foodFromCompactBls, householdPortionsFor, parseServingGrams, portionsFor } from '../src/foods.js';
 import { toCsv } from '../src/csv.js';
 
 describe('foods', () => {
@@ -40,6 +40,44 @@ describe('foods', () => {
     expect(p[0]!.label).toBe('Meine Schale');
     expect(p[1]!.label).toBe('1 Riegel');
     expect(p.filter((x) => x.label === '100 g')).toHaveLength(1);
+  });
+
+  it('offers only household measures that fit the food', () => {
+    const labels = (food: Parameters<typeof householdPortionsFor>[0]) =>
+      householdPortionsFor(food).map((p) => p.label.split(' ')[0]);
+    const bls = (sourceId: string, name: string, unit: 'g' | 'ml' = 'g') =>
+      labels({ unit, name, source: 'bls', sourceId });
+    // Bread: nothing, neither by group nor by name.
+    expect(bls('B301000', 'Toastbrot')).toEqual([]);
+    expect(labels({ unit: 'g', name: 'Golden Toast Buttertoast', source: 'off', sourceId: '4000' })).toEqual(
+      [],
+    );
+    expect(bls('Q120000', 'Olivenöl')).toEqual(['Teelöffel', 'Esslöffel']);
+    expect(bls('C133000', 'Hafer Flocken')).toEqual(['Esslöffel', 'Schale']);
+    expect(bls('N610000', 'Apfelsaft', 'ml')).toEqual(['Teelöffel', 'Esslöffel', 'Tasse', 'Glas', 'Becher']);
+    expect(bls('M111000', 'Vollmilch frisch')).toEqual(['Esslöffel', 'Tasse', 'Glas', 'Becher']);
+    expect(bls('M400000', 'Gouda Käse')).toEqual([]);
+    expect(bls('D500000', 'Käsekuchen')).toEqual([]);
+    expect(bls('X500000', 'Linsensuppe')).toEqual(['Esslöffel', 'Tasse', 'Schale']);
+    expect(bls('U100000', 'Rind Hackfleisch')).toEqual([]);
+    expect(bls('F110000', 'Apfel roh')).toEqual([]);
+    // Without a BLS code only the name counts; unknown names get nothing, drinks always a glass.
+    expect(labels({ unit: 'g', name: 'Knuspermüsli' })).toEqual(['Esslöffel', 'Schale']);
+    expect(labels({ unit: 'g', name: 'Proteinriegel' })).toEqual([]);
+    expect(labels({ unit: 'g', name: 'Schwein Kotelett' })).toEqual([]);
+    expect(labels({ unit: 'g', name: 'Buttermilch' })).toContain('Glas');
+    expect(labels({ unit: 'g', name: 'Salzkartoffeln' })).toEqual([]);
+    expect(labels({ unit: 'g' })).toEqual([]);
+    expect(labels({ unit: 'ml', name: 'Kakaogetränk' })).toContain('Glas');
+    expect(labels({ unit: 'ml' })).toContain('Glas');
+  });
+
+  it('keeps grams, own and user portions for a food without household measures', () => {
+    const p = portionsFor(
+      { unit: 'g', name: 'Toastbrot', source: 'bls', sourceId: 'B301000', portions: [] },
+      [{ label: 'Scheibe', grams: 25 }],
+    );
+    expect(p.map((x) => x.label)).toEqual(['Scheibe', '100 g', '1 g']);
   });
 });
 

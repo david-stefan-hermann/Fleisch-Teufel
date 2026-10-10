@@ -65,27 +65,83 @@ export function foodFromCompactBls(row: CompactBlsRow, keys: readonly string[] =
   };
 }
 
-/**
- * Generic household measures offered for every food (BLS has no portion data).
- * Food-specific portions (OFF serving size, user-defined) are shown first.
- */
 export const STANDARD_PORTIONS: readonly Portion[] = [
   { label: '100 g', grams: 100 },
   { label: '1 g', grams: 1 },
 ];
 
-export const HOUSEHOLD_PORTIONS: readonly Portion[] = [
-  { label: 'Teelöffel (TL)', grams: 5 },
-  { label: 'Esslöffel (EL)', grams: 15 },
-  { label: 'Tasse (150 ml)', grams: 150 },
-  { label: 'Glas (200 ml)', grams: 200 },
-  { label: 'Becher (250 ml)', grams: 250 },
-  { label: 'Schale / Schüssel', grams: 300 },
+const TL: Portion = { label: 'Teelöffel (TL)', grams: 5 };
+const EL: Portion = { label: 'Esslöffel (EL)', grams: 15 };
+const TASSE: Portion = { label: 'Tasse (150 ml)', grams: 150 };
+const GLAS: Portion = { label: 'Glas (200 ml)', grams: 200 };
+const BECHER: Portion = { label: 'Becher (250 ml)', grams: 250 };
+const SCHALE: Portion = { label: 'Schale / Schüssel', grams: 300 };
+
+/** Generic household measures (BLS has no portion data). `householdPortionsFor` picks the fitting ones. */
+export const HOUSEHOLD_PORTIONS: readonly Portion[] = [TL, EL, TASSE, GLAS, BECHER, SCHALE];
+
+const SPOONS = [TL, EL];
+const DRINK = [TL, EL, TASSE, GLAS, BECHER];
+
+/**
+ * Name words that tell which measures fit, checked in this order (first hit wins). Solid foods come
+ * first so "Käsekuchen" or "Milchbrötchen" do not count as something spoonable.
+ */
+const NAME_RULES: readonly (readonly [RegExp, readonly Portion[]])[] = [
+  [/frischkäse|hüttenkäse/, SPOONS],
+  [/brot|brötchen|toast|kuchen|keks|riegel|käse|wurst|schinken|schokolade|bonbon|chips|pizza/, []],
+  [/suppe|eintopf|brühe|bouillon/, [EL, TASSE, SCHALE]],
+  [/saft|schorle|limonade|cola|wasser\b|tee\b|kaffee|smoothie|drink|getränk|bier\b|\bwein/, DRINK],
+  [/joghurt|quark|skyr|pudding|kefir|sahne|schmand|crème|creme/, [TL, EL, BECHER]],
+  [/milch\b|molke/, [EL, TASSE, GLAS, BECHER]],
+  [/öl\b|essig|sirup|honig\b|zucker\b|konfitüre|marmelade|gelee|senf|ketchup|mayonnaise/, SPOONS],
+  [
+    /sauce|soße|dressing|pesto|mus\b|butter|margarine|schmalz|aufstrich|gewürz|salz\b|pulver|kakao|mehl/,
+    SPOONS,
+  ],
+  [
+    /müsli|flocken|flakes|granola|porridge|reis\b|grieß|couscous|bulgur|quinoa|linsen|bohnen|erbsen/,
+    [EL, SCHALE],
+  ],
+  [/nüsse|nuss\b|mandeln|kerne|samen|rosinen/, [EL]],
+  [/salat|ragout|gulasch|curry|auflauf|risotto|chili|kompott/, [EL, SCHALE]],
 ];
 
-/** Portions to offer for a food, de-duplicated by label, most specific first. */
+/** Measures by BLS main group (first letter of the code), unless a name word says otherwise. */
+const GROUP_RULES: Record<string, readonly Portion[]> = {
+  N: DRINK,
+  P: DRINK,
+  Q: SPOONS,
+  R: SPOONS,
+  C: [EL, SCHALE],
+  H: [EL, SCHALE],
+  X: [EL, SCHALE],
+  Y: [EL, SCHALE],
+};
+
+/**
+ * Household measures that make sense for a food: no cup for toast, no bowl for oil. Decided by the
+ * name words, then the BLS group, then the unit (anything in ml is a drink). A food that matches
+ * nothing gets none; grams, its own portions and user portions are always there (`portionsFor`).
+ */
+export function householdPortionsFor(
+  food: Pick<Food, 'unit'> & Partial<Pick<Food, 'name' | 'source' | 'sourceId'>>,
+): readonly Portion[] {
+  const name = food.name?.toLowerCase() ?? '';
+  const byName = name ? NAME_RULES.find(([words]) => words.test(name)) : undefined;
+  // A drink stays a drink ("Kakaogetränk" in ml is not a powder).
+  if (food.unit === 'ml') return byName && byName[1].includes(TASSE) ? byName[1] : DRINK;
+  if (byName) return byName[1];
+  const group = food.source === 'bls' ? GROUP_RULES[food.sourceId?.charAt(0) ?? ''] : undefined;
+  return group ?? [];
+}
+
+/**
+ * Portions to offer for a food, de-duplicated by label, most specific first: user portions, the
+ * food's own (OFF serving size), the base units, then the fitting household measures.
+ */
 export function portionsFor(
-  food: Pick<Food, 'portions' | 'unit'>,
+  food: Pick<Food, 'portions' | 'unit'> & Partial<Pick<Food, 'name' | 'source' | 'sourceId'>>,
   userPortions: readonly Portion[] = [],
 ): Portion[] {
   const base: Portion[] =
@@ -95,7 +151,7 @@ export function portionsFor(
           { label: '1 ml', grams: 1 },
         ]
       : [...STANDARD_PORTIONS];
-  const all = [...userPortions, ...food.portions, ...base, ...HOUSEHOLD_PORTIONS];
+  const all = [...userPortions, ...food.portions, ...base, ...householdPortionsFor(food)];
   const seen = new Set<string>();
   return all.filter((p) => {
     const key = p.label.toLowerCase();
