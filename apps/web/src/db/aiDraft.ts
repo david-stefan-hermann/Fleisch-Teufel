@@ -2,7 +2,7 @@
  * Review state of an AI photo analysis, stored on the queue item so it survives navigating to the
  * food search (to add an ingredient) and closing the app.
  */
-import type { AiAnalysisResult, Food } from '@ft/shared';
+import type { AiAnalysisResult, Food, Portion } from '@ft/shared';
 import type { AiDraft, AiDraftRow, AiQueueItem, UserDb } from './dexie';
 
 /** Initial rows from the analysis: first candidate preselected, grams rounded. */
@@ -67,6 +67,13 @@ export function patchRow(d: AiDraft, key: string, patch: Partial<AiDraftRow>): A
   return { ...d, rows: d.rows.map((r) => (r.key === key ? { ...r, ...patch } : r)) };
 }
 
+/** One confirmed ingredient of the review: the chosen food, its grams and the unit they were set in. */
+export interface AiItem {
+  food: Food;
+  grams: number;
+  portion?: Portion | null;
+}
+
 /** Adds an ingredient the model missed (from the food search). */
 export async function addFoodToDraft(db: UserDb, localId: number, food: Food, grams: number): Promise<void> {
   await updateDraft(db, localId, (d) => ({
@@ -93,16 +100,21 @@ export function rowGrams(d: AiDraft): RowGrams {
 }
 
 /**
- * Scales every row to `factor` × its grams in `base` (whole grams). Scaling always starts from the
- * base, not from the previous step, so moving the slider back and forth does not accumulate
- * rounding errors. Rows without amount (or missing from `base`) stay as they are.
+ * Scales every row to `factor` × its grams in `base`: whole grams, or tenths of the row's portion
+ * (at least 0,1). Scaling always starts from the base, not from the previous step, so moving the
+ * slider back and forth does not accumulate rounding errors. Rows without amount (or missing from
+ * `base`) stay as they are.
  */
 export function scaleDraft(d: AiDraft, base: RowGrams, factor: number): AiDraft {
   return {
     ...d,
     rows: d.rows.map((r) => {
       const g = base[r.key];
-      return g == null ? r : { ...r, grams: Math.max(0, Math.round(g * factor)) };
+      if (g == null) return r;
+      const pg = r.portion?.grams;
+      if (!pg) return { ...r, grams: Math.max(0, Math.round(g * factor)) };
+      const pieces = Math.max(0.1, Math.round(((g * factor) / pg) * 10) / 10);
+      return { ...r, grams: Math.round(pieces * pg * 100) / 100 };
     }),
   };
 }

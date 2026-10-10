@@ -155,9 +155,9 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.getByRole('tab', { name: 'Häufig' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
-  await page.getByLabel('Portion', { exact: true }).click();
-  await page.getByRole('option', { name: '1 g' }).click();
-  await page.getByLabel('Anzahl Portionen').fill('50');
+  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
+  await page.getByRole('option', { name: 'Gramm' }).click();
+  await page.getByLabel('Menge', { exact: true }).fill('50');
   await expect(page.getByLabel('Mahlzeit')).toHaveCount(0);
   await page.getByRole('button', { name: 'Zum Meal hinzufügen' }).click();
 
@@ -178,18 +178,22 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await expect(page).toHaveURL(mealUrl);
 
   // Amount via the number field of the ingredient card (50 g → 100 g = 348 kcal).
-  const grams = page.getByLabel('Gramm').nth(0);
+  const oats = page.locator('section').filter({ hasText: 'Hafer Flocken' });
+  const grams = oats.getByLabel('Menge', { exact: true });
   await expect(grams).toHaveValue('50');
   await grams.fill('100');
   await expect(page.getByText('348 kcal', { exact: true })).toBeVisible();
   // "Nährwerte" in the card shows the overview of the amount and follows the slider.
   await page.getByRole('button', { name: 'Nährwerte' }).nth(1).click();
   await expect(page.getByRole('button', { name: /^348 kcal, Anteil/ })).toBeVisible();
-  // The slider moves in 5 g steps.
-  await page.getByRole('slider', { name: 'Menge Hafer Flocken' }).focus();
+  // The slider moves in 1 g steps; its range starts in the middle (0 / 50 g / 100 g, set before the field).
+  const slider = page.getByRole('slider', { name: 'Menge Hafer Flocken' });
+  await expect(slider).toHaveAttribute('aria-valuemax', '200');
+  await slider.focus();
   await page.keyboard.press('ArrowRight');
-  await expect(grams).toHaveValue('105');
-  await expect(page.getByRole('button', { name: /^365 kcal, Anteil/ })).toBeVisible();
+  await expect(grams).toHaveValue('101');
+  await expect(page.getByRole('button', { name: /^351 kcal, Anteil/ })).toBeVisible();
+  await expect(slider).toHaveAttribute('aria-valuemax', '200');
 
   await page.locator('input[type=file]').nth(1).setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Foto von Mein Frühstück' })).toBeVisible();
@@ -409,12 +413,14 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   expect(hint).toBe('viel Parmesan');
   await expect(page.getByRole('img', { name: 'Analysiertes Foto' })).toBeVisible();
-  await page.getByRole('spinbutton', { name: 'Gramm' }).or(page.getByLabel('Gramm')).first().fill('180');
+  await page.getByLabel('Menge', { exact: true }).first().fill('180');
   // Each ingredient card opens the nutrients of its grams (150 kcal per 100 g × 180 g).
   const pasta = page.locator('section').filter({ hasText: 'Teigwaren gekocht' });
   await pasta.getByRole('button', { name: 'Nährwerte' }).click();
   await expect(pasta.getByRole('button', { name: /^270 kcal, Anteil/ })).toBeVisible();
-  await expect(pasta.getByText('180 g', { exact: true })).toBeVisible();
+  await expect(
+    pasta.locator('[data-slot=collapsible-content]').getByText('180 g', { exact: true }),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
@@ -423,23 +429,27 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
 
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   await expect(page.getByText('von dir hinzugefügt')).toBeVisible();
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('180');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('180');
 
   // "Gesamtmenge" scales every ingredient; a manual change becomes the new 100 %.
   const scale = page.getByRole('slider', { name: 'Gesamtmenge skalieren' });
   const summary = page.locator('section').filter({ hasText: 'Summe' });
-  const before = Number((await page.getByLabel('Gramm').nth(1).inputValue()) || '0');
+  const before = Number((await page.getByLabel('Menge', { exact: true }).nth(1).inputValue()) || '0');
   await scale.focus();
   for (let i = 0; i < 10; i++) await scale.press('ArrowRight');
   await expect(summary.getByText('150 %')).toBeVisible();
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('270');
-  await expect(page.getByLabel('Gramm').nth(1)).toHaveValue(String(Math.round(before * 1.5)));
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('270');
+  await expect(page.getByLabel('Menge', { exact: true }).nth(1)).toHaveValue(
+    String(Math.round(before * 1.5)),
+  );
   for (let i = 0; i < 4; i++) await scale.press('ArrowLeft');
   await expect(summary.getByText('130 %')).toBeVisible();
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('234');
-  await page.getByLabel('Gramm').first().fill('200');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('234');
+  await page.getByLabel('Menge', { exact: true }).first().fill('200');
   await expect(summary.getByText('100 %')).toBeVisible();
-  await expect(page.getByLabel('Gramm').nth(1)).toHaveValue(String(Math.round(before * 1.3)));
+  await expect(page.getByLabel('Menge', { exact: true }).nth(1)).toHaveValue(
+    String(Math.round(before * 1.3)),
+  );
 
   // Saving (header icon, name dialog) stores the meal with the photo but logs nothing yet.
   await expect(page.getByLabel('Name des Meals')).toHaveCount(0);
@@ -515,7 +525,7 @@ test('AI result logged without saving becomes a named group without a saved meal
   await page.getByRole('button', { name: 'Analysieren' }).click();
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
   // Regression (WebKit, broken thumbnails): many review writes, a reload, the photo still shows.
-  const grams = page.getByLabel('Gramm').first();
+  const grams = page.getByLabel('Menge', { exact: true }).first();
   for (const g of ['210', '220', '230', '240', '200']) await grams.fill(g);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
@@ -525,7 +535,7 @@ test('AI result logged without saving becomes a named group without a saved meal
       page.getByRole('img', { name: 'Analysiertes Foto' }).evaluate((i: HTMLImageElement) => i.naturalWidth),
     )
     .toBe(192);
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('200');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('200');
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
   const thumb = page.locator('section', { hasText: 'Analysen' }).locator('img');
   await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
@@ -661,13 +671,13 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   await expect(page.getByText('Erkannt: Nudeln mit Soße.')).toBeVisible();
 
   // After a change to the ingredients ↻ asks first; "Abbrechen" keeps everything.
-  await page.getByLabel('Gramm').first().fill('180');
+  await page.getByLabel('Menge', { exact: true }).first().fill('180');
   const redo = page.getByRole('button', { name: 'Neu analysieren' });
   await redo.click();
   const ask = page.getByRole('dialog', { name: 'Neu analysieren?' });
   await expect(ask).toContainText('Deine Änderungen an den Zutaten gehen verloren.');
   await ask.getByRole('button', { name: 'Abbrechen' }).click();
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('180');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('180');
 
   // New hint, ↻, confirm: the review is greyed out under the overlay, ↻ is locked meanwhile.
   await hint.fill('ohne Butter, mit Reis');
@@ -682,7 +692,7 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
 
   // The new result replaces the rows; one queue item, the hint stays.
   await expect(page.getByText('Erkannt: Reis mit Gemüse.')).toBeVisible();
-  await expect(page.getByLabel('Gramm').first()).toHaveValue('150');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('150');
   await expect(redo).toBeEnabled();
   await expect(page.getByLabel('Hinweis für die Analyse', { exact: true })).toHaveValue(
     'ohne Butter, mit Reis',

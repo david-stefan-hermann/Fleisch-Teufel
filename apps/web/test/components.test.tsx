@@ -1113,7 +1113,6 @@ describe('ingredient amount slider', () => {
       <>
         <IngredientCard
           item={item}
-          index={0}
           removable
           targets={targetsForDate([], '2026-10-09')}
           onChange={setItem}
@@ -1145,7 +1144,7 @@ describe('ingredient amount slider', () => {
 
   it('a typed amount becomes the new middle once the field is left', () => {
     render(<Card onCommit={() => {}} />);
-    const field = screen.getByLabelText('Gramm');
+    const field = screen.getByLabelText('Menge');
     fireEvent.change(field, { target: { value: '3050' } });
     const thumb = screen.getByRole('slider', { name: 'Menge Haferflocken' });
     expect(thumb.getAttribute('aria-valuemax')).toBe('160'); // pinned to the end while typing
@@ -1157,9 +1156,9 @@ describe('ingredient amount slider', () => {
   it('does not accept more than 9.999 g', () => {
     const onCommit = vi.fn();
     render(<Card onCommit={onCommit} />);
-    fireEvent.change(screen.getByLabelText('Gramm'), { target: { value: '12000' } });
+    fireEvent.change(screen.getByLabelText('Menge'), { target: { value: '12000' } });
     expect(onCommit).not.toHaveBeenCalled();
-    expect(screen.getByText('Zwischen 1 und 9.999 g.')).toBeTruthy();
+    expect(screen.getByText('Höchstens 9.999 g.')).toBeTruthy();
   });
 
   it('follows an amount changed from outside (Gesamtmenge)', () => {

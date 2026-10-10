@@ -11,8 +11,9 @@ function Slider({
   'aria-label': ariaLabel,
   'aria-valuetext': ariaValueText,
   'aria-describedby': ariaDescribedBy,
+  thumbClassName,
   ...props
-}: React.ComponentProps<typeof SliderPrimitive.Root>) {
+}: React.ComponentProps<typeof SliderPrimitive.Root> & { thumbClassName?: string }) {
   const _values = React.useMemo(
     () => (Array.isArray(value) ? value : Array.isArray(defaultValue) ? defaultValue : [min, max]),
     [value, defaultValue, min, max],
@@ -53,7 +54,10 @@ function Slider({
           aria-valuetext={ariaValueText}
           aria-describedby={ariaDescribedBy}
           // 16 px thumb with a 40 px touch target.
-          className="relative block size-4 shrink-0 after:absolute after:-inset-3 after:content-[''] rounded-full border border-primary bg-white shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+          className={cn(
+            "relative block size-4 shrink-0 after:absolute after:-inset-3 after:content-[''] rounded-full border border-primary bg-white shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50",
+            thumbClassName,
+          )}
         />
       ))}
     </SliderPrimitive.Root>

@@ -339,10 +339,7 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
   const apply = page.getByRole('button', { name: 'Änderungen übernehmen' });
   await expect(apply).toBeDisabled();
   await page.getByLabel('Name').fill('Große Bowl');
-  await page
-    .getByLabel(/^Anzahl/)
-    .first()
-    .fill('2');
+  await page.getByLabel('Menge', { exact: true }).first().fill('2');
   await expect(apply).toBeEnabled();
 
   // Adding an ingredient goes through the search and back into the editor (device draft).
@@ -351,9 +348,9 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Zu „Große Bowl“' })).toBeVisible();
-  await page.getByLabel('Portion', { exact: true }).click();
-  await page.getByRole('option', { name: '1 g' }).click();
-  await page.getByLabel('Anzahl Portionen').fill('50');
+  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
+  await page.getByRole('option', { name: 'Gramm' }).click();
+  await page.getByLabel('Menge', { exact: true }).fill('50');
   await page.getByRole('button', { name: 'Zum Eintrag hinzufügen' }).click();
   await expect(page).toHaveURL(/\/diary-group\//);
   await expect(page.getByText('Hafer Flocken', { exact: true })).toBeVisible();
@@ -380,7 +377,7 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
   await page.goto('/meals');
   await page.getByRole('link', { name: /Bowl/ }).click();
   await expect(page.getByLabel('Name')).toHaveValue('Bowl');
-  await expect(page.getByLabel(/^Anzahl/).first()).toHaveValue('1');
+  await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('1');
   await expect(page.getByText('Hafer Flocken', { exact: true })).toHaveCount(0);
 });
 

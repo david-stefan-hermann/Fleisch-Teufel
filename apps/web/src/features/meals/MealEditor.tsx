@@ -174,7 +174,6 @@ function MealEditorForm({
       {draft.items.map((item, i) => (
         <IngredientCard
           key={i}
-          index={i}
           item={item}
           removable={draft.items.length > 1}
           targets={targets}

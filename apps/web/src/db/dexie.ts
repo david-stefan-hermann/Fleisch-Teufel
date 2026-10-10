@@ -21,6 +21,7 @@ import type {
   FoodPortion,
   Goal,
   Meal,
+  Portion,
   Settings,
   SyncTable,
   WeightEntry,
@@ -67,6 +68,11 @@ export interface AiDraftRow {
   confidence: 'low' | 'medium' | 'high' | null;
   candidates: Food[];
   foodId: string | null;
+  /**
+   * Unit chosen in the amount editor (e.g. "1 EL"); null or missing counts grams. `grams` stays the
+   * amount either way; logging stores the portion with its count.
+   */
+  portion?: Portion | null;
 }
 
 export interface AiDraft {

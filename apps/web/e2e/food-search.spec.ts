@@ -125,7 +125,9 @@ test('own food: the pencil edits it, saving returns to the food page, deleting r
   await expect(page.getByRole('link', { name: 'Bearbeiten', exact: true })).toHaveCount(0);
 
   // An unsaved amount survives the way to the editor and back.
-  await page.getByLabel('Anzahl Portionen').fill('2');
+  // Without own portions the food page counts grams (100 g by default).
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('100');
+  await page.getByLabel('Menge', { exact: true }).fill('200');
   await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
   await expect(page).toHaveURL(/\/custom-food\/[^?]+\?from=food$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Lebensmittel bearbeiten' })).toBeVisible();
@@ -133,13 +135,13 @@ test('own food: the pencil edits it, saving returns to the food page, deleting r
   await page.getByRole('button', { name: 'Speichern', exact: true }).click();
   await expect(page.getByText('Gespeichert', { exact: true })).toBeVisible();
   await expect(page).toHaveURL(foodUrl);
-  await expect(page.getByLabel('Anzahl Portionen')).toHaveValue('2');
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('200');
   await expect(page.getByRole('button', { name: /^600 kcal, Anteil/ })).toBeVisible();
 
   // A fresh visit of the same food starts with the defaults again.
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: /Omas Apfelkuchen/ }).click();
-  await expect(page.getByLabel('Anzahl Portionen')).toHaveValue('1');
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('100');
 
   // Deleting in the editor does not land on the dead food page but on the search before it.
   await page.getByRole('link', { name: 'Lebensmittel bearbeiten' }).click();
@@ -182,8 +184,9 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   // On the food page the overview shows the computed kcal and all ten values.
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: /Omas Apfelkuchen/ }).click();
-  await page.getByLabel('Portion', { exact: true }).click();
-  await page.getByRole('option', { name: '100 g' }).click();
+  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
+  await page.getByRole('option', { name: 'Gramm' }).click();
+  await page.getByLabel('Menge', { exact: true }).fill('100');
   await expect(page.getByRole('button', { name: /^289 kcal, Anteil/ })).toBeVisible();
 
   // Reopened, the kcal are still automatic (no mode is stored); typing makes them an own input.
@@ -214,7 +217,8 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   await expect(page).toHaveURL(/\/custom-foods$/);
   await page.goto('/add?meal=0&tab=mine');
   await page.getByRole('link', { name: /Proteinriegel/ }).click();
-  await expect(page.getByLabel('Portion', { exact: true })).toContainText('Portion (45 g)');
+  await expect(page.getByRole('combobox', { name: /^Einheit für/ })).toHaveText('Portion (45 g)');
+  await expect(page.getByText('= 45 g')).toBeVisible();
   await expect(page.getByRole('button', { name: /^175 kcal, Anteil/ })).toBeVisible();
 });
 

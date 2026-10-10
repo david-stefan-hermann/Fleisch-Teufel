@@ -1,14 +1,26 @@
-import { get, N, rescaleItem, type MealItem, type ResolvedTargets } from '@ft/shared';
+import {
+  computeItem,
+  get,
+  multiplyNutrients,
+  N,
+  portionsFor,
+  rescaleItem,
+  type Food,
+  type MealItem,
+  type Portion,
+  type ResolvedTargets,
+} from '@ft/shared';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { NumberField } from '@/components/NumberField';
+import { useEffect, useState } from 'react';
+import { useDb } from '@/app/session';
+import { AmountEditor, type Amount } from '@/components/AmountEditor';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { useSliderStart } from '@/hooks/useSliderStart';
-import { clampAmount, MAX_AMOUNT, sliderRange } from '@/lib/amounts';
+import { getFood, userPortions } from '@/foods/foodService';
+import { editorPortions } from '@/lib/amounts';
 import { fmt0 } from '@/lib/format';
 
 /** Ingredients counted in grams (1 g / 1 ml portions); everything else counts pieces of a portion. */
@@ -35,15 +47,71 @@ export function scaleItems<T extends MealItem>(base: readonly T[], factor: numbe
   });
 }
 
+/** Unit choice of an ingredient: its food's portions (local data only) and the user's own ones. */
+function useItemPortions(item: MealItem): { unit: 'g' | 'ml'; portions: Portion[] } {
+  const db = useDb();
+  const foodId = item.foodId;
+  const [loaded, setLoaded] = useState<{ id: string; food: Food | null } | null>(null);
+  useEffect(() => {
+    if (!foodId) return;
+    let cancelled = false;
+    // Never the network: an ingredient without local food data simply offers fewer units.
+    void getFood(db, foodId, { enrich: false }).then((food) => !cancelled && setLoaded({ id: foodId, food }));
+    return () => {
+      cancelled = true;
+    };
+  }, [db, foodId]);
+  const own = useLiveQuery(async () => (foodId ? userPortions(db, foodId) : []), [db, foodId]);
+  const food = loaded && loaded.id === foodId ? loaded.food : null;
+  const unit = food?.unit ?? (item.portionLabel?.endsWith('ml') ? 'ml' : 'g');
+  const current = itemPortion(item);
+  // Without per-100 values or portion weight the amount can only be counted as it is.
+  if (!item.per100 || !(current.grams > 0)) return { unit, portions: [current] };
+  return {
+    unit,
+    portions: editorPortions(unit, portionsFor(food ?? { portions: [], unit }, own ?? []), current),
+  };
+}
+
+/** The ingredient's portion ("1 g" for gram ingredients, "Portion" for quick entries without one). */
+export function itemPortion(item: Pick<MealItem, 'portionLabel' | 'portionGrams'>): Portion {
+  return { label: item.portionLabel ?? 'Portion', grams: item.portionGrams ?? 0 };
+}
+
+/** The ingredient with another amount, also in another unit (the nutrients follow the grams). */
+export function itemWithAmount(item: MealItem, amount: { portion: Portion; quantity: number }): MealItem {
+  const { portion, quantity } = amount;
+  // Same unit (also a quick entry without portion): the count changes, everything else scales.
+  if (portion.label === itemPortion(item).label) return rescaleItem(item, quantity);
+  if (item.per100) {
+    const { grams, nutrients } = computeItem({
+      per100: item.per100,
+      portionLabel: portion.label,
+      portionGrams: portion.grams,
+      quantity,
+    });
+    return { ...item, portionLabel: portion.label, portionGrams: portion.grams, quantity, grams, nutrients };
+  }
+  const grams = Math.round(portion.grams * quantity * 100) / 100;
+  const factor = item.grams ? grams / item.grams : 0;
+  return {
+    ...item,
+    portionLabel: portion.label,
+    portionGrams: portion.grams,
+    quantity,
+    grams,
+    nutrients: multiplyNutrients(item.nutrients, factor),
+  };
+}
+
 /**
- * One ingredient of the meal editor, laid out like an ingredient of the AI review: name, kcal and
- * remove in the head, then a slider with a number field. Gram ingredients move in 1 g steps, piece
- * ingredients ("Anzahl · Stück") in tenths; the slider starts in the middle. "Nährwerte" at the
- * bottom opens the overview of the current amount (it follows slider and field).
+ * One ingredient of the meal editor and the diary group editor, laid out like an ingredient of the
+ * AI review: name, kcal and remove in the head, then the amount editor (unit, slider, −/+ and
+ * field). "Nährwerte" at the bottom opens the overview of the current amount (it follows the
+ * editor).
  */
 export function IngredientCard({
   item,
-  index,
   removable,
   targets,
   onChange,
@@ -51,38 +119,22 @@ export function IngredientCard({
   onRemove,
 }: {
   item: MealItem;
-  index: number;
   removable: boolean;
   targets: ResolvedTargets;
-  /** Live change while the slider is dragged (show it, do not save it yet). */
+  /** Live change while the slider is dragged or −/+ held (show it, do not save it yet). */
   onChange: (item: MealItem) => void;
-  /** Final change: drag ended, a typed amount. Save it. */
+  /** Final change: slider let go, typed, unit switched. Save it. */
   onCommit: (item: MealItem) => void;
   onRemove: () => void;
 }) {
-  const grams = isGramItem(item);
-  const unit = item.portionLabel?.endsWith('ml') ? 'ml' : 'g';
-  const min = minQuantity(item);
-  // A typed amount below the minimum (or empty) is not applied; the field says why.
-  const [invalid, setInvalid] = useState(false);
-  const kind = grams ? 'base' : 'portion';
-  const max = MAX_AMOUNT[kind];
-  // The range comes from the start amount (middle), never from the value being dragged.
-  const slider = useSliderStart(item.quantity);
-  const range = sliderRange(slider.start, kind);
-  const set = (q: number | null) => {
-    const ok = q !== null && q >= min && q <= max;
-    setInvalid(!ok);
-    if (ok) {
-      const next = Math.round(q * 100) / 100;
-      slider.own(next);
-      onCommit(rescaleItem(item, next));
-    }
+  const { unit, portions } = useItemPortions(item);
+  const apply = (cb: (item: MealItem) => void) => (a: Amount) => {
+    // An empty or invalid field keeps the last amount; the editor says why.
+    if (a.quantity !== null) cb(itemWithAmount(item, { portion: a.portion, quantity: a.quantity }));
   };
-  const id = `ingredient-${index}`;
   return (
     <Section>
-      <div className="grid gap-3 p-4">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="font-semibold break-words">{item.name}</div>
@@ -101,44 +153,14 @@ export function IngredientCard({
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-[1fr_7rem] items-end gap-3">
-          <Slider
-            aria-label={`Menge ${item.name}`}
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={[Math.min(item.quantity, range.max)]}
-            onPointerDown={slider.startDrag}
-            onValueChange={([v]) => {
-              if (v === undefined) return;
-              const q = clampAmount(v, kind);
-              slider.own(q);
-              setInvalid(false);
-              onChange(rescaleItem(item, q));
-            }}
-            onValueCommit={([v]) => {
-              slider.endDrag();
-              if (v !== undefined) onCommit(rescaleItem(item, clampAmount(v, kind)));
-            }}
-            className="mb-4"
-          />
-          <NumberField
-            id={id}
-            label={grams ? 'Gramm' : `Anzahl · ${item.portionLabel ?? 'Portion'}`}
-            unit={grams ? unit : '×'}
-            value={item.quantity}
-            onValueChange={set}
-            onBlur={() => slider.recenter(item.quantity)}
-            integer={grams}
-            error={
-              invalid
-                ? grams
-                  ? `Zwischen 1 und ${fmt0(max)} ${unit}.`
-                  : `Zwischen 0,1 und ${fmt0(max)}.`
-                : null
-            }
-          />
-        </div>
+        <AmountEditor
+          name={item.name}
+          unit={unit}
+          portions={portions}
+          value={{ portion: itemPortion(item), quantity: item.quantity }}
+          onChange={apply(onChange)}
+          onCommit={apply(onCommit)}
+        />
         <NutrientsDisclosure title={entryAmountLabel(item)} nutrients={item.nutrients} targets={targets} />
       </div>
     </Section>

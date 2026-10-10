@@ -10,10 +10,11 @@ import {
 } from '@ft/shared';
 import { Link, useNavigate, useParams, useRouter, useRouterState, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Minus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { AmountEditor, type Amount } from '@/components/AmountEditor';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
@@ -38,7 +39,7 @@ import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
-import { fmtGrams } from '@/lib/format';
+import { editorPortions, normalizeAmount } from '@/lib/amounts';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
@@ -182,7 +183,8 @@ function FoodLogForm(props: FormProps) {
             quantity: lastUsed.quantity,
           }
         : { portion: portions[0] ?? { label: '100 g', grams: 100 }, quantity: 1 };
-  return <FoodLogEditor {...props} customPortions={custom} initial={initial} />;
+  // "1,5 × 100 g" is shown as 150 g: the editor counts grams with a 1 g raster instead.
+  return <FoodLogEditor {...props} customPortions={custom} initial={normalizeAmount(initial, food.unit)} />;
 }
 
 function FoodLogEditor({
@@ -214,11 +216,10 @@ function FoodLogEditor({
   const date = entry?.date ?? defaultDate ?? today();
   const targets = targetsForDate(goals ?? [], date);
   const [meal, setMeal] = useState(initial.meal ?? entry?.meal ?? defaultMeal ?? 0);
-  const [portion, setPortion] = useState<Portion | null>(initial.portion);
-  const [quantity, setQuantity] = useState<number | null>(initial.quantity);
+  const [amount, setAmount] = useState<Amount>({ portion: initial.portion, quantity: initial.quantity });
   const [portionDialog, setPortionDialog] = useState(false);
 
-  const effectivePortion = portion ?? portions[0] ?? { label: '100 g', grams: 100 };
+  const { portion: effectivePortion, quantity } = amount;
   const q = quantity ?? 0;
   const { grams, nutrients } = computeItem({
     per100: food.nutrients,
@@ -377,63 +378,15 @@ function FoodLogEditor({
 
       <Section>
         <div className="grid gap-4 p-4">
-          <div className="grid gap-1.5">
-            <Label htmlFor="portion">Portion</Label>
-            <Select
-              value={effectivePortion.label}
-              onValueChange={(v) => {
-                if (v === '__new') return setPortionDialog(true);
-                const p = portions.find((x) => x.label === v);
-                if (p) setPortion(p);
-              }}
-            >
-              <SelectTrigger id="portion" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  ...portions,
-                  ...(portions.some((p) => p.label === effectivePortion.label) ? [] : [effectivePortion]),
-                ].map((p) => (
-                  <SelectItem key={p.label} value={p.label}>
-                    {p.label}
-                    {!/^(100|1) (g|ml)$/.test(p.label) && (
-                      <span className="text-muted-foreground"> · {fmtGrams(p.grams, unit)}</span>
-                    )}
-                  </SelectItem>
-                ))}
-                <SelectItem value="__new">+ Eigene Portion anlegen…</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end gap-2">
-            <Button
-              variant="outline"
-              size="icon-lg"
-              aria-label="Weniger"
-              onClick={() =>
-                setQuantity(Math.max(0, Math.round((q - stepFor(effectivePortion)) * 100) / 100))
-              }
-            >
-              <Minus aria-hidden />
-            </Button>
-            <NumberField
-              className="flex-1"
-              label="Anzahl Portionen"
-              value={quantity}
-              onValueChange={setQuantity}
-              error={quantity !== null && quantity <= 0 ? 'Bitte eine Menge größer 0 eingeben.' : null}
-            />
-            <Button
-              variant="outline"
-              size="icon-lg"
-              aria-label="Mehr"
-              onClick={() => setQuantity(Math.round((q + stepFor(effectivePortion)) * 100) / 100)}
-            >
-              <Plus aria-hidden />
-            </Button>
-          </div>
-          <p className="tabular -mt-2 text-sm text-muted-foreground">= {fmtGrams(grams, unit)}</p>
+          <AmountEditor
+            name={food.name}
+            unit={unit}
+            portions={editorPortions(unit, portions, effectivePortion)}
+            value={amount}
+            onChange={setAmount}
+            onCommit={setAmount}
+            onNewPortion={() => setPortionDialog(true)}
+          />
           {!into && (
             <div className="grid gap-1.5">
               <Label htmlFor="meal">Mahlzeit</Label>
@@ -480,16 +433,11 @@ function FoodLogEditor({
             label,
             grams: gramsPerPortion,
           });
-          setPortion({ label, grams: gramsPerPortion });
-          setQuantity(1);
+          setAmount({ portion: { label, grams: gramsPerPortion }, quantity: 1 });
         }}
       />
     </Page>
   );
-}
-
-function stepFor(p: Portion): number {
-  return p.grams <= 1 ? 10 : p.grams === 100 ? 0.5 : 1;
 }
 
 function NewPortionDialog({

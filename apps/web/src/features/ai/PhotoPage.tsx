@@ -2,6 +2,7 @@ import {
   computeItem,
   get,
   N,
+  portionsFor,
   scaleNutrients,
   sumNutrients,
   targetsForDate,
@@ -37,11 +38,11 @@ import {
   type ScannerError,
   type TorchState,
 } from '@/components/BarcodeScanner';
+import { AmountEditor, type Amount } from '@/components/AmountEditor';
 import { MealPhoto, useObjectUrl } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
-import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -61,12 +62,12 @@ import { currentDraft, draftChanged, patchRow, rowGrams, scaleDraft, type RowGra
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
-import { rememberFood } from '@/foods/foodService';
+import { rememberFood, userPortions } from '@/foods/foodService';
+import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
-import { useSliderStart } from '@/hooks/useSliderStart';
-import { clampAmount, MAX_AMOUNT, sliderRange } from '@/lib/amounts';
+import { basePortion, editorPortions, isBasePortion } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
-import { fmt0, fmtGrams, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
+import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
@@ -562,6 +563,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
       return {
         row: r,
         food,
+        portion: r.portion ?? null,
         ...computeItem({ per100: food.nutrients, portionLabel: '1 g', portionGrams: 1, quantity: r.grams }),
       };
     })
@@ -598,7 +600,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     let id = savedMealId;
     if (id) await patchRecord(db, 'meals', id, { name: newName });
     else {
-      const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
+      const items = resolved.map((r) => ({ food: r.food, grams: r.grams, portion: r.portion }));
       id = await createAiMeal(db, newName, items, image ?? (await loadQueueImage(db, item)));
     }
     commit({ ...draft, mealName: newName, savedMealId: id });
@@ -610,7 +612,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
    * the review was saved, otherwise as one named group without a meal. Both keep the photo.
    */
   async function log() {
-    const items = resolved.map((r) => ({ food: r.food, grams: r.grams }));
+    const items = resolved.map((r) => ({ food: r.food, grams: r.grams, portion: r.portion }));
     const target = { date: item.date, meal };
     if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result);
     // Read before `discardQueueItem` drops the queue photo; `image` is undefined while still loading.
@@ -819,7 +821,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
 
 /**
  * One ingredient of the review: name, confidence, kcal and remove in the head, the database choice,
- * then the amount. Slider ticks only preview (`onPreview`); letting go, typing and choosing save.
+ * then the amount editor (grams or a portion of the food). Slider ticks only preview (`onPreview`);
+ * letting go, typing and choosing save.
  */
 function ReviewRow({
   row: r,
@@ -838,10 +841,21 @@ function ReviewRow({
 }) {
   const food = r.candidates.find((c) => c.id === r.foodId);
   const kcal = food && r.grams ? (get(food.nutrients, N.kcal) * r.grams) / 100 : 0;
-  // The range comes from the start amount (middle), never from the value being dragged.
-  const slider = useSliderStart(r.grams);
-  const range = sliderRange(slider.start, 'base');
-  const [invalid, setInvalid] = useState(false);
+  const db = useDb();
+  const own = useLiveQuery(async () => (food ? userPortions(db, food.id) : []), [db, food?.id]);
+  const unit = food?.unit ?? 'g';
+  const base = basePortion(unit);
+  const portion = r.portion && r.portion.grams > 0 ? r.portion : base;
+  const amount: Amount = {
+    portion,
+    quantity: r.grams === null ? null : Math.round((r.grams / portion.grams) * 100) / 100,
+  };
+  const portions = editorPortions(unit, food ? portionsFor(food, own ?? []) : [], portion);
+  /** Grams stay the amount of the row; the unit only changes how it is set. */
+  const rowAmount = (a: Amount): Partial<AiDraftRow> => ({
+    portion: isBasePortion(a.portion) ? null : a.portion,
+    grams: a.quantity === null ? null : Math.round(a.quantity * a.portion.grams * 100) / 100,
+  });
   return (
     <Section>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-4">
@@ -868,7 +882,8 @@ function ReviewRow({
         {r.candidates.length > 1 ? (
           <div className="grid gap-1.5">
             <Label htmlFor={`cand-${r.key}`}>Lebensmittel aus der Datenbank</Label>
-            <Select value={r.foodId ?? ''} onValueChange={(v) => onChange({ foodId: v })}>
+            {/* Another food may not have the chosen portion: back to grams, same amount. */}
+            <Select value={r.foodId ?? ''} onValueChange={(v) => onChange({ foodId: v, portion: null })}>
               <SelectTrigger
                 id={`cand-${r.key}`}
                 className="h-auto min-h-11 w-full py-2 text-left whitespace-normal"
@@ -899,46 +914,23 @@ function ReviewRow({
             </button>
           </p>
         )}
-        <div className="grid grid-cols-[minmax(0,1fr)_7rem] items-end gap-3">
-          <Slider
-            aria-label={`Menge ${r.name}`}
-            min={range.min}
-            max={range.max}
-            step={range.step}
-            value={[Math.min(r.grams ?? 0, range.max)]}
-            onPointerDown={slider.startDrag}
-            onValueChange={([v]) => {
-              if (v === undefined) return;
-              const g = clampAmount(v, 'base');
-              slider.own(g);
-              setInvalid(false);
-              onPreview({ grams: g });
-            }}
-            onValueCommit={([v]) => {
-              slider.endDrag();
-              if (v !== undefined) onChange({ grams: clampAmount(v, 'base') });
-            }}
-            className="mb-4"
-          />
-          <NumberField
-            label="Gramm"
-            unit={food?.unit ?? 'g'}
-            value={r.grams}
-            onValueChange={(g) => {
-              const ok = g === null || (g > 0 && g <= MAX_AMOUNT.base);
-              setInvalid(!ok);
-              if (!ok) return;
-              slider.own(g);
-              onChange({ grams: g });
-            }}
-            onBlur={() => slider.recenter(r.grams)}
-            integer
-            error={invalid ? `Zwischen 1 und ${fmt0(MAX_AMOUNT.base)} ${food?.unit ?? 'g'}.` : null}
-          />
-        </div>
+        <AmountEditor
+          name={r.name}
+          unit={unit}
+          portions={portions}
+          value={amount}
+          onChange={(a) => onPreview(rowAmount(a))}
+          onCommit={(a) => onChange(rowAmount(a))}
+        />
         {food && r.grams ? (
           <NutrientsDisclosure
-            title={fmtGrams(r.grams, food.unit)}
+            title={entryAmountLabel({
+              source: 'ai',
+              grams: r.grams,
+              portionLabel: amount.portion.label,
+              portionGrams: amount.portion.grams,
+              quantity: amount.quantity ?? 0,
+            })}
             nutrients={scaleNutrients(food.nutrients, r.grams)}
             targets={targets}
           />

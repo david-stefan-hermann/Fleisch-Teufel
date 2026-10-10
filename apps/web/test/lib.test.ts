@@ -18,7 +18,17 @@ import { goBackOr } from '@/lib/history';
 import { resolveAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
-import { clampAmount, MAX_AMOUNT, roundAmount, sliderRange } from '@/lib/amounts';
+import {
+  clampAmount,
+  convertAmount,
+  editorPortions,
+  MAX_AMOUNT,
+  normalizeAmount,
+  roundAmount,
+  sliderRange,
+} from '@/lib/amounts';
+import { itemPortion, itemWithAmount } from '@/features/meals/IngredientCard';
+import type { MealItem } from '@ft/shared';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -302,5 +312,83 @@ describe('amount slider range', () => {
     expect(clampAmount(0, 'portion')).toBe(0.1);
     expect(clampAmount(150, 'portion')).toBe(99);
     expect(roundAmount(1.15, 'portion')).toBe(1.2);
+  });
+});
+
+describe('amount editor units', () => {
+  it('offers grams first, drops 100 g and keeps the current portion', () => {
+    const list = editorPortions('g', [
+      { label: '1 Stück', grams: 60 },
+      { label: '100 g', grams: 100 },
+      { label: '1 g', grams: 1 },
+      { label: '1 STÜCK', grams: 61 },
+    ]);
+    expect(list.map((p) => p.label)).toEqual(['1 g', '1 Stück']);
+    const old = editorPortions('g', [{ label: '1 Stück', grams: 60 }], { label: '100 g', grams: 100 });
+    expect(old.map((p) => p.label)).toEqual(['1 g', '1 Stück', '100 g']);
+    expect(editorPortions('ml', [])[0]).toEqual({ label: '1 ml', grams: 1 });
+  });
+
+  it('converts between units keeping the grams, on the raster of the new unit', () => {
+    const g = { label: '1 g', grams: 1 };
+    const el = { label: 'Esslöffel (EL)', grams: 15 };
+    expect(convertAmount(80, g, el)).toBe(5.3);
+    expect(convertAmount(5.3, el, g)).toBe(80);
+    expect(convertAmount(2, el, g)).toBe(30);
+    expect(convertAmount(1, g, { label: 'Schale', grams: 300 })).toBe(0.1);
+    expect(convertAmount(null, g, el)).toBeNull();
+  });
+
+  it('shows "100 g" amounts as grams', () => {
+    expect(normalizeAmount({ portion: { label: '100 g', grams: 100 }, quantity: 1.5 }, 'g')).toEqual({
+      portion: { label: '1 g', grams: 1 },
+      quantity: 150,
+    });
+    const piece = { portion: { label: '1 Stück', grams: 60 }, quantity: 2 };
+    expect(normalizeAmount(piece, 'g')).toBe(piece);
+  });
+
+  const egg: MealItem = {
+    foodId: 'bls:egg',
+    source: 'bls',
+    name: 'Ei',
+    brand: null,
+    grams: 120,
+    portionLabel: '1 Stück',
+    portionGrams: 60,
+    quantity: 2,
+    per100: { ENERCC: 137 },
+    nutrients: { ENERCC: 164.4 },
+  };
+
+  it('changes the amount of an ingredient, also in another unit', () => {
+    expect(itemWithAmount(egg, { portion: itemPortion(egg), quantity: 3 })).toMatchObject({
+      quantity: 3,
+      grams: 180,
+      nutrients: { ENERCC: 246.6 },
+    });
+    expect(itemWithAmount(egg, { portion: { label: '1 g', grams: 1 }, quantity: 90 })).toMatchObject({
+      portionLabel: '1 g',
+      portionGrams: 1,
+      quantity: 90,
+      grams: 90,
+      nutrients: { ENERCC: 123.3 },
+    });
+  });
+
+  it('scales a quick entry without portion by its count', () => {
+    const quick: MealItem = {
+      ...egg,
+      source: 'quick',
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 150 },
+    };
+    expect(itemPortion(quick)).toEqual({ label: 'Portion', grams: 0 });
+    const twice = itemWithAmount(quick, { portion: itemPortion(quick), quantity: 2 });
+    expect(twice).toMatchObject({ quantity: 2, portionLabel: null, nutrients: { ENERCC: 300 } });
   });
 });

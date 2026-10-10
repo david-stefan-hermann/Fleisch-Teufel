@@ -9,9 +9,9 @@ async function addOats(page: Page, grams: string) {
   await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
-  await page.getByLabel('Portion', { exact: true }).click();
-  await page.getByRole('option', { name: '1 g' }).click();
-  await page.getByLabel('Anzahl Portionen').fill(grams);
+  await page.getByRole('combobox', { name: /^Einheit für/ }).click();
+  await page.getByRole('option', { name: 'Gramm' }).click();
+  await page.getByLabel('Menge', { exact: true }).fill(grams);
   await page.getByRole('button', { name: 'Zu Frühstück eintragen' }).click();
   await expect(page.getByText('Hafer Flocken eingetragen')).toBeVisible();
 }

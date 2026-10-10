@@ -204,7 +204,6 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
       {draft.items.map((item, i) => (
         <IngredientCard
           key={item.entryId ?? `new-${i}`}
-          index={i}
           item={item}
           removable={draft.items.length > 1}
           targets={targets}
