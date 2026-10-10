@@ -3,7 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
 import './index.css';
-import { registerServiceWorker, requestPersistentStorage } from './app/pwa';
+import { captureInstallPrompt, registerServiceWorker, requestPersistentStorage } from './app/pwa';
 import { router } from './app/router';
 import { SessionProvider } from './app/session';
 import { startAppearance, useAppearance } from './lib/appearance';
@@ -11,6 +11,7 @@ import { startAppearance, useAppearance } from './lib/appearance';
 const TOAST_BOTTOM = 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)';
 
 startAppearance();
+captureInstallPrompt();
 registerServiceWorker();
 void requestPersistentStorage();
 
