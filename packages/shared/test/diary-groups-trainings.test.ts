@@ -69,6 +69,13 @@ describe('groupDiaryEntries', () => {
     expect(rows.map((r) => r.kind)).toEqual(['group', 'group', 'entry']);
   });
 
+  it('keeps an analysed meal a group, also with a single ingredient', () => {
+    const analysed = { ...entry('rice', 1, 100, 'g1'), mealId: null, groupName: 'Reis', aiAnalysisId: 'a1' };
+    const rows = groupDiaryEntries([analysed, entry('only', 2, 100, 'g2')]);
+    expect(rows.map((r) => r.kind)).toEqual(['group', 'entry']);
+    expect(rows[0]).toMatchObject({ groupName: 'Reis', entries: [{ id: 'rice' }] });
+  });
+
   it('leaves entries from older app versions (no groupId) untouched', () => {
     const { groupId: _omit, ...old } = entry('old', 1, 10);
     const rows = groupDiaryEntries([old as never]);

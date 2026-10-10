@@ -720,7 +720,7 @@ test('a photo taken offline shows in the diary right away and is logged once ana
   await expect(page.getByText(/^Offline gespeichert\./)).toBeVisible();
   await expect(page).toHaveURL(/\/\?date=|\/$/);
   const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
-  const waiting = lunch.getByRole('link', { name: /Foto-Analyse/ });
+  const waiting = lunch.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
   await expect(waiting).toContainText('Gespeichert, wird analysiert sobald du online bist');
   await expect(waiting.getByLabel('noch keine Kalorien')).toBeVisible();
   await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).not.toContainText('kcal');
@@ -752,20 +752,34 @@ test('a photo taken offline shows in the diary right away and is logged once ana
       },
     ],
   });
+  let serverDown = true;
   await page.route('**/api/ai/analyze', (r) =>
-    r.fulfill({
-      json: {
-        analysisId: '00000000-0000-7000-8000-000000000008',
-        dishName: 'Reis mit Hähnchen',
-        items: [item('Reis gekocht', 'bls:R', 130, 200), item('Hähnchenbrust', 'bls:H', 110, 150)],
-        notes: null,
-        model: 'claude-opus-5-5',
-        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
-      },
-    }),
+    serverDown
+      ? r.fulfill({ status: 500, json: { error: 'Analyse nicht möglich' } })
+      : r.fulfill({
+          json: {
+            analysisId: '00000000-0000-7000-8000-000000000008',
+            dishName: 'Reis mit Hähnchen',
+            items: [item('Reis gekocht', 'bls:R', 130, 200), item('Hähnchenbrust', 'bls:H', 110, 150)],
+            notes: null,
+            model: 'claude-opus-5-5',
+            usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+          },
+        }),
   );
   await context.setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  // A failed analysis stays in the diary: swipe deletes it (with undo), "Wiederholen" runs it again.
+  const retry = lunch.getByRole('button', { name: 'Wiederholen' });
+  await expect(retry).toBeVisible();
+  await swipeLeft(page, 'Foto-Analyse');
+  await page.getByRole('button', { name: 'Foto-Analyse löschen' }).click();
+  await expect(waiting).toHaveCount(0);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(retry).toBeVisible();
+  await expect.poll(() => waiting.locator('img').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
+  serverDown = false;
+  await retry.click();
   await expect(page.getByText('„Reis mit Hähnchen“ analysiert und eingetragen')).toBeVisible();
   await expect(waiting).toHaveCount(0);
   await expect(lunch.getByText('Reis mit Hähnchen', { exact: true })).toBeVisible();

@@ -217,6 +217,40 @@ export async function discardQueueItem(db: UserDb, localId: number): Promise<voi
   });
 }
 
+/** "Wiederholen" of a failed analysis: back into the line, analysed right away when connected. */
+export async function retryQueueItem(db: UserDb, localId: number): Promise<void> {
+  await db.aiQueue.update(localId, { status: 'pending', error: undefined });
+  void processQueue(db);
+}
+
+/** A discarded queue item with its photo, for the undo of the diary's swipe delete. */
+export interface DiscardedQueueItem {
+  item: AiQueueItem;
+  image: AiImage | undefined;
+}
+
+/** Discards a queue item and returns what `restoreQueueItem` needs to bring it back. */
+export async function takeQueueItem(db: UserDb, localId: number): Promise<DiscardedQueueItem | null> {
+  return db.transaction('rw', [db.aiQueue, db.aiImages], async () => {
+    const item = await db.aiQueue.get(localId);
+    if (!item) return null;
+    const image = await db.aiImages.get(localId);
+    await db.aiQueue.delete(localId);
+    await db.aiImages.delete(localId);
+    return { item, image };
+  });
+}
+
+/** Undo of `takeQueueItem`: the item waits again (a run it was in is gone) and is analysed when connected. */
+export async function restoreQueueItem(db: UserDb, taken: DiscardedQueueItem): Promise<void> {
+  const { item, image } = taken;
+  await db.transaction('rw', [db.aiQueue, db.aiImages], async () => {
+    await db.aiQueue.put({ ...item, status: item.status === 'analyzing' ? 'pending' : item.status });
+    if (image) await db.aiImages.put(image);
+  });
+  void processQueue(db);
+}
+
 export function startQueueProcessing(db: UserDb): () => void {
   const run = () => void processQueue(db);
   window.addEventListener('online', run);

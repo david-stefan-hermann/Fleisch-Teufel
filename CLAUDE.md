@@ -126,9 +126,13 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Photos waiting for analysis: a first analysis that had to wait for a connection gets `deferred` on its `aiQueue`
   item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
   (`usePendingAnalyses`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
-  review). Once analysed, `logDeferred` (`features/ai/queue.ts`) logs it as a normal group with the photo (first
-  candidate, the model's grams) and removes it from the queue; changes go through the diary group editor. An
-  analysis that ran right away still opens the review, and one without any usable item stays a normal review.
+  review). Swipe left discards it with undo (`takeQueueItem` / `restoreQueueItem`), a failed one has the text link
+  "Wiederholen" (`retryQueueItem`). Once analysed, `logDeferred` (`features/ai/queue.ts`) logs it as a normal group
+  with the photo (first candidate, the model's grams) and removes it from the queue; changes go through the diary
+  group editor. An analysis that ran right away still opens the review, and one without any usable item stays a
+  normal review.
+- Diary rows of an AI analysis are always a group row (`groupDiaryEntries` keeps a single entry with
+  `aiAnalysisId` as a group: name, photo, group editor); other groups with one entry left show as a plain entry.
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value

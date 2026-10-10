@@ -89,7 +89,9 @@ den Planungsstand davor.
   Foto ohne Ergebnis; ein Foto, das auf Verbindung warten musste (`deferred`), wird nach der Analyse von
   `logDeferred` selbst eingetragen (erster Treffer je Zutat, Gramm des Modells) und meldet das mit einem Toast.
   Offline führt "Analysieren" direkt ins Tagebuch. Eine Analyse, die sofort lief, öffnet weiter die Prüfung.
-  Verwerfen und Wiederholen bleiben auf der Seite "Essen eintragen" (kein Wischen in der Platzhalterzeile).
+  Nachtrag nach Rückmeldung: die Platzhalterzeile lässt sich im Tagebuch per Wischen löschen (mit Rückgängig),
+  eine fehlgeschlagene Analyse hat dort den Textlink "Wiederholen". Eine analysierte Mahlzeit ist immer eine
+  Gruppenzeile (Name, Foto, Gruppen-Editor), auch mit nur einer Zutat (`groupDiaryEntries`).
 - Nebenbei gefunden: Das Wheel meldet sein Anhalten über State und Effekt statt direkt aus dem Timer, sonst
   konnte ein veralteter Callback eine gleichzeitige Änderung (Foto im Meal-Editor) überschreiben.
 

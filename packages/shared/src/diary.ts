@@ -134,7 +134,9 @@ export type DiaryRow =
  * group from an AI analysis) into one row.
  * Rows keep the order of their first entry (`entries` must be sorted by `loggedAt`); entries
  * without `groupId` (quick adds, single foods, records from older app versions) stay single.
- * A group with only one remaining entry (the others were deleted) is shown as a plain entry.
+ * A group with only one remaining entry (the others were deleted) is shown as a plain entry, unless
+ * it comes from an AI analysis: an analysed meal is always a group row (name, photo, group editor),
+ * also with a single ingredient.
  */
 export function groupDiaryEntries(entries: FoodEntry[]): DiaryRow[] {
   const byGroup = new Map<string, FoodEntry[]>();
@@ -148,7 +150,7 @@ export function groupDiaryEntries(entries: FoodEntry[]): DiaryRow[] {
   const seen = new Set<string>();
   for (const e of entries) {
     const group = e.groupId ? byGroup.get(e.groupId) : undefined;
-    if (!group || group.length < 2) {
+    if (!group || (group.length < 2 && !e.aiAnalysisId)) {
       rows.push({ kind: 'entry', entry: e });
       continue;
     }

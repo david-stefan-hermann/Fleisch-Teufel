@@ -71,7 +71,14 @@ import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
-import { discardQueueItem, enqueuePhoto, loadQueueImage, processQueue, reanalyze } from './queue';
+import {
+  discardQueueItem,
+  enqueuePhoto,
+  loadQueueImage,
+  processQueue,
+  reanalyze,
+  retryQueueItem,
+} from './queue';
 import { useAiImage } from './useAiImage';
 
 /**
@@ -481,10 +488,7 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
           variant="ghost"
           size="icon"
           aria-label="Erneut versuchen"
-          onClick={async () => {
-            await db.aiQueue.update(item.localId!, { status: 'pending', error: undefined });
-            void processQueue(db);
-          }}
+          onClick={() => void retryQueueItem(db, item.localId!)}
         >
           <RotateCcw aria-hidden />
         </Button>
