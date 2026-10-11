@@ -148,9 +148,10 @@ Mengenschätzung aus Fotos ist prinzipiell ungenau (typisch ±20 bis 40 %). So m
    ]
    ```
 3. `ANTHROPIC_API_KEY=… pnpm --filter @ft/api ai:eval ./mein-testset` gibt je Foto die Abweichung bei
-   Gramm und kcal aus und schreibt `report.json` (Kosten ≈ 0,03 $ pro Foto mit `claude-opus-5-5`).
+   Gramm und kcal aus und schreibt `report.json` (Kosten ≈ 0,09 $ pro Foto mit `claude-opus-5-5`).
 
-Modell und Denkaufwand sind per `AI_MODEL` / `AI_EFFORT` einstellbar. Abgelehnte Anfragen werden serverseitig
+Modell und Denkaufwand sind per `AI_MODEL` / `AI_EFFORT` einstellbar (Standard `claude-opus-5-5`, `medium`).
+Günstigere Einstellungen kosten Qualität: `claude-sonnet-5-5` war im Test bei Gerichten mit vielen Zutaten unzuverlässiger. Abgelehnte Anfragen werden serverseitig
 automatisch an das von Anthropic empfohlene Ausweichmodell weitergereicht.
 
 ## Lizenz

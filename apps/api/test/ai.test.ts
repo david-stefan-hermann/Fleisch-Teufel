@@ -3,6 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer, type LabelInput } from '../src/ai/analyze.js';
 import type { LabelReading } from '../src/ai/label.js';
 import { matchItem, type LocalSearch } from '../src/ai/match.js';
+import { customFoods } from '../src/db/schema.js';
+import { candidatesFor, estimatedFood } from '../src/routes/ai.js';
 import { blsToFood, loadBls } from '../src/foods/catalog.js';
 import { costUsd } from '../src/ai/pricing.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
@@ -14,6 +16,9 @@ const item = (over: Partial<AiItem>): AiItem => ({
   preparation: null,
   packaged: false,
   searchTerms: [],
+  foodId: null,
+  alternatives: [],
+  estimate: null,
   ...over,
 });
 
@@ -22,6 +27,10 @@ let c: TestClient;
 const received: AnalyzeInput[] = [];
 const labels: LabelInput[] = [];
 let refuse = false;
+/** What the fake model searches for, and what it then answers (null: the default dish). */
+let queries: string[] = [];
+let nextItems: AiItem[] | null = null;
+let searchResults: string[] = [];
 
 const proteinBar = (over: Partial<LabelReading> = {}): LabelReading => ({
   name: 'Proteinriegel Schoko',
@@ -49,12 +58,14 @@ const proteinBar = (over: Partial<LabelReading> = {}): LabelReading => ({
 let nextLabel: LabelReading = proteinBar();
 
 const fakeAnalyzer: FoodAnalyzer = {
-  async analyze(input) {
+  async analyze(input, searchFoods) {
     received.push(input);
     if (refuse) throw new AiRefusalError('general_harms');
+    searchResults = [];
+    for (const q of queries) searchResults.push(await searchFoods(q));
     return {
       dishName: 'Hähnchen mit Nudeln',
-      items: [
+      items: nextItems ?? [
         item({
           name: 'Hähnchenbrust',
           grams: 150,
@@ -86,7 +97,7 @@ const fakeAnalyzer: FoodAnalyzer = {
 };
 
 beforeAll(async () => {
-  ctx = await createTestContext({ analyzer: fakeAnalyzer });
+  ctx = await createTestContext({ analyzer: fakeAnalyzer, env: { ALLOW_REGISTRATION: 'true' } });
   c = await registeredClient(ctx);
 });
 afterAll(() => ctx.close());
@@ -102,6 +113,7 @@ describe('pricing', () => {
   it('computes cost from tokens', () => {
     expect(costUsd('claude-opus-5-5', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBe(24);
     expect(costUsd('claude-sonnet-5-5', { inputTokens: 3000, outputTokens: 1500 })).toBeCloseTo(0.021);
+    expect(costUsd('claude-haiku-4-5-20251001', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBe(6);
   });
 });
 
@@ -225,6 +237,151 @@ describe('POST /api/ai/analyze', () => {
       output_tokens: 1500,
       user_text: 'mit etwas Öl gebraten',
     });
+  });
+
+  it('takes the foods the model chose from its searches', async () => {
+    queries = ['Hähnchen Brust'];
+    nextItems = [
+      // The raw one on purpose: the term matching would put the fried one first.
+      item({
+        name: 'Hähnchenbrust',
+        preparation: 'gebraten',
+        searchTerms: ['Hähnchen Brust gebraten'],
+        foodId: 'bls:V411100',
+        alternatives: ['bls:V411180', 'bls:NOPE', 'bls:V411100'],
+      }),
+      // An id no search returned is not trusted: back to the term matching.
+      item({ name: 'Nudeln', searchTerms: ['Teigwaren gekocht'], foodId: 'bls:E411000' }),
+    ];
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    queries = [];
+    nextItems = null;
+    expect(searchResults[0]).toContain(
+      'id=bls:V411100 | Hähnchen Brust, ohne Haut, roh | BLS | 102 kcal/100 g',
+    );
+    expect(r.json.items[0].candidates.map((x: { food: { id: string } }) => x.food.id)).toEqual([
+      'bls:V411100',
+      'bls:V411180',
+    ]);
+    expect(r.json.items[1].candidates[0].food.id).toBe('bls:E411000');
+  });
+
+  it('turns an estimate into a marked food when nothing was found', async () => {
+    queries = ['Takoyaki'];
+    nextItems = [
+      item({
+        name: 'Takoyaki',
+        grams: 180,
+        confidence: 'low',
+        searchTerms: ['Takoyaki'],
+        estimate: { kcal: 175, protein: 7, carbs: 22, sugar: 3, fat: 6, satFat: 1.2, fiber: 1, salt: 1.1 },
+      }),
+      item({ name: 'Drachenfrucht-Sorbet', searchTerms: ['Drachenfrucht Sorbet'] }),
+    ];
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    queries = [];
+    nextItems = null;
+    expect(searchResults[0]).toBe('Keine Treffer für „Takoyaki“.');
+    // Too few local hits: the search also asked Open Food Facts.
+    expect(ctx.off.calls).toContain('search:Takoyaki');
+    const [takoyaki, sorbet] = r.json.items;
+    expect(takoyaki.candidates).toHaveLength(1);
+    expect(takoyaki.candidates[0].food).toMatchObject({
+      id: `est:${r.json.analysisId}:0`,
+      name: 'Takoyaki',
+      brand: 'KI-Schätzung',
+      estimated: true,
+      nutrients: { ENERCC: 175, PROT625: 7, CHO: 22, FAT: 6 },
+    });
+    expect(sorbet.candidates).toEqual([]);
+  });
+
+  it('corrects estimated kcal that do not fit the macros', () => {
+    const est = (kcal: number) =>
+      estimatedFood(
+        item({ estimate: { kcal, protein: 10, carbs: 20, sugar: 30, fat: 5, satFat: 9, fiber: 0, salt: 0 } }),
+        'est:x:0',
+      )!;
+    // 10 * 4 + 20 * 4 + 5 * 9 = 165
+    expect(est(170).nutrients.ENERCC).toBe(170);
+    expect(est(400).nutrients.ENERCC).toBe(165);
+    // Sugar and saturated fat never exceed carbs and fat.
+    expect(est(170).nutrients).toMatchObject({ SUGAR: 20, FASAT: 5 });
+    expect(estimatedFood(item({}), 'est:x:0')).toBeNull();
+    // Seen with a real photo: 250 g of broth estimated as pure fat.
+    const oil = { kcal: 925, protein: 3, carbs: 3, sugar: 1, fat: 100, satFat: 15, fiber: 0, salt: 1 };
+    expect(estimatedFood(item({ estimate: oil }), 'est:x:0')).toBeNull();
+  });
+
+  it('puts the estimate before alternatives when the model chose no food', () => {
+    const dry = { ...blsToFood(loadBls().foods[0]!), id: 'off:dry' };
+    const seen = new Map([[dry.id, dry]]);
+    const estimate = { kcal: 150, protein: 0, carbs: 37, sugar: 12, fat: 0, satFat: 0, fiber: 0.5, salt: 0 };
+    const ids = (over: Partial<AiItem>) =>
+      candidatesFor(item({ name: 'Tapiokaperlen', ...over }), seen, 'est:x:1', () => []).map(
+        (x) => x.food.id,
+      );
+    // Seen with a real photo: no food chosen, an estimate, and the dry product as a near miss.
+    expect(ids({ estimate, alternatives: ['off:dry'] })).toEqual(['est:x:1', 'off:dry']);
+    expect(ids({ estimate, foodId: 'off:dry', alternatives: ['off:dry'] })).toEqual(['off:dry']);
+    expect(ids({ alternatives: ['off:dry', 'off:unknown'] })).toEqual(['off:dry']);
+    expect(ids({ estimate, foodId: 'off:unknown' })).toEqual(['est:x:1']);
+  });
+
+  it('shows own foods and earlier choices in the search', async () => {
+    const [user] = await ctx.db.$client`select id from users where email = 'a@example.com'`;
+    await ctx.db.insert(customFoods).values({
+      userId: user!.id,
+      id: 'own-takoyaki',
+      updatedAt: 1,
+      name: 'Takoyaki vom Imbiss',
+      brand: null,
+      barcode: null,
+      unit: 'g',
+      nutrients: { ENERCC: 190, PROT625: 8, FAT: 7, CHO: 23 },
+      portions: [],
+    });
+    queries = ['Takoyaki', 'Oktopusbällchen'];
+    nextItems = [item({ name: 'Oktopusbällchen', foodId: 'own-takoyaki' })];
+    let r = await c.req('POST', '/api/ai/analyze', photo());
+    expect(searchResults[0]).toBe(
+      'id=own-takoyaki | Takoyaki vom Imbiss | eigenes Lebensmittel | 190 kcal/100 g | E 8 F 7 KH 23',
+    );
+    expect(searchResults[1]).toBe('Keine Treffer für „Oktopusbällchen“.');
+    expect(r.json.items[0].candidates[0].food).toMatchObject({ id: 'own-takoyaki', source: 'custom' });
+
+    // The person picked the own food for "Oktopusbällchen" (twice) and oats once.
+    const body = {
+      analysisId: r.json.analysisId,
+      choices: [
+        { name: 'Oktopusbällchen', foodId: 'own-takoyaki' },
+        { name: ' oktopusbällchen ', foodId: 'own-takoyaki' },
+        { name: 'Oktopusbällchen', foodId: 'est:abc:0' },
+      ],
+    };
+    expect((await c.post('/api/ai/choices', body)).json).toEqual({ ok: true, saved: 1 });
+    expect((await c.post('/api/ai/choices', body)).status).toBe(200);
+    const rows = await ctx.db.$client`select term, food_id, count from ai_food_choices`;
+    expect(rows).toEqual([{ term: 'oktopusbaellchen', food_id: 'own-takoyaki', count: 2 }]);
+
+    queries = ['Oktopusbällchen frittiert'];
+    r = await c.req('POST', '/api/ai/analyze', photo());
+    queries = [];
+    nextItems = null;
+    expect(searchResults[0]).toBe(
+      'id=own-takoyaki | Takoyaki vom Imbiss | eigenes Lebensmittel | 190 kcal/100 g | E 8 F 7 KH 23 | früher gewählt',
+    );
+    expect(r.json.items[0].candidates[0].food.id).toBe('own-takoyaki');
+  });
+
+  it('accepts choices only for own analyses', async () => {
+    const other = await registeredClient(ctx, 'b@example.com');
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    const body = { analysisId: r.json.analysisId, choices: [{ name: 'Nudeln', foodId: 'bls:E411000' }] };
+    expect((await other.post('/api/ai/choices', body)).status).toBe(404);
+    expect((await c.post('/api/ai/choices', { ...body, analysisId: 'x' })).status).toBe(400);
+    expect((await c.post('/api/ai/choices', { ...body, choices: [] })).status).toBe(400);
+    expect((await new TestClient(ctx.app).post('/api/ai/choices', body)).status).toBe(401);
   });
 
   it('validates the upload', async () => {

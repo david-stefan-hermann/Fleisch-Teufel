@@ -271,6 +271,24 @@ export const aiAnalyses = pgTable(
   (t) => [index().on(t.userId, t.createdAt)],
 );
 
+/**
+ * Foods a person picked in an AI review instead of the proposed one, by normalized item name. Server
+ * only (not synced): the model's food search marks them in later analyses.
+ */
+export const aiFoodChoices = pgTable(
+  'ai_food_choices',
+  {
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    term: text().notNull(),
+    foodId: text().notNull(),
+    count: integer().notNull().default(1),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.term, t.foodId] })],
+);
+
 export const appMeta = pgTable('app_meta', {
   key: text().primaryKey(),
   value: text().notNull(),

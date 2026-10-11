@@ -58,7 +58,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { currentDraft, draftChanged, patchRow, rowGrams, scaleDraft, type RowGrams } from '@/db/aiDraft';
+import {
+  currentDraft,
+  draftChanged,
+  draftChoices,
+  patchRow,
+  rowGrams,
+  scaleDraft,
+  type RowGrams,
+} from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
@@ -568,7 +576,12 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   const totals = sumNutrients(resolved.map((r) => r.nutrients));
   const targets = targetsForDate(goals ?? [], item.date);
 
-  function searchIngredient(q?: string) {
+  /** Opens the food search: for a row ("Selbst suchen", its food gets replaced) or for a new ingredient. */
+  async function searchIngredient(row?: AiDraftRow) {
+    const q = row?.name;
+    const next = { ...draft, searchRowKey: row?.key ?? null };
+    setDraft(next);
+    await db.aiQueue.update(item.localId!, { draft: next });
     rememberIntoStart(router.history);
     void navigate({
       to: '/add',
@@ -615,6 +628,9 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     // Read before `discardQueueItem` drops the queue photo; `image` is undefined while still loading.
     else await logAiItems(db, name, items, target, result, image ?? (await loadQueueImage(db, item)));
     for (const r of resolved) await rememberFood(db, r.food);
+    // Not awaited and allowed to fail (offline): the next analysis just does not know the choice.
+    const choices = draftChoices(item, draft);
+    if (choices.length > 0) void endpoints.aiChoices(result.analysisId, choices).catch(() => {});
     await discardQueueItem(db, item.localId!);
     if (savedMealId)
       toast.success(`„${name}“ eingetragen`, {
@@ -720,10 +736,10 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             onPreview={(patch) => preview(r.key, patch)}
             onChange={(patch) => update(r.key, patch)}
             onRemove={() => commitRows({ ...draft, rows: rows.filter((x) => x.key !== r.key) })}
-            onSearch={() => searchIngredient(r.name)}
+            onSearch={() => void searchIngredient(r)}
           />
         ))}
-        <Button variant="outline" className="mb-4 w-full" onClick={() => searchIngredient()}>
+        <Button variant="outline" className="mb-4 w-full" onClick={() => void searchIngredient()}>
           <Plus aria-hidden /> Zutat hinzufügen
         </Button>
 
@@ -897,6 +913,14 @@ function ReviewRow({
               </SelectContent>
             </Select>
           </div>
+        ) : food?.estimated ? (
+          <p className="text-sm text-muted-foreground">
+            Nicht in der Datenbank: Nährwerte von der KI geschätzt ({fmt0(get(food.nutrients, N.kcal))}{' '}
+            kcal/100 g).{' '}
+            <button type="button" onClick={onSearch} className="text-primary underline">
+              Selbst suchen
+            </button>
+          </p>
         ) : r.candidates.length === 1 ? (
           <p className="text-sm text-muted-foreground">
             {r.candidates[0]!.name}

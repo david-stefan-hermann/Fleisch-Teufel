@@ -1,20 +1,105 @@
-import { cleanGtin, type AiAnalysisResult, type AiLabelResult } from '@ft/shared';
+import {
+  aiChoicesSchema,
+  cleanGtin,
+  ESTIMATED_BRAND,
+  ESTIMATED_ID_PREFIX,
+  kcalFromMacrosEu,
+  N,
+  normalize,
+  type AiAnalysisResult,
+  type AiCandidate,
+  type AiItem,
+  type AiLabelResult,
+  type Food,
+  type NutrientMap,
+} from '@ft/shared';
 import Anthropic from '@anthropic-ai/sdk';
+import { and, eq, sql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { AiOutputError, AiRefusalError, type ImageMediaType } from '../ai/analyze.js';
 import { readingHasContent, sanitizeReading } from '../ai/label.js';
-import { matchItem } from '../ai/match.js';
+import { createFoodSearch } from '../ai/foodSearch.js';
+import { matchItem, type LocalSearch } from '../ai/match.js';
 import { requireUser } from '../auth/session.js';
-import { aiAnalyses } from '../db/schema.js';
+import { aiAnalyses, aiFoodChoices } from '../db/schema.js';
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
 import type { AppEnv, Deps } from '../types.js';
+import { parseJson } from './util.js';
 
 const MEDIA_TYPES: ImageMediaType[] = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Claude API limit per image
 /** Front, nutrition table and barcode: one call for all of them. */
 export const MAX_LABEL_PHOTOS = 3;
+
+/** Estimated kcal further than this from the macro formula are replaced by the formula's value. */
+const KCAL_TOLERANCE = 0.2;
+
+/**
+ * A food made of the model's estimate (last resort, no database food and no components found). It
+ * exists only in this analysis; the app marks it and logs it without a food id.
+ */
+export function estimatedFood(item: AiItem, id: string): Food | null {
+  const e = item.estimate;
+  if (!e) return null;
+  const g = (v: number) => Math.round(Math.min(100, Math.max(0, v)) * 10) / 10;
+  const nutrients: NutrientMap = {
+    [N.protein]: g(e.protein),
+    [N.carbs]: g(e.carbs),
+    [N.sugar]: g(Math.min(e.sugar, e.carbs)),
+    [N.fat]: g(e.fat),
+    [N.satFat]: g(Math.min(e.satFat, e.fat)),
+    [N.fiber]: g(e.fiber),
+    [N.salt]: g(e.salt),
+  };
+  // More than 100 g of nutrients in 100 g: the model described something else than the item (seen:
+  // a broth estimated as pure chili oil, 2.300 kcal for a bowl). No estimate is better than that one.
+  const mass = nutrients[N.protein]! + nutrients[N.carbs]! + nutrients[N.fat]! + nutrients[N.fiber]!;
+  if (mass > 100) return null;
+  const formula = kcalFromMacrosEu(nutrients);
+  const stated = Math.min(900, Math.max(0, e.kcal));
+  const kcal = formula > 0 && Math.abs(stated - formula) > formula * KCAL_TOLERANCE ? formula : stated;
+  if (kcal <= 0 && formula <= 0) return null;
+  nutrients[N.kcal] = Math.round(kcal);
+  nutrients[N.kj] = Math.round(kcal * 4.184);
+  return {
+    id,
+    source: 'custom',
+    sourceId: null,
+    name: item.name,
+    nameEn: null,
+    brand: ESTIMATED_BRAND,
+    group: null,
+    unit: 'g',
+    nutrients,
+    portions: [],
+    imageUrl: null,
+    estimated: true,
+  };
+}
+
+/**
+ * Candidates of an item: the food the model chose and its alternatives (only ids its searches
+ * returned). Without a valid choice its estimate comes first (the alternatives are then only
+ * near misses to switch to), and without either the term matching without the model's choice.
+ */
+export function candidatesFor(
+  item: AiItem,
+  seen: ReadonlyMap<string, Food>,
+  estimateId: string,
+  searchLocal: LocalSearch,
+  maxCandidates = 5,
+): AiCandidate[] {
+  const chosen = item.foodId ? seen.get(item.foodId) : undefined;
+  const estimated = chosen ? null : estimatedFood(item, estimateId);
+  const others = [...new Set(item.alternatives)]
+    .filter((id) => id !== chosen?.id)
+    .flatMap((id) => seen.get(id) ?? []);
+  const foods = [chosen ?? estimated, ...others].filter((f) => !!f).slice(0, maxCandidates);
+  if (foods.length > 0) return foods.map((food, i) => ({ food, score: 100 - i }));
+  return matchItem(item, searchLocal, maxCandidates);
+}
 
 /** Maps the errors of a Claude call to responses (shared by meal photos and labels). */
 function aiError(c: Context<AppEnv>, e: unknown) {
@@ -65,15 +150,15 @@ export function aiRoutes(deps: Deps) {
 
       const started = Date.now();
       try {
-        const out = await analyzer.analyze({
-          imageBase64: Buffer.from(await image.arrayBuffer()).toString('base64'),
-          mediaType,
-          text: text?.trim() || null,
-        });
-        const items = out.items.map((item) => ({
-          ...item,
-          candidates: matchItem(item, (q, n) => catalog.searchLocal(q, n)),
-        }));
+        const foodSearch = await createFoodSearch(deps, user.id);
+        const out = await analyzer.analyze(
+          {
+            imageBase64: Buffer.from(await image.arrayBuffer()).toString('base64'),
+            mediaType,
+            text: text?.trim() || null,
+          },
+          foodSearch.search,
+        );
         const [row] = await db
           .insert(aiAnalyses)
           .values({
@@ -87,12 +172,22 @@ export function aiRoutes(deps: Deps) {
             result: { dishName: out.dishName, items: out.items, notes: out.notes },
           })
           .returning({ id: aiAnalyses.id });
+        const items = out.items.map((item, i) => ({
+          ...item,
+          candidates: candidatesFor(item, foodSearch.seen, `${ESTIMATED_ID_PREFIX}${row!.id}:${i}`, (q, n) =>
+            catalog.searchLocal(q, n),
+          ),
+        }));
         log.info('ai analysis', {
           user: user.id,
           model: out.model,
           ...out.usage,
           ms: Date.now() - started,
+          rounds: out.rounds,
           items: items.length,
+          chosen: out.items.filter((it) => it.foodId && foodSearch.seen.has(it.foodId)).length,
+          estimated: items.filter((it) => it.candidates[0]?.food.estimated).length,
+          unmatched: items.filter((it) => it.candidates.length === 0).length,
         });
         const result: AiAnalysisResult = {
           analysisId: row!.id,
@@ -108,6 +203,36 @@ export function aiRoutes(deps: Deps) {
       }
     },
   );
+
+  /**
+   * Foods the person picked in the review instead of the proposed one. Later analyses mark them in
+   * the model's search results ("früher gewählt"). Estimated foods are not foods and are skipped.
+   */
+  app.post('/choices', async (c) => {
+    const user = c.get('user');
+    const body = await parseJson(c, aiChoicesSchema);
+    if (!body.ok) return body.response;
+    const [analysis] = await db
+      .select({ id: aiAnalyses.id })
+      .from(aiAnalyses)
+      .where(and(eq(aiAnalyses.id, body.data.analysisId), eq(aiAnalyses.userId, user.id)));
+    if (!analysis) return c.json({ error: 'not_found' }, 404);
+    const rows = new Map<string, { userId: string; term: string; foodId: string }>();
+    for (const ch of body.data.choices) {
+      const term = normalize(ch.name);
+      if (!term || ch.foodId.startsWith(ESTIMATED_ID_PREFIX)) continue;
+      rows.set(`${term}\n${ch.foodId}`, { userId: user.id, term, foodId: ch.foodId });
+    }
+    if (rows.size > 0)
+      await db
+        .insert(aiFoodChoices)
+        .values([...rows.values()])
+        .onConflictDoUpdate({
+          target: [aiFoodChoices.userId, aiFoodChoices.term, aiFoodChoices.foodId],
+          set: { count: sql`${aiFoodChoices.count} + 1`, updatedAt: sql`now()` },
+        });
+    return c.json({ ok: true, saved: rows.size });
+  });
 
   /**
    * Food label photos (1 to 3, field `image` repeated) → the values printed on it. The barcode is

@@ -10,6 +10,8 @@ export const MODEL_PRICES: Record<string, { input: number; output: number }> = {
 };
 
 export function costUsd(model: string, usage: { inputTokens: number; outputTokens: number }): number {
-  const p = MODEL_PRICES[model] ?? MODEL_PRICES['claude-opus-5-5']!;
+  // Responses may name a dated snapshot ("claude-haiku-4-5-20251001").
+  const known = Object.keys(MODEL_PRICES).find((id) => model === id || model.startsWith(`${id}-2`));
+  const p = MODEL_PRICES[known ?? 'claude-opus-5-5']!;
   return (usage.inputTokens * p.input + usage.outputTokens * p.output) / 1_000_000;
 }

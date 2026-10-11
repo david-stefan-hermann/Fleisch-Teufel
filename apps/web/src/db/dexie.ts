@@ -87,6 +87,11 @@ export interface AiDraft {
   mealName: string;
   /** Set once the review was saved as a meal ("Als Meal speichern"); logging then attaches to it. */
   savedMealId?: string | null;
+  /**
+   * Row whose food the person is looking up right now ("Selbst suchen"): the food picked in the
+   * search replaces this row's food instead of becoming a new row.
+   */
+  searchRowKey?: string | null;
 }
 
 /**

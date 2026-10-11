@@ -173,11 +173,21 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   or iOS zooms in on focus.
 - Numbers/dates via `src/lib/format.ts` (`Intl`, German), decimal input via `NumberField` (accepts `1,5`).
 - AI: `apps/api/src/ai/*`: model `claude-opus-5-5` by default, structured output via `betaZodOutputFormat`,
-  `fallbacks: 'default'`. Load the `claude-api` skill before changing it. In the meal photo analysis nutrients
-  never come from the model (it names foods and grams, the app looks them up). `matchItem` (`ai/match.ts`) pushes
+  `fallbacks: 'default'`. Load the `claude-api` skill before changing it. The meal photo analysis is a tool loop
+  (`toolRunner`, at most `MAX_ANALYSIS_ROUNDS` requests): the model searches the database itself with `search_foods`
+  (`ai/foodSearch.ts`: BLS, cached OFF, the person's own foods, live OFF below `OFF_BELOW` local hits; marks
+  "früher gewählt" and "oft eingetragen") and answers with `foodId` and `alternatives`. `candidatesFor`
+  (`routes/ai.ts`) accepts only ids its searches returned. A dish that is not in the database is split into
+  components that are; only when that fails too the model gives `estimate` (per 100 g), which becomes a food with
+  `estimated: true`, id `est:<analysisId>:<index>` and brand "KI-Schätzung": the review says so, the entry is logged
+  without `foodId`. This is the one place where nutrients of a meal come from the model. Without a choice or
+  estimate the older term matching runs: `matchItem` (`ai/match.ts`) pushes
   dry and instant products (`DRY_WORDS`: "Kartoffelpüree Instantpulver") down unless the name says prepared or the
-  item is the dry product; the prompt asks for search terms and grams of the food as eaten. The food label reading
-  (`POST /api/ai/label`, `ai/label.ts`) is the one exception: the model only copies the printed values, never
+  item is the dry product; the prompt asks for search terms and grams of the food as eaten. Learning: logging a
+  review sends the rows whose food the person changed (`draftChoices`, also "Selbst suchen", which replaces the
+  row's food via `searchRowKey`) to `POST /api/ai/choices`; table `ai_food_choices` is server only, not synced
+  (changes in the diary group editor and offline are not learned). The food label reading works differently
+  (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
   form before saving.
 - `/projects` is an SMB dataset: PostgreSQL data dirs cannot live there (0700 permissions), hence the dev DB

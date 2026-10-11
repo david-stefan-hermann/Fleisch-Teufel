@@ -8,16 +8,18 @@
  *      "items": [{ "name": "Spaghetti gekocht", "grams": 250 }, { "name": "Bolognese", "grams": 180 }] }]
  * `kcal` is optional (e.g. computed from package labels); grams are what you weighed.
  *
- * For every photo the real pipeline runs (Claude + BLS/OFF matching with the first candidate),
- * then total grams and kcal are compared. Prints a table and writes `report.json` into the folder.
- * Costs real API tokens (≈ $0.03 per photo with the default model); needs ANTHROPIC_API_KEY.
+ * For every photo the real analysis runs (Claude with `search_foods` over the BLS, first candidate),
+ * then total grams and kcal are compared. `kcalTerms` is the older term matching without the
+ * model's choice, for comparison. Own foods, OFF and earlier choices are not part of the eval. Prints a table and writes `report.json` into the folder.
+ * Costs real API tokens (≈ $0.09 per photo with the default model); needs ANTHROPIC_API_KEY.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
-import { get, N, round } from '@ft/shared';
+import { get, N, round, type Food } from '@ft/shared';
 import { createClaudeAnalyzer, type ImageMediaType } from '../src/ai/analyze.js';
 import { matchItem } from '../src/ai/match.js';
 import { blsToFood, loadBls } from '../src/foods/catalog.js';
+import { candidatesFor } from '../src/routes/ai.js';
 import { indexItem, search } from '@ft/shared';
 
 interface Truth {
@@ -63,17 +65,38 @@ for (const t of truths) {
     console.warn(`skip ${t.file}: unsupported type`);
     continue;
   }
-  const out = await analyzer.analyze({
-    imageBase64: readFileSync(join(folder, t.file)).toString('base64'),
-    mediaType,
-    text: t.text ?? null,
-  });
+  const seen = new Map<string, Food>();
+  const out = await analyzer.analyze(
+    {
+      imageBase64: readFileSync(join(folder, t.file)).toString('base64'),
+      mediaType,
+      text: t.text ?? null,
+    },
+    async (query) => {
+      const hits = searchLocal(query, 15).map((h) => h.food);
+      for (const f of hits) seen.set(f.id, f);
+      return hits.length
+        ? hits
+            .map((f) => `id=${f.id} | ${f.name} | ${Math.round(get(f.nutrients, N.kcal))} kcal/100 g`)
+            .join('\n')
+        : `Keine Treffer für „${query}“.`;
+    },
+  );
   cost += out.usage.costUsd;
   let kcal = 0;
-  for (const item of out.items) {
-    const best = matchItem(item, searchLocal)[0];
+  let kcalTerms = 0;
+  let estimated = 0;
+  let unmatched = 0;
+  const matched: string[] = [];
+  out.items.forEach((item, i) => {
+    const best = candidatesFor(item, seen, `est:eval:${i}`, searchLocal)[0];
     if (best) kcal += (get(best.food.nutrients, N.kcal) * item.grams) / 100;
-  }
+    else unmatched++;
+    if (best?.food.estimated) estimated++;
+    matched.push(`${item.name} → ${best ? (best.food.estimated ? 'geschätzt' : best.food.name) : 'nichts'}`);
+    const old = matchItem(item, searchLocal)[0];
+    if (old) kcalTerms += (get(old.food.nutrients, N.kcal) * item.grams) / 100;
+  });
   const gramsTrue = t.items.reduce((s, i) => s + i.grams, 0);
   const gramsAi = out.items.reduce((s, i) => s + i.grams, 0);
   rows.push({
@@ -85,10 +108,19 @@ for (const t of truths) {
     kcalTrue: t.kcal ?? null,
     kcalAi: round(kcal, 0),
     kcalErrPct: t.kcal ? round(((kcal - t.kcal) / t.kcal) * 100, 1) : null,
+    kcalTerms: round(kcalTerms, 0),
+    kcalTermsErrPct: t.kcal ? round(((kcalTerms - t.kcal) / t.kcal) * 100, 1) : null,
+    estimated,
+    unmatched,
+    rounds: out.rounds ?? null,
+    tokensIn: out.usage.inputTokens,
+    tokensOut: out.usage.outputTokens,
+    costUsd: round(out.usage.costUsd, 3),
     recognized: out.items.map((i) => `${i.name} ${round(i.grams, 0)}g`).join(', '),
+    matched: matched.join('; '),
   });
 }
-console.table(rows.map(({ recognized: _r, ...r }) => r));
+console.table(rows.map(({ recognized: _r, matched: _m, ...r }) => r));
 const abs = (k: string) => {
   const v = rows.map((r) => r[k]).filter((x): x is number => typeof x === 'number');
   return v.length ? round(v.reduce((s, x) => s + Math.abs(x), 0) / v.length, 1) : null;
@@ -97,6 +129,7 @@ const summary = {
   photos: rows.length,
   meanAbsGramsErrPct: abs('gramsErrPct'),
   meanAbsKcalErrPct: abs('kcalErrPct'),
+  meanAbsKcalTermsErrPct: abs('kcalTermsErrPct'),
   costUsd: round(cost, 3),
 };
 console.log(summary);

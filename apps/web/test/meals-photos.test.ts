@@ -5,6 +5,7 @@ import {
   addFoodToDraft,
   currentDraft,
   draftChanged,
+  draftChoices,
   draftFromResult,
   patchRow,
   rowGrams,
@@ -12,7 +13,7 @@ import {
   updateDraft,
 } from '@/db/aiDraft';
 import { UserDb, type AiDraft } from '@/db/dexie';
-import { addItemToMeal } from '@/db/entries';
+import { addItemToMeal, aiMealItems } from '@/db/entries';
 import {
   clearMealDraft,
   draftFromMeal,
@@ -187,6 +188,68 @@ describe('AI review draft', () => {
     expect(draft.rows.map((r) => [r.name, r.grams, r.confidence])).toEqual([
       ['Nudeln', 150, 'high'],
       ['Parmesan', 12, null],
+    ]);
+  });
+
+  it('replaces the food of the row a search was opened for and reports it as a choice', async () => {
+    const estimated = { ...food('est:a2:1', 'Takoyaki', 175), brand: 'KI-Schätzung', estimated: true };
+    const result2 = {
+      ...result,
+      analysisId: 'a2',
+      items: [
+        {
+          ...result.items[0]!,
+          candidates: [
+            { food: food('bls:N', 'Nudeln gekocht', 150), score: 2 },
+            { food: food('bls:V', 'Vollkornnudeln gekocht', 140), score: 1 },
+          ],
+        },
+        { ...result.items[0]!, name: 'Takoyaki', grams: 180, candidates: [{ food: estimated, score: 0 }] },
+        { ...result.items[0]!, name: 'Soße', grams: 30 },
+      ],
+    } satisfies AiAnalysisResult;
+    const d = db();
+    const queued = { createdAt: 1, date: '2026-10-07', meal: 2, text: '', status: 'done' as const };
+    const localId = (await d.aiQueue.add({ ...queued, result: result2 })) as number;
+    const item = { meal: 2, result: result2 };
+    // Nothing changed: nothing to learn, and the estimate is logged without a food id.
+    const initial = draftFromResult(item);
+    expect(draftChoices(item, initial)).toEqual([]);
+    expect(
+      aiMealItems([
+        { food: estimated, grams: 180 },
+        { food: food('bls:N', 'Nudeln gekocht', 150), grams: 100 },
+      ]),
+    ).toMatchObject([
+      { foodId: null, source: 'ai', name: 'Takoyaki', brand: 'KI-Schätzung', nutrients: { ENERCC: 315 } },
+      { foodId: 'bls:N', source: 'ai' },
+    ]);
+
+    // "Selbst suchen" on the estimated row, another candidate for the first, one new ingredient.
+    await updateDraft(d, localId, (x) => ({
+      ...patchRow(x, 'ai-0', { foodId: 'bls:V' }),
+      searchRowKey: 'ai-1',
+    }));
+    await addFoodToDraft(d, localId, food('off:T', 'Takoyaki TK', 190), 150);
+    await addFoodToDraft(d, localId, food('bls:M', 'Mayonnaise', 700), 10);
+    const draft = currentDraft((await d.aiQueue.get(localId))!);
+    expect(draft.searchRowKey).toBeUndefined();
+    expect(
+      draft.rows.map((r) => [r.key.slice(0, 4), r.name, r.grams, r.foodId, r.candidates.length]),
+    ).toEqual([
+      ['ai-0', 'Nudeln', 201, 'bls:V', 2],
+      ['ai-1', 'Takoyaki', 150, 'off:T', 2],
+      ['ai-2', 'Soße', 30, 'bls:N', 1],
+      ['user', 'Mayonnaise', 10, 'bls:M', 1],
+    ]);
+    // Only rows of the analysis with another food than proposed; the added one has no item name.
+    expect(draftChoices(item, draft)).toEqual([
+      { name: 'Nudeln', foodId: 'bls:V' },
+      { name: 'Takoyaki', foodId: 'off:T' },
+    ]);
+    // Switching back to the estimate is no choice of a food.
+    expect(draftChoices(item, patchRow(draft, 'ai-1', { foodId: 'est:a2:1' }))).toEqual([
+      { name: 'Nudeln', foodId: 'bls:V' },
     ]);
   });
 

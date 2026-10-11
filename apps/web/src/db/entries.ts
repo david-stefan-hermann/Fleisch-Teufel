@@ -127,14 +127,15 @@ export async function addItemToMeal(db: UserDb, mealId: string, item: MealItem):
 
 /**
  * Confirmed ingredients of an AI analysis as logged items (source "ai"): grams as 1 g / 1 ml
- * portions, or the count of the portion chosen in the review ("1,5 × EL").
+ * portions, or the count of the portion chosen in the review ("1,5 × EL"). A food with estimated
+ * values is no database food: its item has no food id and keeps the values as a snapshot.
  */
 export function aiMealItems(items: AiItem[]): MealItem[] {
   return items.map(({ food, grams, portion }) => {
     const p =
       portion && portion.grams > 0 ? portion : { label: food.unit === 'ml' ? '1 ml' : '1 g', grams: 1 };
     return {
-      foodId: food.id,
+      foodId: food.estimated ? null : food.id,
       source: 'ai',
       name: food.name,
       brand: food.brand,

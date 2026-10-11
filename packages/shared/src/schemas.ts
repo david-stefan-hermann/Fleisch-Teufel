@@ -332,6 +332,8 @@ export const foodSchema = z.object({
   nutrients: nutrientMapSchema,
   portions: z.array(portionSchema),
   imageUrl: z.string().nullable().optional(),
+  /** Values estimated by the AI photo analysis (no database food matched); never a stored food. */
+  estimated: z.boolean().optional(),
 });
 export type Food = z.infer<typeof foodSchema>;
 
@@ -350,6 +352,19 @@ export interface CompactBlsFile {
 
 // ---------------------------------------------------------------- AI photo analysis
 
+/** Values per 100 g/ml the model estimates for an item no database food fits (last resort). */
+export const aiEstimateSchema = z.object({
+  kcal: z.number(),
+  protein: z.number(),
+  carbs: z.number(),
+  sugar: z.number(),
+  fat: z.number(),
+  satFat: z.number(),
+  fiber: z.number(),
+  salt: z.number(),
+});
+export type AiEstimate = z.infer<typeof aiEstimateSchema>;
+
 export const aiItemSchema = z.object({
   name: z.string(),
   grams: z.number(),
@@ -357,8 +372,31 @@ export const aiItemSchema = z.object({
   preparation: z.string().nullable(),
   packaged: z.boolean(),
   searchTerms: z.array(z.string()),
+  /** Id of the database food the model chose from its `search_foods` results; null when none fits. */
+  foodId: z.string().nullable(),
+  /** Other fitting ids from the search results, best first. */
+  alternatives: z.array(z.string()),
+  estimate: aiEstimateSchema.nullable(),
 });
 export type AiItem = z.infer<typeof aiItemSchema>;
+
+/** Id prefix of an estimated food (`est:<analysisId>:<index>`); such a food exists only in its analysis. */
+export const ESTIMATED_ID_PREFIX = 'est:';
+/** Shown where a food's brand goes, in the review and on the diary entry. */
+export const ESTIMATED_BRAND = 'KI-Schätzung';
+
+/**
+ * Body of `POST /api/ai/choices`: the foods the person picked in the review instead of the proposed
+ * one, by item name. The next analyses mark them in the model's search results.
+ */
+export const aiChoicesSchema = z.object({
+  analysisId: z.uuid(),
+  choices: z
+    .array(z.object({ name: z.string().trim().min(1).max(200), foodId: idSchema }))
+    .min(1)
+    .max(40),
+});
+export type AiChoices = z.infer<typeof aiChoicesSchema>;
 
 export interface AiCandidate {
   food: Food;
@@ -367,7 +405,9 @@ export interface AiCandidate {
 
 export interface AiAnalysisResult {
   analysisId: string;
-  items: (AiItem & { candidates: AiCandidate[] })[];
+  /** The model's own choice (`foodId`, `alternatives`, `estimate`) is missing in older results. */
+  items: (Omit<AiItem, 'foodId' | 'alternatives' | 'estimate'> &
+    Partial<Pick<AiItem, 'foodId' | 'alternatives' | 'estimate'>> & { candidates: AiCandidate[] })[];
   /** Short German name of the whole dish ("Spaghetti Bolognese"); null for older results. */
   dishName: string | null;
   notes: string | null;

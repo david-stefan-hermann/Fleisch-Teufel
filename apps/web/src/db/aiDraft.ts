@@ -74,22 +74,62 @@ export interface AiItem {
   portion?: Portion | null;
 }
 
-/** Adds an ingredient the model missed (from the food search). */
+/**
+ * Takes a food from the food search into the review: as the food of the row the search was opened
+ * for ("Selbst suchen", `searchRowKey`; the row keeps its name, so the choice can be learned), else
+ * as a new ingredient the model missed.
+ */
 export async function addFoodToDraft(db: UserDb, localId: number, food: Food, grams: number): Promise<void> {
-  await updateDraft(db, localId, (d) => ({
-    ...d,
-    rows: [
-      ...d.rows,
-      {
-        key: `user-${Date.now().toString(36)}`,
-        name: food.name,
-        grams: Math.round(grams),
-        confidence: null,
-        candidates: [food],
-        foodId: food.id,
-      },
-    ],
-  }));
+  await updateDraft(db, localId, (d) => {
+    const { searchRowKey, ...rest } = d;
+    if (searchRowKey && d.rows.some((r) => r.key === searchRowKey))
+      return {
+        ...rest,
+        rows: d.rows.map((r) =>
+          r.key === searchRowKey
+            ? {
+                ...r,
+                grams: Math.round(grams),
+                candidates: [food, ...r.candidates.filter((c) => c.id !== food.id)],
+                foodId: food.id,
+                portion: null,
+              }
+            : r,
+        ),
+      };
+    return {
+      ...rest,
+      rows: [
+        ...d.rows,
+        {
+          key: `user-${Date.now().toString(36)}`,
+          name: food.name,
+          grams: Math.round(grams),
+          confidence: null,
+          candidates: [food],
+          foodId: food.id,
+        },
+      ],
+    };
+  });
+}
+
+/**
+ * The foods the person picked instead of the proposed one, by the model's item name (rows of the
+ * analysis only, estimated foods left out). Sent to the server when the review is logged, so the
+ * next analysis offers them first.
+ */
+export function draftChoices(
+  item: Pick<AiQueueItem, 'meal' | 'result'>,
+  draft: AiDraft,
+): { name: string; foodId: string }[] {
+  if (!item.result) return [];
+  const proposed = new Map(draftFromResult(item).rows.map((r) => [r.key, r.foodId]));
+  return draft.rows.flatMap((r) => {
+    const food = r.candidates.find((c) => c.id === r.foodId);
+    if (!food || food.estimated || !proposed.has(r.key) || proposed.get(r.key) === food.id) return [];
+    return [{ name: r.name, foodId: food.id }];
+  });
 }
 
 /** Grams per row key, the reference point of the "Gesamtmenge" slider. */

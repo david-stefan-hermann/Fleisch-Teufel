@@ -74,6 +74,9 @@ export const endpoints = {
       ...(signal ? { signal } : {}),
     }),
   aiStatus: () => api<{ enabled: boolean; model: string | null }>('/api/ai/status', { timeoutMs: 5000 }),
+  /** Foods picked in an AI review instead of the proposed ones (best effort, see `draftChoices`). */
+  aiChoices: (analysisId: string, choices: { name: string; foodId: string }[]) =>
+    api<{ ok: true }>('/api/ai/choices', { ...json({ analysisId, choices }), timeoutMs: 10_000 }),
   /** 1 to 3 photos of a food label in one multipart request (field `image` repeated). */
   readLabel: (images: Blob[], signal?: AbortSignal) => {
     const form = new FormData();
