@@ -384,6 +384,15 @@ describe('POST /api/ai/analyze', () => {
     expect((await new TestClient(ctx.app).post('/api/ai/choices', body)).status).toBe(401);
   });
 
+  it('returns the hint of an own analysis', async () => {
+    const other = await registeredClient(ctx, 'c@example.com');
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    const path = `/api/ai/analyses/${r.json.analysisId}/hint`;
+    expect((await c.get(path)).json).toEqual({ text: 'mit etwas Öl gebraten' });
+    expect((await other.get(path)).status).toBe(404);
+    expect((await c.get('/api/ai/analyses/x/hint')).status).toBe(404);
+  });
+
   it('validates the upload', async () => {
     expect((await c.req('POST', '/api/ai/analyze', photo('image/heic'))).status).toBe(415);
     expect((await c.req('POST', '/api/ai/analyze', new FormData())).status).toBe(400);

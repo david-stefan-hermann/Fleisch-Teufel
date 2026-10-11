@@ -77,6 +77,9 @@ export const endpoints = {
   /** Foods picked in an AI review instead of the proposed ones (best effort, see `draftChoices`). */
   aiChoices: (analysisId: string, choices: { name: string; foodId: string }[]) =>
     api<{ ok: true }>('/api/ai/choices', { ...json({ analysisId, choices }), timeoutMs: 10_000 }),
+  /** The hint given with an analysis (prefills "Neu analysieren" of a logged group). */
+  aiHint: (analysisId: string) =>
+    api<{ text: string }>(`/api/ai/analyses/${encodeURIComponent(analysisId)}/hint`, { timeoutMs: 5000 }),
   /** 1 to 3 photos of a food label in one multipart request (field `image` repeated). */
   readLabel: (images: Blob[], signal?: AbortSignal) => {
     const form = new FormData();

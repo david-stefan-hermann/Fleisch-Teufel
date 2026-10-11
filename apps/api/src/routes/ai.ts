@@ -17,6 +17,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { and, eq, sql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { z } from 'zod';
 import { AiOutputError, AiRefusalError, type ImageMediaType } from '../ai/analyze.js';
 import { readingHasContent, sanitizeReading } from '../ai/label.js';
 import { createFoodSearch } from '../ai/foodSearch.js';
@@ -232,6 +233,21 @@ export function aiRoutes(deps: Deps) {
           set: { count: sql`${aiFoodChoices.count} + 1`, updatedAt: sql`now()` },
         });
     return c.json({ ok: true, saved: rows.size });
+  });
+
+  /**
+   * The hint the person gave with an analysis; "Neu analysieren" of a logged group starts from it.
+   */
+  app.get('/analyses/:id/hint', async (c) => {
+    const user = c.get('user');
+    const id = z.uuid().safeParse(c.req.param('id'));
+    if (!id.success) return c.json({ error: 'not_found' }, 404);
+    const [analysis] = await db
+      .select({ text: aiAnalyses.userText })
+      .from(aiAnalyses)
+      .where(and(eq(aiAnalyses.id, id.data), eq(aiAnalyses.userId, user.id)));
+    if (!analysis) return c.json({ error: 'not_found' }, 404);
+    return c.json({ text: analysis.text ?? '' });
   });
 
   /**

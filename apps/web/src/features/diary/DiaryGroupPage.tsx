@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
@@ -49,7 +49,7 @@ import { analyzePhoto } from '@/features/ai/queue';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from '@/features/meals/IngredientCard';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals } from '@/hooks/data';
-import { errorMessage, OfflineError } from '@/lib/api';
+import { endpoints, errorMessage, OfflineError } from '@/lib/api';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
@@ -184,8 +184,23 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
   }
 
   const [redoOpen, setRedoOpen] = useState(false);
-  const [hint, setHint] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // The hint the group's analysis was made with, fetched ahead so the dialog opens with it (best
+  // effort, online only); null until the person or the server filled it.
+  const [hint, setHint] = useState<string | null>(null);
+  const analysisId = photoId ? first.aiAnalysisId : null;
+  useEffect(() => {
+    if (!analysisId) return;
+    let alive = true;
+    void endpoints.aiHint(analysisId).then(
+      ({ text }) => alive && setHint((now) => now ?? text),
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, [analysisId]);
 
   /** "Neu analysieren": one more Claude call with the photo; the result goes into the draft only. */
   async function reanalyze() {
@@ -200,7 +215,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
         toast.error('Foto nicht mehr vorhanden');
         return;
       }
-      const result = await analyzePhoto(photo, hint);
+      const result = await analyzePhoto(photo, hint ?? '');
       const next = groupDraftFromAnalysis(draft, result, Boolean(first.mealId));
       if (!next) {
         toast.error('Kein Essen erkannt', { description: result.notes ?? undefined });
@@ -354,7 +369,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
             <Label htmlFor="group-hint">Hinweis für die Analyse (optional)</Label>
             <Input
               id="group-hint"
-              value={hint}
+              value={hint ?? ''}
               maxLength={500}
               autoComplete="off"
               enterKeyHint="go"
