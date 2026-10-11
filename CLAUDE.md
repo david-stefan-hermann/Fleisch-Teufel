@@ -53,7 +53,11 @@ Serve the production web build through the API (same origin, service worker acti
 - Diary group editor: `/diary-group/$groupId?date=` (`features/diary/DiaryGroupPage.tsx`) changes only these
   entries, never the saved meal: name, amounts, total amount (`scaleItems`, shared with the meal editor), remove
   and add (`into=group:<id>`). Device draft in `db/groupDraft.ts` (`kv`); `saveGroupDraft` patches, soft-deletes
-  and adds entries of the same group. A name equal to the meal's stays `groupName: null`. `DiscardDialog apply`
+  and adds entries of the same group. A name equal to the meal's stays `groupName: null`. A group with a photo
+  has ↻ "Neu analysieren" (dialog with an optional hint, one more Claude call, online only):
+  `groupDraftFromAnalysis` replaces the ingredients of the draft like an unchanged review (first candidate, the
+  model's grams; the name follows the dish unless the group has a saved meal), written only on "Änderungen
+  übernehmen" with the new `aiAnalysisId`. `DiscardDialog apply`
   says "Übernehmen".
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).

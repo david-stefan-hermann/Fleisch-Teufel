@@ -8,15 +8,25 @@ import {
   type ShouldBlockFn,
 } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { MealPhoto } from '@/components/MealPhoto';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +34,7 @@ import { Slider } from '@/components/ui/slider';
 import {
   clearGroupDraft,
   draftFromEntries,
+  groupDraftFromAnalysis,
   groupEntries,
   groupName,
   isGroupDirty,
@@ -33,12 +44,20 @@ import {
   type GroupDraft,
   type GroupDraftItem,
 } from '@/db/groupDraft';
+import { loadPhoto } from '@/db/photos';
+import { analyzePhoto } from '@/features/ai/queue';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from '@/features/meals/IngredientCard';
+import { rememberFood } from '@/foods/foodService';
 import { useGoals } from '@/hooks/data';
+import { errorMessage, OfflineError } from '@/lib/api';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
+import { cn } from '@/lib/utils';
 import { removeEntriesWithUndo } from './MealCard';
+
+/** The form under a running analysis: visible, but locked. */
+const BUSY = 'pointer-events-none opacity-45 saturate-50 select-none';
 
 interface GroupData {
   entries: FoodEntry[];
@@ -51,7 +70,8 @@ interface GroupData {
 /**
  * Editor of one diary group (entries logged together from a saved meal or an AI analysis), opened
  * by tapping its row in the diary: name, amounts per ingredient and in total, remove and add
- * ingredients. It changes only these diary entries, never the saved meal. Nothing is written until
+ * ingredients. A group with a photo can be analysed again (↻, with an optional hint): the result
+ * replaces the ingredients of the draft. It changes only these diary entries, never the saved meal. Nothing is written until
  * "Änderungen übernehmen"; the draft lives in `kv` (see `db/groupDraft.ts`) and leaving with changes
  * asks first.
  */
@@ -163,6 +183,45 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
     goBackOr(router.history, 1, back);
   }
 
+  const [redoOpen, setRedoOpen] = useState(false);
+  const [hint, setHint] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  /** "Neu analysieren": one more Claude call with the photo; the result goes into the draft only. */
+  async function reanalyze() {
+    if (!photoId || busy) return;
+    setRedoOpen(false);
+    setBusy(true);
+    try {
+      const photo = await loadPhoto(db, photoId, (path, init) =>
+        fetch(path, { credentials: 'same-origin', ...init }),
+      );
+      if (!photo) {
+        toast.error('Foto nicht mehr vorhanden');
+        return;
+      }
+      const result = await analyzePhoto(photo, hint);
+      const next = groupDraftFromAnalysis(draft, result, Boolean(first.mealId));
+      if (!next) {
+        toast.error('Kein Essen erkannt', { description: result.notes ?? undefined });
+        return;
+      }
+      commit(next.draft);
+      setScale(1);
+      setScaleBase(next.draft.items);
+      for (const food of next.foods) if (!food.estimated) await rememberFood(db, food);
+      toast.success('Neu analysiert', {
+        description: 'Prüfe die Zutaten und tippe auf „Änderungen übernehmen“.',
+      });
+    } catch (e) {
+      toast.error(
+        e instanceof OfflineError ? 'Offline. Neu analysieren geht nur mit Verbindung.' : errorMessage(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function addIngredient() {
     rememberIntoStart(router.history);
     void navigate({ to: '/add', search: { date: draft.date, meal: first.meal, into } });
@@ -174,89 +233,149 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
       back="/"
       withTabBar={false}
       actions={
-        <Button variant="ghost" size="icon" aria-label="Eintrag löschen" onClick={() => void remove()}>
-          <Trash2 className="text-destructive" aria-hidden />
-        </Button>
+        <>
+          {photoId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Neu analysieren"
+              disabled={busy}
+              onClick={() => setRedoOpen(true)}
+            >
+              <RotateCcw aria-hidden />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Eintrag löschen"
+            disabled={busy}
+            onClick={() => void remove()}
+          >
+            <Trash2 className="text-destructive" aria-hidden />
+          </Button>
+        </>
       }
       footer={
-        <Button size="lg" disabled={!dirty} onClick={() => void saveAndClose()}>
+        <Button size="lg" disabled={!dirty || busy} onClick={() => void saveAndClose()}>
           Änderungen übernehmen
         </Button>
       }
     >
       {photoId && (
         <Section>
-          <MealPhoto photoId={photoId} alt={`Foto von ${name}`} className="aspect-[4/3] w-full" />
+          <div className="relative">
+            <MealPhoto photoId={photoId} alt={`Foto von ${name}`} className="aspect-[4/3] w-full" />
+            {busy && <AnalyzingOverlay />}
+          </div>
         </Section>
       )}
-      <Section>
-        <div className="grid gap-1.5 p-4">
-          <Label htmlFor="group-name">Name</Label>
-          <Input
-            id="group-name"
-            autoComplete="off"
-            maxLength={120}
-            value={draft.name}
-            onChange={(e) => commit({ ...draft, name: e.target.value })}
-          />
-        </div>
-      </Section>
-      {draft.items.map((item, i) => (
-        <IngredientCard
-          key={item.entryId ?? `new-${i}`}
-          item={item}
-          removable={draft.items.length > 1}
-          targets={targets}
-          onChange={(next: MealItem) =>
-            setDraft({
-              ...draft,
-              items: draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)),
-            })
-          }
-          onCommit={(next: MealItem) =>
-            commitItems(draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)))
-          }
-          onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
-        />
-      ))}
-      <Button variant="outline" className="mb-2 w-full" onClick={addIngredient}>
-        <Plus aria-hidden /> Zutat hinzufügen
-      </Button>
-      {first.mealId && (
-        <p className="mb-4 px-1 text-xs text-muted-foreground text-pretty">
-          Ändert nur diesen Eintrag. Das gespeicherte Meal{meal ? ` „${meal.name}“` : ''} bleibt, wie es ist.
-        </p>
-      )}
-      <Section>
-        <div className="grid gap-3 p-4">
-          <div className="grid gap-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <div>
-                <Label htmlFor="group-scale">Gesamtmenge</Label>
-                <p id="group-scale-hint" className="text-xs text-muted-foreground">
-                  Skaliert alle Zutaten
-                </p>
-              </div>
-              <output htmlFor="group-scale" className="tabular text-lg font-semibold">
-                {fmtPercent(scale)}
-              </output>
-            </div>
-            <Slider
-              id="group-scale"
-              aria-label="Gesamtmenge skalieren"
-              aria-describedby="group-scale-hint"
-              aria-valuetext={fmtPercent(scale)}
-              min={SCALE_MIN}
-              max={SCALE_MAX}
-              step={0.05}
-              value={[scale]}
-              onValueChange={([v]) => v !== undefined && rescale(v)}
-              onValueCommit={() => void writeGroupDraft(db, draft)}
+      <div className={cn(busy && BUSY)} aria-busy={busy || undefined}>
+        <Section>
+          <div className="grid gap-1.5 p-4">
+            <Label htmlFor="group-name">Name</Label>
+            <Input
+              id="group-name"
+              autoComplete="off"
+              maxLength={120}
+              value={draft.name}
+              onChange={(e) => commit({ ...draft, name: e.target.value })}
             />
           </div>
-          <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
-        </div>
-      </Section>
+        </Section>
+        {draft.items.map((item, i) => (
+          <IngredientCard
+            key={item.entryId ?? `new-${i}`}
+            item={item}
+            removable={draft.items.length > 1}
+            targets={targets}
+            onChange={(next: MealItem) =>
+              setDraft({
+                ...draft,
+                items: draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)),
+              })
+            }
+            onCommit={(next: MealItem) =>
+              commitItems(draft.items.map((it, j) => (j === i ? { ...next, entryId: it.entryId } : it)))
+            }
+            onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
+          />
+        ))}
+        <Button variant="outline" className="mb-2 w-full" onClick={addIngredient}>
+          <Plus aria-hidden /> Zutat hinzufügen
+        </Button>
+        {first.mealId && (
+          <p className="mb-4 px-1 text-xs text-muted-foreground text-pretty">
+            Ändert nur diesen Eintrag. Das gespeicherte Meal{meal ? ` „${meal.name}“` : ''} bleibt, wie es
+            ist.
+          </p>
+        )}
+        <Section>
+          <div className="grid gap-3 p-4">
+            <div className="grid gap-2">
+              <div className="flex items-baseline justify-between gap-2">
+                <div>
+                  <Label htmlFor="group-scale">Gesamtmenge</Label>
+                  <p id="group-scale-hint" className="text-xs text-muted-foreground">
+                    Skaliert alle Zutaten
+                  </p>
+                </div>
+                <output htmlFor="group-scale" className="tabular text-lg font-semibold">
+                  {fmtPercent(scale)}
+                </output>
+              </div>
+              <Slider
+                id="group-scale"
+                aria-label="Gesamtmenge skalieren"
+                aria-describedby="group-scale-hint"
+                aria-valuetext={fmtPercent(scale)}
+                min={SCALE_MIN}
+                max={SCALE_MAX}
+                step={0.05}
+                value={[scale]}
+                onValueChange={([v]) => v !== undefined && rescale(v)}
+                onValueCommit={() => void writeGroupDraft(db, draft)}
+              />
+            </div>
+            <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
+          </div>
+        </Section>
+      </div>
+      <Dialog open={redoOpen} onOpenChange={setRedoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Neu analysieren?</DialogTitle>
+            <DialogDescription>
+              Die KI sieht sich das Foto noch einmal an. Ihr Ergebnis ersetzt die Zutaten dieses Eintrags;
+              geschrieben wird erst mit „Änderungen übernehmen“.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="gap-1.5">
+            <Label htmlFor="group-hint">Hinweis für die Analyse (optional)</Label>
+            <Input
+              id="group-hint"
+              value={hint}
+              maxLength={500}
+              autoComplete="off"
+              enterKeyHint="go"
+              placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
+              onChange={(e) => setHint(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void reanalyze();
+                }
+              }}
+            />
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRedoOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={() => void reanalyze()}>Analysieren</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DiscardDialog
         open={blocker.status === 'blocked'}
         name={data.name}

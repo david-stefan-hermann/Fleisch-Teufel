@@ -1,4 +1,12 @@
-import { dayId, groupDiaryEntries, rescaleItem, uuidv7, type MealItem } from '@ft/shared';
+import {
+  dayId,
+  groupDiaryEntries,
+  rescaleItem,
+  uuidv7,
+  type AiAnalysisResult,
+  type Food,
+  type MealItem,
+} from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
@@ -16,6 +24,7 @@ import {
 import {
   addItemToGroupDraft,
   draftFromEntries,
+  groupDraftFromAnalysis,
   groupEntries,
   groupName,
   isGroupDirty,
@@ -620,6 +629,74 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     // Only the changed entry was written.
     expect(live[0]!.updatedAt).toBe(entries[0]!.updatedAt);
     expect(live[1]!.updatedAt).toBeGreaterThan(entries[1]!.updatedAt);
+  });
+
+  it('replaces the ingredients with a new analysis of the photo on "Änderungen übernehmen"', async () => {
+    const { d, entries, mealBefore, groupId } = await setup();
+    const dbFood = (id: string, name: string, kcal: number, extra: Partial<Food> = {}): Food => ({
+      id,
+      source: 'bls',
+      name,
+      sourceId: null,
+      nameEn: null,
+      brand: null,
+      group: null,
+      unit: 'g',
+      nutrients: { ENERCC: kcal },
+      portions: [],
+      ...extra,
+    });
+    const item = { confidence: 'high' as const, preparation: null, packaged: false, searchTerms: [] };
+    const result: AiAnalysisResult = {
+      analysisId: 'a2',
+      dishName: 'Takoyaki',
+      items: [
+        {
+          ...item,
+          name: 'Takoyaki',
+          grams: 180.4,
+          candidates: [
+            {
+              food: dbFood('est:a2:0', 'Takoyaki', 175, { brand: 'KI-Schätzung', estimated: true }),
+              score: 0,
+            },
+          ],
+        },
+        {
+          ...item,
+          name: 'Mayonnaise',
+          grams: 15,
+          candidates: [{ food: dbFood('bls:M', 'Mayonnaise', 700), score: 1 }],
+        },
+        { ...item, name: 'Unbekannt', grams: 50, candidates: [] },
+      ],
+      notes: null,
+      model: 'claude-opus-5-5',
+      usage: { inputTokens: 1, outputTokens: 1, costUsd: 0 },
+    };
+    const draft = draftFromEntries(entries, 'Bowl');
+    // A group of a saved meal keeps its name; one without takes the recognised dish.
+    expect(groupDraftFromAnalysis(draft, result, false)!.draft.name).toBe('Takoyaki');
+    const next = groupDraftFromAnalysis(draft, result, true)!;
+    expect(next.foods.map((f) => f.id)).toEqual(['est:a2:0', 'bls:M']);
+    expect(next.draft.name).toBe('Bowl');
+    expect(isGroupDirty(next.draft, entries, 'Bowl')).toBe(true);
+    // Nothing usable: the draft stays.
+    expect(groupDraftFromAnalysis(draft, { ...result, items: [result.items[2]!] }, true)).toBeNull();
+    // Nothing is written before the save.
+    expect((await groupEntries(d, groupId, '2026-10-09')).map((e) => e.name)).toEqual(['Reis', 'Huhn']);
+
+    expect(await saveGroupDraft(d, next.draft)).toBe(true);
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    expect(
+      live.map((e) => [e.name, e.foodId, e.source, e.grams, e.nutrients.ENERCC, e.aiAnalysisId]),
+    ).toEqual([
+      ['Takoyaki', null, 'ai', 180, 315, 'a2'],
+      ['Mayonnaise', 'bls:M', 'ai', 15, 105, 'a2'],
+    ]);
+    expect(live.every((e) => e.groupId === groupId && e.photoId === 'p1' && e.mealId === 'm1')).toBe(true);
+    for (const e of entries) expect(await d.foodEntries.get(e.id)).toMatchObject({ deleted: true });
+    expect(await d.meals.get('m1')).toEqual(mealBefore);
   });
 
   it('refuses an empty group and reports a group that is gone', async () => {

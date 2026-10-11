@@ -8,8 +8,10 @@
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { uuidv7, type FoodEntry, type MealItem } from '@ft/shared';
+import { uuidv7, type AiAnalysisResult, type Food, type FoodEntry, type MealItem } from '@ft/shared';
+import { draftFromResult } from './aiDraft';
 import type { UserDb } from './dexie';
+import { aiMealItems } from './entries';
 import { mealItem } from './mealDraft';
 import { deleteRecord, patchRecord, saveRecord } from './write';
 
@@ -22,6 +24,8 @@ export interface GroupDraft {
   date: string;
   name: string;
   items: GroupDraftItem[];
+  /** Set by "Neu analysieren": the analysis the new ingredients come from. */
+  aiAnalysisId?: string;
 }
 
 export const groupDraftKey = (groupId: string) => `groupDraft:${groupId}`;
@@ -57,6 +61,35 @@ export async function writeGroupDraft(db: UserDb, draft: GroupDraft): Promise<vo
 
 export async function clearGroupDraft(db: UserDb, groupId: string): Promise<void> {
   await db.kv.delete(groupDraftKey(groupId));
+}
+
+/**
+ * "Neu analysieren" in the group editor: the ingredients of the draft are replaced by the result of
+ * a new analysis of the group's photo, like an unchanged review (first candidate of every item, the
+ * model's grams). The name follows the recognised dish unless the group belongs to a saved meal.
+ * Returns null when the analysis has no usable item (the draft then stays as it is), else the new
+ * draft and the chosen foods.
+ */
+export function groupDraftFromAnalysis(
+  draft: GroupDraft,
+  result: AiAnalysisResult,
+  keepName: boolean,
+): { draft: GroupDraft; foods: Food[] } | null {
+  const review = draftFromResult({ meal: 0, result });
+  const chosen = review.rows.flatMap((r) => {
+    const food = r.candidates.find((c) => c.id === r.foodId);
+    return food && r.grams && r.grams > 0 ? [{ food, grams: r.grams }] : [];
+  });
+  if (chosen.length === 0) return null;
+  return {
+    draft: {
+      ...draft,
+      name: keepName || !result.dishName ? draft.name : review.mealName.slice(0, 120),
+      items: aiMealItems(chosen).map((i) => ({ ...i, entryId: null })),
+      aiAnalysisId: result.analysisId,
+    },
+    foods: chosen.map((c) => c.food),
+  };
 }
 
 const itemKey = (i: GroupDraftItem) => JSON.stringify([i.entryId, mealItem(i)]);
@@ -103,7 +136,8 @@ export async function groupName(db: UserDb, entries: readonly FoodEntry[]): Prom
  * Writes the draft to the diary entries of the group and drops it:
  * - kept ingredients get their new amount (and the name of the group),
  * - removed ones are deleted (soft, like every delete),
- * - added ones become new entries of the same group (same meal, photo, analysis), after the last one.
+ * - added ones become new entries of the same group (same meal and photo; the analysis of the draft
+ *   after "Neu analysieren", else the group's), after the last one.
  * The saved meal is never touched. A name equal to the saved meal's name stays unset (`groupName`
  * null), so the row keeps following the meal. Returns false when the group is gone.
  */
@@ -143,7 +177,7 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         meal: first.meal,
         loggedAt: ++loggedAt,
         mealId: first.mealId,
-        aiAnalysisId: first.aiAnalysisId,
+        aiAnalysisId: draft.aiAnalysisId ?? first.aiAnalysisId,
         groupId: first.groupId,
         groupName: groupNameValue,
         photoId: first.photoId,
