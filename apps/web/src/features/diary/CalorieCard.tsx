@@ -16,6 +16,7 @@ export function CalorieCard({
 }) {
   const eaten = get(summary.food, N.kcal);
   const t = summary.targets;
+  const over = summary.remainingKcal < 0;
   const [open, setOpenState] = useState(readOpen);
   const [sources, setSources] = useState(false);
   const setOpen = (o: boolean) => {
@@ -44,7 +45,12 @@ export function CalorieCard({
             muted={!exerciseCredited}
           />
           <div className="border-t border-border pt-2">
-            <Row label="Übrig" value={fmt0(summary.remainingKcal)} strong over={summary.remainingKcal < 0} />
+            <Row
+              label={over ? 'Zu viel' : 'Übrig'}
+              value={fmt0(Math.abs(summary.remainingKcal))}
+              strong
+              over={over}
+            />
           </div>
         </dl>
       </div>
@@ -65,6 +71,7 @@ export function CalorieCard({
             variant="day"
             nutrients={summary.food}
             targets={t}
+            kcalBudget={summary.budgetKcal}
             showMicroSources={sources}
             defaultMicrosOpen
           />

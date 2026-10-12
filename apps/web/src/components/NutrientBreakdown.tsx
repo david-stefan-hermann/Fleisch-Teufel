@@ -44,6 +44,11 @@ export interface NutrientBreakdownProps {
    * reads "1.640 / 1.700 kcal" and the macro bars measure against the target.
    */
   variant?: 'item' | 'day';
+  /**
+   * 'day' only: kcal the day may reach (target plus credited training). Above it the kcal number
+   * turns red, like the calorie ring. Defaults to the kcal target.
+   */
+  kcalBudget?: number;
   /** Adds where each micro target comes from (DGE source or "Eigener Zielwert"). */
   showMicroSources?: boolean;
   defaultMicrosOpen?: boolean;
@@ -64,6 +69,7 @@ export function NutrientBreakdown({
   title,
   targets,
   variant = 'item',
+  kcalBudget,
   showMicroSources = false,
   defaultMicrosOpen = false,
   microsOpen,
@@ -76,12 +82,13 @@ export function NutrientBreakdown({
   /** Macro bars measure against the daily target (day mode, or the day itself). */
   const relative = variant === 'day' || dayMode;
   const b = energyBreakdown(nutrients);
+  const kcalOver = variant === 'day' && isOverTarget(b.kcal, kcalBudget ?? targets.kcal);
   const catalogRows = CATALOG.filter((c) => nutrients[c.code] !== undefined);
 
   const kcalText = (
     <>
       {/* Flex items drop their leading spaces (kept for the text content); `gap-1` spaces them. */}
-      <span>{fmt0(b.kcal)}</span>
+      <span className={cn(kcalOver && 'text-over')}>{fmt0(b.kcal)}</span>
       {relative && <span className="text-lg font-medium text-muted-foreground"> / {fmt0(targets.kcal)}</span>}
       <span className="text-[0.8125rem] font-normal text-muted-foreground"> kcal</span>
     </>

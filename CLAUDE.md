@@ -141,6 +141,10 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   and with a key a re-read IndexedDB blob does not flicker. Never `useMemo(URL.createObjectURL)`.
 - Typography: no em or en dashes in UI strings, comments or docs. The only dash is the missing-value
   placeholder `NO_VALUE` from `src/lib/format.ts`.
+- Calorie ring (`CalorieRing`): the excess arc is `--over-2` (dark red), because `--over` on the red ring
+  cannot be told apart; nothing changes above twice the budget. Over budget the last row of the calorie card
+  reads "Zu viel" with the amount without a minus (otherwise "Übrig"). `NutrientBreakdown` variant `day` shows the
+  kcal number in `text-over` above `kcalBudget` (target plus credited training; reports use the kcal target).
 - Excess bars (`TargetBar`): red `--over` up to twice the target, then dark red `--over-2` (bars only, text
   stays `text-over`); micros with a maximum use `TargetBar` too (pass `over` for decimal comparisons). Protein is
   the exception: more is good, so `overTone="good"` (`overToneOf`) shows its excess green (`--over-good`, bar and

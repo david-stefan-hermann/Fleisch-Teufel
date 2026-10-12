@@ -1,8 +1,9 @@
 import { fmt0 } from '@/lib/format';
 
 /**
- * Ring showing how much of the day's budget is used. Over budget, the overflow is drawn in the
- * "over" color on top of a full ring. Respects reduced motion (no transition).
+ * Ring showing how much of the day's budget is used. Over budget, the overflow is drawn on top of a
+ * full ring in the dark excess red (`--over-2`): `--over` is too close to the ring's own red to be seen.
+ * Respects reduced motion (no transition).
  */
 export function CalorieRing({ eaten, budget, size = 148 }: { eaten: number; budget: number; size?: number }) {
   const stroke = 12;
@@ -33,7 +34,7 @@ export function CalorieRing({ eaten, budget, size = 148 }: { eaten: number; budg
             cy={size / 2}
             r={r}
             fill="none"
-            stroke="var(--over)"
+            stroke="var(--over-2)"
             strokeWidth={stroke}
             strokeLinecap="round"
             strokeDasharray={`${over * c} ${c}`}
