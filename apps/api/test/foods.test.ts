@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { rankProducts } from '../src/foods/catalog.js';
 import { OffRateLimitedError } from '../src/off/client.js';
 import { createTestContext, offFood, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
@@ -88,5 +89,25 @@ describe('foods API', () => {
   it('offers a local search over BLS and cached OFF products', async () => {
     const r = await c.get('/api/foods/search?q=haehnchen brust&source=local');
     expect(r.json.foods[0].name).toBe('Hähnchen Brust, ohne Haut, roh');
+  });
+});
+
+describe('rankProducts', () => {
+  it('ranks OFF products like local foods, one per name and brand, other finds last', () => {
+    const p = (ean: string, name: string, brand: string, popularity?: number) => ({
+      ...offFood(ean, name),
+      brand,
+      ...(popularity ? { popularity } : {}),
+    });
+    const ranked = rankProducts('skyr', [
+      p('1', 'Joghurt mit Skyr-Kulturen', 'A'),
+      p('2', 'Skyr Natur', 'Arla', 20),
+      p('3', 'Skyr Natur', 'Arla'),
+      p('4', 'Skyr Natur', 'Ehrmann', 5000),
+      p('5', 'Quarkspeise', 'B'),
+    ]);
+    // The popular product first among equal names, the same name and brand only once, the product
+    // OFF found by its ingredients last.
+    expect(ranked.map((f) => f.sourceId)).toEqual(['4', '2', '1', '5']);
   });
 });

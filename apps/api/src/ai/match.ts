@@ -19,8 +19,12 @@ export type LocalSearch = (query: string, limit: number) => { food: Food; score:
 export const DRY_WORDS = ['pulver', 'instant', 'trockenprodukt', 'konzentrat', 'granulat'] as const;
 /** Words that mark a dry product as prepared ("Bratensoße aus Instantpulver, zubereitet mit Wasser"). */
 export const PREPARED_WORDS = ['zubereitet', 'eingeweicht', 'getraenk'] as const;
-/** Score penalty of a dry product for an item eaten prepared; larger than the BLS and prep boosts. */
-export const DRY_PENALTY = 30;
+/**
+ * Score penalty of a dry product for an item eaten prepared, on top of the 20 points the shared
+ * search already takes off when the term does not ask for it; together larger than the BLS and prep
+ * boosts.
+ */
+export const DRY_PENALTY = 12;
 /** Small boost of a prepared variant for an unpackaged item (home-made or plated food). */
 export const PREPARED_BOOST = 3;
 

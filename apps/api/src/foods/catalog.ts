@@ -10,6 +10,7 @@ import {
   foodIds,
   indexItem,
   search,
+  searchKey,
   type Food,
   type IndexedItem,
 } from '@ft/shared';
@@ -161,7 +162,7 @@ export class FoodCatalog {
     opts: { includeOff?: boolean } = {},
   ): { food: Food; score: number }[] {
     const bls = search(this.blsIndex, query, limit);
-    const off = opts.includeOff === false ? [] : search([...this.offIndex.values()], query, limit);
+    const off = opts.includeOff === false ? [] : search(this.offList(), query, limit);
     return [...bls, ...off]
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
@@ -212,14 +213,14 @@ export class FoodCatalog {
     if (hit && Date.now() - hit.at < SEARCH_CACHE_MS)
       return { foods: hit.foods.slice(0, limit), limited: false };
     try {
-      const found = await this.off.search(query, limit);
+      const found = rankProducts(query, await this.off.search(query, limit));
       await this.store(found);
       this.searchCache.set(key, { at: Date.now(), foods: found });
       if (this.searchCache.size > 500) this.searchCache.delete(this.searchCache.keys().next().value!);
       return { foods: found, limited: false };
     } catch (e) {
       if (!(e instanceof OffRateLimitedError)) log.warn('OFF search failed', { error: String(e) });
-      const local = search([...this.offIndex.values()], query, limit).map((h) => h.item);
+      const local = search(this.offList(), query, limit).map((h) => h.item);
       return { foods: local, limited: true };
     }
   }
@@ -261,7 +262,31 @@ export class FoodCatalog {
 
   private indexOff(f: Food) {
     this.offIndex.set(f.id, indexItem(f));
+    this.offListCache = null;
   }
+
+  /** The cached OFF index as one stable array (the search keeps its word list per array). */
+  private offListCache: IndexedItem<Food>[] | null = null;
+  private offList(): IndexedItem<Food>[] {
+    return (this.offListCache ??= [...this.offIndex.values()]);
+  }
+}
+
+/**
+ * OFF search results in our ranking (the same as for local foods: name and brand, popularity), one
+ * product per name and brand. Products OFF found by other fields (ingredients) follow in OFF's order.
+ */
+export function rankProducts(query: string, found: Food[]): Food[] {
+  const seen = new Set<string>();
+  const unique = found.filter((f) => {
+    const key = `${searchKey(f.name)}|${searchKey(f.brand ?? '')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const ranked = search(unique.map(indexItem), query, unique.length).map((h) => h.item);
+  const ids = new Set(ranked.map((f) => f.id));
+  return [...ranked, ...unique.filter((f) => !ids.has(f.id))];
 }
 
 function rowToFood(r: typeof foods.$inferSelect): Food {

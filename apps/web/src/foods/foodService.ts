@@ -8,18 +8,23 @@
 import {
   addDays,
   foodIds,
+  get,
   indexItem,
-  normalize,
+  N,
   search,
+  searchKey,
+  suggestQuery,
   type CustomFood,
   type Food,
   type FoodEntry,
   type FoodPortion,
+  type IndexedItem,
   type Meal,
   type Portion,
 } from '@ft/shared';
 import type { CachedFood, UserDb } from '@/db/dexie';
 import { endpoints, OfflineError, ApiError } from '@/lib/api';
+import { fmt2, fmtGrams } from '@/lib/format';
 import { loadBls } from './bls';
 
 export function customToFood(c: CustomFood): Food {
@@ -48,10 +53,9 @@ export function filterOwn(
   custom: readonly CustomFood[],
   meals: readonly Meal[],
 ): { custom: CustomFood[]; meals: Meal[] } {
-  const loose = (text: string) => normalize(text).replace(/([aou])e/g, '$1');
-  const q = loose(query);
+  const q = searchKey(query);
   if (!q) return { custom: [...custom], meals: [...meals] };
-  const hit = (text: string | null | undefined) => !!text && loose(text).includes(q);
+  const hit = (text: string | null | undefined) => !!text && searchKey(text).includes(q);
   return {
     custom: custom.filter((c) => hit(c.name) || hit(c.brand)),
     meals: meals.filter((m) => hit(m.name) || m.items.some((i) => hit(i.name))),
@@ -64,13 +68,8 @@ export async function rememberFood(db: UserDb, food: Food): Promise<void> {
   await db.foodCache.put(cached);
 }
 
-export interface SearchHit {
-  food: Food;
-  score: number;
-}
-
 /** How often (and when last) each food was logged, from `recentAndFrequent`. */
-export type FoodUsage = Map<string, { count: number; lastLoggedAt: number }>;
+export type FoodUsage = Map<string, { count: number; lastLoggedAt: number; last?: FoodEntry }>;
 
 /**
  * Ranking boost for foods the user logged before: enough to put a used "Brötchen, Weizen" above an
@@ -82,35 +81,153 @@ export function usageBoost(usage: FoodUsage | undefined, foodId: string): number
 }
 
 /**
- * Local search: BLS + own foods + cached products. Own foods and cached products get a boost, and
- * with `usage` everything logged before ranks first. Only matches are boosted (`search` skips
- * non-matching items), so usage never brings in unrelated foods.
+ * Own foods and saved meals rank above database foods, also above an exact database name when
+ * they only add a word ("Hafer Flocken Bio" before "Hafer Flocken"). Same value in the AI search.
+ */
+const OWN_BOOST = 55;
+/** Products used before (food cache) a little above new ones. */
+const CACHED_BOOST = 15;
+
+/** One row of the search: a food or a saved meal. */
+export type SearchRow =
+  | { kind: 'food'; id: string; food: Food; score: number; fuzzy?: boolean }
+  | { kind: 'meal'; id: string; meal: Meal; score: number };
+
+export interface LocalSearchResult {
+  rows: SearchRow[];
+  /** The query with typos corrected ("jogurt" → "Joghurt"), when a word matched nothing. */
+  suggestion: string | null;
+}
+
+type MealSearchable = { id: string; name: string; keywords: string; source: 'meal'; meal: Meal };
+
+/** Indexes of the own data, rebuilt only when it changed (the search runs on every keystroke). */
+let ownCache: { sig: string; foods: IndexedItem<Food>[]; meals: IndexedItem<MealSearchable>[] } | null = null;
+
+function ownIndexes(foods: Food[], meals: Meal[]) {
+  const sig = [
+    ...foods.map((f) => `${f.id}:${f.name}:${f.brand ?? ''}`),
+    '|',
+    ...meals.map((m) => `${m.id}:${m.updatedAt}`),
+  ].join(',');
+  if (ownCache?.sig !== sig) {
+    ownCache = {
+      sig,
+      foods: foods.map(indexItem),
+      meals: meals.map((meal) =>
+        indexItem({
+          id: `meal:${meal.id}`,
+          name: meal.name,
+          keywords: meal.items.map((i) => i.name).join(' '),
+          source: 'meal' as const,
+          meal,
+        }),
+      ),
+    };
+  }
+  return ownCache;
+}
+
+/**
+ * Local search: BLS + own foods + cached products (+ saved meals with `meals`), ranked together.
+ * Own foods, meals and cached products get a boost, and with `usage` everything logged before ranks
+ * first. Only matches are boosted (`search` skips non-matching items), so usage never brings in
+ * unrelated foods.
  */
 export async function searchLocal(
   db: UserDb,
   query: string,
   limit = 40,
   usage?: FoodUsage,
-): Promise<SearchHit[]> {
-  const [bls, custom, cached] = await Promise.all([
+  opts: { meals?: boolean } = {},
+): Promise<LocalSearchResult> {
+  const [bls, custom, cached, meals] = await Promise.all([
     loadBls().catch(() => null),
     db.customFoods.filter((f) => !f.deleted).toArray(),
     db.foodCache.where('id').startsWith('off:').toArray(),
+    opts.meals ? db.meals.filter((m) => !m.deleted).toArray() : Promise.resolve([] as Meal[]),
   ]);
-  const own = [...custom.map(customToFood), ...cached].map(indexItem);
-  const ownHits = search(
-    own,
-    query,
-    limit,
-    (f) => (f.source === 'custom' ? 40 : 15) + usageBoost(usage, f.id),
-  );
-  const blsHits = bls ? search(bls.index, query, limit, (f) => usageBoost(usage, f.id)) : [];
+  const own = ownIndexes([...custom.map(customToFood), ...cached], meals);
+  const boost = (f: Food) => (f.source === 'custom' ? OWN_BOOST : CACHED_BOOST) + usageBoost(usage, f.id);
+  const foodHits = [
+    ...search(own.foods, query, limit, boost),
+    ...(bls ? search(bls.index, query, limit, (f) => usageBoost(usage, f.id)) : []),
+  ];
   const seen = new Set<string>();
-  return [...ownHits, ...blsHits]
-    .sort((a, b) => b.score - a.score)
+  const rows: SearchRow[] = foodHits
     .filter((h) => (seen.has(h.item.id) ? false : (seen.add(h.item.id), true)))
-    .slice(0, limit)
-    .map((h) => ({ food: h.item, score: h.score }));
+    .map((h) => ({
+      kind: 'food' as const,
+      id: h.item.id,
+      food: h.item,
+      score: h.score,
+      ...(h.fuzzy ? { fuzzy: true } : {}),
+    }));
+  for (const h of search(own.meals, query, limit, () => OWN_BOOST)) {
+    rows.push({ kind: 'meal', id: h.item.id, meal: h.item.meal, score: h.score });
+  }
+  rows.sort((a, b) => b.score - a.score);
+  const indexes = [own.foods, own.meals, ...(bls ? [bls.index] : [])];
+  return { rows: rows.slice(0, limit), suggestion: suggestQuery(indexes, query) };
+}
+
+/**
+ * Online products (Open Food Facts) sorted into the local results by the same ranking: a product
+ * that is a better match than a database food stands above it. Products already in the list stay
+ * where they are; products OFF found by other fields (ingredients) follow at the end.
+ */
+export function mergeOnline(
+  rows: SearchRow[],
+  online: Food[],
+  query: string,
+  usage?: FoodUsage,
+): SearchRow[] {
+  const ids = new Set(rows.map((r) => r.id));
+  const fresh = online.filter((f) => !ids.has(f.id));
+  if (fresh.length === 0) return rows;
+  const ranked = search(fresh.map(indexItem), query, fresh.length, (f) => usageBoost(usage, f.id));
+  const matched = new Set(ranked.map((h) => h.item.id));
+  const merged: SearchRow[] = [
+    ...rows,
+    ...ranked.map((h) => ({ kind: 'food' as const, id: h.item.id, food: h.item, score: h.score })),
+  ].sort((a, b) => b.score - a.score);
+  const rest = fresh
+    .filter((f) => !matched.has(f.id))
+    .map((f) => ({ kind: 'food' as const, id: f.id, food: f, score: 0 }));
+  return [...merged, ...rest];
+}
+
+/** An amount to show with a search result, with its energy. */
+export interface RowAmount {
+  label: string;
+  kcal: number;
+}
+
+/**
+ * The amount a search row shows: the last logged amount, else the person's own portion, else the
+ * food's first portion that is not the whole package (OFF serving, own food portion); null shows the
+ * values per 100 g.
+ */
+export function rowAmount(food: Food, usage?: FoodUsage, userPortion?: Portion): RowAmount | null {
+  const kcalPer100 = get(food.nutrients, N.kcal);
+  const unit = food.unit === 'ml' ? 'ml' : 'g';
+  const last = usage?.get(food.id)?.last;
+  if (last && last.source !== 'quick' && last.grams !== null && last.grams > 0) {
+    const label =
+      last.portionLabel && last.portionGrams !== null && !/^(100|1)\s?(g|ml)$/.test(last.portionLabel)
+        ? `${fmt2(last.quantity)} × ${last.portionLabel}`
+        : fmtGrams(last.grams, unit);
+    return { label, kcal: (kcalPer100 * last.grams) / 100 };
+  }
+  // A whole package ("Packung (1 kg)") is no serving: 2.480 kcal for a cheese says nothing.
+  const portion = userPortion ?? food.portions.find((p) => !/^packung\b/i.test(p.label));
+  if (portion && portion.grams > 0) {
+    const label = /\d\s*(k?g|m?l)\b/i.test(portion.label)
+      ? portion.label
+      : `${portion.label} (${fmtGrams(portion.grams, unit)})`;
+    return { label, kcal: (kcalPer100 * portion.grams) / 100 };
+  }
+  return null;
 }
 
 export async function searchOnline(
@@ -220,7 +337,7 @@ export async function recentAndFrequent(
   }
   const all = [...byFood.values()];
   const usage: FoodUsage = new Map(
-    all.map((r) => [r.foodId, { count: r.count, lastLoggedAt: r.last.loggedAt }]),
+    all.map((r) => [r.foodId, { count: r.count, lastLoggedAt: r.last.loggedAt, last: r.last }]),
   );
   return {
     usage,

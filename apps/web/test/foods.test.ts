@@ -1,4 +1,12 @@
-import { N, uuidv7, type AiLabelResult, type CustomFood, type Food, type Meal } from '@ft/shared';
+import {
+  N,
+  uuidv7,
+  type AiLabelResult,
+  type CustomFood,
+  type Food,
+  type FoodEntry,
+  type Meal,
+} from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
@@ -16,9 +24,12 @@ import {
   filterOwn,
   getFood,
   lookupBarcode,
+  mergeOnline,
   recentAndFrequent,
+  rowAmount,
   searchLocal,
   usageBoost,
+  type LocalSearchResult,
 } from '@/foods/foodService';
 
 const compact = {
@@ -65,6 +76,11 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+/** Names of the rows of a local search (foods and meals). */
+function names(r: LocalSearchResult): string[] {
+  return r.rows.map((row) => (row.kind === 'food' ? row.food.name : row.meal.name));
+}
+
 describe('food service', () => {
   it('searches offline BLS and own foods together; own foods win equal matches', async () => {
     await saveRecord(db, 'customFoods', {
@@ -85,10 +101,10 @@ describe('food service', () => {
       nutrients: { ENERCC: 450 },
       portions: [],
     });
-    const hits = (await searchLocal(db, 'hafer flocken')).map((h) => h.food.name);
+    const hits = names(await searchLocal(db, 'hafer flocken'));
     expect(hits[0]).toBe('Hafer Flocken Bio');
     expect(hits).toContain('Hafer Flocken');
-    expect((await searchLocal(db, 'haferkekse')).map((h) => h.food.name)).toEqual(['Haferkekse von Oma']);
+    expect(names(await searchLocal(db, 'haferkekse'))).toEqual(['Haferkekse von Oma']);
   });
 
   it('falls back to the compact BLS entry when the server is unreachable', async () => {
@@ -179,13 +195,13 @@ describe('food service', () => {
     expect(r.frequent.map((x) => [x.name, x.count])).toEqual([['A', 2]]);
     // Usage covers every food of the last 90 days, also those logged once.
     expect(Object.fromEntries(r.usage)).toEqual({
-      'bls:A': { count: 2, lastLoggedAt: 2 },
-      'bls:B': { count: 1, lastLoggedAt: 3 },
+      'bls:A': { count: 2, lastLoggedAt: 2, last: expect.objectContaining({ loggedAt: 2 }) },
+      'bls:B': { count: 1, lastLoggedAt: 3, last: expect.objectContaining({ loggedAt: 3 }) },
     });
   });
 
   it('ranks previously logged foods first', async () => {
-    const plain = (await searchLocal(db, 'brötchen')).map((h) => h.food.name);
+    const plain = names(await searchLocal(db, 'brötchen'));
     expect(plain).toEqual(['Brötchen', 'Brötchen Weizen hell']);
 
     await saveRecord(db, 'foodEntries', {
@@ -211,9 +227,109 @@ describe('food service', () => {
     });
     const { usage } = await recentAndFrequent(db, '2026-10-07');
     const ranked = await searchLocal(db, 'brötchen', 40, usage);
-    expect(ranked.map((h) => h.food.name)).toEqual(['Brötchen Weizen hell', 'Brötchen']);
+    expect(names(ranked)).toEqual(['Brötchen Weizen hell', 'Brötchen']);
     // Usage only reorders matches, it never adds unrelated foods.
-    expect((await searchLocal(db, 'apfel', 40, usage)).map((h) => h.food.name)).toEqual(['Apfel roh']);
+    expect(names(await searchLocal(db, 'apfel', 40, usage))).toEqual(['Apfel roh']);
+  });
+
+  it('finds saved meals by name and ingredient when asked to', async () => {
+    await saveRecord(db, 'meals', {
+      id: 'm1',
+      name: 'Sonntagsfrühstück',
+      photoId: null,
+      items: [
+        {
+          foodId: 'bls:C133000',
+          source: 'bls',
+          name: 'Hafer Flocken',
+          brand: null,
+          grams: 50,
+          portionLabel: '1 g',
+          portionGrams: 1,
+          quantity: 50,
+          per100: null,
+          nutrients: { ENERCC: 174 },
+        },
+      ],
+    });
+    expect(names(await searchLocal(db, 'sonntag'))).toEqual([]);
+    expect(names(await searchLocal(db, 'sonntag', 40, undefined, { meals: true }))).toEqual([
+      'Sonntagsfrühstück',
+    ]);
+    const byIngredient = await searchLocal(db, 'hafer flocken', 40, undefined, { meals: true });
+    expect(byIngredient.rows.map((r) => r.kind)).toContain('meal');
+  });
+
+  it('suggests a correction for a typo', async () => {
+    const r = await searchLocal(db, 'brötshen');
+    expect(r.suggestion).toBe('Brötchen');
+    expect(r.rows[0]).toMatchObject({ kind: 'food', fuzzy: true });
+    expect((await searchLocal(db, 'brötchen')).suggestion).toBeNull();
+  });
+
+  it('sorts online products into the local results by relevance', async () => {
+    const product = (id: string, name: string, brand: string): Food => ({
+      id,
+      source: 'off',
+      sourceId: id.slice(4),
+      name,
+      nameEn: null,
+      brand,
+      group: null,
+      unit: 'g',
+      nutrients: { ENERCC: 250 },
+      portions: [],
+    });
+    const local = await searchLocal(db, 'brötchen');
+    const merged = mergeOnline(
+      local.rows,
+      [
+        product('off:1', 'Brötchen', 'Goldähren'),
+        product('off:2', 'Laugengebäck', 'Bäckerei'),
+        // Already in the list: stays where it is.
+        local.rows[0]!.kind === 'food' ? local.rows[0]!.food : product('off:3', 'x', 'y'),
+      ],
+      'brötchen',
+    );
+    const ids = merged.map((r) => r.id);
+    // The branded product matches like the database food and ranks among them, not after them.
+    expect(ids.indexOf('off:1')).toBeLessThan(ids.length - 1);
+    // A product OFF found by other fields comes last.
+    expect(ids.at(-1)).toBe('off:2');
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('shows the last logged amount, else a portion, else nothing (per 100 g)', () => {
+    const food: Food = {
+      id: 'off:9',
+      source: 'off',
+      sourceId: '9',
+      name: 'Müsliriegel',
+      nameEn: null,
+      brand: 'X',
+      group: null,
+      unit: 'g',
+      nutrients: { ENERCC: 400 },
+      portions: [{ label: 'Portion (25 g)', grams: 25 }],
+    };
+    expect(rowAmount(food)).toEqual({ label: 'Portion (25 g)', kcal: 100 });
+    expect(rowAmount(food, undefined, { label: 'Riegel', grams: 30 })).toEqual({
+      label: 'Riegel (30\u00a0g)',
+      kcal: 120,
+    });
+    const last = {
+      source: 'off',
+      grams: 50,
+      portionLabel: 'Portion (25 g)',
+      portionGrams: 25,
+      quantity: 2,
+    } as FoodEntry;
+    expect(rowAmount(food, new Map([['off:9', { count: 3, lastLoggedAt: 1, last }]]))).toEqual({
+      label: '2 × Portion (25 g)',
+      kcal: 200,
+    });
+    expect(rowAmount({ ...food, portions: [] })).toBeNull();
+    expect(rowAmount({ ...food, portions: [{ label: 'Packung (1kg)', grams: 1000 }] })).toBeNull();
   });
 
   it('boosts by usage count, capped', () => {

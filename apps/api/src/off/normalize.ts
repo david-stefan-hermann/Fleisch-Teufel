@@ -27,6 +27,8 @@ export interface OffProduct {
   nutrition_data_per?: string;
   image_front_small_url?: string;
   nutriments?: Record<string, unknown>;
+  /** Number of people who scanned the product: its popularity. */
+  unique_scans_n?: number | string;
 }
 
 /** OFF nutriment key → [BLS code, factor from OFF's per-100g unit to the BLS unit]. */
@@ -104,6 +106,7 @@ export function normalizeOffProduct(p: OffProduct): Food | null {
     });
   }
 
+  const popularity = Math.round(num(p.unique_scans_n) ?? 0);
   return {
     id: foodIds.off(code),
     source: 'off',
@@ -116,6 +119,7 @@ export function normalizeOffProduct(p: OffProduct): Food | null {
     nutrients,
     portions,
     imageUrl: p.image_front_small_url ?? null,
+    ...(popularity ? { popularity } : {}),
   };
 }
 

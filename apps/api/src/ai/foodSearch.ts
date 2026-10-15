@@ -16,7 +16,7 @@ export const OFF_BELOW = 3;
 /** Entries of a food from which it counts as logged often. */
 export const OFTEN_FROM = 3;
 /** Ranking boost of the person's own foods, as in the device search. */
-const OWN_BOOST = 40;
+const OWN_BOOST = 55;
 
 export interface FoodSearch {
   /** Runs a search and returns the hits as text for the model. */

@@ -61,6 +61,15 @@ Serve the production web build through the API (same origin, service worker acti
   says "Übernehmen".
 - E2E: Playwright projects `chromium-iphone` (all specs) and `webkit-iphone` (`ios-layout.spec.ts`, needs
   `playwright install webkit`).
+- Food search (`packages/shared/src/search.ts`, same code on device, server and in the AI `search_foods`):
+  folded keys (`searchKey`: "kase" = "käse"), light stemming, compound heads ("brot" finds "Vollkornbrot" as
+  bread; in hyphenated names the last part is the head; words after "mit" count as ingredients), typos from 5
+  letters (`fuzzy` hits, `suggestQuery` for "Meintest du"), synonyms for words BLS spells differently
+  (`synonyms.ts`). Ranking: basic foods before dishes (BLS X/Y), dry products down, OFF products with
+  `popularity` (scans, not stored). Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
+  BLS): add a line whenever a real query ranks badly. On `/add` (`searchLocal`, `mergeOnline` in
+  `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; OFF results are sorted into it
+  when they arrive. Rows show the last logged amount, else a serving (never the whole package), and "N× gegessen".
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` / `group:<groupId>` (its day is `date`) on `/add`,
   `/food/$foodId`, `/scan`, `/custom-food/$id` adds to a saved meal / AI review / diary group draft instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.

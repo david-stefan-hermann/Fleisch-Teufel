@@ -22,6 +22,7 @@ const FIELDS = [
   'product_quantity_unit',
   'image_front_small_url',
   'nutriments',
+  'unique_scans_n',
 ].join(',');
 
 export class OffRateLimitedError extends Error {

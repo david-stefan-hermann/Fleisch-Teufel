@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexItem, normalize, search } from '../src/search.js';
+import { indexItem, normalize, search, searchKey } from '../src/search.js';
 
 const foods = [
   { id: '1', name: 'Hühnerei roh' },
@@ -53,5 +53,52 @@ describe('search', () => {
     expect(search(foods, 'apfel mit streuseln').map((h) => h.item.id)).toEqual(['8']);
     expect(search(foods, 'apfel banane')).toEqual([]);
     expect(search(foods, '   ')).toEqual([]);
+  });
+});
+
+describe('search rules', () => {
+  const items = [
+    { id: 'quark', name: 'Speisequark Magerstufe' },
+    { id: 'plunder', name: 'Quark-Plunder' },
+    { id: 'bread', name: 'Roggenbrot mit Quark' },
+    { id: 'kase', name: 'Käse' },
+    { id: 'potato', name: 'Kartoffel roh' },
+    { id: 'dish', name: 'Kartoffeln gekocht, mit Quark', source: 'bls', sourceId: 'Y771350' },
+    { id: 'powder', name: 'Kartoffelpüree Instantpulver', source: 'bls', sourceId: 'K213000' },
+    { id: 'mash', name: 'Kartoffelpüree mit Milch', source: 'bls', sourceId: 'X634012' },
+    { id: 'joghurt', name: 'Joghurt mild' },
+    { id: 'off', name: 'Skyr Natur', brand: 'Arla', source: 'off', popularity: 5000 },
+    { id: 'meal', name: 'Sonntagsfrühstück', keywords: 'Brötchen Butter Marmelade', source: 'meal' },
+  ].map(indexItem);
+  const ids = (q: string) => search(items, q).map((h) => h.item.id);
+
+  it('folds umlauts typed without the e', () => {
+    expect(searchKey('Käse')).toBe('kase');
+    expect(ids('kase')[0]).toBe('kase');
+    expect(ids('kaese')[0]).toBe('kase');
+  });
+
+  it('ranks the head of a compound above a hyphen part and an ingredient', () => {
+    expect(ids('quark')).toEqual(['quark', 'plunder', 'bread', 'dish']);
+  });
+
+  it('finds the singular for a plural', () => {
+    expect(ids('kartoffeln')[0]).toBe('potato');
+  });
+
+  it('pushes dry products down unless asked for', () => {
+    expect(ids('kartoffelpüree')).toEqual(['mash', 'powder']);
+    expect(ids('kartoffelpüree pulver')).toEqual(['powder']);
+  });
+
+  it('finds typos, marked as fuzzy', () => {
+    const [hit] = search(items, 'jogurt');
+    expect(hit).toMatchObject({ item: { id: 'joghurt' }, fuzzy: true });
+    expect(search(items, 'joghurt')[0]!.fuzzy).toBeUndefined();
+  });
+
+  it('searches brands and meal ingredients with less weight', () => {
+    expect(ids('arla')).toEqual(['off']);
+    expect(ids('butter')).toEqual(['meal']);
   });
 });

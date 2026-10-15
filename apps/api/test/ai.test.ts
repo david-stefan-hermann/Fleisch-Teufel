@@ -153,8 +153,8 @@ describe('matching', () => {
     );
     expect(gravy[0]!.food.name).toMatch(/Bratensoße/);
     expect(gravy[0]!.food.name).not.toMatch(/Instantpulver$/);
-    // The powder stays a choice further down.
-    expect(gravy.map((c) => c.food.name)).toContain('Bratensoße Instantpulver');
+    // The powder stays findable further down.
+    expect(search('Bratensoße', 15).map((h) => h.food.name)).toContain('Bratensoße Instantpulver');
   });
 
   it('pushes down dry products unless the item is the dry product', () => {

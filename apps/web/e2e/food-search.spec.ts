@@ -25,11 +25,15 @@ async function saveDiaryMeal(page: Page, mealName: string, name: string) {
   await expect(page.getByText(`„${name}“ gespeichert`)).toBeVisible();
 }
 
-/** Names of the local search results, in order. */
+/**
+ * Names of the search results (foods and meals), in order, once the online search has answered
+ * (its products are sorted into the list).
+ */
 async function resultNames(page: Page): Promise<string[]> {
-  const links = page.locator('main ul').first().locator('a[href*="/food/"] .font-medium');
-  await expect(links.first()).toBeVisible();
-  return links.allTextContents();
+  const names = page.locator('main ul').first().locator('a .line-clamp-2');
+  await expect(names.first()).toBeVisible();
+  await expect(page.getByText('Suche Markenprodukte…')).toHaveCount(0, { timeout: 15_000 });
+  return names.allTextContents();
 }
 
 test('food search: tabs, used foods first, own foods with collapsible meals, header icons', async ({
@@ -54,7 +58,9 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   const plain = await resultNames(page);
   expect(plain.length).toBeGreaterThan(3);
   await expect(page.getByRole('tab', { selected: true })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toBeVisible();
+  // Branded products are part of the same list; below it a line says what the online search did.
+  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: /Open Food Facts|Offline/ })).toBeVisible();
 
   // Log the fourth hit; searching again puts it first.
   const picked = plain[3]!;
@@ -64,6 +70,10 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await page.goto('/add?meal=0');
   await page.getByLabel('Lebensmittel suchen').fill('brötchen');
   await expect.poll(async () => (await resultNames(page))[0]).toBe(picked);
+  // The row says how often it was eaten and shows the logged amount with its kcal.
+  const first = page.locator('main ul').first().getByRole('link').first();
+  await expect(first.getByText('1× gegessen')).toBeVisible();
+  await expect(first).not.toContainText('kcal/100');
 
   // Tapping a tab leaves the search and shows the tab.
   await page.getByRole('tab', { name: 'Kürzlich' }).click();
@@ -95,7 +105,7 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await search.fill('sonntagsfruhstuck');
   await expect(page.getByRole('tab', { name: 'Eigene' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('link', { name: /Sonntagsfrühstück/ })).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
+  await expect(page.getByText(/Markenprodukte/)).toHaveCount(0);
   // Ingredients count as well: the meal contains the logged roll.
   await search.fill(picked.split(' ')[0]!);
   await expect(page.getByRole('link', { name: /Sonntagsfrühstück/ })).toBeVisible();
@@ -106,7 +116,20 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
     'href',
     /custom-food\/new\?.*name=pizza/,
   );
-  await expect(page.getByRole('heading', { name: /Markenprodukte/ })).toHaveCount(0);
+  await expect(page.getByText(/Markenprodukte/)).toHaveCount(0);
+
+  // The main search finds saved meals too, marked as a meal, and typos get a suggestion.
+  await page.goto('/add?meal=0');
+  await page.getByLabel('Lebensmittel suchen').fill('sonntagsfrühstück');
+  const mealRow = page
+    .locator('main ul')
+    .first()
+    .getByRole('link', { name: /Sonntagsfrühstück/ });
+  await expect(mealRow).toHaveAttribute('href', /\/meals\//);
+  await expect(mealRow.getByText('Meal', { exact: true })).toBeVisible();
+  await page.getByLabel('Lebensmittel suchen').fill('jogurt');
+  await page.getByRole('button', { name: '„Joghurt“' }).click();
+  await expect(page.getByLabel('Lebensmittel suchen')).toHaveValue('Joghurt');
 });
 
 test('own food: the pencil edits it, saving returns to the food page, deleting returns to the search', async ({

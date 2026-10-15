@@ -1,4 +1,4 @@
-import { get, N, uuidv7, type Food, type Meal } from '@ft/shared';
+import { get, N, uuidv7, type Food, type Meal, type Portion } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff } from 'lucide-react';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
@@ -20,11 +21,15 @@ import { saveRecord } from '@/db/write';
 import {
   filterOwn,
   getFood,
+  mergeOnline,
   recentAndFrequent,
+  rowAmount,
   searchLocal,
   searchOnline,
   customToFood,
+  type FoodUsage,
   type RecentFood,
+  type SearchRow,
 } from '@/foods/foodService';
 import { useSettings, useToday } from '@/hooks/data';
 import { ApiError, OfflineError } from '@/lib/api';
@@ -87,11 +92,19 @@ export function AddFoodPage() {
   const filteringOwn = q.length >= 2 && tab === 'mine';
 
   const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
+  // Saved meals cannot be part of a saved meal, an AI review or a diary group.
+  const withMeals = !into;
   // Waits for the history so that previously logged foods rank first from the first result on.
   const local = useLiveQuery(
-    async () => (searching && history ? searchLocal(db, q, 40, history.usage) : null),
-    [db, q, searching, history],
+    async () => (searching && history ? searchLocal(db, q, 40, history.usage, { meals: withMeals }) : null),
+    [db, q, searching, history, withMeals],
   );
+  const portionList = useLiveQuery(() => db.foodPortions.filter((p) => !p.deleted).toArray(), [db]);
+  const userPortions = useMemo(() => {
+    const first = new Map<string, Portion>();
+    for (const p of portionList ?? []) if (!first.has(p.foodId)) first.set(p.foodId, p);
+    return first;
+  }, [portionList]);
   const [result, setResult] = useState<{
     q: string;
     foods: Food[];
@@ -133,8 +146,14 @@ export function AddFoodPage() {
     [custom, meals, q, filteringOwn, into],
   );
 
-  const localIds = useMemo(() => new Set((local ?? []).map((h) => h.food.id)), [local]);
-  const onlineFoods = (online?.q === qOnline ? online.foods : []).filter((f) => !localIds.has(f.id));
+  // Online products join the list once they belong to the query the local results are for.
+  const onlineFoods = online && online.q === q ? online.foods : null;
+  // Until the answer for the current query is there (debounce included), the online search loads.
+  const onlineState = q.length < 3 ? null : online?.q === q ? online.state : 'loading';
+  const rows = useMemo(
+    () => (local ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage) : null),
+    [local, onlineFoods, q, history],
+  );
   const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
 
   const [mealsOpen, setMealsOpen] = useState(readMealsOpen);
@@ -211,6 +230,8 @@ export function AddFoodPage() {
               inputMode="search"
               enterKeyHint="search"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="none"
               spellCheck={false}
               aria-label="Lebensmittel suchen"
               placeholder={
@@ -245,65 +266,47 @@ export function AddFoodPage() {
     >
       {searching && (
         <>
-          {local && local.length > 0 && (
+          {local?.suggestion && (
+            <p className="mb-2 text-sm text-muted-foreground">
+              Meintest du{' '}
+              <button
+                type="button"
+                className="min-h-10 font-medium text-primary underline underline-offset-2"
+                onClick={() => setQuery(local.suggestion!)}
+              >
+                „{local.suggestion}“
+              </button>
+              ?
+            </p>
+          )}
+          {rows && rows.length > 0 && (
             <ul className="-mx-4 divide-y divide-border/70">
-              {local.map((h) => (
-                <FoodRow key={h.food.id} food={h.food} search={linkSearch} />
+              {rows.map((r) => (
+                <SearchResultRow
+                  key={r.id}
+                  row={r}
+                  usage={history?.usage}
+                  userPortions={userPortions}
+                  search={linkSearch}
+                />
               ))}
             </ul>
           )}
-          {local &&
-            local.length === 0 &&
-            (online?.state !== 'done' || onlineFoods.length === 0) &&
-            online?.state !== 'loading' && (
-              <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
-                Versuche ein allgemeineres Wort (z. B. „Käse“ statt „Bergkäse gerieben“) oder{' '}
-                <Link
-                  to="/custom-food/$id"
-                  params={{ id: 'new' }}
-                  search={{ name: q, ...linkSearch }}
-                  className="text-primary underline"
-                >
-                  lege ein eigenes Lebensmittel an
-                </Link>
-                .
-              </EmptyState>
-            )}
-          <div className="mt-4">
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <Globe className="size-4" aria-hidden /> Markenprodukte (Open Food Facts)
-              {online?.state === 'loading' && (
-                <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-label="Lädt…" />
-              )}
-            </h2>
-            {online?.state === 'offline' && (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <WifiOff className="size-4" aria-hidden /> Offline: nur lokale Ergebnisse. Barcode-Scan
-                funktioniert, sobald du wieder verbunden bist.
-              </p>
-            )}
-            {online?.state === 'limited' && (
-              <p className="mb-2 text-xs text-muted-foreground">
-                Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.
-              </p>
-            )}
-            {online?.state === 'error' && (
-              <p className="text-sm text-muted-foreground">Open Food Facts antwortet gerade nicht.</p>
-            )}
-            {qOnline.length < 3 && (
-              <p className="text-sm text-muted-foreground">Ab 3 Zeichen wird auch online gesucht.</p>
-            )}
-            {onlineFoods.length > 0 && (
-              <ul className="-mx-4 divide-y divide-border/70">
-                {onlineFoods.map((f) => (
-                  <FoodRow key={f.id} food={f} search={linkSearch} />
-                ))}
-              </ul>
-            )}
-            {online?.state === 'done' && onlineFoods.length === 0 && (
-              <p className="text-sm text-muted-foreground">Keine weiteren Produkte gefunden.</p>
-            )}
-          </div>
+          {rows && rows.length === 0 && onlineState !== 'loading' && (
+            <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
+              Versuche ein allgemeineres Wort (z. B. „Käse“ statt „Bergkäse gerieben“) oder{' '}
+              <Link
+                to="/custom-food/$id"
+                params={{ id: 'new' }}
+                search={{ name: q, ...linkSearch }}
+                className="text-primary underline"
+              >
+                lege ein eigenes Lebensmittel an
+              </Link>
+              .
+            </EmptyState>
+          )}
+          <OnlineStatus state={onlineState} short={q.length < 3} />
         </>
       )}
 
@@ -410,8 +413,110 @@ async function addRecentToTarget(db: UserDb, into: Into, r: RecentFood, date: st
   return true;
 }
 
-function FoodRow({ food, search }: { food: Food; search: FoodLinkSearch }) {
+/** Below the results: what the online search for branded products (Open Food Facts) is doing. */
+function OnlineStatus({
+  state,
+  short,
+}: {
+  state: 'loading' | 'done' | 'offline' | 'limited' | 'error' | null;
+  short: boolean;
+}) {
+  const text =
+    state === 'loading'
+      ? 'Suche Markenprodukte…'
+      : state === 'offline'
+        ? 'Offline: nur lokale Ergebnisse. Markenprodukte und Barcode-Scan wieder, sobald du verbunden bist.'
+        : state === 'limited'
+          ? 'Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.'
+          : state === 'error'
+            ? 'Open Food Facts antwortet gerade nicht.'
+            : short
+              ? 'Ab 3 Zeichen werden auch Markenprodukte gesucht.'
+              : 'Markenprodukte: Open Food Facts.';
+  return (
+    <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      {state === 'loading' ? (
+        <LoaderCircle className="size-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
+      ) : state === 'offline' ? (
+        <WifiOff className="size-4 shrink-0" aria-hidden />
+      ) : (
+        <Globe className="size-4 shrink-0" aria-hidden />
+      )}
+      <span role="status">{text}</span>
+    </p>
+  );
+}
+
+/** "3× gegessen": how often the person logged the food in the last 90 days. */
+function UsageBadge({ count }: { count: number }) {
+  return (
+    <Badge variant="secondary" className="px-1.5 py-0 text-[11px]" aria-label={`${count}× gegessen`}>
+      {count}× gegessen
+    </Badge>
+  );
+}
+
+function SearchResultRow({
+  row,
+  usage,
+  userPortions,
+  search,
+}: {
+  row: SearchRow;
+  usage: FoodUsage | undefined;
+  userPortions: Map<string, Portion>;
+  search: FoodLinkSearch;
+}) {
+  if (row.kind === 'meal') {
+    const m = row.meal;
+    return (
+      <li>
+        <Link
+          to="/meals/$mealId"
+          params={{ mealId: m.id }}
+          search={{ date: search.date, meal: search.meal }}
+          className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+        >
+          <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1">
+            <div className="line-clamp-2 font-medium break-words">{m.name}</div>
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <Badge variant="outline" className="px-1.5 py-0 text-[11px]">
+                Meal
+              </Badge>
+              <span className="truncate">{m.items.map((i) => i.name).join(', ')}</span>
+            </div>
+          </div>
+          <div className="tabular shrink-0 text-right">
+            <div className="font-semibold">
+              {fmt0(m.items.reduce((s, i) => s + get(i.nutrients, N.kcal), 0))}
+            </div>
+            <div className="text-[11px] text-muted-foreground">kcal</div>
+          </div>
+        </Link>
+      </li>
+    );
+  }
+  return (
+    <FoodRow food={row.food} search={search} usage={usage} userPortion={userPortions.get(row.food.id)} />
+  );
+}
+
+function FoodRow({
+  food,
+  search,
+  usage,
+  userPortion,
+}: {
+  food: Food;
+  search: FoodLinkSearch;
+  usage?: FoodUsage;
+  userPortion?: Portion;
+}) {
   const unit = food.unit === 'ml' ? 'ml' : 'g';
+  const count = usage?.get(food.id)?.count ?? 0;
+  const amount = rowAmount(food, usage, userPortion);
+  const origin = food.brand ?? (food.source === 'bls' ? 'BLS' : food.source === 'custom' ? 'Eigenes' : null);
   return (
     <li>
       <Link
@@ -422,19 +527,16 @@ function FoodRow({ food, search }: { food: Food; search: FoodLinkSearch }) {
       >
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 font-medium break-words">{food.name}</div>
-          <div className="truncate text-xs text-muted-foreground">
-            {[
-              food.brand,
-              food.source === 'bls' ? 'BLS' : food.source === 'custom' ? 'Eigenes' : null,
-              food.group && food.source === 'bls' ? food.group : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            {count > 0 && <UsageBadge count={count} />}
+            <span className="truncate">{[origin, amount?.label].filter(Boolean).join(' · ')}</span>
           </div>
         </div>
         <div className="tabular shrink-0 text-right">
-          <div className="font-semibold">{fmt0(get(food.nutrients, N.kcal))}</div>
-          <div className="text-[11px] text-muted-foreground">kcal/100&nbsp;{unit}</div>
+          <div className="font-semibold">{fmt0(amount ? amount.kcal : get(food.nutrients, N.kcal))}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {amount ? 'kcal' : <>kcal/100&nbsp;{unit}</>}
+          </div>
         </div>
       </Link>
     </li>

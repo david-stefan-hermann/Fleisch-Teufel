@@ -334,6 +334,8 @@ export const foodSchema = z.object({
   imageUrl: z.string().nullable().optional(),
   /** Values estimated by the AI photo analysis (no database food matched); never a stored food. */
   estimated: z.boolean().optional(),
+  /** Open Food Facts: how many people scanned the product (search ranking only, not stored). */
+  popularity: z.number().int().min(0).optional(),
 });
 export type Food = z.infer<typeof foodSchema>;
 

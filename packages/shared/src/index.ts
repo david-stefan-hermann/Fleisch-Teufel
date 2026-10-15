@@ -12,6 +12,7 @@ export * from './nutrition.js';
 export * from './reports.js';
 export * from './schemas.js';
 export * from './search.js';
+export * from './synonyms.js';
 export * from './sync.js';
 export * from './tdee.js';
 

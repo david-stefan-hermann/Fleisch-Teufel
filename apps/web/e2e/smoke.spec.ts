@@ -8,7 +8,8 @@ async function addOats(page: Page, grams: string) {
   await page.getByRole('link', { name: 'Essen zu Frühstück eintragen' }).click();
   await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
-  await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
+  // Logged before, the row says so ("1× gegessen") between the name and the source.
+  await page.getByRole('link', { name: /^Hafer Flocken (1× gegessen )?BLS/ }).click();
   await page.getByLabel('Menge', { exact: true }).fill(grams);
   await page.getByRole('button', { name: 'Zu Frühstück eintragen' }).click();
   await expect(page.getByText('Hafer Flocken eingetragen')).toBeVisible();
