@@ -22,13 +22,17 @@ import {
   saveMealFromEntries,
 } from '@/db/entries';
 import {
+  addGroupDraftPhotos,
   addItemToGroupDraft,
+  clearGroupDraft,
   draftFromEntries,
   groupDraftFromAnalysis,
   groupEntries,
   groupName,
   isGroupDirty,
   readGroupDraft,
+  readGroupDraftPhotos,
+  removeGroupDraftPhoto,
   saveGroupDraft,
   writeGroupDraft,
 } from '@/db/groupDraft';
@@ -729,6 +733,44 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     expect(live.every((e) => e.groupId === groupId && e.photoId === 'p1' && e.mealId === 'm1')).toBe(true);
     for (const e of entries) expect(await d.foodEntries.get(e.id)).toMatchObject({ deleted: true });
     expect(await d.meals.get('m1')).toEqual(mealBefore);
+  });
+
+  it('appends photos added in the editor to every entry of the group on saving', async () => {
+    const { d, entries, mealBefore, groupId } = await setup();
+    const jpeg = (b: number) => new Blob([new Uint8Array([b])], { type: 'image/jpeg' });
+    await addGroupDraftPhotos(d, groupId, [jpeg(1), jpeg(2)]);
+    const added = await readGroupDraftPhotos(d, groupId);
+    expect(added).toHaveLength(2);
+    // Nothing stored or synced before "Änderungen übernehmen"; one can be taken out again.
+    expect(await d.photos.count()).toBe(0);
+    await removeGroupDraftPhoto(d, groupId, added[0]!.at);
+    expect(await readGroupDraftPhotos(d, groupId)).toHaveLength(1);
+    // Also a new ingredient gets all photos.
+    const draft = draftFromEntries(entries, 'Bowl');
+    draft.items.push({ ...food('Mais', 90), entryId: null });
+    expect(await saveGroupDraft(d, draft)).toBe(true);
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live).toHaveLength(3);
+    const ids = live[0]!.photoIds!;
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe('p1');
+    for (const e of live) expect(e).toMatchObject({ photoId: 'p1', photoIds: ids });
+    expect(new Uint8Array((await d.photos.get(ids[1]!))!.bytes!)).toEqual(new Uint8Array([2]));
+    expect(await readGroupDraftPhotos(d, groupId)).toEqual([]);
+    expect(await d.meals.get('m1')).toEqual(mealBefore);
+  });
+
+  it('leaves the photos of the entries alone without added ones, and drops added ones with the draft', async () => {
+    const { d, entries, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    expect(await saveGroupDraft(d, { ...draft, name: 'Große Bowl' })).toBe(true);
+    expect((await groupEntries(d, groupId, '2026-10-09'))[0]).toMatchObject({
+      photoId: 'p1',
+      photoIds: ['p1'],
+    });
+    await addGroupDraftPhotos(d, groupId, [new Blob([new Uint8Array([1])], { type: 'image/jpeg' })]);
+    await clearGroupDraft(d, groupId);
+    expect(await readGroupDraftPhotos(d, groupId)).toEqual([]);
   });
 
   it('refuses an empty group and reports a group that is gone', async () => {

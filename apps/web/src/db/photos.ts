@@ -45,9 +45,16 @@ export class PhotoHttpError extends Error {
  * caller does: AI meal and AI diary group (the queue photo), meal editor (`MealEditor` pick).
  */
 export async function storePhoto(db: UserDb, blob: Blob): Promise<string> {
+  return storePhotoBytes(db, await blob.arrayBuffer(), blob.type);
+}
+
+/**
+ * `storePhoto` for bytes already read: awaits only IndexedDB, so it can run inside a transaction
+ * (that includes `photos`), e.g. when a draft with new photos is saved.
+ */
+export async function storePhotoBytes(db: UserDb, bytes: ArrayBuffer, type: string): Promise<string> {
   const id = uuidv7();
-  const bytes = await blob.arrayBuffer();
-  await db.photos.put({ id, bytes, type: blob.type || 'image/jpeg', uploaded: 0, createdAt: Date.now() });
+  await db.photos.put({ id, bytes, type: type || 'image/jpeg', uploaded: 0, createdAt: Date.now() });
   return id;
 }
 

@@ -8,11 +8,19 @@
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { uuidv7, type AiAnalysisResult, type Food, type FoodEntry, type MealItem } from '@ft/shared';
+import {
+  photoIdsOf,
+  uuidv7,
+  type AiAnalysisResult,
+  type Food,
+  type FoodEntry,
+  type MealItem,
+} from '@ft/shared';
 import { draftFromResult } from './aiDraft';
 import type { UserDb } from './dexie';
 import { aiMealItems } from './entries';
 import { mealItem } from './mealDraft';
+import { storePhotoBytes } from './photos';
 import { deleteRecord, patchRecord, saveRecord } from './write';
 
 /** An ingredient of the draft; `entryId` links it to its diary entry, null for one added in the editor. */
@@ -29,6 +37,51 @@ export interface GroupDraft {
 }
 
 export const groupDraftKey = (groupId: string) => `groupDraft:${groupId}`;
+
+/**
+ * A photo added in the group editor, waiting for "Änderungen übernehmen" (like `mealDraftPhoto`):
+ * bytes under their own key, because the draft itself is rewritten on every keystroke, and only
+ * saving puts them into `photos` (which queues the upload).
+ */
+export interface GroupDraftPhoto {
+  bytes: ArrayBuffer;
+  type: string;
+  /** When it was added; its identity (removing, keys in the photo strip). */
+  at: number;
+}
+
+export const groupDraftPhotosKey = (groupId: string) => `groupDraftPhotos:${groupId}`;
+
+/** The photos added to a group's draft, in order. */
+export async function readGroupDraftPhotos(db: UserDb, groupId: string): Promise<GroupDraftPhoto[]> {
+  const row = await db.kv.get(groupDraftPhotosKey(groupId));
+  return (row?.value as GroupDraftPhoto[] | undefined) ?? [];
+}
+
+/** Adds photos (already compressed) to the group's draft; saved with the draft. */
+export async function addGroupDraftPhotos(
+  db: UserDb,
+  groupId: string,
+  images: readonly Blob[],
+): Promise<void> {
+  // Read before the transaction: it would close while waiting for `arrayBuffer()`.
+  const at = Date.now();
+  const added = await Promise.all(
+    images.map(async (b, i) => ({ bytes: await b.arrayBuffer(), type: b.type || 'image/jpeg', at: at + i })),
+  );
+  await db.transaction('rw', db.kv, async () => {
+    const now = await readGroupDraftPhotos(db, groupId);
+    await db.kv.put({ key: groupDraftPhotosKey(groupId), value: [...now, ...added] });
+  });
+}
+
+export async function removeGroupDraftPhoto(db: UserDb, groupId: string, at: number): Promise<void> {
+  await db.transaction('rw', db.kv, async () => {
+    const left = (await readGroupDraftPhotos(db, groupId)).filter((p) => p.at !== at);
+    if (left.length) await db.kv.put({ key: groupDraftPhotosKey(groupId), value: left });
+    else await db.kv.delete(groupDraftPhotosKey(groupId));
+  });
+}
 
 /** Live entries of a group on its day, in diary order. */
 export async function groupEntries(db: UserDb, groupId: string, date: string): Promise<FoodEntry[]> {
@@ -59,8 +112,9 @@ export async function writeGroupDraft(db: UserDb, draft: GroupDraft): Promise<vo
   await db.kv.put({ key: groupDraftKey(draft.groupId), value: draft });
 }
 
+/** Drops the draft and its added photos. */
 export async function clearGroupDraft(db: UserDb, groupId: string): Promise<void> {
-  await db.kv.delete(groupDraftKey(groupId));
+  await db.kv.bulkDelete([groupDraftKey(groupId), groupDraftPhotosKey(groupId)]);
 }
 
 /**
@@ -136,14 +190,16 @@ export async function groupName(db: UserDb, entries: readonly FoodEntry[]): Prom
  * Writes the draft to the diary entries of the group and drops it:
  * - kept ingredients get their new amount (and the name of the group),
  * - removed ones are deleted (soft, like every delete),
- * - added ones become new entries of the same group (same meal and photo; the analysis of the draft
- *   after "Neu analysieren", else the group's), after the last one.
+ * - added ones become new entries of the same group (same meal and photos; the analysis of the draft
+ *   after "Neu analysieren", else the group's), after the last one,
+ * - photos added in the editor are stored (and uploaded) and appended to the photos of every entry.
  * The saved meal is never touched. A name equal to the saved meal's name stays unset (`groupName`
  * null), so the row keeps following the meal. Returns false when the group is gone.
  */
 export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boolean> {
   if (draft.items.length === 0) throw new Error('A group needs at least one ingredient');
-  return db.transaction('rw', [db.foodEntries, db.meals, db.outbox, db.kv], async () => {
+  const added = await readGroupDraftPhotos(db, draft.groupId);
+  return db.transaction('rw', [db.foodEntries, db.meals, db.outbox, db.kv, db.photos], async () => {
     const entries = await groupEntries(db, draft.groupId, draft.date);
     const first = entries[0];
     if (!first) return false;
@@ -155,6 +211,20 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         ? null
         : typed;
 
+    // Photos: unchanged without added ones; else the group's (or the meal photo it showed) plus the new.
+    let photos: { photoId: string | null; photoIds: string[] | null } = {
+      photoId: first.photoId,
+      photoIds: first.photoIds ?? null,
+    };
+    if (added.length > 0) {
+      const stored = photoIdsOf(first);
+      const base = stored.length ? stored : meal?.photoId ? [meal.photoId] : [];
+      const ids = [...base];
+      for (const p of added) ids.push(await storePhotoBytes(db, p.bytes, p.type));
+      photos = { photoId: ids[0]!, photoIds: ids };
+    }
+    const photosChanged = added.length > 0;
+
     const byId = new Map(entries.map((e) => [e.id, e]));
     const kept = new Set<string>();
     let loggedAt = Math.max(...entries.map((e) => e.loggedAt));
@@ -162,10 +232,11 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
       const prev = item.entryId ? byId.get(item.entryId) : undefined;
       if (prev) {
         kept.add(prev.id);
-        const next = { ...mealItem(item), groupName: groupNameValue };
+        const next = { ...mealItem(item), groupName: groupNameValue, ...(photosChanged ? photos : {}) };
         const changed =
           JSON.stringify(mealItem(prev)) !== JSON.stringify(mealItem(item)) ||
-          prev.groupName !== groupNameValue;
+          prev.groupName !== groupNameValue ||
+          photosChanged;
         if (changed) await patchRecord(db, 'foodEntries', prev.id, next);
         continue;
       }
@@ -180,8 +251,7 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         aiAnalysisId: draft.aiAnalysisId ?? first.aiAnalysisId,
         groupId: first.groupId,
         groupName: groupNameValue,
-        photoId: first.photoId,
-        photoIds: first.photoIds ?? null,
+        ...photos,
       });
     }
     for (const e of entries) if (!kept.has(e.id)) await deleteRecord(db, 'foodEntries', e.id);
