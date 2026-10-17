@@ -85,11 +85,13 @@ import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
 import {
   discardQueueItem,
+  addQueuePhotos,
   enqueuePhotos,
   leaveAnalysis,
   loadQueueImages,
   processQueue,
   reanalyze,
+  removeQueuePhoto,
   retryQueueItem,
 } from './queue';
 import { useAiImages } from './useAiImage';
@@ -643,7 +645,14 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   const goals = useGoals();
   const result = item.result as AiAnalysisResult;
   const photos = useAiImages(item);
-  const image = photos?.[0]?.blob ?? null;
+  // Photos added after the analysis ("Neu") or removed since: only ↻ takes them into account. Items of
+  // older app versions have no record, then nothing counts as changed.
+  const analyzed = item.analyzedPhotoIds;
+  const photoIds = (photos ?? []).map((p) => p.id);
+  const fresh = analyzed ? photoIds.filter((id) => !analyzed.includes(id)) : [];
+  const dropped = analyzed ? analyzed.filter((id) => !photoIds.includes(id)) : [];
+  const photosChanged = photos !== undefined && (fresh.length > 0 || dropped.length > 0);
+  const [sheet, setSheet] = useState(false);
   const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
   const { rows, meal, mealName } = draft;
   const commit = (next: AiDraft) => {
@@ -801,15 +810,49 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         </>
       }
     >
-      <div className="relative mb-4 overflow-hidden rounded-2xl border border-border/70">
-        <MealPhoto
-          blob={image}
-          blobKey={`aiPhoto:${item.localId}:${photos?.[0]?.id}`}
+      <div className="mb-4 grid gap-1.5">
+        <PhotoStrip
+          photos={(photos ?? []).map((p) => ({
+            key: `aiPhoto:${item.localId}:${p.id}`,
+            blob: p.blob,
+            ...(fresh.includes(p.id) ? { badge: 'Neu' } : {}),
+            // The last photo stays; a not yet migrated one (id 0) has no row to remove.
+            removable: photos!.length > 1 && p.id !== 0,
+          }))}
           alt="Analysiertes Foto"
-          className="aspect-[4/3] w-full"
-        />
-        {busy && <AnalyzingOverlay />}
+          max={MAX_ANALYSIS_PHOTOS}
+          busy={busy}
+          addLabel="Fotos hinzufügen"
+          onAdd={() => {
+            warmUpCamera();
+            setSheet(true);
+          }}
+          onRemove={(key) => void removeQueuePhoto(db, Number(key.slice(key.lastIndexOf(':') + 1)))}
+        >
+          {busy && <AnalyzingOverlay />}
+        </PhotoStrip>
+        {photosChanged && !busy && (
+          <p className="text-sm text-muted-foreground text-pretty">
+            {fresh.length === 0
+              ? 'Fotos geändert. Tippe oben auf ↻, um neu zu analysieren.'
+              : `${fresh.length === 1 ? '1 Foto' : `${fresh.length} Fotos`} noch nicht analysiert. Tippe oben auf ↻, um neu zu analysieren.`}
+          </p>
+        )}
       </div>
+      {sheet && (
+        <PhotoCaptureSheet
+          title="Fotos hinzufügen"
+          max={MAX_ANALYSIS_PHOTOS - photoIds.length}
+          preset={IMAGE_PRESETS.analysis}
+          footerLabel={addLabel}
+          hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt`}
+          onSubmit={(blobs) => {
+            setSheet(false);
+            void addQueuePhotos(db, item.localId!, blobs);
+          }}
+          onClose={() => setSheet(false)}
+        />
+      )}
       <div className={cn('grid', busy && BUSY)} aria-busy={busy || undefined}>
         {result.notes && <p className="mb-4 rounded-xl bg-muted p-3 text-sm text-pretty">{result.notes}</p>}
         {rows.length === 0 && (
