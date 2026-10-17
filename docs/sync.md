@@ -25,14 +25,17 @@ Nicht synchronisiert werden Entwürfe auf dem Gerät: der Meal-Editor schreibt u
 `kv` (`mealDraft:<id>`, ein neues Foto als Bytes unter `mealDraftPhoto:<id>`, `apps/web/src/db/mealDraft.ts`).
 Erst „Speichern“ macht daraus einen normalen Schreibvorgang auf `meals` (und legt das Foto in `photos` an, das
 dann hochgeladen wird). Ein verworfener Entwurf hinterlässt so weder Outbox-Einträge noch verwaiste Fotos.
+Genauso der Gruppen-Editor im Tagebuch: `groupDraft:<id>`, neue Fotos als Bytes unter `groupDraftPhotos:<id>`;
+erst „Änderungen übernehmen“ legt sie in `photos` an und hängt sie an alle Einträge der Gruppe.
 
 Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
 hochladen können, z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal
 eingetragen wurden; das Tagebuch zeigt sie als eine Zeile), `foodEntries.groupName` (Name einer Gruppe
 ohne gespeichertes Meal, z. B. eine Foto-Analyse, die ohne Speichern mit „Meal eintragen“ eingetragen wurde; bei Meal-Gruppen bleibt es `null`,
 der Name kommt vom Meal), `foodEntries.photoId` (Foto der Gruppe, an jedem Eintrag der Gruppe gleich: das
-analysierte Foto oder das Meal-Foto beim Eintragen; die Tagebuchzeile zeigt es vor dem aktuellen Foto des Meals)
-und `exerciseEntries.note`.
+analysierte Foto oder das Meal-Foto beim Eintragen; die Tagebuchzeile zeigt es vor dem aktuellen Foto des Meals),
+`foodEntries.photoIds` (alle Fotos der Gruppe in Reihenfolge, z. B. Teller, Dessert und Nährwerttabelle einer
+Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`) und `exerciseEntries.note`.
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.
@@ -79,7 +82,7 @@ kein Background Sync, deshalb gibt es keinen Service-Worker-Sync.
 ## Fotos
 
 Meal-Fotos laufen nicht über den Datensatz-Sync, sondern über `PUT/GET /api/photos/:id` (Tabelle
-`photos`, nur für den Besitzer). Ein Meal verweist per `photoId` darauf. Fotos sind unveränderlich (ein
+`photos`, nur für den Besitzer). Ein Meal verweist per `photoId` darauf, Tagebuch-Gruppen per `photoIds`. Fotos sind unveränderlich (ein
 neues Foto bekommt eine neue ID), deshalb gibt es keine Konflikte und der Abruf ist dauerhaft cachebar.
 Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0/1, Bild als `bytes`/`type`, ältere
 Datensätze noch als `blob`); die `SyncEngine` lädt offene
@@ -91,7 +94,8 @@ Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
 - BLS-Katalog (kommt als statische Datei mit der App, ist für alle gleich)
 - Zwischenspeicher von Open-Food-Facts-Produkten (`foodCache`): „Kürzlich“/„Häufig“ werden aus dem
   Tagebuch abgeleitet und sind deshalb trotzdem auf allen Geräten gleich
-- Warteschlange der KI-Fotoanalyse (Fotos bleiben auf dem Gerät, bis sie analysiert sind)
+- Warteschlange der KI-Fotoanalyse (Fotos in `aiPhotos`, mehrere je Analyse, bleiben auf dem Gerät, bis
+  die Analyse eingetragen ist; erst dann kommen sie nach `photos`)
 
 ## Tests
 

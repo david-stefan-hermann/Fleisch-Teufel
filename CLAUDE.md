@@ -47,14 +47,17 @@ Serve the production web build through the API (same origin, service worker acti
   Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
   without meal (`groupName`, AI review "Meal eintragen" without saving, via `logAiItems`). `groupDiaryEntries` (shared) builds
   diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.
-  A group carries its photo on every entry (`photoId`: the analysed photo, or the meal photo at logging time); the
-  row shows it before the meal's current photo, and its own `groupName` before the meal name. The group row is a
+  A group carries its photos on every entry (`photoIds`: the analysed photos, or the meal photo at logging time;
+  `photoId` is always the first, read old records with `photoIdsOf`); the row shows the first before the meal's
+  current photo (with `PhotoCount` when there are several), and its own `groupName` before the meal name. The group row is a
   stretched link to the group editor; only "N Zutaten ⌄" (its own button above the link) expands the items.
 - Diary group editor: `/diary-group/$groupId?date=` (`features/diary/DiaryGroupPage.tsx`) changes only these
   entries, never the saved meal: name, amounts, total amount (`scaleItems`, shared with the meal editor), remove
   and add (`into=group:<id>`). Device draft in `db/groupDraft.ts` (`kv`); `saveGroupDraft` patches, soft-deletes
-  and adds entries of the same group. A name equal to the meal's stays `groupName: null`. A group with a photo
-  has ↻ "Neu analysieren" (dialog with an optional hint, one more Claude call, online only):
+  and adds entries of the same group. A name equal to the meal's stays `groupName: null`. The editor shows all
+  photos (`PhotoStrip`) and takes new ones ("Foto aufnehmen oder wählen", `PhotoCaptureSheet`): they wait as
+  bytes in `kv` (`groupDraftPhotos:<id>`, count as a change) and `saveGroupDraft` appends them to every entry. A
+  group with photos has ↻ "Neu analysieren" with all of them (dialog with an optional hint, one more Claude call, online only):
   `groupDraftFromAnalysis` replaces the ingredients of the draft like an unchanged review (first candidate, the
   model's grams; the name follows the dish unless the group has a saved meal), written only on "Änderungen
   übernehmen" with the new `aiAnalysisId`. `DiscardDialog apply`
@@ -73,8 +76,10 @@ Serve the production web build through the API (same origin, service worker acti
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` / `group:<groupId>` (its day is `date`) on `/add`,
   `/food/$foodId`, `/scan`, `/custom-food/$id` adds to a saved meal / AI review / diary group draft instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
-  The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, one more Claude call, asks first when
-  `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old result.
+  The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, all its photos, one more Claude call,
+  asks first when `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old
+  result. The review shows the photos as `PhotoStrip`; "+" adds more (`addQueuePhotos`), X removes one; photos not
+  in `analyzedPhotoIds` carry "Neu" and wait for ↻ (no automatic re-analysis).
 - Camera start: the taps that open `/photo` (add sheet tile, meal "+", search camera icon) call `warmUpCamera()`
   (`components/cameraWarmup.ts`) before navigating, so iOS starts the camera during the page change; the scanner
   takes the stream with `takeWarmStream()` (same `CAMERA_CONSTRAINTS`), an unused one stops after 3 s. The camera
@@ -87,7 +92,8 @@ Serve the production web build through the API (same origin, service worker acti
   E2E specs set the dismissed key so the banner stays out of the way.
 - Meal photos: `src/db/photos.ts` (device store + upload in `SyncEngine.push`), `components/MealPhoto.tsx`,
   API `routes/photos.ts`. Images in IndexedDB are `ArrayBuffer` + type (`photos.bytes`, AI queue photos in the
-  `aiImages` table via `features/ai/queue.ts`), never Blobs in records that get rewritten (WebKit breaks them).
+  `aiPhotos` table via `features/ai/queue.ts`, several per item, ordered by id; `aiImages` of Dexie v4 is only
+  migrated from), never Blobs in records that get rewritten (WebKit breaks them).
   Every image is compressed before it is stored or sent: `compressImage(blob, IMAGE_PRESETS.analysis | mealPhoto |
 label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter wins; size math in `fitSize`). Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
@@ -96,9 +102,13 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
   "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". `/photo` is the food page "Essen
   eintragen" (camera, barcode; header: bolt "Schnelleingabe" to `/quick-add` as a new page, then the magnifier to
-  `/add`; food page and search replace each other). A plate photo shows a preview (`PhotoPreview`) and goes
-  to the AI only on "Analysieren". The header back button in the preview drops the photo and shows the camera
-  again (`Page onBack`); browser or iOS swipe back leaves the page and loses the photo (accepted). The "+" of a diary meal links straight to `/photo` for that meal.
+  `/add`; food page and search replace each other). Plate photos show a preview (`PhotoPreview`: `PhotoStrip`,
+  "+" opens `PhotoCaptureSheet` for further plates, courses or a label, up to `MAX_ANALYSIS_PHOTOS`; the library
+  takes several files) and go to the AI only on "Analysieren (N Fotos)", in one call (`analyzePhotos`). The header
+  back button in the preview drops the photos and shows the camera again (`Page onBack`); browser or iOS swipe
+  back leaves the page and loses them (accepted). While the analysis runs, back goes to the diary and any way out
+  calls `leaveAnalysis`: the item becomes `deferred` and is logged by itself; the review opens only while the
+  person waits on the page (refs `waiting`/`gone` in `PhotoPage`, never navigate after an await otherwise). The "+" of a diary meal links straight to `/photo` for that meal.
 - Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
   meal or an AI review, "Änderungen übernehmen" when editing an entry.
 - Page primary action: `Page footer={<Button size="lg">…</Button>}` renders the sticky `PageFooter`. Saving for
@@ -136,14 +146,14 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`householdPortionsFor`: name words first, then the BLS group letter, drinks by unit ml; no cup for toast). Pass
   the food's `name` when there is no full `Food` (ingredient without a loaded food). Grams, the food's own and the
   user's portions are always offered, and `editorPortions` keeps the current portion of an older entry.
-- Photos waiting for analysis: a first analysis that had to wait for a connection gets `deferred` on its `aiQueue`
-  item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
+- Photos waiting for analysis: a first analysis that had to wait for a connection, was left on the photo page
+  (`leaveAnalysis`) or was cut off by closing the app gets `deferred` on its `aiQueue` item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
   (`usePendingAnalyses`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
   review). Swipe left discards it with undo (`takeQueueItem` / `restoreQueueItem`), a failed one has the text link
-  "Wiederholen" (`retryQueueItem`). Once analysed, `logDeferred` (`features/ai/queue.ts`) logs it as a normal group
-  with the photo (first candidate, the model's grams) and removes it from the queue; changes go through the diary
-  group editor. An analysis that ran right away still opens the review, and one without any usable item stays a
-  normal review.
+  "Wiederholen" (`retryQueueItem`). Once analysed, `logDeferred` (`features/ai/queue.ts`, only inside the
+  serialized queue run, so never twice) logs it as a normal group with all photos (first candidate, the model's
+  grams) and removes it from the queue; changes go through the diary group editor. An analysis the person waited
+  for still opens the review, and one without any usable item stays a normal review (toast: under "Analysen").
 - Diary rows of an AI analysis are always a group row (`groupDiaryEntries` keeps a single entry with
   `aiAnalysisId` as a group: name, photo, group editor); other groups with one entry left show as a plain entry.
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
@@ -171,7 +181,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`kcalFromMacrosEu`: 4/4/9 plus 2 kcal per g of fiber; the macro split everywhere stays 4/4/9) until typed over;
   kJ follow kcal, sodium follows salt, each editable and computing back. No mode is stored: on opening, kcal count
   as automatic when they match the formula to 0.5 kcal (`isAutoKcal`). All ten values are saved. Barcode scan via
-  `BarcodeScanSheet`, label photos via `LabelCaptureSheet` (both on `FullscreenOverlay`); a field filled from
+  `BarcodeScanSheet`, label photos via `LabelCaptureSheet` (barcode detection and the label call on top of the
+  generic `PhotoCaptureSheet`; both on `FullscreenOverlay`); a field filled from
   outside flashes with `.field-flash`. The barcode duplicate hint is informational only.
 - Charts: `src/components/Chart.tsx` (uPlot). One y-axis only; text uses ink tokens, never series colors.
   Macro colors were validated with the dataviz palette checker for light and dark. The plot is rebuilt only when

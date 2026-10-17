@@ -381,3 +381,20 @@ Abweichungen vom Plan melden statt still entscheiden.
 6. Foto-Seite: Vorschau mit mehreren Fotos, Verlassen während der Analyse, kein Auto-Öffnen (Abschnitt 6).
 7. Review mit Fotostreifen, „Neu“, ↻ (Abschnitt 7); `PendingAnalysisRow`/`QueueRow`.
 8. Gruppen-Editor mit Fotos und „+“ (Abschnitt 9), E2E-Specs, Doku (Abschnitt 10).
+
+## Umsetzung (2026-10-17)
+
+Umgesetzt in den Commits e54edc0 bis zum Doku-Commit, Blöcke wie oben. Abweichungen vom Plan:
+
+- `logAiMeal` hängt die Analyse-Fotos an (`photoIds`, das erste ist `photoId`) und nimmt das Meal-Foto nur, wenn
+  es keine gibt. Das Meal-Foto vorne anzustellen hätte dasselbe Bild doppelt im Streifen gezeigt (das Meal-Foto
+  ist eine Kopie des ersten Analyse-Fotos).
+- Gruppen-Editor ohne Foto: ein breiter Button „Foto aufnehmen oder wählen“ statt einer einzelnen „+“-Kachel
+  (eine Kachel ohne Bild daneben war nicht als Aktion zu erkennen).
+- Zusätzlich: eine erste Analyse, die durch Schließen der App abgebrochen wurde (Status „analyzing“ beim
+  nächsten Start), wird ebenfalls `deferred` und selbst eingetragen, wie beim Verlassen.
+- Die Vorschau komprimiert in der Seite (`addShots`), das Sheet dort ohne `preset`; Review und Gruppen-Editor
+  geben `IMAGE_PRESETS.analysis` ans Sheet.
+- E2E: `webkit-iphone` lief nicht, weil WebKit im Container nicht installiert ist (auch vor den Änderungen
+  rot); `chromium-iphone` komplett grün, neu: Verlassen während der Analyse (Pfeil und Browser-Zurück) und der
+  ganze Ablauf mit mehreren Fotos (Vorschau, Review, Gruppen-Editor, Upload).

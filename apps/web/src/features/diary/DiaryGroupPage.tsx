@@ -1,4 +1,11 @@
-import { sumNutrients, targetsForDate, type FoodEntry, type MealItem } from '@ft/shared';
+import {
+  MAX_ANALYSIS_PHOTOS,
+  photoIdsOf,
+  sumNutrients,
+  targetsForDate,
+  type FoodEntry,
+  type MealItem,
+} from '@ft/shared';
 import {
   useBlocker,
   useNavigate,
@@ -8,13 +15,15 @@ import {
   type ShouldBlockFn,
 } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Camera, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DiscardDialog } from '@/components/DiscardDialog';
-import { MealPhoto } from '@/components/MealPhoto';
+import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
+import { PhotoStrip } from '@/components/PhotoStrip';
+import { warmUpCamera } from '@/components/cameraWarmup';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -32,6 +41,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Slider } from '@/components/ui/slider';
 import {
+  addGroupDraftPhotos,
   clearGroupDraft,
   draftFromEntries,
   groupDraftFromAnalysis,
@@ -39,12 +49,15 @@ import {
   groupName,
   isGroupDirty,
   readGroupDraft,
+  readGroupDraftPhotos,
+  removeGroupDraftPhoto,
   saveGroupDraft,
   writeGroupDraft,
   type GroupDraft,
   type GroupDraftItem,
 } from '@/db/groupDraft';
 import { loadPhoto } from '@/db/photos';
+import { IMAGE_PRESETS } from '@/features/ai/image';
 import { analyzePhotos } from '@/features/ai/queue';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from '@/features/meals/IngredientCard';
 import { rememberFood } from '@/foods/foodService';
@@ -70,7 +83,8 @@ interface GroupData {
 /**
  * Editor of one diary group (entries logged together from a saved meal or an AI analysis), opened
  * by tapping its row in the diary: name, amounts per ingredient and in total, remove and add
- * ingredients. A group with a photo can be analysed again (↻, with an optional hint): the result
+ * ingredients. Photos can be added (saved with the draft, then on every entry of the group); a group
+ * with photos can be analysed again with all of them (↻, with an optional hint): the result
  * replaces the ingredients of the draft. It changes only these diary entries, never the saved meal. Nothing is written until
  * "Änderungen übernehmen"; the draft lives in `kv` (see `db/groupDraft.ts`) and leaving with changes
  * asks first.
@@ -139,7 +153,17 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
     setDraft({ ...draft, items: scaleItems(scaleBase, factor) });
   };
 
-  const dirty = isGroupDirty(draft, entries, data.name);
+  // Photos taken in this editor, saved with the draft (blobs built once per read, stable keys by `at`).
+  const draftPhotos =
+    useLiveQuery(
+      async () =>
+        (await readGroupDraftPhotos(db, draft.groupId)).map((p) => ({
+          at: p.at,
+          blob: new Blob([p.bytes], { type: p.type }),
+        })),
+      [db, draft.groupId],
+    ) ?? [];
+  const dirty = isGroupDirty(draft, entries, data.name) || draftPhotos.length > 0;
   const into = `group:${draft.groupId}`;
   // Set right before leaving after a save or delete: the entries still show the old state then.
   const leaving = useRef(false);
@@ -156,7 +180,15 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
   const name = draft.name.trim() || data.name;
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
   const targets = targetsForDate(goals ?? [], draft.date);
-  const photoId = first.photoId || meal?.photoId || null;
+  // The group's photos (an older group may only have the saved meal's photo), then the new ones.
+  const own = photoIdsOf(first);
+  const stored = own.length ? own : meal?.photoId ? [meal.photoId] : [];
+  const photoCount = stored.length + draftPhotos.length;
+  const [sheet, setSheet] = useState(false);
+  function openSheet() {
+    warmUpCamera();
+    setSheet(true);
+  }
   const back = () => void navigate({ to: '/', search: { date: draft.date }, ignoreBlocker: true });
 
   async function save(): Promise<boolean> {
@@ -189,7 +221,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
   // The hint the group's analysis was made with, fetched ahead so the dialog opens with it (best
   // effort, online only); null until the person or the server filled it.
   const [hint, setHint] = useState<string | null>(null);
-  const analysisId = photoId ? first.aiAnalysisId : null;
+  const analysisId = stored.length ? first.aiAnalysisId : null;
   useEffect(() => {
     if (!analysisId) return;
     let alive = true;
@@ -202,20 +234,22 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
     };
   }, [analysisId]);
 
-  /** "Neu analysieren": one more Claude call with the photo; the result goes into the draft only. */
+  /** "Neu analysieren": one more Claude call with all photos; the result goes into the draft only. */
   async function reanalyze() {
-    if (!photoId || busy) return;
+    if (photoCount === 0 || busy) return;
     setRedoOpen(false);
     setBusy(true);
     try {
-      const photo = await loadPhoto(db, photoId, (path, init) =>
-        fetch(path, { credentials: 'same-origin', ...init }),
-      );
-      if (!photo) {
+      const fetchFn = (path: string, init?: RequestInit) =>
+        fetch(path, { credentials: 'same-origin', ...init });
+      // A photo that cannot be loaded (deleted, another device offline) is left out.
+      const loaded = await Promise.all(stored.map((id) => loadPhoto(db, id, fetchFn).catch(() => null)));
+      const photos = [...loaded.filter((b) => b !== null), ...draftPhotos.map((p) => p.blob)];
+      if (photos.length === 0) {
         toast.error('Foto nicht mehr vorhanden');
         return;
       }
-      const result = await analyzePhotos([photo], hint ?? '');
+      const result = await analyzePhotos(photos, hint ?? '');
       const next = groupDraftFromAnalysis(draft, result, Boolean(first.mealId));
       if (!next) {
         toast.error('Kein Essen erkannt', { description: result.notes ?? undefined });
@@ -249,7 +283,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
       withTabBar={false}
       actions={
         <>
-          {photoId && (
+          {photoCount > 0 && (
             <Button
               variant="ghost"
               size="icon"
@@ -277,13 +311,48 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
         </Button>
       }
     >
-      {photoId && (
-        <Section>
-          <div className="relative">
-            <MealPhoto photoId={photoId} alt={`Foto von ${name}`} className="aspect-[4/3] w-full" />
+      {photoCount > 0 ? (
+        <div className="mb-4">
+          <PhotoStrip
+            photos={[
+              ...stored.map((id) => ({ key: id, photoId: id })),
+              ...draftPhotos.map((p) => ({
+                key: `group:${draft.groupId}:${p.at}`,
+                blob: p.blob,
+                badge: 'Neu',
+                removable: true,
+              })),
+            ]}
+            alt={`Foto von ${name}`}
+            max={MAX_ANALYSIS_PHOTOS}
+            busy={busy}
+            addLabel="Foto aufnehmen oder wählen"
+            onAdd={openSheet}
+            onRemove={(key) =>
+              void removeGroupDraftPhoto(db, draft.groupId, Number(key.slice(key.lastIndexOf(':') + 1)))
+            }
+          >
             {busy && <AnalyzingOverlay />}
-          </div>
-        </Section>
+          </PhotoStrip>
+        </div>
+      ) : (
+        <Button variant="outline" className="mb-4 w-full" onClick={openSheet}>
+          <Camera aria-hidden /> Foto aufnehmen oder wählen
+        </Button>
+      )}
+      {sheet && (
+        <PhotoCaptureSheet
+          title="Foto aufnehmen oder wählen"
+          max={MAX_ANALYSIS_PHOTOS - photoCount}
+          preset={IMAGE_PRESETS.analysis}
+          footerLabel={(n) => (n === 0 ? 'Übernehmen' : `Übernehmen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`)}
+          hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt. Gespeichert wird mit „Änderungen übernehmen“.`}
+          onSubmit={(blobs) => {
+            setSheet(false);
+            void addGroupDraftPhotos(db, draft.groupId, blobs);
+          }}
+          onClose={() => setSheet(false)}
+        />
       )}
       <div className={cn(busy && BUSY)} aria-busy={busy || undefined}>
         <Section>
@@ -361,8 +430,8 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
           <DialogHeader>
             <DialogTitle>Neu analysieren?</DialogTitle>
             <DialogDescription>
-              Die KI sieht sich das Foto noch einmal an. Ihr Ergebnis ersetzt die Zutaten dieses Eintrags;
-              geschrieben wird erst mit „Änderungen übernehmen“.
+              Die KI sieht sich {photoCount > 1 ? `die ${photoCount} Fotos` : 'das Foto'} noch einmal an. Ihr
+              Ergebnis ersetzt die Zutaten dieses Eintrags; geschrieben wird erst mit „Änderungen übernehmen“.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="gap-1.5">

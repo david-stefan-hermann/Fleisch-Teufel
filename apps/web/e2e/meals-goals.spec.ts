@@ -884,3 +884,132 @@ test('leaving during the analysis goes to the diary; the result is logged there,
   await expect(page).not.toHaveURL(/\/photo/);
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toHaveCount(0);
 });
+
+test('several photos: preview, review and diary group editor add photos, ↻ sends all of them', async ({
+  page,
+}) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  const sent: number[] = [];
+  await page.route('**/api/ai/analyze', (r) => {
+    sent.push(
+      (
+        r
+          .request()
+          .postDataBuffer()
+          ?.toString('latin1')
+          .match(/name="image"/g) ?? []
+      ).length,
+    );
+    return r.fulfill({
+      json: {
+        analysisId: `00000000-0000-7000-8000-00000000001${sent.length}`,
+        dishName: 'Schnitzel mit Tiramisu',
+        items: [
+          {
+            name: 'Schnitzel',
+            grams: 180,
+            confidence: 'high',
+            preparation: 'gebraten',
+            packaged: false,
+            searchTerms: [],
+            candidates: [
+              {
+                food: {
+                  id: 'bls:S',
+                  source: 'bls',
+                  sourceId: 'S',
+                  name: 'Schnitzel paniert',
+                  nameEn: null,
+                  brand: null,
+                  group: null,
+                  unit: 'g',
+                  nutrients: { ENERCC: 220, PROT625: 20 },
+                  portions: [],
+                },
+                score: 1,
+              },
+            ],
+          },
+        ],
+        notes: null,
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+      },
+    });
+  });
+  async function addInSheet(title: string, file: string) {
+    const sheet = page.getByRole('dialog', { name: title });
+    await expect(sheet).toBeVisible();
+    await sheet.locator('input[type=file]').setInputFiles(file);
+    await sheet.getByRole('button', { name: 'Übernehmen (1 Foto)' }).click();
+    await expect(sheet).toHaveCount(0);
+  }
+
+  // Preview: a second photo through "+", one call with both.
+  await page.goto('/photo?meal=1');
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Fotos hinzufügen' }).click();
+  await addInSheet('Fotos hinzufügen', 'public/pwa-512x512.png');
+  await page.getByRole('button', { name: 'Analysieren (2 Fotos)' }).click();
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+  expect(sent).toEqual([2]);
+  await expect(page.getByRole('button', { name: /^Foto \d anzeigen$/ })).toHaveCount(2);
+
+  // Review: a third photo waits as "Neu" until ↻.
+  await page.getByRole('button', { name: 'Fotos hinzufügen' }).click();
+  await addInSheet('Fotos hinzufügen', 'public/pwa-192x192.png');
+  await expect(
+    page.getByText('1 Foto noch nicht analysiert. Tippe oben auf ↻, um neu zu analysieren.'),
+  ).toBeVisible();
+  await expect(page.getByText('Neu', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Neu analysieren' }).click();
+  await expect.poll(() => sent).toEqual([2, 3]);
+  await expect(page.getByText('Neu', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Meal eintragen' }).click();
+
+  // Diary: one group row with three photos.
+  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+  await expect(lunch.getByLabel('3 Fotos')).toBeVisible();
+  await lunch.getByRole('link', { name: 'Schnitzel mit Tiramisu' }).click();
+
+  // Group editor: all photos, one more is kept as a draft and sent with ↻.
+  await expect(page.getByRole('button', { name: /^Foto \d anzeigen$/ })).toHaveCount(3);
+  await page.getByRole('button', { name: 'Foto aufnehmen oder wählen' }).click();
+  await addInSheet('Foto aufnehmen oder wählen', 'public/pwa-512x512.png');
+  await expect(page.getByRole('button', { name: /^Foto \d anzeigen$/ })).toHaveCount(4);
+  await page.getByRole('button', { name: 'Neu analysieren' }).click();
+  const redo = page.getByRole('dialog', { name: 'Neu analysieren?' });
+  await expect(redo).toContainText('die 4 Fotos');
+  await redo.getByRole('button', { name: 'Analysieren' }).click();
+  await expect.poll(() => sent).toEqual([2, 3, 4]);
+  await expect(page.getByText('Neu analysiert', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(lunch.getByLabel('4 Fotos')).toBeVisible();
+
+  // All four reach the server with the next sync.
+  await page
+    .getByRole('button', { name: /^Synchronisiert|^Sync/ })
+    .first()
+    .click();
+  await expect
+    .poll(async () =>
+      page.evaluate(async () => {
+        const dbs = await indexedDB.databases();
+        const name = dbs.find((d) => d.name?.startsWith('ft-user-'))!.name!;
+        const db = await new Promise<IDBDatabase>((resolve) => {
+          const req = indexedDB.open(name);
+          req.onsuccess = () => resolve(req.result);
+        });
+        const rows = await new Promise<{ uploaded: number }[]>((resolve) => {
+          const req = db.transaction('photos').objectStore('photos').getAll();
+          req.onsuccess = () => resolve(req.result as { uploaded: number }[]);
+        });
+        db.close();
+        return rows.filter((r) => r.uploaded === 1).length;
+      }),
+    )
+    .toBe(4);
+});
