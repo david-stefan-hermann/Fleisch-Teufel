@@ -544,6 +544,17 @@ describe('AI review: re-analyze with the hint', () => {
     expect(await d.photos.count()).toBe(2);
   });
 
+  it('logs a first analysis the app was closed during by itself', async () => {
+    const d = db();
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
+    // As left behind by a closed app: still "analyzing", no result.
+    await d.aiQueue.update(id, { status: 'analyzing' });
+    server(analysis('Nudeln', 250));
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.foodEntries.count()).toBe(1);
+  });
+
   it('logs an analysis left right after it finished', async () => {
     const d = db();
     server(analysis('Nudeln', 250));

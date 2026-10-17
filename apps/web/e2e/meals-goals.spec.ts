@@ -398,9 +398,9 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   // A picked gallery photo (no barcode in it) shows a preview first; nothing goes to the AI yet.
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toBeVisible();
-  await expect(page.getByText('Erst mit „Analysieren“ geht das Foto an Claude.')).toBeVisible();
-  // "Neu aufnehmen" drops it, so does back (the page stays).
-  await page.getByRole('button', { name: 'Neu aufnehmen' }).click();
+  await expect(page.getByText(/^Erst mit „Analysieren“ gehen die Fotos an Claude\./)).toBeVisible();
+  // The X of the only photo drops it, so does back (the page stays).
+  await page.getByRole('button', { name: 'Foto 1 entfernen' }).click();
   await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toHaveCount(0);
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await page.getByRole('button', { name: 'Zurück' }).click();
@@ -787,4 +787,100 @@ test('a photo taken offline shows in the diary right away and is logged once ana
   // Nothing is left to review on the food page.
   await page.goto('/photo?meal=1');
   await expect(page.getByRole('button', { name: /Lebensmittel erkannt/ })).toHaveCount(0);
+});
+
+test('leaving during the analysis goes to the diary; the result is logged there, the review never opens', async ({
+  page,
+}) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  const result = (dish: string) => ({
+    analysisId: '00000000-0000-7000-8000-000000000009',
+    dishName: dish,
+    items: [
+      {
+        name: dish,
+        grams: 200,
+        confidence: 'high',
+        preparation: null,
+        packaged: false,
+        searchTerms: [],
+        candidates: [
+          {
+            food: {
+              id: `bls:${dish}`,
+              source: 'bls',
+              sourceId: dish,
+              name: dish,
+              nameEn: null,
+              brand: null,
+              group: null,
+              unit: 'g',
+              nutrients: { ENERCC: 100, PROT625: 5 },
+              portions: [],
+            },
+            score: 1,
+          },
+        ],
+      },
+    ],
+    notes: null,
+    model: 'claude-opus-5-5',
+    usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+  });
+  // Each analysis waits until the test lets it answer.
+  const releases: (() => void)[] = [];
+  let photos = 0;
+  await page.route('**/api/ai/analyze', async (r) => {
+    photos = (
+      r
+        .request()
+        .postDataBuffer()
+        ?.toString('latin1')
+        .match(/name="image"/g) ?? []
+    ).length;
+    const dish = releases.length === 0 ? 'Linsensuppe' : 'Tomatensuppe';
+    await new Promise<void>((resolve) => releases.push(resolve));
+    await r.fulfill({ json: result(dish) });
+  });
+  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+
+  // 1. The back arrow: straight to the diary, the photo waits there as "Wird analysiert…".
+  await page.goto('/photo?meal=1');
+  await page
+    .locator('input[type=file]:not([capture])')
+    .setInputFiles(['public/pwa-192x192.png', 'public/pwa-512x512.png']);
+  await expect(page.getByRole('button', { name: 'Analysieren (2 Fotos)' })).toBeVisible();
+  await page.getByRole('button', { name: 'Analysieren (2 Fotos)' }).click();
+  await expect(
+    page.getByText('Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'),
+  ).toBeVisible();
+  await expect.poll(() => releases.length).toBe(1);
+  expect(photos).toBe(2);
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(/\/(\?date=.*)?$/);
+  const waiting = lunch.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
+  await expect(waiting).toContainText('Wird analysiert…');
+  await expect(waiting.getByLabel('2 Fotos')).toBeVisible();
+  releases[0]!();
+  await expect(page.getByText('„Linsensuppe“ analysiert und eingetragen')).toBeVisible();
+  await expect(lunch.getByText('Linsensuppe', { exact: true })).toBeVisible();
+  await expect(lunch.getByLabel('2 Fotos')).toBeVisible();
+  await expect(page).not.toHaveURL(/review=/);
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toHaveCount(0);
+
+  // 2. Browser back (the swipe on the iPhone) works the same; in the app, not a new page load.
+  await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo/);
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
+  await expect.poll(() => releases.length).toBe(2);
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/photo/);
+  releases[1]!();
+  await expect(page.getByText('„Tomatensuppe“ analysiert und eingetragen')).toBeVisible();
+  await expect(page).not.toHaveURL(/\/photo/);
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toHaveCount(0);
 });

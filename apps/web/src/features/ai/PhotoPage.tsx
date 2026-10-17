@@ -1,6 +1,7 @@
 import {
   computeItem,
   get,
+  MAX_ANALYSIS_PHOTOS,
   N,
   portionsFor,
   scaleNutrients,
@@ -39,10 +40,13 @@ import {
   type TorchState,
 } from '@/components/BarcodeScanner';
 import { AmountEditor, type Amount } from '@/components/AmountEditor';
-import { MealPhoto, PhotoCount, useObjectUrl } from '@/components/MealPhoto';
+import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
+import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
+import { PhotoStrip } from '@/components/PhotoStrip';
+import { warmUpCamera } from '@/components/cameraWarmup';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -82,6 +86,7 @@ import { compressImage, IMAGE_PRESETS } from './image';
 import {
   discardQueueItem,
   enqueuePhotos,
+  leaveAnalysis,
   loadQueueImages,
   processQueue,
   reanalyze,
@@ -89,10 +94,21 @@ import {
 } from './queue';
 import { useAiImages } from './useAiImage';
 
+/** A photo in the preview; `id` keeps its identity while photos are added and removed. */
+interface Shot {
+  id: number;
+  blob: Blob;
+}
+
+const addLabel = (n: number) => (n === 0 ? 'Übernehmen' : `Übernehmen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
+
 /**
  * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
- * for the same meal. A plate photo first shows a preview with the optional hint; only "Analysieren"
- * sends it to Claude. A finished analysis opens its review (`review` in the URL).
+ * for the same meal. Plate photos first show a preview with the optional hint, where more photos can
+ * be added (further plates, courses, a label); only "Analysieren" sends them to Claude, in one call.
+ * A finished analysis opens its review (`review` in the URL), but only while the person waits for it
+ * here: leaving during the analysis (back arrow, swipe, another page) goes to the diary, and the
+ * result is logged there by itself (`leaveAnalysis`).
  */
 export function PhotoPage() {
   const { date, meal, review } = useSearch({ from: '/authed/photo' });
@@ -105,9 +121,15 @@ export function PhotoPage() {
     void navigate({ search: (s) => ({ ...s, review: id ?? undefined }), replace: id === null });
   const activeId = review ?? null;
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
-  // Photo waiting for "Analysieren" (preview). Leaving the page drops it.
-  const [shot, setShot] = useState<Blob | null>(null);
+  // Photos waiting for "Analysieren" (preview), already compressed. Leaving the page drops them.
+  const [shots, setShots] = useState<Shot[]>([]);
+  const nextShot = useRef(1);
   const [analyzing, setAnalyzing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  // The queue item the preview waits for, and whether the page was left meanwhile. Both are read
+  // after awaits, where the component may be gone (state would be stale there).
+  const waiting = useRef<number | null>(null);
+  const gone = useRef(false);
 
   useEffect(() => {
     endpoints.aiStatus().then(
@@ -116,6 +138,77 @@ export function PhotoPage() {
     );
     void processQueue(db);
   }, [db]);
+
+  // Leaving the page while the analysis runs (swipe, browser back, a header link): it is logged by
+  // itself. StrictMode runs this cleanup once on mount, when nothing waits yet.
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+      const id = waiting.current;
+      waiting.current = null;
+      if (id !== null) void leaveAnalysis(db, id);
+    };
+  }, [db]);
+
+  /** Back arrow during the analysis: straight to the diary, the result is logged there. */
+  function leaveToDiary() {
+    const id = waiting.current;
+    waiting.current = null;
+    if (id !== null) void leaveAnalysis(db, id);
+    void navigate({ to: '/', search: { date } });
+  }
+
+  /** Compresses taken or picked photos and adds them to the preview. */
+  async function addShots(blobs: Blob[]) {
+    setAdding(true);
+    const added: Shot[] = [];
+    for (const blob of blobs) {
+      try {
+        added.push({ id: nextShot.current++, blob: await compressImage(blob, IMAGE_PRESETS.analysis) });
+      } catch {
+        toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
+      }
+    }
+    setAdding(false);
+    setShots((s) => [...s, ...added].slice(0, MAX_ANALYSIS_PHOTOS));
+  }
+
+  async function analyze(text: string) {
+    if (analyzing || shots.length === 0) return;
+    setAnalyzing(true);
+    try {
+      const id = await enqueuePhotos(
+        db,
+        { date, meal, text },
+        shots.map((s) => s.blob),
+      );
+      if (gone.current) return void leaveAnalysis(db, id);
+      waiting.current = id;
+      await processQueue(db);
+      // Left meanwhile (or handed over): never navigate from here any more.
+      if (waiting.current !== id) return;
+      waiting.current = null;
+      const item = await db.aiQueue.get(id);
+      if (item?.status === 'done' && !item.deferred) {
+        setShots([]);
+        return setActiveId(id);
+      }
+      if (item?.status === 'pending') {
+        // Offline: the photos are safe and already show in the diary; logged once analysed.
+        toast(
+          'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
+        );
+        return void navigate({ to: '/', search: { date } });
+      }
+      if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+      setShots([]);
+    } catch {
+      toast.error('Die Fotos konnten nicht gespeichert werden. Versuche es noch einmal.');
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   const active = queue?.find((q) => q.localId === activeId);
   // The review stays while a re-analysis runs; a new key once it is done loads the new rows.
@@ -132,6 +225,7 @@ export function PhotoPage() {
   }
 
   const mealName = settings?.mealNames[meal];
+  const preview = shots.length > 0;
   return (
     <Page
       title={
@@ -141,8 +235,9 @@ export function PhotoPage() {
         </>
       }
       back
-      // In the preview, back discards the photo and returns to the camera.
-      onBack={shot ? () => setShot(null) : undefined}
+      // In the preview, back drops the photos and returns to the camera; during the analysis it
+      // leaves for the diary.
+      onBack={analyzing ? leaveToDiary : preview ? () => setShots([]) : undefined}
       withTabBar={false}
       actions={
         <>
@@ -161,25 +256,30 @@ export function PhotoPage() {
         </>
       }
       footer={
-        shot ? (
-          <Button size="lg" form="photo-preview" type="submit" disabled={analyzing}>
-            Analysieren
+        preview ? (
+          <Button size="lg" form="photo-preview" type="submit" disabled={analyzing || adding}>
+            {analyzing ? (
+              <>
+                <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden /> Wird
+                analysiert…
+              </>
+            ) : shots.length > 1 ? (
+              `Analysieren (${shots.length} Fotos)`
+            ) : (
+              'Analysieren'
+            )}
           </Button>
         ) : undefined
       }
     >
-      {shot ? (
+      {preview ? (
         <PhotoPreview
-          shot={shot}
+          shots={shots}
           busy={analyzing}
-          onBusyChange={setAnalyzing}
-          date={date}
-          meal={meal}
-          onDiscard={() => setShot(null)}
-          onQueued={(id) => {
-            setShot(null);
-            setActiveId(id);
-          }}
+          adding={adding}
+          onAdd={(blobs) => void addShots(blobs)}
+          onRemove={(id) => setShots((s) => s.filter((x) => x.id !== id))}
+          onAnalyze={(text) => void analyze(text)}
         />
       ) : (
         <>
@@ -190,7 +290,8 @@ export function PhotoPage() {
             </p>
           )}
           <CameraCapture
-            onShot={setShot}
+            busy={adding}
+            onShots={(blobs) => void addShots(blobs)}
             onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code }, replace: true })}
           />
           {queue && queue.length > 0 && (
@@ -203,10 +304,11 @@ export function PhotoPage() {
             </Section>
           )}
           <p className="mt-4 text-xs text-muted-foreground text-pretty">
-            Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos zeigen erst eine Vorschau;
-            mit „Analysieren“ gehen sie an Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte
-            stammen immer aus dem BLS bzw. Open Food Facts; die KI schätzt nur, was und wie viel auf dem
-            Teller liegt (typisch ±20 bis 40&nbsp;%). Prüfe die Mengen vor dem Eintragen.
+            Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos zeigen erst eine Vorschau,
+            dort kannst du weitere Fotos hinzufügen (Dessert, Nährwerttabelle); mit „Analysieren“ gehen sie an
+            Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw.
+            Open Food Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20 bis
+            40&nbsp;%). Prüfe die Mengen vor dem Eintragen.
           </p>
         </>
       )}
@@ -215,57 +317,30 @@ export function PhotoPage() {
 }
 
 /**
- * A taken or picked photo before it goes to the AI: the optional hint can be added, "Analysieren"
- * (page footer, submits this form) queues and analyzes it, "Neu aufnehmen" drops it.
+ * Taken or picked photos before they go to the AI: the photo strip (X removes one, the last X goes
+ * back to the camera, "+" adds more through `PhotoCaptureSheet`) and the optional hint. "Analysieren"
+ * (page footer, submits this form) queues and analyzes them.
  */
 function PhotoPreview({
-  shot,
+  shots,
   busy,
-  onBusyChange: setBusy,
-  date,
-  meal,
-  onDiscard,
-  onQueued,
+  adding,
+  onAdd,
+  onRemove,
+  onAnalyze,
 }: {
-  shot: Blob;
+  shots: Shot[];
   /** Analysis running (state of the page: its footer button is disabled meanwhile). */
   busy: boolean;
-  onBusyChange: (busy: boolean) => void;
-  date: string;
-  meal: number;
-  onDiscard: () => void;
-  onQueued: (id: number) => void;
+  /** Photos being compressed. */
+  adding: boolean;
+  onAdd: (photos: Blob[]) => void;
+  onRemove: (id: number) => void;
+  onAnalyze: (text: string) => void;
 }) {
-  const db = useDb();
-  const navigate = useNavigate();
-  const url = useObjectUrl(shot);
   const [text, setText] = useState('');
-
-  async function analyze() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const compressed = await compressImage(shot, IMAGE_PRESETS.analysis);
-      const id = await enqueuePhotos(db, { date, meal, text }, [compressed]);
-      await processQueue(db);
-      const item = await db.aiQueue.get(id);
-      if (item?.status === 'done') return onQueued(id);
-      if (item?.status === 'pending') {
-        // Offline: the photo is safe and already shows in the diary; it is logged once analysed.
-        toast(
-          'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
-        );
-        return void navigate({ to: '/', search: { date } });
-      }
-      if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
-      onDiscard();
-    } catch {
-      toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
-      onDiscard();
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [sheet, setSheet] = useState(false);
+  const room = MAX_ANALYSIS_PHOTOS - shots.length;
 
   return (
     <form
@@ -273,22 +348,23 @@ function PhotoPreview({
       className="grid gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        void analyze();
+        onAnalyze(text);
       }}
     >
-      <div className="relative overflow-hidden rounded-2xl bg-black">
-        {url && <img src={url} alt="Aufgenommenes Foto" className="aspect-[3/4] w-full object-cover" />}
-        <Button
-          type="button"
-          variant="secondary"
-          className="absolute top-3 left-3 rounded-xl bg-black/55 text-white hover:bg-black/70"
-          disabled={busy}
-          onClick={onDiscard}
-        >
-          <RotateCcw aria-hidden /> Neu aufnehmen
-        </Button>
+      <PhotoStrip
+        photos={shots.map((s) => ({ key: `shot:${s.id}`, blob: s.blob, removable: true }))}
+        alt={shots.length > 1 ? 'Gewähltes Foto' : 'Aufgenommenes Foto'}
+        max={MAX_ANALYSIS_PHOTOS}
+        busy={busy || adding}
+        addLabel="Fotos hinzufügen"
+        onAdd={() => {
+          warmUpCamera();
+          setSheet(true);
+        }}
+        onRemove={(key) => onRemove(Number(key.slice('shot:'.length)))}
+      >
         {busy && <AnalyzingOverlay />}
-      </div>
+      </PhotoStrip>
       <div className="grid gap-1.5">
         <Label htmlFor="ai-text">Hinweis für die Analyse (optional)</Label>
         <Input
@@ -302,9 +378,24 @@ function PhotoPreview({
           aria-describedby="ai-text-hint"
         />
         <p id="ai-text-hint" className="text-xs text-muted-foreground">
-          Erst mit „Analysieren“ geht das Foto an Claude.
+          {busy
+            ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
+            : 'Erst mit „Analysieren“ gehen die Fotos an Claude. Mit + kommen weitere Teller, Gänge oder die Nährwerttabelle dazu.'}
         </p>
       </div>
+      {sheet && (
+        <PhotoCaptureSheet
+          title="Fotos hinzufügen"
+          max={room}
+          footerLabel={addLabel}
+          hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt`}
+          onSubmit={(photos) => {
+            setSheet(false);
+            onAdd(photos);
+          }}
+          onClose={() => setSheet(false)}
+        />
+      )}
     </form>
   );
 }
@@ -319,10 +410,13 @@ function PhotoPreview({
  * photo / choose file); no web API opens the photo library directly.
  */
 function CameraCapture({
-  onShot,
+  busy: adding,
+  onShots,
   onBarcode,
 }: {
-  onShot: (photo: Blob) => void;
+  /** Photos being prepared for the preview. */
+  busy: boolean;
+  onShots: (photos: Blob[]) => void;
   onBarcode: (code: string) => void;
 }) {
   const galleryInput = useRef<HTMLInputElement>(null);
@@ -351,17 +445,21 @@ function CameraCapture({
     const blob = await capture.current?.();
     if (!blob) return toast.error('Die Kamera liefert noch kein Bild.');
     navigator.vibrate?.(30);
-    onShot(blob);
+    onShots([blob]);
   }
 
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
-    // A photographed barcode skips the AI entirely and goes to the product lookup.
-    const code = await detectBarcodeInImage(file);
-    setBusy(false);
-    if (code) return onDetected(code);
-    onShot(file);
+  /** Picked photos: one with a barcode goes to the product lookup, several go to the preview together. */
+  async function pick(files: File[]) {
+    if (files.length === 0) return;
+    if (files.length > MAX_ANALYSIS_PHOTOS) toast(`Höchstens ${MAX_ANALYSIS_PHOTOS} Fotos.`);
+    if (files.length === 1) {
+      setBusy(true);
+      // A photographed barcode skips the AI entirely and goes to the product lookup.
+      const code = await detectBarcodeInImage(files[0]!);
+      setBusy(false);
+      if (code) return onDetected(code);
+    }
+    onShots(files.slice(0, MAX_ANALYSIS_PHOTOS));
   }
 
   const overlay = (
@@ -371,7 +469,7 @@ function CameraCapture({
         size="icon-lg"
         className="rounded-xl bg-black/55 text-white hover:bg-black/70"
         aria-label="Aus der Mediathek wählen"
-        disabled={busy}
+        disabled={busy || adding}
         onClick={() => galleryInput.current?.click()}
       >
         <Images className="size-6" aria-hidden />
@@ -379,7 +477,7 @@ function CameraCapture({
       <button
         type="button"
         aria-label="Foto aufnehmen"
-        disabled={busy || !camReady}
+        disabled={busy || adding || !camReady}
         onClick={() => void shoot()}
         className="grid size-[4.5rem] touch-manipulation place-items-center rounded-full border-4 border-white/90 bg-white/20 backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50 focus-visible:ring-[3px] focus-visible:ring-white/60 focus-visible:outline-none motion-reduce:transition-none"
       >
@@ -400,11 +498,12 @@ function CameraCapture({
         ref={galleryInput}
         type="file"
         accept="image/*"
+        multiple
         className="sr-only"
         tabIndex={-1}
         aria-hidden
         onChange={(e) => {
-          void pick(e.target.files?.[0]);
+          void pick([...(e.target.files ?? [])]);
           e.target.value = '';
         }}
       />
@@ -422,7 +521,7 @@ function CameraCapture({
             className="sr-only"
             tabIndex={-1}
             aria-hidden
-            onChange={(e) => void pick(e.target.files?.[0])}
+            onChange={(e) => void pick([...(e.target.files ?? [])])}
           />
           <div className="grid grid-cols-2 gap-3">
             <Button

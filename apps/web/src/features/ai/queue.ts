@@ -177,12 +177,15 @@ async function runQueue(db: UserDb): Promise<void> {
   await migrateLegacyImages(db);
   // Analysed but not logged yet (app closed in between).
   await logDeferred(db);
-  // Items stuck in "analyzing" (app closed mid-request) are retried.
+  // Items stuck in "analyzing" (app closed mid-request) are retried. Nobody waits on the photo page
+  // for a first analysis any more then: it is logged by itself, like one the person left.
   await db.aiQueue
     .where('localId')
     .above(0)
     .modify((i) => {
-      if (i.status === 'analyzing') i.status = 'pending';
+      if (i.status !== 'analyzing') return;
+      i.status = 'pending';
+      if (!i.result) i.deferred = true;
     });
   for (;;) {
     const item = (await db.aiQueue.toArray()).find((i) => i.status === 'pending');
