@@ -1,4 +1,4 @@
-import { indexItem, search, type AiItem } from '@ft/shared';
+import { indexItem, MAX_ANALYSIS_PHOTOS, search, type AiItem } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer, type LabelInput } from '../src/ai/analyze.js';
 import type { LabelReading } from '../src/ai/label.js';
@@ -102,9 +102,14 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 
-function photo(type = 'image/jpeg', bytes = 1000) {
+/** A meal analysis request: `count` photos (field `image` repeated), the last one `lastBytes` large. */
+function photo(type = 'image/jpeg', bytes = 1000, count = 1, lastBytes = bytes) {
   const form = new FormData();
-  form.set('image', new File([new Uint8Array(bytes)], 'meal.jpg', { type }));
+  for (let i = 0; i < count; i++)
+    form.append(
+      'image',
+      new File([new Uint8Array(i === count - 1 ? lastBytes : bytes)], `meal-${i + 1}.jpg`, { type }),
+    );
   form.set('text', 'mit etwas Öl gebraten');
   return form;
 }
@@ -222,7 +227,10 @@ describe('POST /api/ai/analyze', () => {
   it('analyzes a photo, matches candidates and logs usage', async () => {
     const r = await c.req('POST', '/api/ai/analyze', photo());
     expect(r.status).toBe(200);
-    expect(received.at(-1)).toMatchObject({ mediaType: 'image/jpeg', text: 'mit etwas Öl gebraten' });
+    expect(received.at(-1)).toMatchObject({
+      images: [{ mediaType: 'image/jpeg' }],
+      text: 'mit etwas Öl gebraten',
+    });
     expect(r.json.dishName).toBe('Hähnchen mit Nudeln');
     expect(r.json.items).toHaveLength(3);
     expect(r.json.items[0].candidates[0].food.id).toBe('bls:V411180');
@@ -391,6 +399,32 @@ describe('POST /api/ai/analyze', () => {
     expect((await c.get(path)).json).toEqual({ text: 'mit etwas Öl gebraten' });
     expect((await other.get(path)).status).toBe(404);
     expect((await c.get('/api/ai/analyses/x/hint')).status).toBe(404);
+  });
+
+  it('analyzes several photos of one meal in one call and keeps their number', async () => {
+    const r = await c.req('POST', '/api/ai/analyze', photo('image/jpeg', 1000, 3));
+    expect(r.status).toBe(200);
+    expect(received.at(-1)!.images.map((i) => i.mediaType)).toEqual([
+      'image/jpeg',
+      'image/jpeg',
+      'image/jpeg',
+    ]);
+    const [row] = await ctx.db.$client`select result from ai_analyses where id = ${r.json.analysisId}`;
+    expect(row!.result.photos).toBe(3);
+  });
+
+  it('refuses more photos than one analysis takes, and an oversized one among them', async () => {
+    const calls = received.length;
+    const tooMany = await c.req(
+      'POST',
+      '/api/ai/analyze',
+      photo('image/jpeg', 1000, MAX_ANALYSIS_PHOTOS + 1),
+    );
+    expect(tooMany.status).toBe(400);
+    expect(tooMany.json).toEqual({ error: 'too_many_images' });
+    const big = await c.req('POST', '/api/ai/analyze', photo('image/jpeg', 1000, 2, 5 * 1024 * 1024 + 1));
+    expect(big.status).toBe(413);
+    expect(received.length).toBe(calls);
   });
 
   it('validates the upload', async () => {

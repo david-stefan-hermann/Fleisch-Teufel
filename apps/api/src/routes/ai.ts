@@ -4,6 +4,7 @@ import {
   ESTIMATED_BRAND,
   ESTIMATED_ID_PREFIX,
   kcalFromMacrosEu,
+  MAX_ANALYSIS_PHOTOS,
   N,
   normalize,
   type AiAnalysisResult,
@@ -130,7 +131,10 @@ export function aiRoutes(deps: Deps) {
 
   app.post(
     '/analyze',
-    bodyLimit({ maxSize: 8 * 1024 * 1024, onError: (c) => c.json({ error: 'too_large' }, 413) }),
+    bodyLimit({
+      maxSize: MAX_ANALYSIS_PHOTOS * MAX_IMAGE_BYTES + 1024 * 1024,
+      onError: (c) => c.json({ error: 'too_large' }, 413),
+    }),
     async (c) => {
       if (!analyzer) return c.json({ error: 'ai_disabled' }, 503);
       const user = c.get('user');
@@ -142,20 +146,28 @@ export function aiRoutes(deps: Deps) {
       } catch {
         return c.json({ error: 'expected_multipart' }, 400);
       }
-      const image = form.get('image');
+      // One meal, one to MAX_ANALYSIS_PHOTOS photos (field `image` repeated, like the label reading).
+      const images = form.getAll('image');
       const text = typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, 1000) : null;
-      if (!(image instanceof File)) return c.json({ error: 'image_missing' }, 400);
-      const mediaType = image.type as ImageMediaType;
-      if (!MEDIA_TYPES.includes(mediaType)) return c.json({ error: 'unsupported_image_type' }, 415);
-      if (image.size > MAX_IMAGE_BYTES) return c.json({ error: 'too_large' }, 413);
+      if (images.length === 0 || !images.every((i) => i instanceof File))
+        return c.json({ error: 'image_missing' }, 400);
+      if (images.length > MAX_ANALYSIS_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
+      const files = images as File[];
+      if (!files.every((f) => MEDIA_TYPES.includes(f.type as ImageMediaType)))
+        return c.json({ error: 'unsupported_image_type' }, 415);
+      if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);
 
       const started = Date.now();
       try {
         const foodSearch = await createFoodSearch(deps, user.id);
         const out = await analyzer.analyze(
           {
-            imageBase64: Buffer.from(await image.arrayBuffer()).toString('base64'),
-            mediaType,
+            images: await Promise.all(
+              files.map(async (f) => ({
+                base64: Buffer.from(await f.arrayBuffer()).toString('base64'),
+                mediaType: f.type as ImageMediaType,
+              })),
+            ),
             text: text?.trim() || null,
           },
           foodSearch.search,
@@ -170,7 +182,8 @@ export function aiRoutes(deps: Deps) {
             outputTokens: out.usage.outputTokens,
             costUsd: out.usage.costUsd,
             durationMs: Date.now() - started,
-            result: { dishName: out.dishName, items: out.items, notes: out.notes },
+            // Only the number of photos is kept (no images), like the label reading.
+            result: { dishName: out.dishName, items: out.items, notes: out.notes, photos: files.length },
           })
           .returning({ id: aiAnalyses.id });
         const items = out.items.map((item, i) => ({
@@ -185,6 +198,7 @@ export function aiRoutes(deps: Deps) {
           ...out.usage,
           ms: Date.now() - started,
           rounds: out.rounds,
+          photos: files.length,
           items: items.length,
           chosen: out.items.filter((it) => it.foodId && foodSearch.seen.has(it.foodId)).length,
           estimated: items.filter((it) => it.candidates[0]?.food.estimated).length,

@@ -22,8 +22,8 @@ export const analysisSchema = z.object({
 export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 export interface AnalyzeInput {
-  imageBase64: string;
-  mediaType: ImageMediaType;
+  /** One to `MAX_ANALYSIS_PHOTOS` photos of one meal (plates, courses, a label), in order. */
+  images: { base64: string; mediaType: ImageMediaType }[];
   text: string | null;
 }
 
@@ -123,19 +123,23 @@ export function createClaudeAnalyzer(opts: {
         max_iterations: MAX_ANALYSIS_ROUNDS,
         ...modelParams,
         output_config: { ...effort, format: betaZodOutputFormat(analysisSchema) },
-        // The photo is sent again with every round; from the second one it is read from the cache.
+        // The photos are sent again with every round; from the second one they are read from the cache.
         cache_control: { type: 'ephemeral' },
         system: SYSTEM_PROMPT,
         tools: [searchTool],
         messages: [
           {
             role: 'user',
+            // Several photos get a label each, so the model can refer to them ("Foto 2").
             content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: input.mediaType, data: input.imageBase64 },
-              },
-              { type: 'text', text: userPrompt(input.text) },
+              ...input.images.flatMap((img, i) => [
+                ...(input.images.length > 1 ? [{ type: 'text' as const, text: `Foto ${i + 1}:` }] : []),
+                {
+                  type: 'image' as const,
+                  source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                },
+              ]),
+              { type: 'text', text: userPrompt(input.text, input.images.length) },
             ],
           },
         ],

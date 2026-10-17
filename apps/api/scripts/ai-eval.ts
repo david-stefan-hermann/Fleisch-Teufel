@@ -68,8 +68,7 @@ for (const t of truths) {
   const seen = new Map<string, Food>();
   const out = await analyzer.analyze(
     {
-      imageBase64: readFileSync(join(folder, t.file)).toString('base64'),
-      mediaType,
+      images: [{ base64: readFileSync(join(folder, t.file)).toString('base64'), mediaType }],
       text: t.text ?? null,
     },
     async (query) => {
