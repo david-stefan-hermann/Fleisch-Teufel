@@ -43,6 +43,13 @@
       "when": 1791726206107,
       "tag": "0005_ai-food-choices",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792261115502,
+      "tag": "0006_food-entry-photo-ids",
+      "breakpoints": true
     }
   ]
 }

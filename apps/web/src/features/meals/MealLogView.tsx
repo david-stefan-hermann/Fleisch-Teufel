@@ -72,7 +72,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
       db,
       kept,
       { date, meal: target },
-      { factor, mealId: meal.id, photoId: meal.photoId ?? null },
+      { factor, mealId: meal.id, photoIds: meal.photoId ? [meal.photoId] : null },
     );
     toast.success(`${meal.name}: ${fmtIngredients(n)} eingetragen`);
     await navigate({ to: '/', search: { date } });

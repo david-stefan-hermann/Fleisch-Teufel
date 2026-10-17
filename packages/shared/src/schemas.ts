@@ -181,6 +181,12 @@ export const foodEntrySchema = z.object({
    * Defaults to null for records from older app versions.
    */
   photoId: idSchema.nullable().default(null),
+  /**
+   * All photos of the group (`photos` ids) in the order they were analysed, the same on every entry of
+   * the group; `photoId` is always the first of them (thumbnail, and what older app versions read).
+   * Defaults to null for records from older app versions (then `photoId` alone, see `photoIdsOf`).
+   */
+  photoIds: z.array(idSchema).max(10).nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
 
@@ -381,6 +387,9 @@ export const aiItemSchema = z.object({
   estimate: aiEstimateSchema.nullable(),
 });
 export type AiItem = z.infer<typeof aiItemSchema>;
+
+/** Most photos one meal analysis takes (plates, courses, a label or ingredient list). */
+export const MAX_ANALYSIS_PHOTOS = 5;
 
 /** Id prefix of an estimated food (`est:<analysisId>:<index>`); such a food exists only in its analysis. */
 export const ESTIMATED_ID_PREFIX = 'est:';

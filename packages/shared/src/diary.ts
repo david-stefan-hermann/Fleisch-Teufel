@@ -4,6 +4,11 @@ import { MICRO_NUTRIENTS, N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, scaleNutrients, sumNutrients } from './nutrition.js';
 import type { ExerciseEntry, FoodEntry, Goal, MealItem, Settings } from './schemas.js';
 
+/** The photos of a diary group entry: `photoIds`, or the single `photoId` of an older record. */
+export function photoIdsOf(entry: Pick<FoodEntry, 'photoId'> & { photoIds?: string[] | null }): string[] {
+  return entry.photoIds ?? (entry.photoId ? [entry.photoId] : []);
+}
+
 /** Inputs for a logged item derived from a food + chosen portion. */
 export interface PortionChoice {
   per100: NutrientMap;

@@ -35,6 +35,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   groupId: null,
   groupName: null,
   photoId: null,
+  photoIds: null,
   ...over,
 });
 
@@ -131,8 +132,8 @@ describe('sync', () => {
           groupId: uuidv7(),
           groupName: 'Mittag vom Foto',
           aiAnalysisId: uuidv7(),
-          // The analysed photo, kept on every entry of the group.
-          photoId: uuidv7(),
+          // The analysed photos, kept on every entry of the group; photoId is the first.
+          ...((ids) => ({ photoId: ids[0]!, photoIds: ids }))([uuidv7(), uuidv7()]),
         }),
       },
       { table: 'settings', data: settings },
@@ -224,7 +225,7 @@ describe('sync', () => {
   });
 
   it('accepts records from older app versions without the newer optional fields', async () => {
-    const { groupId: _g, groupName: _n, photoId: _p, ...oldEntry } = entry({ groupId: null });
+    const { groupId: _g, groupName: _n, photoId: _p, photoIds: _ps, ...oldEntry } = entry({ groupId: null });
     const oldExercise = {
       id: uuidv7(),
       updatedAt: 7,
@@ -253,6 +254,7 @@ describe('sync', () => {
       groupId: null,
       groupName: null,
       photoId: null,
+      photoIds: null,
     });
     expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({ ...oldExercise, note: null });
   });

@@ -17,7 +17,7 @@ import { patchRecord, restoreRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<
   FoodEntry,
-  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId'
+  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId' | 'photoIds'
 >;
 
 /** Logs one food on a day (the food page). */
@@ -30,6 +30,7 @@ export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string)
     groupId: null,
     groupName: null,
     photoId: null,
+    photoIds: null,
   });
 }
 
@@ -69,7 +70,8 @@ export async function saveExerciseTemplate(
  * Logs items into a diary meal. With `mealId` (a saved meal) or `groupName` (a group without a
  * saved meal, e.g. an AI analysis logged with "Meal eintragen") all entries share one `groupId`,
  * so the diary shows them as one expandable row; `factor` scales every item (0.5 = half).
- * `photoId` goes on every entry of the group (the diary row shows it before the meal's photo).
+ * `photoIds` go on every entry of the group, the first also as `photoId` (the diary row shows it before
+ * the meal's photo).
  */
 export async function logItems(
   db: UserDb,
@@ -80,12 +82,14 @@ export async function logItems(
     mealId?: string | null;
     aiAnalysisId?: string | null;
     groupName?: string | null;
-    photoId?: string | null;
+    /** Photos of the group in order; the first becomes `photoId` (thumbnail). */
+    photoIds?: readonly string[] | null;
   } = {},
 ): Promise<number> {
   const factor = opts.factor ?? 1;
   const groupName = opts.groupName?.trim().slice(0, 120) || null;
   const groupId = opts.mealId || groupName ? uuidv7() : null;
+  const photoIds = groupId && opts.photoIds?.length ? [...opts.photoIds] : null;
   const now = Date.now();
   for (const [i, item] of items.entries()) {
     const scaled = factor === 1 ? item : rescaleItem(item, Math.round(item.quantity * factor * 1000) / 1000);
@@ -111,7 +115,8 @@ export async function logItems(
       aiAnalysisId: opts.aiAnalysisId ?? null,
       groupId,
       groupName,
-      photoId: groupId ? (opts.photoId ?? null) : null,
+      photoId: photoIds?.[0] ?? null,
+      photoIds,
     });
   }
   return items.length;
@@ -199,7 +204,7 @@ export async function logAiMeal(
   return logItems(db, mealItems, target, {
     mealId,
     aiAnalysisId: analysis.analysisId,
-    photoId: existing?.photoId ?? null,
+    photoIds: existing?.photoId ? [existing.photoId] : null,
   });
 }
 
@@ -221,7 +226,7 @@ export async function logAiItems(
   return logItems(db, aiMealItems(items), target, {
     groupName: name.trim() || 'Meal vom Foto',
     aiAnalysisId: analysis.analysisId,
-    photoId,
+    photoIds: photoId ? [photoId] : null,
   });
 }
 

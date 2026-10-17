@@ -158,6 +158,7 @@ export const foodEntries = pgTable(
     groupId: text(),
     groupName: text(),
     photoId: text(),
+    photoIds: jsonb().$type<string[]>(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );

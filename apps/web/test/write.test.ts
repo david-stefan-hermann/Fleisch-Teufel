@@ -382,13 +382,19 @@ describe('local writes', () => {
       per100: null,
       nutrients: { ENERCC: 2 },
     };
-    await logItems(d, [item, item], { date: '2026-10-07', meal: 0 }, { mealId: 'm1', photoId: 'p1' });
-    await logItems(d, [item], { date: '2026-10-07', meal: 1 }, { photoId: 'p2' });
+    await logItems(
+      d,
+      [item, item],
+      { date: '2026-10-07', meal: 0 },
+      { mealId: 'm1', photoIds: ['p1', 'p3'] },
+    );
+    await logItems(d, [item], { date: '2026-10-07', meal: 1 }, { photoIds: ['p2'] });
     const entries = await d.foodEntries.orderBy('loggedAt').toArray();
-    expect(entries.map((e) => [e.meal, e.photoId])).toEqual([
-      [0, 'p1'],
-      [0, 'p1'],
-      [1, null],
+    // Every entry of the group carries all photos; the first is also the thumbnail.
+    expect(entries.map((e) => [e.meal, e.photoId, e.photoIds])).toEqual([
+      [0, 'p1', ['p1', 'p3']],
+      [0, 'p1', ['p1', 'p3']],
+      [1, null, null],
     ]);
   });
 
@@ -550,7 +556,7 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
       d,
       items,
       { date: '2026-10-09', meal: 1 },
-      { mealId: 'm1', photoId: 'p1', aiAnalysisId: 'a1' },
+      { mealId: 'm1', photoIds: ['p1'], aiAnalysisId: 'a1' },
     );
     const entries = await groupEntries(
       d,
@@ -600,6 +606,7 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
       groupId,
       mealId: 'm1',
       photoId: 'p1',
+      photoIds: ['p1'],
       aiAnalysisId: 'a1',
       date: '2026-10-09',
       meal: 1,

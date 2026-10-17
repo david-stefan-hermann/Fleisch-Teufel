@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupDiaryEntries } from '../src/diary.js';
+import { groupDiaryEntries, photoIdsOf } from '../src/diary.js';
 import { recentTrainings } from '../src/exercise.js';
 import { exerciseEntrySchema, foodEntrySchema } from '../src/schemas.js';
 
@@ -25,6 +25,7 @@ const entry = (id: string, loggedAt: number, kcal: number, groupId: string | nul
   groupId,
   groupName: null as string | null,
   photoId: null as string | null,
+  photoIds: null as string[] | null,
 });
 
 describe('groupDiaryEntries', () => {
@@ -126,8 +127,19 @@ describe('recentTrainings', () => {
 });
 
 describe('schema defaults for older clients', () => {
-  it('fills groupId, groupName, photoId and note with null when missing', () => {
-    const { groupId: _omit, groupName: _name, photoId: _photo, ...old } = entry('x', 1, 10);
+  it('fills groupId, groupName, photoId, photoIds and note with null when missing', () => {
+    const {
+      groupId: _omit,
+      groupName: _name,
+      photoId: _photo,
+      photoIds: _photos,
+      ...old
+    } = entry('x', 1, 10);
+    expect(foodEntrySchema.parse(old).photoIds).toBeNull();
+    expect(foodEntrySchema.parse({ ...old, photoIds: ['p1', 'p2'] }).photoIds).toEqual(['p1', 'p2']);
+    expect(() =>
+      foodEntrySchema.parse({ ...old, photoIds: Array.from({ length: 11 }, (_, i) => `p${i}`) }),
+    ).toThrow();
     expect(foodEntrySchema.parse(old).groupId).toBeNull();
     expect(foodEntrySchema.parse(old).groupName).toBeNull();
     expect(foodEntrySchema.parse(old).photoId).toBeNull();
@@ -148,5 +160,14 @@ describe('schema defaults for older clients', () => {
       loggedAt: 1,
     });
     expect(ex.note).toBeNull();
+  });
+});
+
+describe('photoIdsOf', () => {
+  it('reads photoIds, else the single photoId of an older record', () => {
+    expect(photoIdsOf({ photoId: 'a', photoIds: ['a', 'b'] })).toEqual(['a', 'b']);
+    expect(photoIdsOf({ photoId: 'a', photoIds: null })).toEqual(['a']);
+    expect(photoIdsOf({ photoId: 'a' })).toEqual(['a']);
+    expect(photoIdsOf({ photoId: null, photoIds: null })).toEqual([]);
   });
 });

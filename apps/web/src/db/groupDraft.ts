@@ -181,6 +181,7 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         groupId: first.groupId,
         groupName: groupNameValue,
         photoId: first.photoId,
+        photoIds: first.photoIds ?? null,
       });
     }
     for (const e of entries) if (!kept.has(e.id)) await deleteRecord(db, 'foodEntries', e.id);

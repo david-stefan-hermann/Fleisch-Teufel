@@ -54,6 +54,7 @@ const entry = (over: Partial<FoodEntry> = {}): Omit<FoodEntry, 'updatedAt' | 'de
   groupId: null,
   groupName: null,
   photoId: null,
+  photoIds: null,
   ...over,
 });
 
