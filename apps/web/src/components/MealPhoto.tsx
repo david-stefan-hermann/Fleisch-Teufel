@@ -168,3 +168,19 @@ export function MealPhoto({
     </div>
   );
 }
+
+/**
+ * Number of photos in the corner of a thumbnail (diary rows of an analysis with several photos).
+ * Place it inside the thumbnail's `relative` box; nothing shows for one photo or none.
+ */
+export function PhotoCount({ count }: { count: number }) {
+  if (count < 2) return null;
+  return (
+    <span
+      aria-label={`${count} Fotos`}
+      className="tabular absolute -right-1 -bottom-1 grid h-4.5 min-w-4.5 place-items-center rounded-full bg-foreground px-1 text-[0.6875rem] leading-none font-semibold text-background ring-2 ring-card"
+    >
+      {count}
+    </span>
+  );
+}

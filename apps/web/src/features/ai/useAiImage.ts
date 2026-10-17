@@ -1,18 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useDb } from '@/app/session';
 import type { AiQueueItem } from '@/db/dexie';
-import { imageBlob } from './queue';
+import { loadQueuePhotos, type QueuePhoto } from './queue';
 
 /**
- * Photo of a queue item: the `aiImages` row (re-read only when that row changes, not on every
- * status change of the item), or the inline Blob of an item from an older app version.
- * `undefined` while loading, `null` when there is none.
+ * Photos of a queue item in order (`loadQueuePhotos`): re-read only when its photo rows change, not on
+ * every status change of the item. `undefined` while loading.
  */
-export function useAiImage(item: AiQueueItem): Blob | null | undefined {
+export function useAiImages(item: AiQueueItem): QueuePhoto[] | undefined {
   const db = useDb();
-  const legacy = item.image ?? null;
-  return useLiveQuery(async () => {
-    const row = item.localId !== undefined ? await db.aiImages.get(item.localId) : undefined;
-    return row ? imageBlob(row) : legacy;
-  }, [db, item.localId, legacy]);
+  const legacy = item.image;
+  const localId = item.localId;
+  return useLiveQuery(() => loadQueuePhotos(db, { localId, image: legacy }), [db, localId, legacy]);
 }

@@ -48,8 +48,8 @@ export interface AiQueueItem {
   meal: number;
   text: string;
   /**
-   * Legacy (app versions before Dexie v4): the photo inline as Blob. New items keep the bytes in
-   * `aiImages`; `migrateLegacyImages` moves old ones over. See `AiImage`.
+   * Legacy (app versions before Dexie v4): the photo inline as Blob. New items keep their photos in
+   * `aiPhotos`; `migrateLegacyImages` moves old ones over. See `AiPhoto`.
    */
   image?: Blob;
   /** pending → (analyzing) → done | failed; removed once saved to the diary or discarded. */
@@ -59,10 +59,16 @@ export interface AiQueueItem {
   /** Review state of a done analysis (rows edited/added by the user), kept across navigation. */
   draft?: AiDraft;
   /**
-   * The first analysis had to wait for a connection. Such a photo shows as a placeholder row in the
-   * diary and is logged by itself once analysed (`logDeferred`), without a review.
+   * The first analysis had to wait for a connection, or the person left the photo page while it ran
+   * (`leaveAnalysis`). Such an item shows as a placeholder row in the diary and is logged by itself
+   * once analysed (`logDeferred`), without a review.
    */
   deferred?: boolean;
+  /**
+   * `aiPhotos` ids that went into the current result. Photos added in the review after it are not in
+   * it (marked "Neu" until ↻). Missing on items from older app versions: then all count as analysed.
+   */
+  analyzedPhotoIds?: number[];
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */
@@ -108,6 +114,19 @@ export interface AiImage {
   type: string;
 }
 
+/**
+ * One photo of an AI queue item (Dexie v5): an analysis takes several (plates, courses, a label).
+ * Bytes like `AiImage`, ordered by `id`. Replaces `aiImages`, whose rows `migrateLegacyImages` moves here.
+ */
+export interface AiPhoto {
+  id?: number;
+  /** The queue item it belongs to. */
+  localId: number;
+  bytes: ArrayBuffer;
+  type: string;
+  createdAt: number;
+}
+
 export interface KvItem {
   key: string;
   value: unknown;
@@ -131,6 +150,7 @@ export class UserDb extends Dexie {
   kv!: EntityTable<KvItem, 'key'>;
   photos!: EntityTable<LocalPhoto, 'id'>;
   aiImages!: EntityTable<AiImage, 'localId'>;
+  aiPhotos!: EntityTable<AiPhoto, 'id'>;
 
   constructor(name: string, options?: ConstructorParameters<typeof Dexie>[1]) {
     super(name, options);
@@ -158,6 +178,9 @@ export class UserDb extends Dexie {
     // needs a non-IndexedDB promise, which would end the upgrade transaction; `migrateLegacyImages`
     // moves old queue photos at runtime instead. Meal photos keep their table (`bytes` needs no index).
     this.version(4).stores({ aiImages: 'localId' });
+    // v5: several photos per AI queue item. `aiImages` stays declared: its rows are moved over at runtime
+    // (`migrateLegacyImages`, same reason as v4 for no `.upgrade()`), then it stays empty.
+    this.version(5).stores({ aiPhotos: '++id, localId' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

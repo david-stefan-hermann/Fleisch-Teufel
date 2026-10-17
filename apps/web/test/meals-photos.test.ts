@@ -27,11 +27,17 @@ import {
 import { loadPhoto, photoBlob, storePhoto, uploadPendingPhotos } from '@/db/photos';
 import {
   discardQueueItem,
-  enqueuePhoto,
-  loadQueueImage,
+  addQueuePhotos,
+  enqueuePhotos,
+  leaveAnalysis,
+  loadQueueImages,
+  loadQueuePhotos,
   migrateLegacyImages,
   processQueue,
   reanalyze,
+  removeQueuePhoto,
+  restoreQueueItem,
+  takeQueueItem,
 } from '@/features/ai/queue';
 import { saveRecord } from '@/db/write';
 import { parseInto, formatInto, returnFromInto, rememberIntoStart } from '@/lib/into';
@@ -291,20 +297,51 @@ describe('AI queue photos', () => {
   const jpeg = () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 9])], { type: 'image/jpeg' });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('keeps the photo as bytes in aiImages, apart from the queue item', async () => {
+  it('keeps the photos as bytes in aiPhotos, apart from the queue item', async () => {
     const d = db();
-    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: 'halbe Portion' }, jpeg());
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: 'halbe Portion' }, [jpeg()]);
     const item = (await d.aiQueue.get(id))!;
     expect(item).toMatchObject({ status: 'pending', text: 'halbe Portion' });
     expect('image' in item).toBe(false);
-    const row = (await d.aiImages.get(id))!;
-    expect(isArrayBuffer(row.bytes)).toBe(true);
-    expect(row.type).toBe('image/jpeg');
+    const [row] = await d.aiPhotos.where('localId').equals(id).toArray();
+    expect(isArrayBuffer(row!.bytes)).toBe(true);
+    expect(row!.type).toBe('image/jpeg');
     // Rewriting the queue item (status, review draft) leaves the photo row alone.
     await d.aiQueue.update(id, { status: 'done' });
-    const image = await loadQueueImage(d, (await d.aiQueue.get(id))!);
+    const [image] = await loadQueueImages(d, (await d.aiQueue.get(id))!);
     expect(image).toMatchObject({ size: 4, type: 'image/jpeg' });
-    expect(await bytesOf(image)).toEqual([0xff, 0xd8, 0xff, 9]);
+    expect(await bytesOf(image!)).toEqual([0xff, 0xd8, 0xff, 9]);
+  });
+
+  it('keeps several photos in order; photos can be added and removed', async () => {
+    const d = db();
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [
+      legacyBlob([1]),
+      legacyBlob([2]),
+    ]);
+    await addQueuePhotos(d, id, [legacyBlob([3])]);
+    const item = (await d.aiQueue.get(id))!;
+    const photos = await loadQueuePhotos(d, item);
+    expect(await Promise.all(photos.map((p) => bytesOf(p.blob)))).toEqual([[1], [2], [3]]);
+    await removeQueuePhoto(d, photos[1]!.id);
+    expect(await Promise.all((await loadQueueImages(d, item)).map(bytesOf))).toEqual([[1], [3]]);
+  });
+
+  it('brings back a discarded item with all its photos (undo)', async () => {
+    const d = db();
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [
+      legacyBlob([1]),
+      legacyBlob([2]),
+    ]);
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const taken = (await takeQueueItem(d, id))!;
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.aiPhotos.count()).toBe(0);
+    await restoreQueueItem(d, taken);
+    const item = (await d.aiQueue.get(id))!;
+    expect(await Promise.all((await loadQueueImages(d, item)).map(bytesOf))).toEqual([[1], [2]]);
   });
 
   it('reads the inline photo of items from older app versions', async () => {
@@ -317,17 +354,38 @@ describe('AI queue photos', () => {
       image: legacyBlob([0xff, 0xd8, 0xff, 9]),
       status: 'done',
     })) as number;
-    expect(await bytesOf(await loadQueueImage(d, (await d.aiQueue.get(localId))!))).toEqual([
-      0xff, 0xd8, 0xff, 9,
-    ]);
+    const [image] = await loadQueueImages(d, (await d.aiQueue.get(localId))!);
+    expect(await bytesOf(image!)).toEqual([0xff, 0xd8, 0xff, 9]);
+  });
+
+  it('reads and moves the single photo of app version 4 (aiImages)', async () => {
+    const d = db();
+    const localId = (await d.aiQueue.add({
+      createdAt: 1,
+      date: '2026-10-07',
+      meal: 0,
+      text: '',
+      status: 'done',
+      result: { analysisId: 'a-old' } as AiAnalysisResult,
+    })) as number;
+    await d.aiImages.put({ localId, bytes: new Uint8Array([5, 6]).buffer, type: 'image/jpeg' });
+    // Readable before the migration ran (the diary may render first).
+    expect((await loadQueuePhotos(d, (await d.aiQueue.get(localId))!)).map((p) => p.id)).toEqual([0]);
+    await migrateLegacyImages(d);
+    expect(await d.aiImages.count()).toBe(0);
+    const item = (await d.aiQueue.get(localId))!;
+    const photos = await loadQueuePhotos(d, item);
+    expect(await bytesOf(photos[0]!.blob)).toEqual([5, 6]);
+    // A finished analysis counts its moved photo as analysed.
+    expect(item.analyzedPhotoIds).toEqual([photos[0]!.id]);
   });
 
   it('discards the item and its photo together', async () => {
     const d = db();
-    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
     await discardQueueItem(d, id);
     expect(await d.aiQueue.count()).toBe(0);
-    expect(await d.aiImages.count()).toBe(0);
+    expect(await d.aiPhotos.count()).toBe(0);
   });
 
   it('migrates inline photos once and removes orphaned ones', async () => {
@@ -341,15 +399,17 @@ describe('AI queue photos', () => {
       status: 'done',
     })) as number;
     await d.aiImages.put({ localId: 999, bytes: new ArrayBuffer(1), type: 'image/jpeg' });
+    await d.aiPhotos.add({ localId: 998, bytes: new ArrayBuffer(1), type: 'image/jpeg', createdAt: 1 });
     await migrateLegacyImages(d);
     const item = (await d.aiQueue.get(legacy))!;
     expect('image' in item).toBe(false);
     expect(item.status).toBe('done');
-    expect(await bytesOf(await loadQueueImage(d, item))).toEqual([0xff, 0xd8, 0xff, 9]);
-    expect(await d.aiImages.get(999)).toBeUndefined();
-    // Idempotent.
+    const [image] = await loadQueueImages(d, item);
+    expect(await bytesOf(image!)).toEqual([0xff, 0xd8, 0xff, 9]);
+    expect(await d.aiImages.count()).toBe(0);
+    // Idempotent; the orphans are gone.
     await migrateLegacyImages(d);
-    expect(await d.aiImages.count()).toBe(1);
+    expect(await d.aiPhotos.count()).toBe(1);
   });
 
   it('fails an unanalyzed item whose photo is gone instead of retrying forever', async () => {
@@ -394,16 +454,18 @@ describe('AI review: re-analyze with the hint', () => {
   /** Answers each analyze call with the next result; records the hints sent. */
   const server = (...answers: (AiAnalysisResult | Response)[]) => {
     const hints: string[] = [];
+    const images: number[] = [];
     const fetchFn = vi.fn(async (_path: string, init?: RequestInit) => {
       hints.push(String((init?.body as FormData).get('text') ?? ''));
+      images.push((init?.body as FormData).getAll('image').length);
       const next = answers.shift()!;
       return next instanceof Response ? next : new Response(JSON.stringify(next), { status: 200 });
     });
     vi.stubGlobal('fetch', fetchFn);
-    return { fetchFn, hints };
+    return { fetchFn, hints, images };
   };
   async function analyzed(d: UserDb) {
-    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: 'mit Butter' }, jpeg());
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: 'mit Butter' }, [jpeg()]);
     await processQueue(d);
     return id;
   }
@@ -436,6 +498,61 @@ describe('AI review: re-analyze with the hint', () => {
     expect(currentDraft(item).meal).toBe(2);
     // Only one queue item: the analysis is replaced, not duplicated.
     expect(await d.aiQueue.count()).toBe(1);
+  });
+
+  it('sends all photos, also ones added in the review, and records which went into the result', async () => {
+    const d = db();
+    const { images } = server(analysis('Schnitzel', 200), analysis('Schnitzel mit Tiramisu', 300));
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg(), jpeg()]);
+    await processQueue(d);
+    const first = (await d.aiQueue.get(id))!;
+    const ids = (await loadQueuePhotos(d, first)).map((p) => p.id);
+    expect(first.analyzedPhotoIds).toEqual(ids);
+    await addQueuePhotos(d, id, [jpeg()]);
+    // Added: not analysed until ↻.
+    const now = (await loadQueuePhotos(d, first)).map((p) => p.id);
+    expect(now.filter((p) => !first.analyzedPhotoIds!.includes(p))).toHaveLength(1);
+    expect(await reanalyze(d, id, '')).toBe('done');
+    expect(images).toEqual([2, 3]);
+    expect((await d.aiQueue.get(id))!.analyzedPhotoIds).toEqual(now);
+  });
+
+  it('logs an analysis the person left by itself, once, with all photos', async () => {
+    const d = db();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        await held;
+        return new Response(JSON.stringify(analysis('Nudeln', 250)), { status: 200 });
+      }),
+    );
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg(), jpeg()]);
+    const running = processQueue(d);
+    await vi.waitFor(async () => expect((await d.aiQueue.get(id))!.status).toBe('analyzing'));
+    // Back to the diary while it runs; twice, as an unmount cleanup and the back button may both call it.
+    await leaveAnalysis(d, id);
+    await leaveAnalysis(d, id);
+    release();
+    await running;
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    const entries = await d.foodEntries.toArray();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.photoIds).toHaveLength(2);
+    expect(await d.photos.count()).toBe(2);
+  });
+
+  it('logs an analysis left right after it finished', async () => {
+    const d = db();
+    server(analysis('Nudeln', 250));
+    const id = await analyzed(d);
+    expect((await d.aiQueue.get(id))!.status).toBe('done');
+    await leaveAnalysis(d, id);
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.foodEntries.count()).toBe(1);
   });
 
   it('keeps a review saved as a meal linked to it (with its name)', async () => {
@@ -490,7 +607,7 @@ describe('AI review: re-analyze with the hint', () => {
     vi.stubGlobal('fetch', async () => {
       throw new TypeError('Failed to fetch');
     });
-    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
     await processQueue(d);
     // Waiting: still in the queue (the diary shows it as a placeholder), nothing logged.
     expect(await d.aiQueue.get(id)).toMatchObject({ status: 'pending', deferred: true });
@@ -499,7 +616,7 @@ describe('AI review: re-analyze with the hint', () => {
     server(analysis('Nudeln', 250));
     await processQueue(d);
     expect(await d.aiQueue.count()).toBe(0);
-    expect(await d.aiImages.count()).toBe(0);
+    expect(await d.aiPhotos.count()).toBe(0);
     const entries = await d.foodEntries.toArray();
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
@@ -521,7 +638,7 @@ describe('AI review: re-analyze with the hint', () => {
     vi.stubGlobal('fetch', async () => {
       throw new TypeError('Failed to fetch');
     });
-    const id = await enqueuePhoto(d, { date: '2026-10-07', meal: 1, text: '' }, jpeg());
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
     await processQueue(d);
     server({ ...analysis('Nudeln', 250), items: [] });
     await processQueue(d);

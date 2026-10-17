@@ -213,8 +213,27 @@ describe('local writes', () => {
     expect(entries[0]!.groupId).toBeTruthy();
     // The name comes from the saved meal.
     expect(entries[0]!.groupName).toBeNull();
-    // The entry keeps the meal's photo of this moment.
+    // Without analysed photos the entry keeps the meal's photo of this moment.
     expect(entries[0]!.photoId).toBe(meal!.photoId);
+    expect(entries[0]!.photoIds).toEqual([meal!.photoId]);
+
+    // With the analysed photos the entries carry all of them (the meal keeps its one photo).
+    const side = new Blob([new Uint8Array([6])], { type: 'image/jpeg' });
+    await logAiMeal(
+      d,
+      mealId,
+      'Pommes rot-weiß',
+      [{ food, grams: 200 }],
+      { date: '2026-10-08', meal: 2 },
+      {
+        analysisId: 'a5',
+      },
+      [photo, side],
+    );
+    const [later] = await d.foodEntries.where('date').equals('2026-10-08').toArray();
+    expect(later!.photoIds).toHaveLength(2);
+    expect(later!.photoId).toBe(later!.photoIds![0]);
+    expect((await d.meals.get(mealId))!.photoId).toBe(meal!.photoId);
   });
 
   it('brings back a saved AI meal that was deleted before logging', async () => {
@@ -331,7 +350,7 @@ describe('local writes', () => {
     expect(row).toMatchObject({ kind: 'group', mealId: null, groupName: 'Bowl vom Foto' });
   });
 
-  it('keeps the analysed photo on every entry of an unsaved AI analysis', async () => {
+  it('keeps all analysed photos on every entry of an unsaved AI analysis', async () => {
     const d = db();
     const food = {
       id: 'bls:R',
@@ -346,6 +365,7 @@ describe('local writes', () => {
       portions: [],
     };
     const photo = new Blob([new Uint8Array([7, 8, 9])], { type: 'image/jpeg' });
+    const dessert = new Blob([new Uint8Array([4, 5])], { type: 'image/jpeg' });
     await logAiItems(
       d,
       'Köttbullar',
@@ -355,12 +375,17 @@ describe('local writes', () => {
       ],
       { date: '2026-10-09', meal: 2 },
       { analysisId: 'a4' },
-      photo,
+      [photo, dessert],
     );
     const entries = await d.foodEntries.toArray();
     const photoId = entries[0]!.photoId;
     expect(photoId).toBeTruthy();
     expect(entries.map((e) => e.photoId)).toEqual([photoId, photoId]);
+    const ids = entries[0]!.photoIds!;
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(photoId);
+    expect(entries[1]!.photoIds).toEqual(ids);
+    expect(new Uint8Array((await d.photos.get(ids[1]!))!.bytes!)).toEqual(new Uint8Array([4, 5]));
     // Stored on the device and queued for upload; still no saved meal.
     const stored = await d.photos.get(photoId!);
     expect(stored).toMatchObject({ type: 'image/jpeg', uploaded: 0 });

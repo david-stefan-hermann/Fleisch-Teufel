@@ -179,8 +179,8 @@ export async function createAiMeal(
 /**
  * "Meal eintragen" of an AI analysis that was saved as a meal: the meal first takes over the current
  * ingredients and name (it always matches what gets logged; a meal deleted meanwhile comes back),
- * then the items are logged as a group attached to it. The entries keep the meal's photo of this
- * moment, also when the meal gets another photo later. Returns the number of logged entries.
+ * then the items are logged as a group attached to it. The entries keep the analysed photos (stored
+ * and uploaded); without any, the meal's photo of this moment. Returns the number of logged entries.
  */
 export async function logAiMeal(
   db: UserDb,
@@ -189,6 +189,8 @@ export async function logAiMeal(
   items: AiItem[],
   target: { date: string; meal: number },
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
+  /** The analysed photos (already compressed by the AI queue), in order. */
+  photos: readonly Blob[] = [],
 ): Promise<number> {
   const mealItems = aiMealItems(items);
   const existing = await db.meals.get(mealId);
@@ -201,17 +203,18 @@ export async function logAiMeal(
       items: mealItems,
       photoId: null,
     });
+  const photoIds = await storePhotos(db, photos);
   return logItems(db, mealItems, target, {
     mealId,
     aiAnalysisId: analysis.analysisId,
-    photoIds: existing?.photoId ? [existing.photoId] : null,
+    photoIds: photoIds.length ? photoIds : existing?.photoId ? [existing.photoId] : null,
   });
 }
 
 /**
  * "Meal eintragen" of an AI analysis that was not saved: logs the confirmed items as one named group in the diary,
- * without a saved meal. The analysed photo is stored (and uploaded) and shown on the diary row.
- * Returns the number of logged entries.
+ * without a saved meal. The analysed photos are stored (and uploaded) and kept on every entry; the
+ * diary row shows the first. Returns the number of logged entries.
  */
 export async function logAiItems(
   db: UserDb,
@@ -219,15 +222,21 @@ export async function logAiItems(
   items: AiItem[],
   target: { date: string; meal: number },
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
-  /** The analysed photo (already compressed by the AI queue); null keeps the row without photo. */
-  photo: Blob | null = null,
+  /** The analysed photos (already compressed by the AI queue), in order; none keeps the row without photo. */
+  photos: readonly Blob[] = [],
 ): Promise<number> {
-  const photoId = photo ? await storePhoto(db, photo) : null;
   return logItems(db, aiMealItems(items), target, {
     groupName: name.trim() || 'Meal vom Foto',
     aiAnalysisId: analysis.analysisId,
-    photoIds: photoId ? [photoId] : null,
+    photoIds: await storePhotos(db, photos),
   });
+}
+
+/** Stores photos on the device (uploaded with the next sync) and returns their ids in order. */
+async function storePhotos(db: UserDb, photos: readonly Blob[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const p of photos) ids.push(await storePhoto(db, p));
+  return ids;
 }
 
 /** Diary entries as ingredients of a saved meal (only the item fields). */

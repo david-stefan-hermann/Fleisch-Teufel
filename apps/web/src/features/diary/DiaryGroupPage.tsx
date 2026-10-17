@@ -45,7 +45,7 @@ import {
   type GroupDraftItem,
 } from '@/db/groupDraft';
 import { loadPhoto } from '@/db/photos';
-import { analyzePhoto } from '@/features/ai/queue';
+import { analyzePhotos } from '@/features/ai/queue';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from '@/features/meals/IngredientCard';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals } from '@/hooks/data';
@@ -215,7 +215,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
         toast.error('Foto nicht mehr vorhanden');
         return;
       }
-      const result = await analyzePhoto(photo, hint ?? '');
+      const result = await analyzePhotos([photo], hint ?? '');
       const next = groupDraftFromAnalysis(draft, result, Boolean(first.mealId));
       if (!next) {
         toast.error('Kein Essen erkannt', { description: result.notes ?? undefined });

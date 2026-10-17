@@ -2,11 +2,11 @@ import { Link } from '@tanstack/react-router';
 import { LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { MealPhoto } from '@/components/MealPhoto';
+import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import type { AiQueueItem } from '@/db/dexie';
 import { restoreQueueItem, retryQueueItem, takeQueueItem } from '@/features/ai/queue';
-import { useAiImage } from '@/features/ai/useAiImage';
+import { useAiImages } from '@/features/ai/useAiImage';
 import { NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useDiaryDrag } from './DiaryDnd';
@@ -21,7 +21,8 @@ import { useDiaryDrag } from './DiaryDnd';
  */
 export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
   const db = useDb();
-  const image = useAiImage(item);
+  const photos = useAiImages(item);
+  const first = photos?.[0];
   const { dragging } = useDiaryDrag();
   const failed = item.status === 'failed';
   const name = item.text.trim() || 'Foto-Analyse';
@@ -45,11 +46,12 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
       <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
         <div className="relative size-12 shrink-0">
           <MealPhoto
-            blob={image}
-            blobKey={`ai:${item.localId}`}
+            blob={first?.blob ?? null}
+            blobKey={`aiPhoto:${item.localId}:${first?.id}`}
             alt=""
             className={cn('size-12 rounded-lg', item.status !== 'analyzing' && 'saturate-50')}
           />
+          <PhotoCount count={photos?.length ?? 0} />
           {item.status === 'analyzing' && (
             <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
               <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />

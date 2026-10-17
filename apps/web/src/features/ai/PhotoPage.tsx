@@ -39,7 +39,7 @@ import {
   type TorchState,
 } from '@/components/BarcodeScanner';
 import { AmountEditor, type Amount } from '@/components/AmountEditor';
-import { MealPhoto, useObjectUrl } from '@/components/MealPhoto';
+import { MealPhoto, PhotoCount, useObjectUrl } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
@@ -81,13 +81,13 @@ import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
 import {
   discardQueueItem,
-  enqueuePhoto,
-  loadQueueImage,
+  enqueuePhotos,
+  loadQueueImages,
   processQueue,
   reanalyze,
   retryQueueItem,
 } from './queue';
-import { useAiImage } from './useAiImage';
+import { useAiImages } from './useAiImage';
 
 /**
  * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
@@ -246,7 +246,7 @@ function PhotoPreview({
     setBusy(true);
     try {
       const compressed = await compressImage(shot, IMAGE_PRESETS.analysis);
-      const id = await enqueuePhoto(db, { date, meal, text }, compressed);
+      const id = await enqueuePhotos(db, { date, meal, text }, [compressed]);
       await processQueue(db);
       const item = await db.aiQueue.get(id);
       if (item?.status === 'done') return onQueued(id);
@@ -460,7 +460,8 @@ function CameraCapture({
 
 function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   const db = useDb();
-  const image = useAiImage(item);
+  const photos = useAiImages(item);
+  const first = photos?.[0];
   const label =
     item.status === 'pending'
       ? 'Wartet auf Verbindung'
@@ -472,7 +473,13 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   return (
     <li className="flex items-center gap-3 px-4 py-2">
       <div className="relative size-12 shrink-0">
-        <MealPhoto blob={image} blobKey={`ai:${item.localId}`} alt="" className="size-12 rounded-lg" />
+        <MealPhoto
+          blob={first?.blob ?? null}
+          blobKey={`aiPhoto:${item.localId}:${first?.id}`}
+          alt=""
+          className="size-12 rounded-lg"
+        />
+        <PhotoCount count={photos?.length ?? 0} />
         {item.status === 'analyzing' && (
           <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
             <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />
@@ -536,7 +543,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   const settings = useSettings();
   const goals = useGoals();
   const result = item.result as AiAnalysisResult;
-  const image = useAiImage(item);
+  const photos = useAiImages(item);
+  const image = photos?.[0]?.blob ?? null;
   const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
   const { rows, meal, mealName } = draft;
   const commit = (next: AiDraft) => {
@@ -611,7 +619,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     if (id) await patchRecord(db, 'meals', id, { name: newName });
     else {
       const items = resolved.map((r) => ({ food: r.food, grams: r.grams, portion: r.portion }));
-      id = await createAiMeal(db, newName, items, image ?? (await loadQueueImage(db, item)));
+      id = await createAiMeal(db, newName, items, (await loadQueueImages(db, item))[0] ?? null);
     }
     commit({ ...draft, mealName: newName, savedMealId: id });
     toast.success(`„${newName}“ gespeichert`);
@@ -624,9 +632,10 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   async function log() {
     const items = resolved.map((r) => ({ food: r.food, grams: r.grams, portion: r.portion }));
     const target = { date: item.date, meal };
-    if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result);
-    // Read before `discardQueueItem` drops the queue photo; `image` is undefined while still loading.
-    else await logAiItems(db, name, items, target, result, image ?? (await loadQueueImage(db, item)));
+    // Read before `discardQueueItem` drops the queue photos.
+    const images = await loadQueueImages(db, item);
+    if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result, images);
+    else await logAiItems(db, name, items, target, result, images);
     for (const r of resolved) await rememberFood(db, r.food);
     // Not awaited and allowed to fail (offline): the next analysis just does not know the choice.
     const choices = draftChoices(item, draft);
@@ -696,7 +705,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
       <div className="relative mb-4 overflow-hidden rounded-2xl border border-border/70">
         <MealPhoto
           blob={image}
-          blobKey={`ai:${item.localId}`}
+          blobKey={`aiPhoto:${item.localId}:${photos?.[0]?.id}`}
           alt="Analysiertes Foto"
           className="aspect-[4/3] w-full"
         />

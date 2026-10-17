@@ -1,10 +1,18 @@
-import { get, groupDiaryEntries, N, type FoodEntry, type ISODate, type NutrientMap } from '@ft/shared';
+import {
+  get,
+  groupDiaryEntries,
+  N,
+  photoIdsOf,
+  type FoodEntry,
+  type ISODate,
+  type NutrientMap,
+} from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { Camera, ChevronDown, ChevronRight, ListPlus, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { MealPhoto } from '@/components/MealPhoto';
+import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
@@ -318,7 +326,10 @@ function GroupRow({
         <SwipeToDelete label={`${name} löschen`} onDelete={() => onDelete(entries)} disabled={dragging}>
           <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
             {photoId && (
-              <MealPhoto photoId={photoId} alt="" className="size-10 shrink-0 rounded-lg" placeholder />
+              <div className="relative size-10 shrink-0">
+                <MealPhoto photoId={photoId} alt="" className="size-10 rounded-lg" placeholder />
+                <PhotoCount count={entries[0] ? photoIdsOf(entries[0]).length : 0} />
+              </div>
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 font-medium">
