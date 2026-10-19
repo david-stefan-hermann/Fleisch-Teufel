@@ -32,6 +32,19 @@ async function swipeLeft(page: Page, text: string) {
   await page.mouse.up();
 }
 
+/** Swipe to the right copies a diary row into the clipboard. */
+async function swipeRight(page: Page, target: string | ReturnType<Page['getByText']>) {
+  const row = typeof target === 'string' ? page.getByText(target, { exact: true }).first() : target;
+  await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const box = (await row.boundingBox())!;
+  const y = box.y + box.height / 2;
+  const x = box.x + 10;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const dx of [10, 40, 80, 120, 160]) await page.mouse.move(x + dx, y);
+  await page.mouse.up();
+}
+
 /** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
 async function saveDiaryMeal(page: Page, mealName: string, name: string) {
   await page.goto('/');
@@ -1012,4 +1025,81 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
       }),
     )
     .toBe(4);
+});
+
+test('clipboard: swipe right copies a diary row, paste into other meals and days, save as meal, clear', async ({
+  page,
+}) => {
+  await register(page);
+  await quickAdd(page, 0, 'Joghurt', '150');
+  await quickAdd(page, 0, 'Beeren', '50');
+  await saveDiaryMeal(page, 'Frühstück', 'Bowl');
+  // Log the saved meal into Mittagessen: one group row "Bowl".
+  await page.goto('/add?meal=1&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('button', { name: /kcal eintragen$/ }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  const bowlRows = page.getByRole('link', { name: 'Bowl', exact: true });
+  await expect(bowlRows).toHaveCount(1);
+
+  // Nothing copied yet: no paste icons, no clipboard in the header.
+  await expect(page.getByRole('button', { name: 'Zwischenablage' })).toHaveCount(0);
+
+  await swipeRight(page, bowlRows.first());
+  await expect(page.getByText('„Bowl“ kopiert')).toBeVisible();
+  // The swipe did not open the group editor.
+  await expect(page).not.toHaveURL(/diary-group/);
+  for (const meal of ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'])
+    await expect(page.getByRole('button', { name: `„Bowl“ in ${meal} eintragen` })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zwischenablage' })).toBeVisible();
+
+  // Paste into Abendessen, undo, paste again.
+  await page.getByRole('button', { name: '„Bowl“ in Abendessen eintragen' }).click();
+  await expect(page.getByText('„Bowl“ in Abendessen eingetragen')).toBeVisible();
+  await expect(bowlRows).toHaveCount(2);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(bowlRows).toHaveCount(1);
+  await page.getByRole('button', { name: '„Bowl“ in Abendessen eintragen' }).click();
+  await expect(bowlRows).toHaveCount(2);
+
+  // The clipboard survives a reload and stays filled after pasting: paste on the day before.
+  await page.reload();
+  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await page.getByRole('button', { name: '„Bowl“ in Frühstück eintragen' }).click();
+  await expect(bowlRows).toHaveCount(1);
+  await expect(page.getByRole('button', { name: '2 Zutaten von Bowl' })).toBeVisible();
+
+  // One ingredient of an expanded group copies only that ingredient, pasted as a plain entry.
+  await page.getByRole('button', { name: '2 Zutaten von Bowl' }).click();
+  await swipeRight(page, 'Beeren');
+  await expect(page.getByText('„Beeren“ kopiert')).toBeVisible();
+  await page.getByRole('button', { name: 'Zwischenablage' }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu.getByText('Beeren', { exact: true })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Als Meal speichern' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: '„Beeren“ in Snacks eintragen' }).click();
+  await expect(page.getByText('„Beeren“ in Snacks eingetragen')).toBeVisible();
+  await expect(page.getByRole('button', { name: '1 Zutat von Beeren' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /Beeren/ })).toHaveCount(2);
+
+  // Copy the group again and save it as a meal from the header menu.
+  await swipeRight(page, bowlRows.first());
+  await expect(page.getByText('„Bowl“ kopiert')).toBeVisible();
+  await page.getByRole('button', { name: 'Zwischenablage' }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await expect(dialog.getByLabel('Name')).toHaveValue('Bowl');
+  await dialog.getByLabel('Name').fill('Bowl Kopie');
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Bowl Kopie“ gespeichert')).toBeVisible();
+
+  // Clearing removes the paste icons and the header menu.
+  await page.getByRole('button', { name: 'Zwischenablage' }).click();
+  await page.getByRole('menuitem', { name: 'Zwischenablage leeren' }).click();
+  await expect(page.getByRole('button', { name: 'Zwischenablage' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^„Bowl“ in/ })).toHaveCount(0);
+
+  await page.goto('/meals');
+  await expect(page.getByText('Bowl Kopie', { exact: true })).toBeVisible();
 });

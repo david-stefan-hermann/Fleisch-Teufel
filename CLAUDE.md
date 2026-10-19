@@ -44,6 +44,13 @@ Serve the production web build through the API (same origin, service worker acti
 - Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast;
   `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
   (`/settings/trash`, `src/db/trash.ts`); there is no purge.
+  Diary rows (`EntryRow`, `GroupRow` in `features/diary/MealCard.tsx`) also swipe right (`onCopy`): that copies
+  into the device clipboard (`src/db/clipboard.ts`, `kv` key `clipboard`, not synced, one snapshot that stays
+  after pasting). A group keeps `mealId`/`groupName`/`aiAnalysisId`/`photoIds` (photo ids are shared, not
+  copied); a single entry or one ingredient of an expanded group pastes as a plain entry. While something is
+  copied each diary meal (and `/diary-meal`) shows `PasteButton` left of "+" (`pasteClipboard`, undo toast), and
+  the diary header shows `ClipboardMenu` left of the sync cloud: "Als Meal speichern" (groups only,
+  `saveMealFromItems`) and "Zwischenablage leeren". `logItems` returns the new entry ids.
   Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
   without meal (`groupName`, AI review "Meal eintragen" without saving, via `logAiItems`). `groupDiaryEntries` (shared) builds
   diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.

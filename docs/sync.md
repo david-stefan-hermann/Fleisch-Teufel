@@ -27,6 +27,9 @@ Erst „Speichern“ macht daraus einen normalen Schreibvorgang auf `meals` (und
 dann hochgeladen wird). Ein verworfener Entwurf hinterlässt so weder Outbox-Einträge noch verwaiste Fotos.
 Genauso der Gruppen-Editor im Tagebuch: `groupDraft:<id>`, neue Fotos als Bytes unter `groupDraftPhotos:<id>`;
 erst „Änderungen übernehmen“ legt sie in `photos` an und hängt sie an alle Einträge der Gruppe.
+Ebenfalls nur auf dem Gerät liegt die Zwischenablage des Tagebuchs (`kv`-Schlüssel `clipboard`,
+`apps/web/src/db/clipboard.ts`): eine Momentaufnahme der kopierten Zeile. Erst das Einfügen schreibt normale
+`foodEntries`; eine eingefügte Gruppe verweist auf dieselben Foto-Ids wie das Original (Fotos sind unveränderlich).
 
 Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
 hochladen können, z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal

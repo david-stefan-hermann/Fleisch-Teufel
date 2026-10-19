@@ -222,3 +222,16 @@ Abweichungen vom Plan melden statt still entscheiden. Keine Em- oder En-Dashes i
 3. Zeilen kopieren, Einfügen-Symbol in `MealCard` und `/diary-meal`, Toasts (Abschnitt 3).
 4. `ClipboardMenu` im Tagebuch-Kopf mit `NameDialog` und Leeren (Abschnitt 4).
 5. E2E-Test, Doku (Abschnitt 5).
+
+## Umsetzung (2026-10-19)
+
+Umgesetzt in den Commits 32d4ebe bis zum Doku-Commit, Blöcke wie oben. Abweichungen vom Plan:
+
+- Der Kopierbereich beim Wischen nach rechts ist **grau** (`bg-muted-foreground`), nicht blau und nicht
+  `bg-primary`: die Primärfarbe ist rot wie Löschen, und Blau (`--exercise`) ist laut CLAUDE.md die Trainingsfarbe.
+- `copyLabel` entfällt: der Kopierbereich ist kein Button (`aria-hidden`), ein Name wäre nirgends angekommen.
+- `logAiItems` und `logAiMeal` liefern weiter die Anzahl (nur `logItems` liefert Ids), damit ihre Aufrufer
+  unverändert bleiben.
+- `DropdownMenuItem` hat jetzt `min-h-11` (44 px Touch-Höhe).
+- E2E: neuer Test „clipboard: …“ in `meals-goals.spec.ts`; `chromium-iphone` komplett grün (32 Tests),
+  `webkit-iphone` läuft im Container weiter nicht.
