@@ -17,6 +17,7 @@ import {
 } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
 import { CalorieCard } from './CalorieCard';
+import { ClipboardMenu } from './ClipboardMenu';
 import { DiaryDnd } from './DiaryDnd';
 import { ExerciseCard } from './ExerciseCard';
 import { MealCard } from './MealCard';
@@ -80,7 +81,12 @@ export function DiaryPage() {
           </Button>
         </span>
       }
-      actions={<SyncIndicator />}
+      actions={
+        <>
+          {clipboard && <ClipboardMenu clipboard={clipboard} />}
+          <SyncIndicator />
+        </>
+      }
       headerExtra={<WeekStrip date={date} today={today} />}
     >
       {goals && goals.length === 0 && (
