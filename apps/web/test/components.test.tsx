@@ -750,6 +750,63 @@ describe('SwipeToDelete', () => {
   });
 });
 
+describe('SwipeToDelete with copy (swipe right)', () => {
+  const swipe = (el: Element, dx: number) => {
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 200, clientY: 100, button: 0, pointerType: 'touch' });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 200 + dx / 2, clientY: 100 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 200 + dx, clientY: 100 });
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 200 + dx, clientY: 100 });
+  };
+  const content = (el: Element) => el.closest<HTMLElement>('[data-slot=swipe-content]')!;
+
+  it('copies once beyond the threshold and springs back, without opening the row', () => {
+    let copied = 0;
+    let opened = 0;
+    let deleted = 0;
+    render(
+      <SwipeToDelete label="Kaffee löschen" onDelete={() => deleted++} onCopy={() => copied++}>
+        <button type="button" onClick={() => opened++}>
+          Kaffee
+        </button>
+      </SwipeToDelete>,
+    );
+    const row = screen.getByText('Kaffee');
+    swipe(row, 120);
+    fireEvent.click(row);
+    expect(copied).toBe(1);
+    expect(opened).toBe(0);
+    expect(content(row).style.transform).toBe('');
+    // A short swipe does nothing; left still reveals the delete button.
+    swipe(row, 20);
+    expect(copied).toBe(1);
+    swipe(row, -120);
+    expect(screen.getByLabelText('Kaffee löschen', { selector: 'button' }).tabIndex).toBe(0);
+    expect(deleted).toBe(0);
+  });
+
+  it('does not move right without onCopy, and ignores the gesture while disabled', () => {
+    let copied = 0;
+    const { rerender } = render(
+      <SwipeToDelete label="Kaffee löschen" onDelete={() => {}}>
+        <span>Kaffee</span>
+      </SwipeToDelete>,
+    );
+    const row = screen.getByText('Kaffee');
+    fireEvent.pointerDown(row, { pointerId: 1, clientX: 200, clientY: 100, button: 0 });
+    fireEvent.pointerMove(row, { pointerId: 1, clientX: 260, clientY: 100 });
+    fireEvent.pointerMove(row, { pointerId: 1, clientX: 320, clientY: 100 });
+    expect(content(row).style.transform).toBe('');
+    fireEvent.pointerUp(row, { pointerId: 1, clientX: 320, clientY: 100 });
+    rerender(
+      <SwipeToDelete label="Kaffee löschen" onDelete={() => {}} onCopy={() => copied++} disabled>
+        <span>Kaffee</span>
+      </SwipeToDelete>,
+    );
+    swipe(row, 120);
+    expect(copied).toBe(0);
+  });
+});
+
 describe('SwipeToDelete while disabled', () => {
   const swipe = (el: Element, dx: number) => {
     fireEvent.pointerDown(el, { pointerId: 1, clientX: 200, clientY: 100, button: 0, pointerType: 'touch' });
