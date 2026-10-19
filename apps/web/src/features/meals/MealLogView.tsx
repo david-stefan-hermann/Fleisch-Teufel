@@ -68,7 +68,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
   }
 
   async function log() {
-    const n = await logItems(
+    const { length: n } = await logItems(
       db,
       kept,
       { date, meal: target },

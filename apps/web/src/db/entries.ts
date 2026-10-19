@@ -71,7 +71,7 @@ export async function saveExerciseTemplate(
  * saved meal, e.g. an AI analysis logged with "Meal eintragen") all entries share one `groupId`,
  * so the diary shows them as one expandable row; `factor` scales every item (0.5 = half).
  * `photoIds` go on every entry of the group, the first also as `photoId` (the diary row shows it before
- * the meal's photo).
+ * the meal's photo). Returns the ids of the new entries, in order.
  */
 export async function logItems(
   db: UserDb,
@@ -85,13 +85,16 @@ export async function logItems(
     /** Photos of the group in order; the first becomes `photoId` (thumbnail). */
     photoIds?: readonly string[] | null;
   } = {},
-): Promise<number> {
+): Promise<string[]> {
   const factor = opts.factor ?? 1;
   const groupName = opts.groupName?.trim().slice(0, 120) || null;
   const groupId = opts.mealId || groupName ? uuidv7() : null;
   const photoIds = groupId && opts.photoIds?.length ? [...opts.photoIds] : null;
   const now = Date.now();
+  const ids: string[] = [];
   for (const [i, item] of items.entries()) {
+    const id = uuidv7();
+    ids.push(id);
     const scaled = factor === 1 ? item : rescaleItem(item, Math.round(item.quantity * factor * 1000) / 1000);
     const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
       scaled;
@@ -107,7 +110,7 @@ export async function logItems(
       quantity,
       per100,
       nutrients,
-      id: uuidv7(),
+      id,
       date: target.date,
       meal: target.meal,
       loggedAt: now + i,
@@ -119,7 +122,7 @@ export async function logItems(
       photoIds,
     });
   }
-  return items.length;
+  return ids;
 }
 
 /**
@@ -204,11 +207,12 @@ export async function logAiMeal(
       photoId: null,
     });
   const photoIds = await storePhotos(db, photos);
-  return logItems(db, mealItems, target, {
+  const ids = await logItems(db, mealItems, target, {
     mealId,
     aiAnalysisId: analysis.analysisId,
     photoIds: photoIds.length ? photoIds : existing?.photoId ? [existing.photoId] : null,
   });
+  return ids.length;
 }
 
 /**
@@ -225,11 +229,12 @@ export async function logAiItems(
   /** The analysed photos (already compressed by the AI queue), in order; none keeps the row without photo. */
   photos: readonly Blob[] = [],
 ): Promise<number> {
-  return logItems(db, aiMealItems(items), target, {
+  const ids = await logItems(db, aiMealItems(items), target, {
     groupName: name.trim() || 'Meal vom Foto',
     aiAnalysisId: analysis.analysisId,
     photoIds: await storePhotos(db, photos),
   });
+  return ids.length;
 }
 
 /** Stores photos on the device (uploaded with the next sync) and returns their ids in order. */
@@ -239,8 +244,8 @@ async function storePhotos(db: UserDb, photos: readonly Blob[]): Promise<string[
   return ids;
 }
 
-/** Diary entries as ingredients of a saved meal (only the item fields). */
-export function entriesToMealItems(entries: readonly FoodEntry[]): MealItem[] {
+/** Diary entries (or items) as ingredients of a saved meal (only the item fields). */
+export function entriesToMealItems(entries: readonly MealItem[]): MealItem[] {
   return entries.map(
     ({ foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients }) => ({
       foodId,
@@ -263,12 +268,25 @@ export async function saveMealFromEntries(
   name: string,
   entries: readonly FoodEntry[],
 ): Promise<string> {
+  return saveMealFromItems(db, name, entriesToMealItems(entries), null);
+}
+
+/**
+ * Saves items as a reusable meal with an optional photo (an existing photo id, shared, not copied);
+ * returns its id. Used by "Als Meal speichern" of the diary meal page and of the clipboard.
+ */
+export async function saveMealFromItems(
+  db: UserDb,
+  name: string,
+  items: readonly MealItem[],
+  photoId: string | null,
+): Promise<string> {
   const id = uuidv7();
   await saveRecord(db, 'meals', {
     id,
     name: name.trim().slice(0, 120),
-    items: entriesToMealItems(entries),
-    photoId: null,
+    items: entriesToMealItems(items),
+    photoId,
   });
   return id;
 }

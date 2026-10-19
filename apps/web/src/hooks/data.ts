@@ -15,6 +15,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
+import { readClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -157,4 +158,10 @@ export function useMealInfo(
     const list = key ? await db.meals.bulkGet(key.split(',')) : [];
     return new Map(list.filter((m) => !!m).map((m) => [m.id, { name: m.name, photoId: m.photoId ?? null }]));
   }, [db, key]);
+}
+
+/** The diary clipboard on this device (`db/clipboard.ts`); null when empty, undefined while loading. */
+export function useClipboard(): Clipboard | null | undefined {
+  const db = useDb();
+  return useLiveQuery(() => readClipboard(db), [db]);
 }
