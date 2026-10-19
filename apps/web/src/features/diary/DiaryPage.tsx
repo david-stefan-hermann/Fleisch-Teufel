@@ -6,6 +6,7 @@ import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  useClipboard,
   useDayEntries,
   useDayExercises,
   useDaySummary,
@@ -30,6 +31,7 @@ export function DiaryPage() {
   const entries = useDayEntries(date);
   const exercises = useDayExercises(date);
   const pending = usePendingAnalyses(date);
+  const clipboard = useClipboard();
   const settings = useSettings();
   const goals = useGoals();
   const navigate = useNavigate();
@@ -115,6 +117,7 @@ export function DiaryPage() {
                 entries={entries.filter((e) => e.meal === m)}
                 totals={summary.perMeal[m] ?? {}}
                 pending={pending?.filter((p) => p.meal === m)}
+                clipboard={clipboard ?? null}
               />
             ))}
           </DiaryDnd>

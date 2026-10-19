@@ -8,7 +8,7 @@ import {
   type NutrientMap,
 } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
-import { Camera, ChevronDown, ChevronRight, ListPlus, Plus } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, ClipboardPaste, ListPlus, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -16,6 +16,7 @@ import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
+import { copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem, UserDb } from '@/db/dexie';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
@@ -44,6 +45,7 @@ export function MealCard({
   entries,
   totals,
   pending = [],
+  clipboard = null,
 }: {
   date: ISODate;
   meal: number;
@@ -52,7 +54,10 @@ export function MealCard({
   totals: NutrientMap;
   /** Photos of this meal that are not analysed yet (placeholder rows below the entries). */
   pending?: AiQueueItem[];
+  /** What was copied (swipe right); shows the paste icon next to "+". */
+  clipboard?: Clipboard | null;
 }) {
+  const db = useDb();
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
   const kcal = get(totals, N.kcal);
 
@@ -82,18 +87,21 @@ export function MealCard({
         </Link>
       }
       action={
-        // At a meal only food makes sense: straight to the food page for this meal.
-        <Button variant="ghost" size="icon" asChild>
-          <Link
-            to="/photo"
-            preload="intent"
-            onClick={warmUpCamera}
-            search={{ date, meal }}
-            aria-label={`Essen zu ${name} eintragen`}
-          >
-            <Plus className="size-5 text-primary" aria-hidden />
-          </Link>
-        </Button>
+        <div className="flex items-center">
+          {clipboard && <PasteButton db={db} clipboard={clipboard} date={date} meal={meal} mealName={name} />}
+          {/* At a meal only food makes sense: straight to the food page for this meal. */}
+          <Button variant="ghost" size="icon" asChild>
+            <Link
+              to="/photo"
+              preload="intent"
+              onClick={warmUpCamera}
+              search={{ date, meal }}
+              aria-label={`Essen zu ${name} eintragen`}
+            >
+              <Plus className="size-5 text-primary" aria-hidden />
+            </Link>
+          </Button>
+        </div>
       }
     >
       {entries.length === 0 && pending.length === 0 ? (
@@ -127,6 +135,62 @@ export function MealCard({
       )}
     </Section>
   );
+}
+
+/** Paste icon of a diary meal: logs what was copied into this meal of the day. */
+export function PasteButton({
+  db,
+  clipboard,
+  date,
+  meal,
+  mealName,
+  iconClassName = 'size-5',
+}: {
+  db: UserDb;
+  clipboard: Clipboard;
+  date: ISODate;
+  meal: number;
+  mealName: string;
+  /** Icon size: 20 px in a card header; page headers pass '' and get their 24 px. */
+  iconClassName?: string;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={`„${clipboard.name}“ in ${mealName} eintragen`}
+      onClick={() => void pasteWithToast(db, clipboard, { date, meal }, mealName)}
+    >
+      <ClipboardPaste className={cn(iconClassName, 'text-primary')} aria-hidden />
+    </Button>
+  );
+}
+
+/** Copies a diary row (swipe right) and says so; replaces what was copied before. */
+async function copyWithToast(
+  db: UserDb,
+  kind: Clipboard['kind'],
+  name: string,
+  entries: readonly FoodEntry[],
+): Promise<void> {
+  await copyToClipboard(db, kind, name, entries);
+  toast(`„${name}“ kopiert`, { description: 'Zum Eintragen auf das Einfügen-Symbol einer Mahlzeit tippen.' });
+}
+
+/** Logs the clipboard into a diary meal, with an undo toast. */
+export async function pasteWithToast(
+  db: UserDb,
+  clip: Clipboard,
+  target: { date: ISODate; meal: number },
+  mealName: string,
+): Promise<void> {
+  const ids = await pasteClipboard(db, clip, target);
+  toast(`„${clip.name}“ in ${mealName} eingetragen`, {
+    action: {
+      label: 'Rückgängig',
+      onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'foodEntries', id))),
+    },
+  });
 }
 
 /** Soft-deletes diary entries with an undo toast. */
@@ -180,6 +244,7 @@ export function DiaryRows({
                 date={date}
                 meal={meal}
                 onDelete={() => void removeEntriesWithUndo(db, [row.entry])}
+                onCopy={() => void copyWithToast(db, 'entry', row.entry.name, [row.entry])}
               />
             </MaybeDraggable>
           </li>
@@ -197,6 +262,7 @@ export function DiaryRows({
               meal={meal}
               draggable={draggable}
               onDelete={(list) => void removeEntriesWithUndo(db, list)}
+              onCopy={(kind, label, list) => void copyWithToast(db, kind, label, list)}
             />
           </li>
         ),
@@ -229,17 +295,20 @@ function EntryRow({
   date,
   meal,
   onDelete,
+  onCopy,
   className,
 }: {
   entry: FoodEntry;
   date: ISODate;
   meal: number;
   onDelete: () => void;
+  /** Swipe right: copy this entry (also an ingredient of an expanded group, then only it). */
+  onCopy: () => void;
   className?: string;
 }) {
   const { dragging } = useDiaryDrag();
   return (
-    <SwipeToDelete label={`${e.name} löschen`} onDelete={onDelete} disabled={dragging}>
+    <SwipeToDelete label={`${e.name} löschen`} onDelete={onDelete} onCopy={onCopy} disabled={dragging}>
       <Link
         to={e.source === 'quick' ? '/quick-add' : '/entry/$entryId'}
         params={{ entryId: e.id }}
@@ -290,6 +359,7 @@ function GroupRow({
   meal,
   draggable,
   onDelete,
+  onCopy,
 }: {
   groupId: string;
   name: string;
@@ -300,6 +370,7 @@ function GroupRow({
   meal: number;
   draggable: boolean;
   onDelete: (entries: FoodEntry[]) => void;
+  onCopy: (kind: Clipboard['kind'], name: string, entries: FoodEntry[]) => void;
 }) {
   const [expanded, setExpanded] = useState(() => readExpanded().has(groupId));
   const { dragging } = useDiaryDrag();
@@ -323,7 +394,12 @@ function GroupRow({
           nutrients,
         }}
       >
-        <SwipeToDelete label={`${name} löschen`} onDelete={() => onDelete(entries)} disabled={dragging}>
+        <SwipeToDelete
+          label={`${name} löschen`}
+          onDelete={() => onDelete(entries)}
+          onCopy={() => onCopy('group', name, entries)}
+          disabled={dragging}
+        >
           <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
             {photoId && (
               <div className="relative size-10 shrink-0">
@@ -386,6 +462,7 @@ function GroupRow({
                 date={date}
                 meal={meal}
                 onDelete={() => onDelete([e])}
+                onCopy={() => onCopy('entry', e.name, [e])}
                 className="min-h-12 pl-10 text-sm"
               />
             </li>

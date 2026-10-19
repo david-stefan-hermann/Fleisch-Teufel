@@ -10,16 +10,17 @@ import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useGoals, useSettings, useToday } from '@/hooks/data';
+import { useClipboard, useGoals, useSettings, useToday } from '@/hooks/data';
 import { saveMealFromEntries } from '@/db/entries';
 import { fmt0, fmtDate, fmtRelativeDay } from '@/lib/format';
-import { DiaryRows } from './MealCard';
+import { DiaryRows, PasteButton } from './MealCard';
 import { warmUpCamera } from '@/components/cameraWarmup';
 
 /**
  * One diary meal (Frühstück, Mittagessen, ...) of a day, opened from its card header: the nutrient
  * overview of the meal against the day's targets, then its entries (swipe to delete, tap to edit).
- * The save icon stores the entries as a reusable meal, "+" opens the food page for this meal.
+ * The save icon stores the entries as a reusable meal, the paste icon (when something is copied) logs
+ * the clipboard into this meal, "+" opens the food page for this meal.
  */
 export function DiaryMealPage() {
   const { date, meal } = useSearch({ from: '/authed/diary-meal' });
@@ -28,6 +29,7 @@ export function DiaryMealPage() {
   const settings = useSettings();
   const goals = useGoals();
   const [saveOpen, setSaveOpen] = useState(false);
+  const clipboard = useClipboard();
   const entries = useLiveQuery(
     () =>
       db.foodEntries
@@ -61,6 +63,16 @@ export function DiaryMealPage() {
           >
             <Save aria-hidden />
           </Button>
+          {clipboard && (
+            <PasteButton
+              db={db}
+              clipboard={clipboard}
+              date={date}
+              meal={meal}
+              mealName={name}
+              iconClassName=""
+            />
+          )}
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/photo"
