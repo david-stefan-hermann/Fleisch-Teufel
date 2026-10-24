@@ -16,6 +16,7 @@ import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { saveRecord } from '@/db/write';
 import { useCurrentWeight, useDayNote, useDaySummary, useSettings } from '@/hooks/data';
+import { useExpenditure } from '@/hooks/useExpenditure';
 import { fmt0, fmt1, fmtDayLong } from '@/lib/format';
 
 /** "Tag abschließen" (feature #10): 5-week forecast if every day were like this one. */
@@ -27,7 +28,8 @@ export function CompleteDayPage() {
   const settings = useSettings();
   const note = useDayNote(date);
   const weight = useCurrentWeight(date);
-  if (!summary || !settings || note === undefined)
+  const expenditure = useExpenditure(date);
+  if (!summary || !settings || note === undefined || expenditure === undefined)
     return (
       <Page title="Tag abschließen" back withTabBar={false}>
         {null}
@@ -37,12 +39,20 @@ export function CompleteDayPage() {
   const eaten = get(summary.food, N.kcal);
   const credited = settings.addExerciseCalories ? summary.exerciseKcal : 0;
   const net = eaten - credited;
-  // Maintenance from the profile and this day's weight. Only without a complete profile the goal
-  // minus the planned daily delta stands in (wrong once the goal was clamped or edited by hand).
+  // Maintenance from the person's own data when there is enough of it, else from the profile and
+  // this day's weight. Only without a complete profile the goal minus the planned daily delta stands
+  // in (wrong once the goal was clamped or edited by hand).
   const profile = bodyProfile(settings, weight, date);
-  const maintenance = profile
-    ? Math.round(tdee(profile, settings.activityLevel))
-    : summary.targets.kcal - dailyDeltaForWeeklyRate(settings.weeklyRateKg);
+  const fromData = expenditure.estimate?.kcal ?? null;
+  const maintenance =
+    fromData ??
+    (profile
+      ? Math.round(tdee(profile, settings.activityLevel))
+      : summary.targets.kcal - dailyDeltaForWeeklyRate(settings.weeklyRateKg));
+  // A meal without entries while the day is far under budget: most likely not logged, not skipped.
+  const emptyMeals = summary.perMeal.flatMap((m, i) => (get(m, N.kcal) > 0 ? [] : [i]));
+  const maybeMissing =
+    summary.entryCount > 0 && emptyMeals.length > 0 && eaten < summary.budgetKcal * 0.6 ? emptyMeals : [];
   const forecast =
     weight !== undefined
       ? fiveWeekForecast({ currentWeightKg: weight, netKcal: net, maintenanceKcal: maintenance })
@@ -80,6 +90,24 @@ export function CompleteDayPage() {
         </dl>
       </Section>
 
+      {maybeMissing.length > 0 && (
+        <Section>
+          <p className="p-4 text-sm text-pretty">
+            {maybeMissing.length === 1
+              ? `${settings.mealNames[maybeMissing[0]!]} ist leer.`
+              : `${maybeMissing.map((i) => settings.mealNames[i]).join(', ')} sind leer.`}{' '}
+            Nichts gegessen, oder nur nicht eingetragen? Eine grobe Schätzung ist besser als eine Lücke: so
+            stimmen Durchschnitte und Bedarf.{' '}
+            <Link
+              to="/quick-add"
+              search={{ date, meal: maybeMissing[0]! }}
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Schnell schätzen
+            </Link>
+          </p>
+        </Section>
+      )}
       {empty ? (
         <Section>
           <p className="p-4 text-sm text-muted-foreground">
@@ -105,8 +133,11 @@ export function CompleteDayPage() {
             <p className="mt-2 text-xs text-muted-foreground text-pretty">
               Grob gerechnet: (netto {fmt0(net)} − Erhaltungsbedarf {fmt0(maintenance)} kcal) × 35 Tage ÷ 7700
               kcal/kg. Wasser und Verdauung lassen die Waage täglich schwanken.
-              {!profile &&
-                ' Der Erhaltungsbedarf ist aus dem Ziel geschätzt; genauer wird es mit vollständigem Profil.'}
+              {fromData !== null
+                ? ' Der Erhaltungsbedarf stammt aus deinen eigenen Daten (Essen und Gewichtstrend der letzten drei Wochen).'
+                : !profile
+                  ? ' Der Erhaltungsbedarf ist aus dem Ziel geschätzt; genauer wird es mit vollständigem Profil.'
+                  : ''}
             </p>
           </div>
         </Section>

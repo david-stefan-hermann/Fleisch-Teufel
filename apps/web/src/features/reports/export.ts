@@ -5,6 +5,7 @@ import {
   N,
   toCsv,
   type CsvDialect,
+  isCompleteDay,
   type DailyRow,
   type ExerciseEntry,
   type FoodEntry,
@@ -90,6 +91,7 @@ export function dailyCsv(rows: DailyRow[], dialect: CsvDialect): string {
     [
       { header: 'Datum', value: (r) => r.date },
       { header: 'Erfasst', value: (r) => (r.logged ? 'ja' : 'nein') },
+      { header: 'Vollständig', value: (r) => (isCompleteDay(r) ? 'ja' : 'nein') },
       { header: 'kcal', value: (r) => (r.logged ? get(r.nutrients, N.kcal) : null) },
       { header: 'Ziel kcal', value: (r) => r.targetKcal },
       { header: 'Training kcal', value: (r) => r.exerciseKcal },

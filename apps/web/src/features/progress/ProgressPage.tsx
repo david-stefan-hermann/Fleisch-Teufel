@@ -1,4 +1,13 @@
-import { addDays, bmi, dayId, linearTrend, movingAverage, round, type WeightEntry } from '@ft/shared';
+import {
+  addDays,
+  bmi,
+  dayId,
+  exponentialTrend,
+  linearTrend,
+  movingAverage,
+  round,
+  type WeightEntry,
+} from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { CalendarDays, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -23,7 +32,8 @@ import { Label } from '@/components/ui/label';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
-import { useSettings, useToday, useWeights } from '@/hooks/data';
+import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
+import { ExpenditureCard } from './ExpenditureCard';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
 const RANGES = [
@@ -42,6 +52,7 @@ export function ProgressPage() {
   const db = useDb();
   const weights = useWeights();
   const settings = useSettings();
+  const goals = useGoals();
   const range = RANGES.find((r) => r.id === search.range) ?? RANGES[1];
   const [editing, setEditing] = useState<WeightEntry | null>(null);
   // The list shows the newest entries; older ones come in pages (every entry stays editable).
@@ -61,6 +72,9 @@ export function ProgressPage() {
   const from = range.days ? addDays(today, -range.days + 1) : (weights?.[0]?.date ?? today);
   const visible = useMemo(() => (weights ?? []).filter((w) => w.date >= from), [weights, from]);
   const latest = weights?.at(-1);
+  // The headline is the smoothed trend (Hacker's Diet), not the last measurement: a kilo of water
+  // moves the scale, not the trend.
+  const trend = useMemo(() => exponentialTrend(weights ?? []).at(-1), [weights]);
   const avg = useMemo(() => movingAverage(weights ?? [], 7), [weights]);
   const trend30 = useMemo(
     () => linearTrend((weights ?? []).filter((w) => w.date >= addDays(today, -29))),
@@ -114,9 +128,13 @@ export function ProgressPage() {
           <Section>
             <dl className="tabular grid grid-cols-3 gap-2 p-4 text-center">
               <div>
-                <dt className="text-xs text-muted-foreground">Aktuell</dt>
-                <dd className="text-xl font-bold">{latest ? kg(latest.kg) : NO_VALUE}</dd>
-                {latest && <dd className="text-[11px] text-muted-foreground">{fmtDate(latest.date)}</dd>}
+                <dt className="text-xs text-muted-foreground">Trend</dt>
+                <dd className="text-xl font-bold">{trend ? kg(trend.kg) : NO_VALUE}</dd>
+                {latest && (
+                  <dd className="truncate text-[11px] text-muted-foreground">
+                    {kg(latest.kg)} am {fmtDate(latest.date)}
+                  </dd>
+                )}
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Trend / Woche</dt>
@@ -145,6 +163,10 @@ export function ProgressPage() {
               </p>
             )}
           </Section>
+
+          {settings && goals && (
+            <ExpenditureCard today={today} settings={settings} goals={goals} weightKg={latest?.kg ?? null} />
+          )}
 
           <Section
             title="Gewichtsverlauf"

@@ -77,7 +77,7 @@ export function ReportsPage() {
   // The result names its period: while another period loads, the old one stays on screen (chart and
   // stats) instead of being recomputed with the wrong entries for a moment.
   const data = useLiveQuery(async () => {
-    const [entries, exercises, weights] = await Promise.all([
+    const [entries, exercises, weights, notes] = await Promise.all([
       db.foodEntries
         .where('date')
         .between(p.from, p.to, true, true)
@@ -89,8 +89,13 @@ export function ReportsPage() {
         .filter((e) => !e.deleted)
         .toArray(),
       db.weightEntries.filter((w) => !w.deleted).toArray(),
+      db.dayNotes
+        .where('date')
+        .between(p.from, p.to, true, true)
+        .filter((n) => !n.deleted)
+        .toArray(),
     ]);
-    return { from: p.from, to: p.to, entries, exercises, weights };
+    return { from: p.from, to: p.to, entries, exercises, weights, notes };
   }, [db, p.from, p.to]);
   const shown = data ? { from: data.from, to: data.to } : null;
 
@@ -106,6 +111,7 @@ export function ReportsPage() {
       exercises: data.exercises,
       weights: data.weights,
       goals,
+      notes: data.notes,
     });
   }, [data, goals, today]);
   const credit = settings?.addExerciseCalories ?? true;
@@ -167,8 +173,8 @@ export function ReportsPage() {
               sub={`Ziel Ø ${stats.loggedDays ? fmt0(stats.avgTargetKcal) : NO_VALUE}`}
             />
             <Stat
-              label="Tage erfasst"
-              value={`${stats.loggedDays}/${stats.days}`}
+              label="Vollständige Tage"
+              value={`${stats.completeDays}/${stats.days}`}
               sub={`${stats.daysOnTarget} im Ziel (±10 %)`}
             />
             <Stat
@@ -195,8 +201,14 @@ export function ReportsPage() {
               targets={{ ...stats.avgTargets, micros: targetsForDate(goals ?? [], p.to).micros }}
             />
           )}
-          <p className="px-4 pt-2.5 pb-3 text-xs text-muted-foreground">
-            Durchschnitte nur über Tage mit Einträgen.
+          <p className="px-4 pt-2.5 pb-3 text-xs text-muted-foreground text-pretty">
+            {stats.basis === 'complete'
+              ? `Durchschnitte über vollständige Tage (abgeschlossen oder mindestens zwei Mahlzeiten).${
+                  stats.loggedDays > stats.completeDays
+                    ? ` ${stats.loggedDays - stats.completeDays} ${stats.loggedDays - stats.completeDays === 1 ? 'Tag' : 'Tage'} mit nur einer Mahlzeit ${stats.loggedDays - stats.completeDays === 1 ? 'zählt' : 'zählen'} nicht mit.`
+                    : ''
+                }`
+              : 'Noch kein vollständiger Tag im Zeitraum (zwei Mahlzeiten oder „Tag abschließen“): Durchschnitte über alle Tage mit Einträgen.'}
           </p>
         </Section>
       )}
@@ -292,6 +304,7 @@ function ExportSection({
           exercises: await db.exerciseEntries.filter((e) => !e.deleted).toArray(),
           weights: await db.weightEntries.filter((w) => !w.deleted).toArray(),
           goals: await db.goals.filter((x) => !x.deleted).toArray(),
+          notes: await db.dayNotes.filter((n) => !n.deleted).toArray(),
         });
       }
       csv = dailyCsv(r, dialect);

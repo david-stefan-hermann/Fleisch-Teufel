@@ -2,11 +2,22 @@ import { dateRange, type ISODate } from './dates.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, sumNutrients } from './nutrition.js';
-import type { DayTarget, ExerciseEntry, FoodEntry, Goal, WeightEntry } from './schemas.js';
+import type { DayNote, DayTarget, ExerciseEntry, FoodEntry, Goal, WeightEntry } from './schemas.js';
+
+/**
+ * A day counts as fully logged when it was closed ("Tag abschließen") or at least this many meals
+ * have entries. Days with a single logged meal are most likely half days (the dinner never made it
+ * in): they would pull every average down and make a data-based expenditure estimate worthless.
+ */
+export const MIN_MEALS_COMPLETE = 2;
 
 export interface DailyRow {
   date: ISODate;
   logged: boolean;
+  /** Distinct meals (diary meal indexes) with at least one entry. */
+  mealsLogged: number;
+  /** The day was closed with "Tag abschließen". */
+  completed: boolean;
   nutrients: NutrientMap;
   targetKcal: number;
   targetProteinG: number;
@@ -25,7 +36,11 @@ export function dailyRows(params: {
   exercises: readonly ExerciseEntry[];
   weights: readonly WeightEntry[];
   goals: readonly Goal[];
+  /** Day notes carry "Tag abschließen" (`completedAt`); optional for callers without them. */
+  notes?: readonly DayNote[];
 }): DailyRow[] {
+  const completed = new Set<ISODate>();
+  for (const n of params.notes ?? []) if (!n.deleted && n.completedAt) completed.add(n.date);
   const byDate = new Map<ISODate, FoodEntry[]>();
   for (const e of params.entries) {
     if (e.deleted || e.date < params.from || e.date > params.to) continue;
@@ -46,6 +61,8 @@ export function dailyRows(params: {
     return {
       date,
       logged: es.length > 0,
+      mealsLogged: new Set(es.map((e) => e.meal)).size,
+      completed: completed.has(date),
       nutrients: sumNutrients(es.map((e) => e.nutrients)),
       targetKcal: t.kcal,
       targetProteinG: t.proteinG,
@@ -61,10 +78,20 @@ export function dailyRows(params: {
   });
 }
 
+/** Whether a day's entries can be taken as the whole day (see `MIN_MEALS_COMPLETE`). */
+export function isCompleteDay(r: Pick<DailyRow, 'logged' | 'mealsLogged' | 'completed'>): boolean {
+  return r.logged && (r.completed || r.mealsLogged >= MIN_MEALS_COMPLETE);
+}
+
 export interface PeriodStats {
   days: number;
+  /** Days with at least one entry. */
   loggedDays: number;
-  /** Averages over logged days only (unlogged days would distort them towards 0). */
+  /** Days taken as fully logged (`isCompleteDay`): the averages and target counts use these. */
+  completeDays: number;
+  /** `complete`: averages over complete days; `logged`: no complete day in the period, so over all logged days. */
+  basis: 'complete' | 'logged';
+  /** Averages over the days of `basis` (unlogged days would distort them towards 0). */
   avg: {
     kcal: number;
     protein: number;
@@ -103,7 +130,10 @@ export function dayBudget(r: Pick<DailyRow, 'targetKcal' | 'exerciseKcal'>, cred
 
 export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {}): PeriodStats {
   const credit = opts.creditExercise ?? true;
-  const logged = rows.filter((r) => r.logged);
+  const anyLogged = rows.filter((r) => r.logged);
+  const complete = anyLogged.filter(isCompleteDay);
+  const basis = complete.length > 0 ? 'complete' : 'logged';
+  const logged = basis === 'complete' ? complete : anyLogged;
   const n = logged.length || 1;
   const avgOf = (key: string) => round(logged.reduce((s, r) => s + get(r.nutrients, key), 0) / n, 1);
   const weights = rows.filter((r) => r.weightKg !== null);
@@ -111,7 +141,9 @@ export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {})
   const weightEnd = weights.at(-1)?.weightKg ?? null;
   return {
     days: rows.length,
-    loggedDays: logged.length,
+    loggedDays: anyLogged.length,
+    completeDays: complete.length,
+    basis,
     avg: {
       kcal: round(logged.reduce((s, r) => s + get(r.nutrients, N.kcal), 0) / n, 0),
       protein: avgOf(N.protein),

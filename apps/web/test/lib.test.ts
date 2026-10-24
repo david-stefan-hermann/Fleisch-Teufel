@@ -219,6 +219,8 @@ describe('report chart: calories split by macros', () => {
     exerciseKcal: 100,
     exerciseMinutes: 20,
     weightKg: null,
+    mealsLogged: logged ? 3 : 0,
+    completed: false,
   });
   const rows = [
     row('2026-10-05', { ENERCC: 620, PROT625: 35, CHO: 60, FAT: 25 }),
@@ -252,6 +254,16 @@ describe('report chart: calories split by macros', () => {
     expect(neutral![1]).toBe(300);
     expect(eaten![1]).toBe(300);
     expect([total![2], pc![2], p![2], neutral![2], eaten![2]]).toEqual([null, null, null, null, null]);
+  });
+
+  it('draws an incomplete day (one meal only) as one neutral bar too', () => {
+    const half = { ...rows[0]!, mealsLogged: 1 };
+    const [, total, , , neutral, eaten] = buildChart([half], 'kcal').data;
+    expect(total![0]).toBeNull();
+    expect(neutral![0]).toBe(620);
+    expect(eaten![0]).toBe(620);
+    // Closed by hand: complete, stacked as usual.
+    expect(buildChart([{ ...half, completed: true }], 'kcal').data[1]![0]).toBe(620);
   });
 
   it('keeps the series objects stable across periods (the chart only swaps data)', () => {

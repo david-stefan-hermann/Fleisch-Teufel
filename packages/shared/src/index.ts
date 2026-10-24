@@ -3,6 +3,7 @@ export * from './csv.js';
 export * from './dates.js';
 export * from './diary.js';
 export * from './exercise.js';
+export * from './expenditure.js';
 export * from './foods.js';
 export * from './forecast.js';
 export * from './goals.js';

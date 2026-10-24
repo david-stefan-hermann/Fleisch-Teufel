@@ -130,12 +130,16 @@ describe('day summary & reports', () => {
     expect(rows[0]!.logged).toBe(false);
     const st = periodStats(rows);
     expect(st.loggedDays).toBe(2);
-    expect(st.avg.kcal).toBe(1050);
-    expect(st.daysUnderGoal).toBe(2);
+    // The 8th has one meal only (a half day): the averages take the complete 7th.
+    expect(st.completeDays).toBe(1);
+    expect(st.basis).toBe('complete');
+    expect(rows.map((r) => r.mealsLogged)).toEqual([0, 2, 1]);
+    expect(st.avg.kcal).toBe(1200);
+    expect(st.daysUnderGoal).toBe(1);
     expect(st.weightChange).toBe(-0.6);
     expect(st.totalExerciseMinutes).toBe(30);
-    // Averages of all codes over the two logged days, and the average daily targets.
-    expect(st.avgNutrients).toEqual({ ENERCC: 1050 });
+    // Averages of all codes over the complete day, and the average daily targets.
+    expect(st.avgNutrients).toEqual({ ENERCC: 1200 });
     expect(st.avgTargets).toEqual({ kcal: 2000, proteinG: 150, fatG: 70, carbsG: 200 });
   });
 
