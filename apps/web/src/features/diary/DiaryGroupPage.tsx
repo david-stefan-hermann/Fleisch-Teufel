@@ -27,6 +27,7 @@ import { warmUpCamera } from '@/components/cameraWarmup';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { ConflictBanner } from '@/components/ConflictBanner';
+import { ScalePresets } from '@/components/ScalePresets';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -472,6 +473,13 @@ function DiaryGroupForm({
                 onValueCommit={([v]) =>
                   void writeGroupDraft(db, { ...draft, items: scaleItems(scaleBase, v!) })
                 }
+              />
+              <ScalePresets
+                value={scale}
+                onPick={(f) => {
+                  setScale(f);
+                  commit({ ...draft, items: scaleItems(scaleBase, f) });
+                }}
               />
             </div>
             <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />

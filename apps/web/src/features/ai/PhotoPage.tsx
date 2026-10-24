@@ -45,6 +45,7 @@ import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
+import { ScalePresets } from '@/components/ScalePresets';
 import { PhotoStrip } from '@/components/PhotoStrip';
 import { warmUpCamera } from '@/components/cameraWarmup';
 import { EmptyState, Page, Section } from '@/components/Page';
@@ -105,6 +106,9 @@ interface Shot {
   id: number;
   blob: Blob;
 }
+
+/** Hints people type most; a tap appends one to the hint field. */
+const HINT_CHIPS = ['halbe Portion', 'mit Öl gebraten', 'ohne Soße', 'große Portion', 'Light-Variante'];
 
 const addLabel = (n: number) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
 
@@ -391,6 +395,22 @@ function PhotoPreview({
           placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
           aria-describedby="ai-text-hint"
         />
+        {!busy && (
+          <div className="flex flex-wrap gap-2" aria-label="Häufige Hinweise">
+            {HINT_CHIPS.map((chip) => (
+              <Button
+                key={chip}
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-8 rounded-full"
+                onClick={() => setText((t) => (t.trim() ? `${t.trim()}, ${chip}` : chip).slice(0, 500))}
+              >
+                {chip}
+              </Button>
+            ))}
+          </div>
+        )}
         <p id="ai-text-hint" className="text-xs text-muted-foreground">
           {busy
             ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
@@ -950,6 +970,13 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
                   onValueChange={([v]) => v !== undefined && rescale(v)}
                   // From the commit value, not the draft of this render (keyboard steps change and commit at once).
                   onValueCommit={([v]) => commit(scaleDraft(draft, scaleBase, v ?? scale))}
+                />
+                <ScalePresets
+                  value={scale}
+                  onPick={(f) => {
+                    setScale(f);
+                    commit(scaleDraft(draft, scaleBase, f));
+                  }}
                 />
               </div>
             )}

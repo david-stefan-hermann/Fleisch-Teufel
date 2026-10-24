@@ -10,6 +10,7 @@ import { MealPhoto } from '@/components/MealPhoto';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
 import { ConflictBanner } from '@/components/ConflictBanner';
+import { ScalePresets } from '@/components/ScalePresets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -247,6 +248,13 @@ function MealEditorForm({
               onValueChange={([v]) => v !== undefined && rescale(v)}
               // From the commit value, not the draft of this render (keyboard steps change and commit at once).
               onValueCommit={([v]) => void writeMealDraft(db, { ...draft, items: scaleItems(scaleBase, v!) })}
+            />
+            <ScalePresets
+              value={scale}
+              onPick={(f) => {
+                setScale(f);
+                commit({ ...draft, items: scaleItems(scaleBase, f) });
+              }}
             />
           </div>
           <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
