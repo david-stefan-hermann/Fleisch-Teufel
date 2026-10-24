@@ -1,4 +1,6 @@
+import { ageOn } from './dates.js';
 import { KCAL_PER_G } from './nutrients.js';
+import type { ISODate } from './dates.js';
 
 export type Sex = 'male' | 'female';
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
@@ -26,14 +28,16 @@ export const ACTIVITY_LABELS_DE: Record<ActivityLevel, { title: string; hint: st
 /** Energy content of body-weight change, kcal per kg (common approximation, Wishnofsky 1958). */
 export const KCAL_PER_KG_BODY_WEIGHT = 7700;
 
-/** Lowest daily target suggested without medical supervision. */
+/** Lowest daily target suggested without medical supervision (no sex given: the mean). */
 export const MIN_KCAL: Record<Sex, number> = { male: 1500, female: 1200 };
+const MIN_KCAL_UNKNOWN = 1350;
 
 /** Weekly rates offered in onboarding (kg/week; negative = lose). */
 export const WEEKLY_RATES = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5] as const;
 
 export interface BodyProfile {
-  sex: Sex;
+  /** `null`: no answer; the formula then uses the mean of both constants. */
+  sex: Sex | null;
   ageYears: number;
   heightCm: number;
   weightKg: number;
@@ -42,7 +46,25 @@ export interface BodyProfile {
 /** Basal metabolic rate, Mifflin-St Jeor (1990): 10·kg + 6.25·cm − 5·age + (5 | −161). */
 export function bmrMifflinStJeor(p: BodyProfile): number {
   const base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.ageYears;
-  return base + (p.sex === 'male' ? 5 : -161);
+  return base + (p.sex === 'male' ? 5 : p.sex === 'female' ? -161 : -78);
+}
+
+/**
+ * The body profile of the settings on a date, or `null` while birth date or height are missing.
+ * Used wherever the energy need is computed from the profile (onboarding, day forecast).
+ */
+export function bodyProfile(
+  settings: { sex: Sex | null; birthDate: ISODate | null; heightCm: number | null },
+  weightKg: number | null | undefined,
+  on: ISODate,
+): BodyProfile | null {
+  if (!settings.birthDate || settings.heightCm === null || weightKg == null) return null;
+  return {
+    sex: settings.sex,
+    ageYears: ageOn(settings.birthDate, on),
+    heightCm: settings.heightCm,
+    weightKg,
+  };
 }
 
 export function tdee(p: BodyProfile, activity: ActivityLevel): number {
@@ -66,7 +88,7 @@ export function calorieGoal(p: BodyProfile, activity: ActivityLevel, weeklyRateK
   const bmr = bmrMifflinStJeor(p);
   const t = bmr * ACTIVITY_FACTORS[activity];
   const raw = t + dailyDeltaForWeeklyRate(weeklyRateKg);
-  const min = MIN_KCAL[p.sex];
+  const min = p.sex ? MIN_KCAL[p.sex] : MIN_KCAL_UNKNOWN;
   const kcal = Math.max(raw, min);
   return { bmr: Math.round(bmr), tdee: Math.round(t), kcal: roundTo(kcal, 10), clamped: raw < min };
 }

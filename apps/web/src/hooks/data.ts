@@ -1,5 +1,4 @@
 import {
-  DEFAULT_MEAL_NAMES,
   SETTINGS_ID,
   summarizeDay,
   today as todayOf,
@@ -17,22 +16,9 @@ import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
+import { DEFAULT_SETTINGS } from '@/db/settings';
 
-export const DEFAULT_SETTINGS: Settings = {
-  id: SETTINGS_ID,
-  updatedAt: 0,
-  deleted: false,
-  sex: null,
-  birthDate: null,
-  heightCm: null,
-  activityLevel: 'light',
-  targetWeightKg: null,
-  weeklyRateKg: -0.5,
-  mealNames: [...DEFAULT_MEAL_NAMES],
-  addExerciseCalories: true,
-  onboardedAt: null,
-  macroPlan: null,
-};
+export { DEFAULT_SETTINGS };
 
 /** Current calendar day; rolls over at midnight and when the app returns to the foreground. */
 export function useToday(): ISODate {

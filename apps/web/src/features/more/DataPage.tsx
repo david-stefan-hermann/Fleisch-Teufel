@@ -1,4 +1,4 @@
-import { SYNC_TABLES } from '@ft/shared';
+import { SYNC_TABLES, today } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Download, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -9,7 +9,7 @@ import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
 import { countRejectedPhotos } from '@/db/photos';
-import { downloadText } from '@/features/reports/export';
+import { canShareFiles, shareOrDownloadText } from '@/features/reports/export';
 import { fmtAgo, fmt0, fmt1 } from '@/lib/format';
 
 export function DataPage() {
@@ -170,14 +170,14 @@ export function DataPage() {
                 version: __APP_VERSION__,
               };
               for (const t of SYNC_TABLES) dump[t] = await db.syncTable(t).toArray();
-              downloadText(
-                `fleisch-teufel_backup_${new Date().toISOString().slice(0, 10)}.json`,
+              await shareOrDownloadText(
+                `fleisch-teufel_backup_${today()}.json`,
                 JSON.stringify(dump, null, 1),
                 'application/json',
               );
             }}
           >
-            <Download aria-hidden /> JSON-Sicherung herunterladen
+            <Download aria-hidden /> JSON-Sicherung {canShareFiles() ? 'teilen' : 'herunterladen'}
           </Button>
         </div>
       </Section>

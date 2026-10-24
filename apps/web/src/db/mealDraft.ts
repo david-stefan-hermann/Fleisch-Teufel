@@ -19,6 +19,11 @@ export interface MealDraft {
   items: MealItem[];
   /** `keep` the saved photo, `remove` it, or replace it with the `pending` draft photo. */
   photo: 'keep' | 'remove' | 'pending';
+  /**
+   * `updatedAt` of the meal the draft started from. Differs from the current meal when another device
+   * changed it meanwhile: the editor then asks before the draft overwrites that (older drafts: unset).
+   */
+  baseUpdatedAt?: number;
 }
 
 export interface MealDraftPhoto {
@@ -31,8 +36,19 @@ export interface MealDraftPhoto {
 export const draftKey = (mealId: string) => `mealDraft:${mealId}`;
 export const draftPhotoKey = (mealId: string) => `mealDraftPhoto:${mealId}`;
 
-export function draftFromMeal(meal: Pick<Meal, 'id' | 'name' | 'items'>): MealDraft {
-  return { mealId: meal.id, name: meal.name, items: meal.items, photo: 'keep' };
+export function draftFromMeal(meal: Pick<Meal, 'id' | 'name' | 'items' | 'updatedAt'>): MealDraft {
+  return {
+    mealId: meal.id,
+    name: meal.name,
+    items: meal.items,
+    photo: 'keep',
+    baseUpdatedAt: meal.updatedAt,
+  };
+}
+
+/** Whether the meal changed since the draft was started (another device, or a pull). */
+export function isMealDraftStale(draft: MealDraft, meal: Pick<Meal, 'updatedAt'>): boolean {
+  return draft.baseUpdatedAt !== undefined && draft.baseUpdatedAt !== meal.updatedAt;
 }
 
 /** Only the item fields (diary entries or other objects may carry more). */

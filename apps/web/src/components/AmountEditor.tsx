@@ -157,8 +157,9 @@ export function AmountEditor({
               return onCommit({ portion, quantity: null });
             }
             if (q > max) {
+              // Too much is no amount: the button goes inactive instead of logging the last fitting value.
               setError(`Höchstens ${fmt0(max)} ${kind === 'base' ? unit : 'Portionen'}.`);
-              return;
+              return onCommit({ portion, quantity: null });
             }
             setError(null);
             onCommit({ portion, quantity: Math.round(q * 100) / 100 });

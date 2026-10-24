@@ -79,7 +79,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion } from '@/lib/amounts';
-import { endpoints } from '@/lib/api';
+import { endpoints, errorMessage } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
@@ -180,23 +180,32 @@ export function PhotoPage() {
   async function analyze(text: string) {
     if (analyzing || shots.length === 0) return;
     setAnalyzing(true);
+    let id: number;
     try {
-      const id = await enqueuePhotos(
+      id = await enqueuePhotos(
         db,
         { date, meal, text },
         shots.map((s) => s.blob),
       );
+    } catch (e) {
+      // Only storing can fail here; the analysis itself reports through the queue item.
+      toast.error(errorMessage(e));
+      setAnalyzing(false);
+      return;
+    }
+    try {
       if (gone.current) return void leaveAnalysis(db, id);
       waiting.current = id;
+      // Stored: the preview is done, whatever the analysis brings (a second "Analysieren" would queue twice).
+      setShots([]);
       await processQueue(db);
       // Left meanwhile (or handed over): never navigate from here any more.
       if (waiting.current !== id) return;
-      waiting.current = null;
       const item = await db.aiQueue.get(id);
-      if (item?.status === 'done' && !item.deferred) {
-        setShots([]);
-        return setActiveId(id);
-      }
+      // Left during the read: the result goes to the diary by itself.
+      if (waiting.current !== id || gone.current) return void leaveAnalysis(db, id);
+      waiting.current = null;
+      if (item?.status === 'done' && !item.deferred) return setActiveId(id);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.
         toast(
@@ -205,9 +214,6 @@ export function PhotoPage() {
         return void navigate({ to: '/', search: { date } });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
-      setShots([]);
-    } catch {
-      toast.error('Die Fotos konnten nicht gespeichert werden. Versuche es noch einmal.');
     } finally {
       setAnalyzing(false);
     }

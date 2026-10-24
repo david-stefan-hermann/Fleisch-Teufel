@@ -2,13 +2,14 @@ import { sumNutrients, targetsForDate, today, type Meal, type MealItem } from '@
 import { useBlocker, useNavigate, useRouter, type ShouldBlockFn } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Plus, Trash2, X } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { MealPhoto } from '@/components/MealPhoto';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
+import { ConflictBanner } from '@/components/ConflictBanner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import {
   clearMealDraft,
   draftFromMeal,
+  isMealDraftStale,
   isDirty,
   readMealDraft,
   readMealDraftPhoto,
@@ -43,15 +45,32 @@ export function MealEditor({ meal, fromLog = false }: { meal: Meal; fromLog?: bo
   const db = useDb();
   const draft = useLiveQuery(() => readMealDraft(db, meal.id), [db, meal.id]);
   const photo = useLiveQuery(() => readMealDraftPhoto(db, meal.id), [db, meal.id]);
+  // The meal changed since the draft started (another device). A draft that does not differ from the
+  // new meal is just old and dropped; one with changes gets the conflict banner in the form.
+  const stale = !!draft && isMealDraftStale(draft, meal);
+  const conflict = stale && (isDirty(draft, meal) || photo !== null);
+  useEffect(() => {
+    if (stale && !conflict) void clearMealDraft(db, meal.id);
+  }, [stale, conflict, db, meal.id]);
   // Mount only once both answered, or the form would start from the saved meal and miss the draft.
   if (draft === undefined || photo === undefined) return null;
+  if (stale && !conflict) return null;
   return (
     <MealEditorForm
-      key={meal.id}
+      // Without a draft the form follows the meal; with one it keeps its base until the person decides.
+      key={`${meal.id}:${draft ? (draft.baseUpdatedAt ?? 'draft') : meal.updatedAt}`}
       meal={meal}
       initial={draft ?? draftFromMeal(meal)}
       photo={photo}
       fromLog={fromLog}
+      conflict={
+        conflict
+          ? {
+              reload: () => void clearMealDraft(db, meal.id),
+              keep: () => void writeMealDraft(db, { ...draft, baseUpdatedAt: meal.updatedAt }),
+            }
+          : null
+      }
     />
   );
 }
@@ -61,11 +80,13 @@ function MealEditorForm({
   initial,
   photo,
   fromLog,
+  conflict,
 }: {
   meal: Meal;
   initial: MealDraft;
   photo: MealDraftPhoto | null;
   fromLog: boolean;
+  conflict: { reload: () => void; keep: () => void } | null;
 }) {
   const db = useDb();
   const navigate = useNavigate();
@@ -166,6 +187,7 @@ function MealEditorForm({
         </Button>
       }
     >
+      {conflict && <ConflictBanner onReload={conflict.reload} onKeep={conflict.keep} />}
       <PhotoSection meal={meal} draft={draft} photo={photo} name={name} onChange={commit} />
       <Section>
         <div className="grid gap-1.5 p-4">
@@ -222,7 +244,8 @@ function MealEditorForm({
               step={0.05}
               value={[scale]}
               onValueChange={([v]) => v !== undefined && rescale(v)}
-              onValueCommit={() => void writeMealDraft(db, draft)}
+              // From the commit value, not the draft of this render (keyboard steps change and commit at once).
+              onValueCommit={([v]) => void writeMealDraft(db, { ...draft, items: scaleItems(scaleBase, v!) })}
             />
           </div>
           <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />

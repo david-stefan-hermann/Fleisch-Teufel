@@ -1,4 +1,13 @@
-import { dailyDeltaForWeeklyRate, dayId, fiveWeekForecast, get, N, round } from '@ft/shared';
+import {
+  bodyProfile,
+  dailyDeltaForWeeklyRate,
+  dayId,
+  fiveWeekForecast,
+  get,
+  N,
+  round,
+  tdee,
+} from '@ft/shared';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,8 +37,12 @@ export function CompleteDayPage() {
   const eaten = get(summary.food, N.kcal);
   const credited = settings.addExerciseCalories ? summary.exerciseKcal : 0;
   const net = eaten - credited;
-  // The goal already contains the planned deficit; maintenance = goal − planned daily delta.
-  const maintenance = summary.targets.kcal - dailyDeltaForWeeklyRate(settings.weeklyRateKg);
+  // Maintenance from the profile and this day's weight. Only without a complete profile the goal
+  // minus the planned daily delta stands in (wrong once the goal was clamped or edited by hand).
+  const profile = bodyProfile(settings, weight, date);
+  const maintenance = profile
+    ? Math.round(tdee(profile, settings.activityLevel))
+    : summary.targets.kcal - dailyDeltaForWeeklyRate(settings.weeklyRateKg);
   const forecast =
     weight !== undefined
       ? fiveWeekForecast({ currentWeightKg: weight, netKcal: net, maintenanceKcal: maintenance })
@@ -92,6 +105,8 @@ export function CompleteDayPage() {
             <p className="mt-2 text-xs text-muted-foreground text-pretty">
               Grob gerechnet: (netto {fmt0(net)} − Erhaltungsbedarf {fmt0(maintenance)} kcal) × 35 Tage ÷ 7700
               kcal/kg. Wasser und Verdauung lassen die Waage täglich schwanken.
+              {!profile &&
+                ' Der Erhaltungsbedarf ist aus dem Ziel geschätzt; genauer wird es mit vollständigem Profil.'}
             </p>
           </div>
         </Section>

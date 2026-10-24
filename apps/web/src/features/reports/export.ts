@@ -10,6 +10,39 @@ import {
   type WeightEntry,
 } from '@ft/shared';
 
+/** True when the browser can hand a file to the share sheet (iOS: "In Dateien sichern", AirDrop). */
+export function canShareFiles(): boolean {
+  if (typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return false;
+  try {
+    return navigator.canShare({ files: [new File(['x'], 'x.csv', { type: 'text/csv' })] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Hands the text to the share sheet where possible (a download link does nothing useful in a
+ * home-screen app on iOS), else downloads it. Returns false when the person closed the sheet.
+ */
+export async function shareOrDownloadText(
+  filename: string,
+  text: string,
+  type = 'text/csv;charset=utf-8',
+): Promise<boolean> {
+  if (canShareFiles()) {
+    const file = new File([text], filename, { type: type.split(';')[0] });
+    try {
+      await navigator.share({ files: [file], title: filename });
+      return true;
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return false;
+      // Sharing failed for another reason: the download is the fallback.
+    }
+  }
+  downloadText(filename, text, type);
+  return true;
+}
+
 export function downloadText(filename: string, text: string, type = 'text/csv;charset=utf-8') {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);

@@ -24,7 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmt0, fmt1, fmtDate, fmtMonth, NO_VALUE } from '@/lib/format';
 import { buildChart, METRICS, type Metric } from './chartData';
-import { dailyCsv, downloadText, entriesCsv, exerciseCsv, weightsCsv } from './export';
+import { dailyCsv, shareOrDownloadText, entriesCsv, exerciseCsv, weightsCsv } from './export';
 
 type Range = 'week' | 'month' | '90';
 
@@ -296,8 +296,7 @@ function ExportSection({
       csv = dailyCsv(r, dialect);
     }
     const name = { entries: 'eintraege', daily: 'tage', weights: 'gewicht', exercise: 'training' }[kind];
-    downloadText(`fleisch-teufel_${name}_${suffix}.csv`, csv);
-    toast.success('CSV erstellt');
+    if (await shareOrDownloadText(`fleisch-teufel_${name}_${suffix}.csv`, csv)) toast.success('CSV erstellt');
   }
 
   return (

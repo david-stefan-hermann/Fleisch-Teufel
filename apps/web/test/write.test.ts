@@ -31,6 +31,7 @@ import {
   groupEntries,
   groupName,
   isGroupDirty,
+  isGroupDraftStale,
   readGroupDraft,
   readGroupDraftPhotos,
   removeGroupDraftPhoto,
@@ -45,7 +46,10 @@ import {
   readClipboard,
 } from '@/db/clipboard';
 import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
+import { saveDayNote } from '@/db/notes';
+import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
+import { saveOnboarding } from '@/features/goals/saveOnboarding';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -639,6 +643,21 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     expect(isGroupDirty({ ...draft, items: draft.items.slice(1) }, entries, 'Bowl')).toBe(true);
   });
 
+  it('never brings back an ingredient another device deleted meanwhile, and notices the change', async () => {
+    const { d, entries, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    expect(isGroupDraftStale(draft, entries)).toBe(false);
+    await writeGroupDraft(d, { ...draft, name: 'Große Bowl' });
+    // Huhn is deleted on the other device while the editor is open here.
+    await deleteRecord(d, 'foodEntries', entries[1]!.id);
+    const now = await groupEntries(d, groupId, '2026-10-09');
+    expect(isGroupDraftStale((await readGroupDraft(d, groupId))!, now)).toBe(true);
+    expect(await saveGroupDraft(d, (await readGroupDraft(d, groupId))!)).toBe(true);
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live.map((e) => e.name)).toEqual(['Reis']);
+    expect((await d.foodEntries.get(entries[1]!.id))!.deleted).toBe(true);
+  });
+
   it('changes amounts, removes and adds ingredients and renames; the saved meal stays', async () => {
     const { d, entries, mealBefore, groupId } = await setup();
     const draft = draftFromEntries(entries, 'Bowl');
@@ -933,5 +952,68 @@ describe('diary clipboard (copy by swiping right, paste into a meal)', () => {
     const id = await saveMealFromItems(d, ' Curry ', [item('Reis', 130)], 'p1');
     expect(await d.meals.get(id)).toMatchObject({ name: 'Curry', photoId: 'p1', deleted: false });
     expect((await d.meals.get(id))!.items.map((i) => i.name)).toEqual(['Reis']);
+  });
+});
+
+describe('settings, notes and onboarding writes', () => {
+  it('saveSettings patches the current record, or the defaults when there is none', async () => {
+    const d = db();
+    const first = await saveSettings(d, { mealNames: ['A', 'B', 'C', 'D'] });
+    expect(first).toMatchObject({ id: 'profile', mealNames: ['A', 'B', 'C', 'D'], weeklyRateKg: -0.5 });
+    // A second page saves other fields: the meal names stay.
+    await saveSettings(d, { heightCm: 180 });
+    expect(await d.settings.get('profile')).toMatchObject({ mealNames: ['A', 'B', 'C', 'D'], heightCm: 180 });
+    expect(await d.outbox.count()).toBe(1);
+  });
+
+  it('saveDayNote keeps the completed state of the day', async () => {
+    const d = db();
+    await saveRecord(d, 'dayNotes', {
+      id: dayId.note('2026-10-07'),
+      date: '2026-10-07',
+      note: '',
+      completedAt: 5,
+    });
+    await saveDayNote(d, '2026-10-07', 'Gut gelaufen');
+    expect(await d.dayNotes.get(dayId.note('2026-10-07'))).toMatchObject({
+      note: 'Gut gelaufen',
+      completedAt: 5,
+    });
+  });
+
+  it('running the calculator again neither re-logs the old weight nor drops micro targets', async () => {
+    const d = db();
+    const profile = {
+      sex: 'female' as const,
+      birthDate: '1990-06-15',
+      heightCm: 168,
+      activityLevel: 'light' as const,
+      targetWeightKg: 60,
+      weeklyRateKg: -0.5,
+      macroPlan: null,
+    };
+    const target = { kcal: 1800, proteinG: 110, fatG: 60, carbsG: 200 };
+    await saveOnboarding(d, { base: DEFAULT_SETTINGS, profile, weightKg: 70, target, today: '2026-10-01' });
+    expect(await d.weightEntries.get(dayId.weight('2026-10-01'))).toMatchObject({ kg: 70 });
+    await patchRecord(d, 'goals', dayId.goal('2026-10-01'), { micros: { FIBT: 40 } });
+
+    // Three weeks later with the prefilled (old) weight: no new weight entry, fiber target kept.
+    const base = (await d.settings.get('profile'))!;
+    await saveOnboarding(d, {
+      base,
+      profile,
+      weightKg: 70,
+      target: { ...target, kcal: 1700 },
+      today: '2026-10-22',
+    });
+    expect(await d.weightEntries.get(dayId.weight('2026-10-22'))).toBeUndefined();
+    expect(await d.goals.get(dayId.goal('2026-10-22'))).toMatchObject({
+      micros: { FIBT: 40 },
+      days: expect.any(Array),
+    });
+
+    // A different weight is a real measurement.
+    await saveOnboarding(d, { base, profile, weightKg: 68.5, target, today: '2026-10-23' });
+    expect(await d.weightEntries.get(dayId.weight('2026-10-23'))).toMatchObject({ kg: 68.5 });
   });
 });

@@ -20,7 +20,7 @@ import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Switch } from '@/components/ui/switch';
 import { trashCount } from '@/db/trash';
-import { patchRecord, saveRecord } from '@/db/write';
+import { saveSettings } from '@/db/settings';
 import { useSettings } from '@/hooks/data';
 import { useAppearance } from '@/lib/appearance';
 
@@ -95,9 +95,7 @@ export function MorePage() {
             checked={settings?.addExerciseCalories ?? true}
             onCheckedChange={async (v) => {
               if (!settings) return;
-              if (settings.updatedAt === 0)
-                await saveRecord(db, 'settings', { ...settings, addExerciseCalories: v });
-              else await patchRecord(db, 'settings', settings.id, { addExerciseCalories: v });
+              await saveSettings(db, { addExerciseCalories: v });
             }}
           />
         </div>

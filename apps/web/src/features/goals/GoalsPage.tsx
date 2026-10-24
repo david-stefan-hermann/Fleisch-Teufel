@@ -8,7 +8,6 @@ import {
   MICRO_DEFAULTS,
   microTarget,
   N,
-  SETTINGS_ID,
   uniformWeek,
   WEEKDAYS_LONG_DE,
   WEEKDAYS_SHORT_DE,
@@ -28,7 +27,8 @@ import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { patchRecord, saveRecord } from '@/db/write';
+import { saveSettings } from '@/db/settings';
+import { saveRecord } from '@/db/write';
 import { useCurrentWeight, useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDate } from '@/lib/format';
@@ -98,7 +98,7 @@ function GoalsForm({
 
   const { busy: saving, run } = useSubmitting();
   async function save() {
-    await patchRecord(db, 'settings', SETTINGS_ID, { macroPlan: plan });
+    await saveSettings(db, { macroPlan: plan });
     await saveRecord(db, 'goals', {
       id: dayId.goal(today),
       validFrom: today,

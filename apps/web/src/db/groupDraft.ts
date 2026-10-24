@@ -34,6 +34,21 @@ export interface GroupDraft {
   items: GroupDraftItem[];
   /** Set by "Neu analysieren": the analysis the new ingredients come from. */
   aiAnalysisId?: string;
+  /** Newest `updatedAt` of the entries the draft started from (see `MealDraft.baseUpdatedAt`). */
+  baseUpdatedAt?: number;
+}
+
+/** The version of a group: its newest entry version (any change to any entry bumps it). */
+export function groupVersion(entries: readonly Pick<FoodEntry, 'updatedAt'>[]): number {
+  return Math.max(0, ...entries.map((e) => e.updatedAt));
+}
+
+/** Whether the group's entries changed since the draft was started (another device, or a pull). */
+export function isGroupDraftStale(
+  draft: GroupDraft,
+  entries: readonly Pick<FoodEntry, 'updatedAt'>[],
+): boolean {
+  return draft.baseUpdatedAt !== undefined && draft.baseUpdatedAt !== groupVersion(entries);
 }
 
 export const groupDraftKey = (groupId: string) => `groupDraft:${groupId}`;
@@ -100,6 +115,7 @@ export function draftFromEntries(entries: readonly FoodEntry[], name: string): G
     date: first.date,
     name,
     items: entries.map((e) => ({ ...mealItem(e), entryId: e.id })),
+    baseUpdatedAt: groupVersion(entries),
   };
 }
 
@@ -148,12 +164,15 @@ export function groupDraftFromAnalysis(
 
 const itemKey = (i: GroupDraftItem) => JSON.stringify([i.entryId, mealItem(i)]);
 
+/** The draft without its base version, for comparing with the entries. */
+const comparable = (d: GroupDraft) => d.items.map(itemKey);
+
 /** Whether the draft differs from the logged entries (name, ingredients and amounts). */
 export function isGroupDirty(draft: GroupDraft, entries: readonly FoodEntry[], name: string): boolean {
   const saved = draftFromEntries(entries, name);
   return (
     (draft.name.trim() || name) !== name ||
-    JSON.stringify(draft.items.map(itemKey)) !== JSON.stringify(saved.items.map(itemKey))
+    JSON.stringify(comparable(draft)) !== JSON.stringify(comparable(saved))
   );
 }
 
@@ -240,7 +259,9 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         if (changed) await patchRecord(db, 'foodEntries', prev.id, next);
         continue;
       }
-      // Added in the editor (or its entry was deleted meanwhile): a new entry of the same group.
+      // Its entry was deleted meanwhile (another device): a deletion is never undone from a draft.
+      if (item.entryId) continue;
+      // Added in the editor: a new entry of the same group.
       await saveRecord(db, 'foodEntries', {
         ...mealItem(item),
         id: uuidv7(),

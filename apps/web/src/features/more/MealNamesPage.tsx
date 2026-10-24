@@ -1,4 +1,4 @@
-import { DEFAULT_MEAL_NAMES, MEAL_COUNT, SETTINGS_ID, type Settings } from '@ft/shared';
+import { DEFAULT_MEAL_NAMES, MEAL_COUNT, type Settings } from '@ft/shared';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -6,7 +6,7 @@ import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { saveRecord } from '@/db/write';
+import { saveSettings } from '@/db/settings';
 import { useSettings } from '@/hooks/data';
 
 /** Rename the four meals (feature #1). */
@@ -45,11 +45,7 @@ function MealNamesForm({ settings }: { settings: Settings }) {
               className="flex-1"
               disabled={!valid}
               onClick={async () => {
-                await saveRecord(db, 'settings', {
-                  ...settings,
-                  id: SETTINGS_ID,
-                  mealNames: names.map((n) => n.trim()),
-                });
+                await saveSettings(db, { mealNames: names.map((n) => n.trim()) });
                 toast.success('Mahlzeiten umbenannt');
               }}
             >

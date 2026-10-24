@@ -26,6 +26,7 @@ import { PhotoStrip } from '@/components/PhotoStrip';
 import { warmUpCamera } from '@/components/cameraWarmup';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
+import { ConflictBanner } from '@/components/ConflictBanner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,6 +45,8 @@ import {
   addGroupDraftPhotos,
   clearGroupDraft,
   draftFromEntries,
+  groupVersion,
+  isGroupDraftStale,
   groupDraftFromAnalysis,
   groupEntries,
   groupName,
@@ -105,9 +108,21 @@ export function DiaryGroupPage() {
     };
   }, [db, groupId, date]);
   const draft = useLiveQuery(() => readGroupDraft(db, groupId), [db, groupId]);
+  const draftPhotoCount = useLiveQuery(
+    async () => (await readGroupDraftPhotos(db, groupId)).length,
+    [db, groupId],
+  );
+  // The entries changed since the draft started (another device). A draft without own changes is just
+  // old and dropped; one with changes gets the conflict banner in the form.
+  const entries = data?.entries ?? [];
+  const stale = !!draft && entries.length > 0 && isGroupDraftStale(draft, entries);
+  const conflict = stale && (isGroupDirty(draft, entries, data!.name) || (draftPhotoCount ?? 0) > 0);
+  useEffect(() => {
+    if (stale && !conflict && draftPhotoCount !== undefined) void clearGroupDraft(db, groupId);
+  }, [stale, conflict, draftPhotoCount, db, groupId]);
 
   // Mount only once both answered, or the form would start from the entries and miss the draft.
-  if (data === undefined || draft === undefined)
+  if (data === undefined || draft === undefined || draftPhotoCount === undefined)
     return (
       <Page title="Eintrag" back="/" withTabBar={false}>
         <div className="grid gap-4">
@@ -122,12 +137,34 @@ export function DiaryGroupPage() {
         <EmptyState title="Eintrag nicht gefunden" />
       </Page>
     );
+  if (stale && !conflict) return null;
   return (
-    <DiaryGroupForm key={groupId} data={data} initial={draft ?? draftFromEntries(data.entries, data.name)} />
+    <DiaryGroupForm
+      // Without a draft the form follows the entries; with one it keeps its base until the person decides.
+      key={`${groupId}:${draft ? (draft.baseUpdatedAt ?? 'draft') : groupVersion(data.entries)}`}
+      data={data}
+      initial={draft ?? draftFromEntries(data.entries, data.name)}
+      conflict={
+        conflict
+          ? {
+              reload: () => void clearGroupDraft(db, groupId),
+              keep: () => void writeGroupDraft(db, { ...draft, baseUpdatedAt: groupVersion(data.entries) }),
+            }
+          : null
+      }
+    />
   );
 }
 
-function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraft }) {
+function DiaryGroupForm({
+  data,
+  initial,
+  conflict,
+}: {
+  data: GroupData;
+  initial: GroupDraft;
+  conflict: { reload: () => void; keep: () => void } | null;
+}) {
   const { entries, meal } = data;
   const first = entries[0]!;
   const db = useDb();
@@ -313,6 +350,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
         </Button>
       }
     >
+      {conflict && <ConflictBanner onReload={conflict.reload} onKeep={conflict.keep} />}
       {photoCount > 0 ? (
         <div className="mb-4">
           <PhotoStrip
@@ -420,7 +458,10 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
                 step={0.05}
                 value={[scale]}
                 onValueChange={([v]) => v !== undefined && rescale(v)}
-                onValueCommit={() => void writeGroupDraft(db, draft)}
+                // From the commit value, not the draft of this render (keyboard steps change and commit at once).
+                onValueCommit={([v]) =>
+                  void writeGroupDraft(db, { ...draft, items: scaleItems(scaleBase, v!) })
+                }
               />
             </div>
             <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />

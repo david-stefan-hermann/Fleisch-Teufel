@@ -18,6 +18,7 @@ import {
   clearMealDraft,
   draftFromMeal,
   isDirty,
+  isMealDraftStale,
   readMealDraft,
   readMealDraftPhoto,
   saveMealDraft,
@@ -47,7 +48,7 @@ import {
   retryQueueItem,
   takeQueueItem,
 } from '@/features/ai/queue';
-import { saveRecord } from '@/db/write';
+import { patchRecord, saveRecord } from '@/db/write';
 import { parseInto, formatInto, returnFromInto, rememberIntoStart } from '@/lib/into';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -90,7 +91,13 @@ describe('saved meal editing (draft until "Speichern")', () => {
     const d = await setup();
     const meal = (await d.meals.get('m1'))!;
     const draft = draftFromMeal(meal);
-    expect(draft).toEqual({ mealId: 'm1', name: 'Müsli', items: meal.items, photo: 'keep' });
+    expect(draft).toEqual({
+      mealId: 'm1',
+      name: 'Müsli',
+      items: meal.items,
+      photo: 'keep',
+      baseUpdatedAt: meal.updatedAt,
+    });
     expect(isDirty(draft, meal)).toBe(false);
     // An empty or untrimmed name means the same name.
     expect(isDirty({ ...draft, name: '  ' }, meal)).toBe(false);
@@ -98,6 +105,22 @@ describe('saved meal editing (draft until "Speichern")', () => {
     expect(isDirty({ ...draft, name: 'Porridge' }, meal)).toBe(true);
     expect(isDirty({ ...draft, items: [{ ...meal.items[0]!, quantity: 50 }] }, meal)).toBe(true);
     expect(isDirty({ ...draft, photo: 'remove' }, meal)).toBe(true);
+  });
+
+  it('knows when the meal changed under an open draft', async () => {
+    const d = db();
+    const meal = await saveRecord(d, 'meals', {
+      id: uuidv7(),
+      name: 'Toast',
+      items: [item('Toast', 100)],
+      photoId: null,
+    });
+    const draft = draftFromMeal(meal);
+    expect(isMealDraftStale(draft, meal)).toBe(false);
+    const renamed = (await patchRecord(d, 'meals', meal.id, { name: 'Toast mit Butter' }))!;
+    expect(isMealDraftStale(draft, renamed)).toBe(true);
+    // A draft from an older app version (no base) never counts as stale.
+    expect(isMealDraftStale({ ...draft, baseUpdatedAt: undefined }, renamed)).toBe(false);
   });
 
   it('adds an ingredient from the search to the draft, never to the record', async () => {

@@ -1,7 +1,6 @@
 import {
   ACTIVITY_LABELS_DE,
   ageOn,
-  SETTINGS_ID,
   today,
   WEEKLY_RATES,
   type ActivityLevel,
@@ -19,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { saveRecord } from '@/db/write';
+import { saveSettings } from '@/db/settings';
 import { useSettings } from '@/hooks/data';
 
 export function ProfilePage() {
@@ -120,7 +119,15 @@ function ProfileForm({ initial }: { initial: Settings }) {
         size="lg"
         className="w-full"
         onClick={async () => {
-          await saveRecord(db, 'settings', { ...s, id: SETTINGS_ID });
+          // Only the profile fields: meal names or the plan changed elsewhere stay as they are.
+          await saveSettings(db, {
+            sex: s.sex,
+            birthDate: s.birthDate,
+            heightCm: s.heightCm,
+            activityLevel: s.activityLevel,
+            targetWeightKg: s.targetWeightKg,
+            weeklyRateKg: s.weeklyRateKg,
+          });
           toast.success('Profil gespeichert');
         }}
       >

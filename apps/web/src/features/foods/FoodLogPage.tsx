@@ -90,12 +90,13 @@ export function FoodLogPage() {
       </Page>
     );
   }
-  // Edit of an entry whose food is gone (e.g. deleted custom food): fall back to its stored values.
+  // Edit of an entry whose food is gone (deleted custom food, AI estimate): fall back to its stored
+  // values. `id: ''` marks this stub: no own portions, no editor link, the entry keeps its `foodId`.
   const effective: Food | null =
     food ??
     (entry?.per100
       ? {
-          id: entry.foodId ?? entry.id,
+          id: entry.foodId ?? '',
           source: entry.source === 'off' ? 'off' : entry.source === 'bls' ? 'bls' : 'custom',
           sourceId: null,
           name: entry.name,
@@ -183,7 +184,11 @@ function FoodLogForm(props: FormProps) {
             portion: { label: lastUsed.portionLabel, grams: lastUsed.portionGrams },
             quantity: lastUsed.quantity,
           }
-        : { portion: portions[0] ?? { label: '100 g', grams: 100 }, quantity: 1 };
+        : {
+            // Never a whole package as the first suggestion (2.480 kcal for a cheese says nothing).
+            portion: portions.find((p) => !/^packung\b/i.test(p.label)) ?? { label: '100 g', grams: 100 },
+            quantity: 1,
+          };
   // "1,5 × 100 g" is shown as 150 g: the editor counts grams with a 1 g raster instead.
   return <FoodLogEditor {...props} customPortions={custom} initial={normalizeAmount(initial, food.unit)} />;
 }
@@ -274,7 +279,7 @@ function FoodLogEditor({
     if (!valid) return;
     if (into) return addToTarget(into);
     const base = {
-      foodId: food.id,
+      foodId: food.id || null,
       source: (entry?.source === 'ai' ? 'ai' : food.source) as FoodEntry['source'],
       name: food.name,
       brand: food.brand,
@@ -295,7 +300,7 @@ function FoodLogEditor({
       await logFoodEntry(db, base, date);
       toast.success(`${food.name} eingetragen`);
     }
-    await rememberFood(db, food);
+    if (food.id) await rememberFood(db, food);
     await navigate({ to: '/', search: { date: entry?.date ?? date } });
   }
 
@@ -337,7 +342,7 @@ function FoodLogEditor({
       actions={
         food.source === 'custom' || entry ? (
           <>
-            {food.source === 'custom' && (
+            {food.source === 'custom' && food.id && (
               <Button variant="ghost" size="icon" asChild>
                 {/* Edits the food, not the entry; the unsaved form state survives the way there and back. */}
                 <Link
@@ -387,7 +392,7 @@ function FoodLogEditor({
             value={amount}
             onChange={setAmount}
             onCommit={setAmount}
-            onNewPortion={() => setPortionDialog(true)}
+            onNewPortion={food.id ? () => setPortionDialog(true) : undefined}
           />
           {!into && (
             <div className="grid gap-1.5">
