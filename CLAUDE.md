@@ -240,6 +240,42 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
   form before saving.
+- Diary meal without entries: `MealSuggestions` ("Zuletzt hier", `src/db/suggestions.ts`): foods and groups
+  of this meal index in the last 60 days, scored by frequency and recency (same weekday higher), one tap logs
+  the last amount (`logSuggestion`) or copies yesterday's meal (`copyMealFromDay`, "Wie gestern"), with undo.
+  Nothing shows once the meal has entries.
+- "Beschreiben statt fotografieren": the keyboard icon on `/photo` swaps the camera for a text form; the
+  queue item has `textOnly: true` and no photos (`enqueueDescription`), `/api/ai/analyze` takes text without
+  images, the review is the same (its hint field is labelled "Beschreibung der Mahlzeit").
+- AI review: while no ingredient is a fat (`isFatFood`, `features/ai/fatSuggestion.ts`) the review offers
+  "+ Öl 10 g" / "+ Butter 10 g" (photo apps miss about 30 g fat per meal); candidates show "N× gegessen".
+  The prompt lists invisible fats as own rows by default unless the hint rules them out.
+- Barcode without a hit (`ScanPage`): with AI on, straight to `/custom-food/new?barcode=&label=1` (label
+  camera open). An Open Food Facts food has a pencil "Werte korrigieren": `/custom-food/new?copy=<foodId>`
+  prefills an own food with the same barcode; search and online results hide the OFF twin of an own barcode
+  (`ownBarcodes`, `shadowedByOwn` in `foods/foodService.ts`), the barcode lookup prefers own foods anyway.
+- Complete days (`isCompleteDay`, shared `reports.ts`): closed with "Tag abschließen" or at least
+  `MIN_MEALS_COMPLETE` (2) meals logged. Report averages and "im Ziel" count complete days (fallback: logged
+  days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig".
+  `dailyRows` takes `notes` for the closed flag.
+- Expenditure from own data (shared `expenditure.ts`): `estimateExpenditure` = average intake of complete
+  days minus training minus the linear weight trend × 7 700 over the last 21 days (needs 14 complete days
+  and 4 weigh-ins spanning 10 days; implausible results give null). `ExpenditureCard` on `/progress` shows
+  it next to the formula and suggests a kcal target (`targetFromExpenditure`, applied via
+  `features/goals/applyTargetKcal.ts`, or put off 7 days in `kv` `expenditure.dismissedUntil`); the day
+  forecast uses it when available (`useExpenditure`). Never changes a goal by itself.
+- Monday only, today's diary: `WeekReviewCard` ("Letzte Woche": Ø kcal vs budget, Ø protein, weight trend,
+  complete days; `weekSummary`), X hides it for the week (`kv` `weekReview.dismissed`). The diary stays the
+  start page; no streaks, no verdicts.
+- Recipe mode: `meals.cookedGrams` (shared `recipes.ts`: `mealPer100`, `mealFactorForGrams`,
+  `foodFromMeal`). The meal editor has the field under "Rezept" and a header icon "Als Lebensmittel
+  speichern" (`saveMealAsFood`: own food per 100 g cooked with the portion "Ganzes Rezept"); `MealLogView`
+  takes "Gegessen (gekocht)" in grams when the weight is known.
+- Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
+  notification a day at a chosen local time, only when nothing is logged that day, per device
+  (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/
+  `VAPID_PRIVATE_KEY` on the server (`pnpm --filter @ft/api push:keys`); iOS only as installed app. Signing
+  out removes the device's subscription. `sw.ts` shows the notification and opens the diary on tap.
 - Server housekeeping (`apps/api/src/maintenance.ts`, at start and daily): photos older than 30 days that no
   meal or entry (tombstones included) references, and expired sessions. Sessions slide up to 400 days but end
   2 years after creation. `/health` says only `{ ok }`; version and catalog size are under `/api/info`.

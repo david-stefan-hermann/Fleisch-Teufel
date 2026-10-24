@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "ai:eval": "tsx scripts/ai-eval.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "user:reset-password": "tsx scripts/reset-password.ts"
+    "user:reset-password": "tsx scripts/reset-password.ts",
+    "push:keys": "tsx scripts/vapid-keys.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

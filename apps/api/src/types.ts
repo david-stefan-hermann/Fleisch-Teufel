@@ -3,6 +3,7 @@ import type { Env } from './env.js';
 import type { FoodCatalog } from './foods/catalog.js';
 import type { OffClient } from './off/client.js';
 import type { FoodAnalyzer } from './ai/analyze.js';
+import type { PushSender } from './push.js';
 
 export interface SessionUser {
   id: string;
@@ -17,6 +18,8 @@ export interface Deps {
   catalog: FoodCatalog;
   off: OffClient;
   analyzer: FoodAnalyzer | null;
+  /** Web Push for the daily reminder; null without VAPID keys (the feature is then not offered). */
+  push: PushSender | null;
   version: string;
 }
 

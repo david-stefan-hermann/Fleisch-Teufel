@@ -38,7 +38,9 @@ ohne gespeichertes Meal, z. B. eine Foto-Analyse, die ohne Speichern mit „Meal
 der Name kommt vom Meal), `foodEntries.photoId` (Foto der Gruppe, an jedem Eintrag der Gruppe gleich: das
 analysierte Foto oder das Meal-Foto beim Eintragen; die Tagebuchzeile zeigt es vor dem aktuellen Foto des Meals),
 `foodEntries.photoIds` (alle Fotos der Gruppe in Reihenfolge, z. B. Teller, Dessert und Nährwerttabelle einer
-Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`) und `exerciseEntries.note`.
+Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`), `exerciseEntries.note` und
+`meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
+wie sie sind).
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.
@@ -106,6 +108,10 @@ Datensätze trotzdem gepusht; der Fehler erscheint danach im Sync-Status und der
 Lauf wiederholt. Andere Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
 
 ## Was nicht synchronisiert
+
+- Abonnements der täglichen Erinnerung (Web Push, Tabelle `push_subscriptions`): je Gerät ein Endpunkt mit
+  Uhrzeit und Zeitzone, nur auf dem Server (`apps/api/src/push.ts`); der Server sendet jede Minute, was fällig
+  ist, und nur an Konten ohne Eintrag am lokalen Tag
 
 - BLS-Katalog (kommt als statische Datei mit der App, ist für alle gleich)
 - Zwischenspeicher von Open-Food-Facts-Produkten (`foodCache`): „Kürzlich“/„Häufig“ werden aus dem

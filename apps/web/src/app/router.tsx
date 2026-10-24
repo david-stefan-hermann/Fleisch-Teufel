@@ -252,6 +252,10 @@ export const routes = {
     ...r('/settings/data'),
     component: lazyRouteComponent(() => import('@/features/more/DataPage'), 'DataPage'),
   }),
+  reminder: createRoute({
+    ...r('/settings/reminder'),
+    component: lazyRouteComponent(() => import('@/features/more/ReminderPage'), 'ReminderPage'),
+  }),
   appearance: createRoute({
     ...r('/settings/appearance'),
     component: lazyRouteComponent(() => import('@/features/more/AppearancePage'), 'AppearancePage'),

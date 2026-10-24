@@ -25,6 +25,13 @@ const envSchema = z.object({
   /** Model for reading food labels (copying printed values): a cheaper one does; defaults to AI_MODEL. */
   AI_LABEL_MODEL: z.string().optional(),
   AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
+  /**
+   * Web Push (daily reminder): VAPID key pair (`pnpm --filter @ft/api push:keys` prints one) and the
+   * contact the push services may use. Without keys the reminder is simply not offered.
+   */
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
   /** Static files of the web app (production). */
   WEB_DIST: z.string().optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),

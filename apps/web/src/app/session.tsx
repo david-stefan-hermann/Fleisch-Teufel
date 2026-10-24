@@ -9,6 +9,7 @@ import { ApiError, endpoints } from '@/lib/api';
 import { UserDb, userDbName } from '@/db/dexie';
 import { SyncEngine } from '@/sync/syncEngine';
 import { startQueueProcessing } from '@/features/ai/queue';
+import { disableReminder } from '@/lib/reminder';
 
 const USER_KEY = 'ft.user';
 
@@ -101,6 +102,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(
     async (opts: { wipeLocal?: boolean } = {}) => {
+      // The reminder belongs to the account, not the device: it goes with the sign-out (best effort).
+      await disableReminder();
       try {
         await endpoints.logout();
       } catch {

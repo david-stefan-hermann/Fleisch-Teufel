@@ -5,6 +5,13 @@ was man braucht. Dieses Dokument sammelt, wie MyFitnessPal (MFP), Yazio, Cronome
 Lose It!, FatSecret, Lifesum, Cal AI und Fddb ihre Kern-Workflows lösen, woran sich deren Nutzer
 stoßen, und was daraus für Fleisch-Teufel folgt.
 
+**Stand 24.10.2026, Branch `market-features`:** Abschnitt 4 ist vollständig umgesetzt: Zubereitungsfett im Prompt und als Review-Zeile, „Zuletzt hier“
+und „Wie gestern“, Barcode → Etikett, OFF-Werte korrigieren, Beschreiben statt fotografieren,
+vollständige Tage in Berichten, Bedarf aus eigenen Daten mit Zielvorschlag, Montags-Wochenkarte, Rezeptmodus,
+Erinnerung per Web Push (braucht VAPID-Schlüssel in der `.env`), Gewichtstrend als Hauptzahl, „N× gegessen“
+im Review, Export-Hinweis unter „Daten & Sync“. Nicht gebaut (bewusst, Abschnitt 5): alles aus der
+Nicht-bauen-Liste.
+
 ## Quellenlage
 
 - Rezensions-Auswertungen 2026: Unstar (300 Google-Play-Rezensionen MFP, 202 davon 1 bis 3 Sterne;

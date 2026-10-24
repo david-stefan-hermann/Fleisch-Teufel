@@ -12,6 +12,7 @@ import { aiRoutes } from './routes/ai.js';
 import { authRoutes, registrationOpen } from './routes/auth.js';
 import { foodRoutes } from './routes/foods.js';
 import { photoRoutes } from './routes/photos.js';
+import { pushRoutes } from './routes/push.js';
 import { syncRoutes } from './routes/sync.js';
 import type { AppEnv, Deps } from './types.js';
 
@@ -104,6 +105,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
   app.route('/api/foods', foodRoutes(deps));
   app.route('/api/ai', aiRoutes(deps));
   app.route('/api/photos', photoRoutes(deps));
+  app.route('/api/push', pushRoutes(deps));
   app.all('/api/*', (c) => c.json({ error: 'not_found' }, 404));
 
   const dist = opts.webDist;

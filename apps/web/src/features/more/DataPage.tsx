@@ -183,9 +183,10 @@ export function DataPage() {
       </Section>
       <Section title="Sicherung">
         <div className="grid gap-2 px-4 pb-4">
-          <p className="text-sm text-muted-foreground">
-            Alle deine Daten als JSON, zusätzlich zur Synchronisation mit dem Server. CSV-Exporte findest du
-            unter Berichte.
+          <p className="text-sm text-muted-foreground text-pretty">
+            Deine Daten gehören dir und sind jederzeit vollständig exportierbar: alles als JSON, zusätzlich
+            zur Synchronisation mit dem Server. CSV-Exporte (Einträge, Tageswerte, Gewicht, Training) findest
+            du unter Berichte.
           </p>
           <Button
             variant="outline"

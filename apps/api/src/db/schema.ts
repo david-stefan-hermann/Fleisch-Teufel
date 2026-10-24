@@ -291,6 +291,34 @@ export const aiFoodChoices = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.term, t.foodId] })],
 );
 
+/**
+ * Web Push subscriptions for the daily reminder ("Erinnerung", one per device): endpoint and keys
+ * from the browser, the local time of day and time zone the person chose, and the local date the
+ * reminder was last sent for (or skipped because food was logged). Server only, not synced; gone
+ * with the account (cascade) or when the push service reports the endpoint as expired.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    endpoint: text().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    /** Local time of day, "HH:MM". */
+    remindAt: text().notNull(),
+    /** IANA time zone of the device, e.g. "Europe/Berlin". */
+    tz: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    /** Local date (YYYY-MM-DD) the reminder was handled for last; one per day at most. */
+    lastSentOn: text(),
+    /** Consecutive delivery errors; the subscription is dropped after a few. */
+    failures: integer().notNull().default(0),
+  },
+  (t) => [index().on(t.userId)],
+);
+
 export const appMeta = pgTable('app_meta', {
   key: text().primaryKey(),
   value: text().notNull(),

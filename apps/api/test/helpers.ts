@@ -8,6 +8,7 @@ import { createDb, runMigrations, type Db } from '../src/db/client.js';
 import { loadEnv } from '../src/env.js';
 import { FoodCatalog, type BlsFile } from '../src/foods/catalog.js';
 import type { OffClient } from '../src/off/client.js';
+import type { PushSender } from '../src/push.js';
 import type { Deps } from '../src/types.js';
 
 export const BLS_FIXTURE: BlsFile = {
@@ -86,6 +87,7 @@ export async function createTestContext(
   opts: {
     off?: Partial<OffClient>;
     analyzer?: FoodAnalyzer | null;
+    push?: PushSender | null;
     env?: Record<string, string>;
     bls?: BlsFile;
   } = {},
@@ -101,7 +103,15 @@ export async function createTestContext(
   const off = fakeOff(opts.off);
   const catalog = new FoodCatalog(db, off, opts.bls ?? BLS_FIXTURE);
   await catalog.init();
-  const deps: Deps = { db, env, catalog, off, analyzer: opts.analyzer ?? null, version: 'test' };
+  const deps: Deps = {
+    db,
+    env,
+    catalog,
+    off,
+    analyzer: opts.analyzer ?? null,
+    push: opts.push ?? null,
+    version: 'test',
+  };
   return { deps, db, app: createApp(deps), off, close: () => db.$client.end({ timeout: 1 }) };
 }
 

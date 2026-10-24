@@ -126,6 +126,12 @@ Checkout auf dem NAS oder per `docker exec` im App-Container) ein neues Passwort
 Der Server räumt täglich auf: Fotos, die seit 30 Tagen kein Meal und kein Eintrag mehr verwendet, und
 abgelaufene Sitzungen (Sitzungen enden spätestens zwei Jahre nach der Anmeldung).
 
+**Erinnerung (Web Push)**: Mit `VAPID_PUBLIC_KEY` und `VAPID_PRIVATE_KEY` in der `.env` (einmal erzeugen mit
+`pnpm --filter @ft/api push:keys`, danach nie wieder ändern) bietet die App unter „Mehr → Erinnerung“ eine
+tägliche Mitteilung zu einer gewählten Uhrzeit an, nur wenn an dem Tag noch nichts eingetragen ist. Der
+Server prüft das jede Minute je Gerät in dessen Zeitzone; abgelaufene Abonnements werden entfernt. Auf dem
+iPhone gibt es Mitteilungen nur für die auf dem Home-Bildschirm installierte App.
+
 ## Auf dem iPhone installieren
 
 1. Seite in **Safari** öffnen und anmelden. Nach ein paar Sekunden erscheint oben das Banner

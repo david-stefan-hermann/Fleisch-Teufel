@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import {
+  BellRing,
   Dumbbell,
   ChevronRight,
   Database,
@@ -102,6 +103,12 @@ export function MorePage() {
       </Section>
       <Section>
         <ul className="divide-y divide-border/70">
+          <Row
+            to="/settings/reminder"
+            icon={<BellRing aria-hidden />}
+            label="Erinnerung"
+            hint="Einmal am Tag, nur wenn noch nichts eingetragen ist"
+          />
           <Row
             to="/settings/appearance"
             icon={<Palette aria-hidden />}

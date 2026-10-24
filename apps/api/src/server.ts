@@ -11,6 +11,7 @@ import { FoodCatalog, loadBls } from './foods/catalog.js';
 import { log, setLogLevel } from './log.js';
 import { startMaintenance } from './maintenance.js';
 import { createOffClient } from './off/client.js';
+import { createWebPushSender, startReminders } from './push.js';
 import type { Deps } from './types.js';
 
 declare const __APP_VERSION__: string | undefined;
@@ -36,7 +37,15 @@ export async function buildDeps(env: Env): Promise<Deps> {
           effort: env.AI_EFFORT,
         })
       : null;
-  return { db, env, catalog, off, analyzer, version: VERSION };
+  const push =
+    env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY
+      ? createWebPushSender({
+          publicKey: env.VAPID_PUBLIC_KEY,
+          privateKey: env.VAPID_PRIVATE_KEY,
+          subject: env.VAPID_SUBJECT ?? `mailto:${env.OFF_CONTACT_EMAIL}`,
+        })
+      : null;
+  return { db, env, catalog, off, analyzer, push, version: VERSION };
 }
 
 export async function main() {
@@ -47,16 +56,19 @@ export async function main() {
   const webDist = env.WEB_DIST ?? resolve(here, 'public');
   const app = createApp(deps, { webDist });
   const stopMaintenance = startMaintenance(deps.db);
+  const stopReminders = deps.push ? startReminders(deps.db, deps.push) : () => {};
   const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     log.info(`${APP_NAME} ${VERSION} listening`, {
       port: info.port,
       ai: deps.analyzer !== null,
+      push: deps.push !== null,
       registration: env.ALLOW_REGISTRATION,
     });
   });
   const shutdown = (signal: string) => {
     log.info('shutting down', { signal });
     stopMaintenance();
+    stopReminders();
     server.close(() => {
       void deps.db.$client.end({ timeout: 5 }).finally(() => process.exit(0));
     });
