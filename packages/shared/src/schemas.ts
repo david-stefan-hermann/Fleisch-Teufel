@@ -320,6 +320,16 @@ export type Credentials = z.infer<typeof credentialsSchema>;
 /** Login only needs non-empty values; the length policy applies when setting a password. */
 export const loginSchema = credentialsSchema.extend({ password: z.string().min(1).max(256) });
 
+/** One signed-in device of the account (Konto → Geräte). */
+export interface SessionInfo {
+  id: string;
+  createdAt: number;
+  lastSeenAt: number;
+  userAgent: string | null;
+  /** The session making the request. */
+  current: boolean;
+}
+
 export interface PublicUser {
   id: string;
   email: string;

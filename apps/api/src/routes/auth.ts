@@ -1,5 +1,5 @@
-import { credentialsSchema, loginSchema, type PublicUser } from '@ft/shared';
-import { count, eq, and, ne, sql } from 'drizzle-orm';
+import { credentialsSchema, loginSchema, type PublicUser, type SessionInfo } from '@ft/shared';
+import { count, eq, and, gt, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -113,6 +113,60 @@ export function authRoutes(deps: Deps) {
       .where(eq(users.id, me.id));
     // Sign out every other device.
     await db.delete(sessions).where(and(eq(sessions.userId, me.id), ne(sessions.id, me.sessionId)));
+    return c.json({ ok: true });
+  });
+
+  /** The account's signed-in devices, newest activity first (ids are hashes, never tokens). */
+  app.get('/sessions', requireUser(db), async (c) => {
+    const me = c.get('user');
+    const rows = await db
+      .select({
+        id: sessions.id,
+        createdAt: sessions.createdAt,
+        lastSeenAt: sessions.lastSeenAt,
+        userAgent: sessions.userAgent,
+      })
+      .from(sessions)
+      .where(and(eq(sessions.userId, me.id), gt(sessions.expiresAt, new Date())));
+    const list: SessionInfo[] = rows
+      .map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt.getTime(),
+        lastSeenAt: r.lastSeenAt.getTime(),
+        userAgent: r.userAgent,
+        current: r.id === me.sessionId,
+      }))
+      .sort((a, b) => b.lastSeenAt - a.lastSeenAt);
+    return c.json({ sessions: list });
+  });
+
+  /** Signs out one device of the account (also the current one). */
+  app.delete('/sessions/:id', requireUser(db), async (c) => {
+    const me = c.get('user');
+    const id = c.req.param('id');
+    const gone = await db
+      .delete(sessions)
+      .where(and(eq(sessions.userId, me.id), eq(sessions.id, id)))
+      .returning({ id: sessions.id });
+    if (gone.length === 0) return c.json({ error: 'not_found' }, 404);
+    if (id === me.sessionId) clearSessionCookie(c);
+    return c.json({ ok: true });
+  });
+
+  /**
+   * Deletes the account with everything it owns (cascade on every table) after the password was
+   * typed again. The device wipes its own copy afterwards.
+   */
+  const deleteAccount = z.object({ password: z.string().min(1).max(256) });
+  app.delete('/account', requireUser(db), async (c) => {
+    const body = await parseJson(c, deleteAccount);
+    if (!body.ok) return body.response;
+    const me = c.get('user');
+    const [user] = await db.select().from(users).where(eq(users.id, me.id));
+    if (!user || !(await verifyPassword(user.passwordHash, body.data.password)))
+      return c.json({ error: 'invalid_credentials' }, 401);
+    await db.delete(users).where(eq(users.id, me.id));
+    clearSessionCookie(c);
     return c.json({ ok: true });
   });
 

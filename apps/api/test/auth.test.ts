@@ -113,6 +113,64 @@ describe('auth', () => {
     ).toBe(200);
   });
 
+  it('lists the devices of an account and signs one out', async () => {
+    const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const phone = new TestClient(own.app, { 'user-agent': 'iPhone Safari' });
+      expect(
+        (await phone.post('/api/auth/register', { email: 'devices@example.com', password: 'correct horse' }))
+          .status,
+      ).toBe(201);
+      const laptop = new TestClient(own.app, { 'user-agent': 'Firefox' });
+      await laptop.post('/api/auth/login', { email: 'devices@example.com', password: 'correct horse' });
+      const list = (await phone.get('/api/auth/sessions')).json.sessions as {
+        id: string;
+        current: boolean;
+        userAgent: string;
+      }[];
+      expect(list).toHaveLength(2);
+      expect(list.find((s) => s.current)?.userAgent).toBe('iPhone Safari');
+      const other = list.find((s) => !s.current)!;
+      expect((await phone.req('DELETE', `/api/auth/sessions/${other.id}`)).status).toBe(200);
+      expect((await laptop.get('/api/auth/me')).status).toBe(401);
+      expect((await phone.get('/api/auth/me')).status).toBe(200);
+      expect((await phone.req('DELETE', `/api/auth/sessions/${other.id}`)).status).toBe(404);
+    } finally {
+      await own.close();
+    }
+  });
+
+  it('deletes an account with its data after the password is typed again', async () => {
+    const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const c = new TestClient(own.app);
+      await c.post('/api/auth/register', { email: 'bye@example.com', password: 'correct horse' });
+      await c.post('/api/sync/push', {
+        records: [
+          {
+            table: 'weightEntries',
+            data: { id: 'w:2026-10-07', updatedAt: 1, deleted: false, date: '2026-10-07', kg: 80 },
+          },
+        ],
+      });
+      expect((await c.req('DELETE', '/api/auth/account', { password: 'wrong' })).status).toBe(401);
+      expect((await c.req('DELETE', '/api/auth/account', { password: 'correct horse' })).status).toBe(200);
+      expect((await c.get('/api/auth/me')).status).toBe(401);
+      expect(
+        (
+          await new TestClient(own.app).post('/api/auth/login', {
+            email: 'bye@example.com',
+            password: 'correct horse',
+          })
+        ).status,
+      ).toBe(401);
+      const rows = await own.db.$client`select count(*)::int as n from weight_entries`;
+      expect(rows[0]!.n).toBe(0);
+    } finally {
+      await own.close();
+    }
+  });
+
   it('ends a session two years after it was created, however active it is', async () => {
     const c = new TestClient(ctx.app);
     expect(

@@ -1,4 +1,4 @@
-import type { AiLabelResult, Food, PublicUser, ServerInfo } from '@ft/shared';
+import type { AiLabelResult, Food, PublicUser, ServerInfo, SessionInfo } from '@ft/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -80,6 +80,11 @@ export const endpoints = {
   register: (email: string, password: string) =>
     api<{ user: PublicUser }>('/api/auth/register', json({ email, password })),
   logout: () => api<{ ok: true }>('/api/auth/logout', json({})),
+  sessions: () => api<{ sessions: SessionInfo[] }>('/api/auth/sessions'),
+  deleteSession: (id: string) =>
+    api<{ ok: true }>(`/api/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteAccount: (password: string) =>
+    api<{ ok: true }>('/api/auth/account', { ...json({ password }), method: 'DELETE' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     api<{ ok: true }>('/api/auth/password', json({ currentPassword, newPassword })),
   food: (id: string, timeoutMs = 4000) =>
