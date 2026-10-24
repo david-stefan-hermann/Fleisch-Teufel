@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { useLoggedDates, useTrainedDates } from '@/hooks/data';
 import { cn } from '@/lib/utils';
 
+const DAY_NAME = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+
 /**
  * Mon to Sun of the shown day with week arrows. Under each date a dot row of fixed height: red (left)
  * when food was logged, blue (right) when a training was; the day's link label says the same.
@@ -27,11 +29,7 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
           const isToday = d === today;
           const food = !!logged?.has(d);
           const training = !!trained?.has(d);
-          const dayName = new Intl.DateTimeFormat('de-DE', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-          }).format(parseISODate(d));
+          const dayName = DAY_NAME.format(parseISODate(d));
           return (
             <li key={d}>
               <Link

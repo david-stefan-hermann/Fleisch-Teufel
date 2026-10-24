@@ -1,4 +1,4 @@
-import { today } from '@ft/shared';
+import {} from '@ft/shared';
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { Dumbbell, Scale } from 'lucide-react';
 import {
@@ -16,6 +16,7 @@ import { defaultMealForNow } from '@/lib/meals';
 import { cn } from '@/lib/utils';
 import { warmUpCamera } from './cameraWarmup';
 import { ScanFoodIcon } from './ScanFoodIcon';
+import { useToday } from '@/hooks/data';
 
 /** Target of the sheet: day and meal for "Essen eintragen" (default: the shown day, the meal of the hour). */
 export interface AddSheetTarget {
@@ -61,7 +62,8 @@ function AddSheet({
   const navigate = useNavigate();
   const router = useRouter();
   const search = useSearch({ strict: false }) as { date?: string };
-  const date = target.date ?? search.date ?? today();
+  const todayNow = useToday();
+  const date = target.date ?? search.date ?? todayNow;
   const meal = target.meal ?? defaultMealForNow();
   // Loads the code of the food page while the sheet is open, so the tap only waits for the camera.
   useEffect(() => {

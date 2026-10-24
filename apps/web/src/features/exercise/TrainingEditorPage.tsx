@@ -3,7 +3,6 @@ import {
   metFor,
   netExerciseKcal,
   round,
-  today,
   type ExerciseTemplate,
   type Intensity,
 } from '@ft/shared';
@@ -19,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { deleteRecord, patchRecord, restoreRecord } from '@/db/write';
-import { useCurrentWeight } from '@/hooks/data';
+import { useCurrentWeight, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { useTypeOptions } from './training';
 import { SportPicker, TrainingFields, TrainingKcal } from './TrainingFields';
@@ -63,7 +62,7 @@ function TrainingEditorForm({ template }: { template: ExerciseTemplate }) {
   const db = useDb();
   const navigate = useNavigate();
   const options = useTypeOptions();
-  const weight = useCurrentWeight(today()) ?? DEFAULT_WEIGHT_KG;
+  const weight = useCurrentWeight(useToday()) ?? DEFAULT_WEIGHT_KG;
   const [fields, setFields] = useState<Fields>(() => fieldsOf(template));
   const [filter, setFilter] = useState('');
   const set = (patch: Partial<Fields>) => setFields((f) => ({ ...f, ...patch }));

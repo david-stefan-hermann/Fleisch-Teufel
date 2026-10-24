@@ -1,4 +1,4 @@
-import { sumNutrients, targetsForDate, today, type Meal, type MealItem } from '@ft/shared';
+import { sumNutrients, targetsForDate, type Meal, type MealItem } from '@ft/shared';
 import { useBlocker, useNavigate, useRouter, type ShouldBlockFn } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, ImagePlus, Plus, Trash2, X } from 'lucide-react';
@@ -29,7 +29,7 @@ import {
 } from '@/db/mealDraft';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
-import { useGoals } from '@/hooks/data';
+import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
@@ -128,7 +128,8 @@ function MealEditorForm({
 
   const name = draft.name.trim() || meal.name;
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
-  const targets = targetsForDate(goals ?? [], today());
+  const today = useToday();
+  const targets = targetsForDate(goals ?? [], today);
 
   async function save(): Promise<boolean> {
     const ok = await saveMealDraft(db, draft);
@@ -162,7 +163,7 @@ function MealEditorForm({
 
   function addIngredient() {
     rememberIntoStart(router.history);
-    void navigate({ to: '/add', search: { date: today(), meal: 0, into } });
+    void navigate({ to: '/add', search: { date: today, meal: 0, into } });
   }
 
   return (

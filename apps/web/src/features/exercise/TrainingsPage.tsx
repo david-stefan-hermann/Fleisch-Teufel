@@ -1,4 +1,4 @@
-import { DEFAULT_WEIGHT_KG, metFor, netExerciseKcal, today } from '@ft/shared';
+import { DEFAULT_WEIGHT_KG, metFor, netExerciseKcal } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dumbbell } from 'lucide-react';
@@ -7,7 +7,7 @@ import { useDb } from '@/app/session';
 import { EmptyState, Page } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { deleteRecord, restoreRecord } from '@/db/write';
-import { useCurrentWeight } from '@/hooks/data';
+import { useCurrentWeight, useToday } from '@/hooks/data';
 import { fmt0 } from '@/lib/format';
 import { describe, useTypeOptions } from './training';
 
@@ -15,7 +15,7 @@ import { describe, useTypeOptions } from './training';
 export function TrainingsPage() {
   const db = useDb();
   const options = useTypeOptions();
-  const weight = useCurrentWeight(today()) ?? DEFAULT_WEIGHT_KG;
+  const weight = useCurrentWeight(useToday()) ?? DEFAULT_WEIGHT_KG;
   const trainings = useLiveQuery(() => db.exerciseTemplates.filter((t) => !t.deleted).sortBy('name'), [db]);
   return (
     <Page title="Gespeicherte Trainings" back="/more" withTabBar={false}>

@@ -88,6 +88,10 @@ export function editorPortions(unit: 'g' | 'ml', portions: readonly Portion[], c
   return out;
 }
 
+/** Range of the "Gesamtmenge" slider (factor on all ingredients) in the meal, group and review editors. */
+export const SCALE_MIN = 0.25;
+export const SCALE_MAX = 3;
+
 /** The same amount in another unit: the grams stay (whole grams, hundredths of a portion). */
 export function convertAmount(quantity: number | null, from: Portion, to: Portion): number | null {
   if (quantity === null || !(quantity > 0)) return null;

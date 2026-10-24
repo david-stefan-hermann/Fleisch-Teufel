@@ -94,6 +94,7 @@ export function LabelCaptureSheet({
     <PhotoCaptureSheet
       title="Etikett fotografieren"
       max={MAX_LABEL_PHOTOS}
+      preset={IMAGE_PRESETS.label}
       busy={busy}
       closeLabel={busy ? 'Abbrechen' : 'Schließen'}
       footerLabel={(n) => (n === 0 ? 'Analysieren' : `Analysieren (${n} ${n === 1 ? 'Foto' : 'Fotos'})`)}

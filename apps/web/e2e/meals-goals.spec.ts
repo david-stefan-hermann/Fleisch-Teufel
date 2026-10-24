@@ -587,6 +587,72 @@ test('AI result logged without saving becomes a named group without a saved meal
     .toEqual(['Reis mit Hähnchen', 'Reis mit Hähnchen']);
 });
 
+test('a double tap on "Meal eintragen" logs the analysis once', async ({ page }) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  await page.route('**/api/ai/analyze', (r) =>
+    r.fulfill({
+      json: {
+        analysisId: '00000000-0000-7000-8000-000000000003',
+        dishName: 'Nudeln mit Pesto',
+        items: [
+          {
+            name: 'Nudeln gekocht',
+            grams: 250,
+            confidence: 'high',
+            preparation: null,
+            packaged: false,
+            searchTerms: [],
+            candidates: [
+              {
+                food: {
+                  id: 'bls:N',
+                  source: 'bls',
+                  sourceId: 'bls:N',
+                  name: 'Nudeln gekocht',
+                  nameEn: null,
+                  brand: null,
+                  group: null,
+                  unit: 'g',
+                  nutrients: { ENERCC: 150, PROT625: 5, CHO: 30, FAT: 1 },
+                  portions: [],
+                },
+                score: 1,
+              },
+            ],
+          },
+        ],
+        notes: null,
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.03 },
+      },
+    }),
+  );
+  await page.goto('/photo?meal=1');
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
+  await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
+  // Two taps in one go (the second lands while the first still writes): dispatched directly, because
+  // Playwright's click would wait for the button to be enabled again.
+  const log = page.getByRole('button', { name: 'Meal eintragen' });
+  await log.dispatchEvent('click');
+  await log.dispatchEvent('click');
+  await expect(page.getByText('„Nudeln mit Pesto“ eingetragen')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: /Nudeln mit Pesto/ })).toHaveCount(1);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async () => {
+          const r = await fetch('/api/sync/pull?since=0');
+          return (await r.json()).changes.filter((c: { table: string }) => c.table === 'foodEntries').length;
+        }),
+      { timeout: 15_000 },
+    )
+    .toBe(1);
+});
+
 test('macro templates: protein follows body weight', async ({ page }) => {
   await register(page);
   await page.getByRole('radio', { name: 'Männlich' }).click();

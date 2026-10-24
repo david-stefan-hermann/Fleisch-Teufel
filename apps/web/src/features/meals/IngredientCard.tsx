@@ -32,8 +32,7 @@ export function isGramItem(item: Pick<MealItem, 'portionLabel'>): boolean {
 export const minQuantity = (item: Pick<MealItem, 'portionLabel'>) => (isGramItem(item) ? 1 : 0.1);
 
 /** Range of the "Gesamtmenge" slider of the meal and diary group editors. */
-export const SCALE_MIN = 0.25;
-export const SCALE_MAX = 3;
+export { SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
 
 /**
  * "Gesamtmenge": scales every ingredient of `base` (the amounts after the last manual change) by

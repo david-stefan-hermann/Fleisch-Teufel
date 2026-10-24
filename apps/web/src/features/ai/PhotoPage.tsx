@@ -78,7 +78,7 @@ import { rememberFood, userPortions } from '@/foods/foodService';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { basePortion, editorPortions, isBasePortion } from '@/lib/amounts';
+import { basePortion, editorPortions, isBasePortion, SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
 import { endpoints, errorMessage } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
@@ -401,6 +401,7 @@ function PhotoPreview({
         <PhotoCaptureSheet
           title="Fotos hinzufügen"
           max={room}
+          preset={IMAGE_PRESETS.analysis}
           footerLabel={addLabel}
           hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt`}
           onSubmit={(photos) => {
@@ -648,10 +649,6 @@ const CONFIDENCE = { low: 'unsicher', medium: 'mittel', high: 'sicher' } as cons
 
 /** Review content while a re-analysis runs: greyed out and not interactive. */
 const BUSY = 'pointer-events-none opacity-45 saturate-50 select-none';
-
-/** Range of the "Gesamtmenge" slider (factor on all ingredients). */
-const SCALE_MIN = 0.25;
-const SCALE_MAX = 3;
 
 /**
  * Review of a finished analysis. The working state is kept in component state for smooth typing and

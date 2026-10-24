@@ -1,4 +1,4 @@
-import { targetsForDate, today, uuidv7, type AiLabelResult, type CustomFood, type Portion } from '@ft/shared';
+import { targetsForDate, uuidv7, type AiLabelResult, type CustomFood, type Portion } from '@ft/shared';
 import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, ScanBarcode, ScanText, Sparkles, Trash2, X } from 'lucide-react';
@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
-import { useGoals } from '@/hooks/data';
+import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAiStatus } from '@/hooks/useAiStatus';
 import { goBackOr } from '@/lib/history';
@@ -51,6 +51,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   const navigate = useNavigate();
   const router = useRouter();
   const goals = useGoals();
+  const today = useToday();
   const isNew = existing === null;
   const toList = () => void navigate({ to: '/custom-foods', replace: true });
   const [name, setName] = useState(existing?.name ?? search.name ?? '');
@@ -329,7 +330,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               state={nutrients}
               onChange={(code, v) => setNutrients((s) => setField(s, code, v))}
               onResetKcal={() => setNutrients(resetKcal)}
-              targets={targetsForDate(goals ?? [], today())}
+              targets={targetsForDate(goals ?? [], today)}
               error={touched ? errors.nutrients : null}
               defaultMicrosOpen={!isNew}
               highlighted={flash as ReadonlySet<FormCode>}

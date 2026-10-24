@@ -1,7 +1,6 @@
 import {
   ACTIVITY_LABELS_DE,
   ageOn,
-  today,
   WEEKLY_RATES,
   type ActivityLevel,
   type Settings,
@@ -19,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveSettings } from '@/db/settings';
-import { useSettings } from '@/hooks/data';
+import { useSettings, useToday } from '@/hooks/data';
 
 export function ProfilePage() {
   const settings = useSettings();
@@ -31,7 +30,8 @@ function ProfileForm({ initial }: { initial: Settings }) {
   const db = useDb();
   const [s, setS] = useState<Settings>(initial);
   const set = (patch: Partial<Settings>) => setS({ ...s, ...patch });
-  const age = s.birthDate ? ageOn(s.birthDate, today()) : null;
+  const today = useToday();
+  const age = s.birthDate ? ageOn(s.birthDate, today) : null;
 
   return (
     <Page title="Profil" back="/more" withTabBar={false}>

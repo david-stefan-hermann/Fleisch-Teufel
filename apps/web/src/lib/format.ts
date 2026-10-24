@@ -46,8 +46,9 @@ export const fmtMonth = (d: ISODate) => monthYear.format(parseISODate(d));
 export const fmtTime = (ms: number) => timeShort.format(new Date(ms));
 
 /** "Heute", "Gestern", "Morgen" or the long date. */
+const rtf = new Intl.RelativeTimeFormat('de-DE', { numeric: 'auto' });
+
 export function fmtRelativeDay(d: ISODate, today: ISODate): string {
-  const rtf = new Intl.RelativeTimeFormat('de-DE', { numeric: 'auto' });
   const diff = Math.round((parseISODate(d).getTime() - parseISODate(today).getTime()) / 86_400_000);
   if (Math.abs(diff) <= 1) {
     const s = rtf.format(diff, 'day');
@@ -57,7 +58,6 @@ export function fmtRelativeDay(d: ISODate, today: ISODate): string {
 }
 
 export function fmtAgo(ms: number, now = Date.now()): string {
-  const rtf = new Intl.RelativeTimeFormat('de-DE', { numeric: 'auto' });
   const s = Math.round((ms - now) / 1000);
   if (Math.abs(s) < 60) return 'gerade eben';
   const m = Math.round(s / 60);

@@ -38,7 +38,7 @@ import { addItemToMeal, logFoodEntry } from '@/db/entries';
 import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/db/groupDraft';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
-import { useGoals, useSettings } from '@/hooks/data';
+import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
@@ -203,6 +203,7 @@ function FoodLogEditor({
   initial,
 }: FormProps & { customPortions: Portion[]; initial: Initial }) {
   const db = useDb();
+  const todayNow = useToday();
   const navigate = useNavigate();
   const router = useRouter();
   // Name of the target in the title: the saved meal, or the diary group being edited.
@@ -219,7 +220,7 @@ function FoodLogEditor({
   const settings = useSettings();
   const goals = useGoals();
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
-  const date = entry?.date ?? defaultDate ?? today();
+  const date = entry?.date ?? defaultDate ?? todayNow;
   const targets = targetsForDate(goals ?? [], date);
   const [meal, setMeal] = useState(initial.meal ?? entry?.meal ?? defaultMeal ?? 0);
   const [amount, setAmount] = useState<Amount>({ portion: initial.portion, quantity: initial.quantity });
