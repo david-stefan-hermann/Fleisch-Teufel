@@ -332,17 +332,24 @@ test('own food from a label photo: two photos, one call, form filled and highlig
   await page.getByRole('button', { name: 'Anlegen', exact: true }).click();
   await expect(page.getByText('Lebensmittel angelegt')).toBeVisible();
 
-  // Scan page, unknown product: "Etikett fotografieren" opens the editor with the code and the camera.
+  // Scan page, unknown product with the AI available: straight to the editor with the code and the
+  // label camera open (no panel in between); closing the camera leaves the prefilled form.
   await page.route('**/api/foods/barcode/**', (r) =>
     r.fulfill({ status: 404, json: { error: 'not_found' } }),
   );
   await page.goto('/scan?meal=0&code=4006040123460');
-  await expect(page.getByText('Produkt 4006040123460 unbekannt')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Selbst anlegen' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Weiter scannen' })).toBeVisible();
-  await page.getByRole('button', { name: 'Etikett fotografieren' }).click();
+  await expect(
+    page.getByText('Produkt 4006040123460 ist unbekannt. Fotografiere das Etikett.'),
+  ).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Etikett fotografieren' })).toBeVisible();
   await expect(page).toHaveURL(/\/custom-food\/new\?(?!.*label=)/);
   await page.getByRole('button', { name: 'Schließen' }).click();
   await expect(page.getByLabel('Barcode (optional)')).toHaveValue('4006040123460');
+
+  // Without the AI the scan page keeps its panel: create the product by hand or scan on.
+  await page.route('**/api/ai/status', (r) => r.fulfill({ json: { enabled: false, model: null } }));
+  await page.goto('/scan?meal=0&code=4006040123460');
+  await expect(page.getByText('Produkt 4006040123460 unbekannt')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Produkt anlegen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Weiter scannen' })).toBeVisible();
 });
