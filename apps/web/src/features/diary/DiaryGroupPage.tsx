@@ -62,6 +62,7 @@ import { analyzePhotos } from '@/features/ai/queue';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from '@/features/meals/IngredientCard';
 import { rememberFood } from '@/foods/foodService';
 import { useGoals } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { endpoints, errorMessage, OfflineError } from '@/lib/api';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
@@ -201,6 +202,7 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
     return true;
   }
 
+  const { busy: saving, run } = useSubmitting();
   /** Taking over the changes closes the editor (back to the diary or the diary meal page). */
   async function saveAndClose() {
     if (!(await save())) return;
@@ -298,15 +300,15 @@ function DiaryGroupForm({ data, initial }: { data: GroupData; initial: GroupDraf
             variant="ghost"
             size="icon"
             aria-label="Eintrag löschen"
-            disabled={busy}
-            onClick={() => void remove()}
+            disabled={busy || saving}
+            onClick={() => void run(remove)}
           >
             <Trash2 className="text-destructive" aria-hidden />
           </Button>
         </>
       }
       footer={
-        <Button size="lg" disabled={!dirty || busy} onClick={() => void saveAndClose()}>
+        <Button size="lg" disabled={!dirty || busy || saving} onClick={() => void run(saveAndClose)}>
           Änderungen übernehmen
         </Button>
       }

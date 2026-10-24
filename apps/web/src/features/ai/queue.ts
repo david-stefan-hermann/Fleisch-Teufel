@@ -12,9 +12,9 @@ import type { AiAnalysisResult } from '@ft/shared';
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
-import { logAiItems } from '@/db/entries';
+import { aiMealItems, logItems, readPhotoBytes, storePhotoRows } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
-import { api, ApiError, OfflineError, errorMessage } from '@/lib/api';
+import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/api';
 
 /** One meal analysis: all photos in one request (field `image` repeated), with the optional hint. */
 export async function analyzePhotos(images: readonly Blob[], text: string): Promise<AiAnalysisResult> {
@@ -165,11 +165,35 @@ async function logDeferred(db: UserDb): Promise<void> {
       toast('Kein Essen erkannt', { description: 'Das Foto liegt unter „Analysen“ auf der Foto-Seite.' });
       continue;
     }
-    const images = await loadQueueImages(db, item);
-    await logAiItems(db, draft.mealName, items, { date: item.date, meal: draft.meal }, item.result!, images);
-    for (const i of items) await rememberFood(db, i.food);
-    await discardQueueItem(db, item.localId!);
-    toast.success(`„${draft.mealName}“ analysiert und eingetragen`);
+    try {
+      const photos = await readPhotoBytes(await loadQueueImages(db, item));
+      // Entries, photos and the removal of the queue item in one transaction: the app being killed
+      // in between can never log the analysis twice.
+      await db.transaction(
+        'rw',
+        [db.foodEntries, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
+        async () => {
+          if (!(await db.aiQueue.get(item.localId!))) return; // discarded meanwhile
+          await logItems(
+            db,
+            aiMealItems(items),
+            { date: item.date, meal: draft.meal },
+            {
+              groupName: draft.mealName.trim() || 'Meal vom Foto',
+              aiAnalysisId: item.result!.analysisId,
+              photoIds: await storePhotoRows(db, photos),
+            },
+          );
+          await discardQueueItem(db, item.localId!);
+        },
+      );
+      for (const i of items) await rememberFood(db, i.food);
+      toast.success(`„${draft.mealName}“ analysiert und eingetragen`);
+    } catch (e) {
+      // One item that cannot be written (storage full, invalid data) must not stop the queue: it
+      // shows as failed in the diary with "Wiederholen", the others go on.
+      await db.aiQueue.update(item.localId!, { status: 'failed', error: errorMessage(e) });
+    }
   }
 }
 
@@ -231,8 +255,15 @@ async function runQueue(db: UserDb): Promise<void> {
         });
         break;
       }
-      // A failed re-analysis keeps the previous result and review rows.
-      await db.aiQueue.update(item.localId!, { status: 'failed', error: errorMessage(e) });
+      // A timeout is not "offline": the server may have finished (and paid for) the analysis, so
+      // it is never repeated by itself. A failed re-analysis keeps the previous result and rows.
+      await db.aiQueue.update(item.localId!, {
+        status: 'failed',
+        error:
+          e instanceof TimeoutError
+            ? 'Die Analyse hat zu lange gedauert. Die Fotos sind noch da: Wiederholen.'
+            : errorMessage(e),
+      });
       if (e instanceof ApiError && e.status === 401) break;
     }
   }
@@ -317,9 +348,24 @@ export async function discardQueueItem(db: UserDb, localId: number): Promise<voi
   });
 }
 
-/** "Wiederholen" of a failed analysis: back into the line, analysed right away when connected. */
+/**
+ * "Wiederholen" of a failed analysis: back into the line, analysed right away when connected. A first
+ * analysis (no result yet) is logged by itself once done: nobody waits for it on the photo page any
+ * more, and without `deferred` the diary row would vanish without an entry. A failed logging
+ * (`logDeferred`) is a done item: it is logged again, not analysed again.
+ */
 export async function retryQueueItem(db: UserDb, localId: number): Promise<void> {
-  await db.aiQueue.update(localId, { status: 'pending', error: undefined });
+  await db.transaction('rw', db.aiQueue, async () => {
+    const item = await db.aiQueue.get(localId);
+    if (!item) return;
+    if (item.result && item.deferred) await db.aiQueue.update(localId, { status: 'done', error: undefined });
+    else
+      await db.aiQueue.update(localId, {
+        status: 'pending',
+        error: undefined,
+        ...(item.result ? {} : { deferred: true }),
+      });
+  });
   void processQueue(db);
 }
 

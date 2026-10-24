@@ -196,7 +196,10 @@ export async function pasteWithToast(
 /** Soft-deletes diary entries with an undo toast. */
 export async function removeEntriesWithUndo(db: UserDb, list: FoodEntry[], message?: string): Promise<void> {
   const ids = list.map((e) => e.id);
-  for (const id of ids) await deleteRecord(db, 'foodEntries', id);
+  // One transaction: a group is gone as a whole or not at all.
+  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
+    for (const id of ids) await deleteRecord(db, 'foodEntries', id);
+  });
   toast(message ?? (list.length === 1 ? `${list[0]!.name} gelöscht` : `${list.length} Einträge gelöscht`), {
     action: {
       label: 'Rückgängig',

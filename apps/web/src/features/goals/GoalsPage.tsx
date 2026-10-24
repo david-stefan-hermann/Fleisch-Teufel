@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { patchRecord, saveRecord } from '@/db/write';
 import { useCurrentWeight, useGoals, useSettings, useToday } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -95,6 +96,7 @@ function GoalsForm({
     toast.success('Makros nach Vorlage berechnet. Speichern nicht vergessen');
   }
 
+  const { busy: saving, run } = useSubmitting();
   async function save() {
     await patchRecord(db, 'settings', SETTINGS_ID, { macroPlan: plan });
     await saveRecord(db, 'goals', {
@@ -244,7 +246,7 @@ function GoalsForm({
         </div>
       </Section>
 
-      <Button size="lg" className="w-full" onClick={() => void save()}>
+      <Button size="lg" className="w-full" disabled={saving} onClick={() => void run(save)}>
         Ziele speichern
       </Button>
 

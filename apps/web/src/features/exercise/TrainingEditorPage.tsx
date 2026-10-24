@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { deleteRecord, patchRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { useTypeOptions } from './training';
 import { SportPicker, TrainingFields, TrainingKcal } from './TrainingFields';
 
@@ -84,6 +85,7 @@ function TrainingEditorForm({ template }: { template: ExerciseTemplate }) {
   const shouldBlockFn = useCallback<ShouldBlockFn>(() => dirty, [dirty]);
   const blocker = useBlocker({ shouldBlockFn, withResolver: true, enableBeforeUnload: false });
 
+  const { busy: saving, run } = useSubmitting();
   async function save(): Promise<boolean> {
     if (!type || !fields.minutes) return false;
     await patchRecord(db, 'exerciseTemplates', template.id, {
@@ -116,12 +118,18 @@ function TrainingEditorForm({ template }: { template: ExerciseTemplate }) {
       back="/trainings"
       withTabBar={false}
       actions={
-        <Button variant="ghost" size="icon" aria-label="Training löschen" onClick={() => void remove()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Training löschen"
+          disabled={saving}
+          onClick={() => void run(remove)}
+        >
           <Trash2 className="text-destructive" aria-hidden />
         </Button>
       }
       footer={
-        <Button size="lg" disabled={!dirty || !valid} onClick={() => void save()}>
+        <Button size="lg" disabled={!dirty || !valid || saving} onClick={() => void run(save)}>
           Speichern
         </Button>
       }

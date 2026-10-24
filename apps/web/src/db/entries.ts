@@ -12,7 +12,7 @@ import {
 import type { AiItem } from './aiDraft';
 import type { UserDb } from './dexie';
 import { addItemToMealDraft } from './mealDraft';
-import { storePhoto } from './photos';
+import { storePhoto, storePhotoBytes } from './photos';
 import { patchRecord, restoreRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<
@@ -92,36 +92,40 @@ export async function logItems(
   const photoIds = groupId && opts.photoIds?.length ? [...opts.photoIds] : null;
   const now = Date.now();
   const ids: string[] = [];
-  for (const [i, item] of items.entries()) {
-    const id = uuidv7();
-    ids.push(id);
-    const scaled = factor === 1 ? item : rescaleItem(item, Math.round(item.quantity * factor * 1000) / 1000);
-    const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
-      scaled;
-    await saveRecord(db, 'foodEntries', {
-      // Only the item fields: `items` may also be diary entries (copying a meal from another day).
-      foodId,
-      source,
-      name,
-      brand,
-      grams,
-      portionLabel,
-      portionGrams,
-      quantity,
-      per100,
-      nutrients,
-      id,
-      date: target.date,
-      meal: target.meal,
-      loggedAt: now + i,
-      mealId: opts.mealId ?? null,
-      aiAnalysisId: opts.aiAnalysisId ?? null,
-      groupId,
-      groupName,
-      photoId: photoIds?.[0] ?? null,
-      photoIds,
-    });
-  }
+  // One transaction: the app being killed or one invalid item never leaves half a group behind.
+  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
+    for (const [i, item] of items.entries()) {
+      const id = uuidv7();
+      ids.push(id);
+      const scaled =
+        factor === 1 ? item : rescaleItem(item, Math.round(item.quantity * factor * 1000) / 1000);
+      const { foodId, source, name, brand, grams, portionLabel, portionGrams, quantity, per100, nutrients } =
+        scaled;
+      await saveRecord(db, 'foodEntries', {
+        // Only the item fields: `items` may also be diary entries (copying a meal from another day).
+        foodId,
+        source,
+        name,
+        brand,
+        grams,
+        portionLabel,
+        portionGrams,
+        quantity,
+        per100,
+        nutrients,
+        id,
+        date: target.date,
+        meal: target.meal,
+        loggedAt: now + i,
+        mealId: opts.mealId ?? null,
+        aiAnalysisId: opts.aiAnalysisId ?? null,
+        groupId,
+        groupName,
+        photoId: photoIds?.[0] ?? null,
+        photoIds,
+      });
+    }
+  });
   return ids;
 }
 
@@ -229,19 +233,39 @@ export async function logAiItems(
   /** The analysed photos (already compressed by the AI queue), in order; none keeps the row without photo. */
   photos: readonly Blob[] = [],
 ): Promise<number> {
-  const ids = await logItems(db, aiMealItems(items), target, {
-    groupName: name.trim() || 'Meal vom Foto',
-    aiAnalysisId: analysis.analysisId,
-    photoIds: await storePhotos(db, photos),
-  });
+  // Bytes first (not an IndexedDB promise), then photos and entries in one transaction: the app
+  // being killed in between can neither leave orphaned photos nor a group without its photos.
+  const bytes = await readPhotoBytes(photos);
+  const ids = await db.transaction('rw', [db.foodEntries, db.outbox, db.photos], async () =>
+    logItems(db, aiMealItems(items), target, {
+      groupName: name.trim() || 'Meal vom Foto',
+      aiAnalysisId: analysis.analysisId,
+      photoIds: await storePhotoRows(db, bytes),
+    }),
+  );
   return ids.length;
+}
+
+/** The images as bytes, read outside any IndexedDB transaction. */
+export async function readPhotoBytes(photos: readonly Blob[]): Promise<PhotoBytes[]> {
+  return Promise.all(photos.map(async (p) => ({ bytes: await p.arrayBuffer(), type: p.type })));
+}
+
+export interface PhotoBytes {
+  bytes: ArrayBuffer;
+  type: string;
+}
+
+/** Stores photos on the device (uploaded with the next sync) and returns their ids in order. */
+export async function storePhotoRows(db: UserDb, photos: readonly PhotoBytes[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (const p of photos) ids.push(await storePhotoBytes(db, p.bytes, p.type));
+  return ids;
 }
 
 /** Stores photos on the device (uploaded with the next sync) and returns their ids in order. */
 async function storePhotos(db: UserDb, photos: readonly Blob[]): Promise<string[]> {
-  const ids: string[] = [];
-  for (const p of photos) ids.push(await storePhoto(db, p));
-  return ids;
+  return storePhotoRows(db, await readPhotoBytes(photos));
 }
 
 /** Diary entries (or items) as ingredients of a saved meal (only the item fields). */

@@ -152,6 +152,13 @@ export class UserDb extends Dexie {
   aiImages!: EntityTable<AiImage, 'localId'>;
   aiPhotos!: EntityTable<AiPhoto, 'id'>;
 
+  /**
+   * Server clock minus this device's clock (ms), measured by the sync engine. Local versions are
+   * stamped with `Date.now() + clockOffset`, so a device whose clock is set wrong neither wins every
+   * conflict (ahead) nor loses every one (behind). 0 until the first server answer.
+   */
+  clockOffset = 0;
+
   constructor(name: string, options?: ConstructorParameters<typeof Dexie>[1]) {
     super(name, options);
     this.version(1).stores({

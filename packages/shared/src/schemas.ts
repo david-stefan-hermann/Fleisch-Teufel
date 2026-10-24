@@ -283,6 +283,14 @@ export const pushRequestSchema = z.object({
 });
 export type PushRequest = z.infer<typeof pushRequestSchema>;
 
+/**
+ * A record whose `updatedAt` lies further in the future than this is refused with `CLOCK_AHEAD`: a
+ * device clock set wrong would otherwise win every conflict for good. The client re-versions the
+ * record with the server time and sends it again.
+ */
+export const MAX_CLOCK_AHEAD_MS = 5 * 60_000;
+export const CLOCK_AHEAD = 'clock_ahead';
+
 export interface PushResult {
   /** Stored (newer than what the server had). */
   applied: number;
@@ -290,12 +298,15 @@ export interface PushResult {
   stale: { table: SyncTable; id: string }[];
   /** Invalid records (validation errors); the client drops them from the outbox and reports. */
   rejected: { table: string; id: string | null; error: string }[];
+  /** Server wall clock (epoch ms) when it answered; lets the device measure its own clock offset. */
+  serverTime?: number;
 }
 
 export interface PullResult {
   changes: { table: SyncTable; data: AnySyncRecord }[];
   cursor: number;
   hasMore: boolean;
+  serverTime?: number;
 }
 
 // ---------------------------------------------------------------- auth

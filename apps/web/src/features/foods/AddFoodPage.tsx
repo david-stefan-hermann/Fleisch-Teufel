@@ -17,7 +17,7 @@ import type { UserDb } from '@/db/dexie';
 import { addItemToMeal } from '@/db/entries';
 import { addItemToGroupDraft } from '@/db/groupDraft';
 import { mealItem } from '@/db/mealDraft';
-import { saveRecord } from '@/db/write';
+import { deleteRecord, saveRecord } from '@/db/write';
 import {
   filterOwn,
   getFood,
@@ -32,6 +32,7 @@ import {
   type SearchRow,
 } from '@/foods/foodService';
 import { useSettings, useToday } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { parseInto, type Into } from '@/lib/into';
@@ -171,6 +172,8 @@ export function AddFoodPage() {
     });
   };
 
+  const { run } = useSubmitting();
+  /** "+" on a recent food: logs the last amount again, with undo like every diary action. */
   async function quickRelog(r: RecentFood) {
     if (into) {
       if (await addRecentToTarget(db, into, r, date)) toast.success(`${r.name} hinzugefügt`);
@@ -181,9 +184,10 @@ export function AddFoodPage() {
       return;
     }
     const { id: _id, updatedAt: _u, deleted: _d, ...rest } = r.last;
+    const id = uuidv7();
     await saveRecord(db, 'foodEntries', {
       ...rest,
-      id: uuidv7(),
+      id,
       date,
       meal,
       loggedAt: Date.now(),
@@ -194,7 +198,9 @@ export function AddFoodPage() {
       photoId: null,
       photoIds: null,
     });
-    toast.success(`${r.name} eingetragen`);
+    toast.success(`${r.name} eingetragen`, {
+      action: { label: 'Rückgängig', onClick: () => void deleteRecord(db, 'foodEntries', id) },
+    });
   }
 
   return (
@@ -312,13 +318,17 @@ export function AddFoodPage() {
       )}
 
       {!searching && tab === 'recent' && (
-        <RecentList items={history?.recent} search={linkSearch} onQuick={quickRelog} />
+        <RecentList
+          items={history?.recent}
+          search={linkSearch}
+          onQuick={(r) => void run(() => quickRelog(r))}
+        />
       )}
       {!searching && tab === 'frequent' && (
         <RecentList
           items={history?.frequent}
           search={linkSearch}
-          onQuick={quickRelog}
+          onQuick={(r) => void run(() => quickRelog(r))}
           showCount
           empty="Was du mindestens zweimal einträgst, erscheint hier zum schnellen Wiederverwenden."
         />

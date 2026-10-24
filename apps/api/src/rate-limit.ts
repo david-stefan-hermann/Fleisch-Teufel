@@ -24,6 +24,13 @@ export class RateLimiter {
     return 0;
   }
 
+  /** How long `key` must still wait (0 = a `take` would be allowed); counts nothing. */
+  blocked(key = 'global'): number {
+    const t = this.now();
+    const list = (this.hits.get(key) ?? []).filter((x) => t - x < this.windowMs);
+    return list.length >= this.limit ? this.windowMs - (t - list[0]!) : 0;
+  }
+
   reset(key = 'global') {
     this.hits.delete(key);
   }

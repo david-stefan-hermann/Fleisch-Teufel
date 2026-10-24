@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { saveExercise, saveExerciseTemplate } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight, useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDayLong } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { describe, matchesTraining, sameSetup, useTypeOptions } from './training';
@@ -90,6 +91,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
     setFilter('');
   }
 
+  const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!type || !met || !minutes) return;
     const data = {
@@ -114,7 +116,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       back
       withTabBar={false}
       footer={
-        <Button size="lg" disabled={!type || !minutes} onClick={() => void save()}>
+        <Button size="lg" disabled={!type || !minutes || saving} onClick={() => void run(save)}>
           {entry ? 'Änderungen übernehmen' : 'Training eintragen'}
         </Button>
       }

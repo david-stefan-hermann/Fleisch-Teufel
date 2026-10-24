@@ -122,6 +122,71 @@ describe('auth', () => {
     expect(statuses.slice(0, 10)).toEqual(Array(10).fill(401));
     expect(statuses.at(-1)).toBe(429);
   });
+
+  it('refuses the right password too while the account is locked', async () => {
+    const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const c = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.10' });
+      expect(
+        (await c.post('/api/auth/register', { email: 'locked@example.com', password: 'correct horse' }))
+          .status,
+      ).toBe(201);
+      const other = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.11' });
+      for (let i = 0; i < 10; i++)
+        await other.post('/api/auth/login', { email: 'locked@example.com', password: 'guess-' + i });
+      // A third IP with the right password: the account lock holds (brute force from many IPs).
+      const third = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.12' });
+      const res = await third.post('/api/auth/login', {
+        email: 'locked@example.com',
+        password: 'correct horse',
+      });
+      expect(res.status).toBe(429);
+      expect(res.json.retryAfterMs).toBeGreaterThan(0);
+      // Another account from the same IP is not affected by the account lock.
+      expect(
+        (await third.post('/api/auth/login', { email: 'nobody@example.com', password: 'x'.repeat(10) }))
+          .status,
+      ).toBe(401);
+    } finally {
+      await own.close();
+    }
+  });
+});
+
+describe('registration', () => {
+  it('answers a duplicate email with 409 and a simultaneous first user with 403', async () => {
+    const own = await createTestContext();
+    try {
+      const results = await Promise.all(
+        ['a@example.com', 'b@example.com', 'c@example.com'].map((email) =>
+          new TestClient(own.app).post('/api/auth/register', { email, password: 'correct horse' }),
+        ),
+      );
+      expect(results.map((r) => r.status).sort()).toEqual([201, 403, 403]);
+      const winner = results.find((r) => r.status === 201)!.json.user.email as string;
+      expect(
+        (
+          await new TestClient(own.app).post('/api/auth/register', {
+            email: winner,
+            password: 'correct horse',
+          })
+        ).status,
+      ).toBe(403);
+    } finally {
+      await own.close();
+    }
+    const open = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const reg = (email: string) =>
+        new TestClient(open.app).post('/api/auth/register', { email, password: 'correct horse' });
+      expect((await reg('dup@example.com')).status).toBe(201);
+      const dup = await reg('dup@example.com');
+      expect(dup.status).toBe(409);
+      expect(dup.json.error).toBe('email_taken');
+    } finally {
+      await open.close();
+    }
+  });
 });
 
 describe('registration flag', () => {

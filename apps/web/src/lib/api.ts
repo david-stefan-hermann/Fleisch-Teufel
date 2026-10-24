@@ -10,28 +10,46 @@ export class ApiError extends Error {
   }
 }
 
-/** Thrown when the request could not reach the server (offline, VPN down, timeout). */
+/** Thrown when the request could not reach the server (offline, VPN down, cancelled). */
 export class OfflineError extends Error {
   constructor() {
     super('offline');
   }
 }
 
+/**
+ * Thrown when the server did not answer within `timeoutMs`. Not an `OfflineError` on purpose: the
+ * request may well have been processed (an analysis was paid for), so callers must not repeat it
+ * blindly.
+ */
+export class TimeoutError extends Error {
+  constructor() {
+    super('timeout');
+  }
+}
+
 export async function api<T>(path: string, init: RequestInit & { timeoutMs?: number } = {}): Promise<T> {
   const { timeoutMs = 15_000, signal: callerSignal, ...rest } = init;
-  // The caller's signal (cancel) and the timeout both end the request.
-  const timeout = AbortSignal.timeout(timeoutMs);
-  const signal =
-    callerSignal && typeof AbortSignal.any === 'function'
-      ? AbortSignal.any([timeout, callerSignal])
-      : (callerSignal ?? timeout);
+  // The caller's signal (cancel) and the timeout both end the request (linked by hand: Safari before
+  // 17.4 has no AbortSignal.any, and the caller's signal must never replace the timeout).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new TimeoutError()), timeoutMs);
+  const onCallerAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) onCallerAbort();
+  else callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
   let res: Response;
+  let text: string;
   try {
-    res = await fetch(path, { credentials: 'same-origin', signal, ...rest });
+    res = await fetch(path, { credentials: 'same-origin', ...rest, signal: controller.signal });
+    // The body counts towards the timeout too (a connection that dies mid-body is also "offline").
+    text = await res.text();
   } catch {
+    if (controller.signal.reason instanceof TimeoutError) throw controller.signal.reason;
     throw new OfflineError();
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
-  const text = await res.text();
   let body: unknown;
   try {
     body = text ? JSON.parse(text) : null;
@@ -99,6 +117,7 @@ export const endpoints = {
 export function errorMessage(e: unknown): string {
   if (e instanceof OfflineError)
     return 'Keine Verbindung zum Server. Prüfe WLAN bzw. WireGuard und versuche es erneut.';
+  if (e instanceof TimeoutError) return 'Der Server hat zu lange nicht geantwortet. Versuche es erneut.';
   if (e instanceof ApiError) {
     switch (e.code) {
       case 'invalid_credentials':
@@ -128,5 +147,10 @@ export function errorMessage(e: unknown): string {
         return `Fehler (${e.status}). Versuche es erneut.`;
     }
   }
+  const name = e instanceof Error ? e.name : '';
+  if (/Quota/i.test(name))
+    return 'Der Speicher des Geräts ist voll. Lösche Fotos oder Apps und versuche es erneut.';
+  if (name === 'ZodError')
+    return 'Ein Wert liegt außerhalb des erlaubten Bereichs. Bitte prüfe deine Eingaben.';
   return 'Unerwarteter Fehler. Versuche es erneut.';
 }

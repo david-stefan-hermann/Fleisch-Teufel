@@ -24,7 +24,14 @@ import {
   setMealDraftPhoto,
   writeMealDraft,
 } from '@/db/mealDraft';
-import { loadPhoto, photoBlob, storePhoto, uploadPendingPhotos } from '@/db/photos';
+import {
+  countRejectedPhotos,
+  loadPhoto,
+  PHOTO_REJECTED,
+  photoBlob,
+  storePhoto,
+  uploadPendingPhotos,
+} from '@/db/photos';
 import {
   discardQueueItem,
   addQueuePhotos,
@@ -37,6 +44,7 @@ import {
   reanalyze,
   removeQueuePhoto,
   restoreQueueItem,
+  retryQueueItem,
   takeQueueItem,
 } from '@/features/ai/queue';
 import { saveRecord } from '@/db/write';
@@ -664,6 +672,94 @@ describe('AI review: re-analyze with the hint', () => {
     expect((await d.aiQueue.get(id))!.status).toBe('done');
     expect(await d.foodEntries.count()).toBe(0);
   });
+
+  it('logs a first analysis by itself after "Wiederholen" from the diary', async () => {
+    const d = db();
+    // The first try fails while the person waits on the photo page (no `deferred`).
+    server(new Response(JSON.stringify({ error: 'no_result' }), { status: 502 }));
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
+    await processQueue(d);
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'failed' });
+    expect((await d.aiQueue.get(id))!.deferred).toBeUndefined();
+    // Later, from the diary row: nobody waits on the page any more, so the result goes to the diary.
+    server(analysis('Nudeln', 250));
+    await retryQueueItem(d, id);
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.foodEntries.count()).toBe(1);
+  });
+
+  it('keeps the review of a failed re-analysis on "Wiederholen" (no deferred logging)', async () => {
+    const d = db();
+    server(analysis('Nudeln', 200), new Response(JSON.stringify({ error: 'no_result' }), { status: 502 }));
+    const id = await analyzed(d);
+    expect(await reanalyze(d, id, 'x')).toBe('failed');
+    server(analysis('Nudeln', 300));
+    await retryQueueItem(d, id);
+    await processQueue(d);
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'done' });
+    expect((await d.aiQueue.get(id))!.deferred).toBeUndefined();
+    expect(await d.foodEntries.count()).toBe(0);
+  });
+
+  it('marks an analysis whose logging fails and goes on with the next one', async () => {
+    const d = db();
+    vi.stubGlobal('fetch', async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const bad = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
+    const good = await enqueuePhotos(d, { date: '2026-10-07', meal: 2, text: '' }, [jpeg()]);
+    await processQueue(d);
+    // The run stops at the first offline item; the second was left on the photo page (`leaveAnalysis`).
+    await d.aiQueue.update(good, { deferred: true });
+    // The first result is one the diary cannot store (an invalid record), the second is fine.
+    server(
+      { ...analysis('Kaputt', 1), items: [{ ...analysis('Kaputt', 1).items[0]!, grams: 1e9 }] },
+      analysis('Nudeln', 250),
+    );
+    await processQueue(d);
+    const failed = (await d.aiQueue.get(bad))!;
+    expect(failed.status).toBe('failed');
+    expect(failed.deferred).toBe(true);
+    expect(failed.result).toBeTruthy();
+    // The second photo was still analysed and logged.
+    expect(await d.aiQueue.get(good)).toBeUndefined();
+    expect(await d.foodEntries.count()).toBe(1);
+    // "Wiederholen" of the failed logging logs again instead of paying for a new analysis.
+    const { fetchFn } = server(analysis('Nie', 1));
+    await d.aiQueue.update(bad, { result: analysis('Kaputt', 100) });
+    await retryQueueItem(d, bad);
+    await processQueue(d);
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(await d.aiQueue.get(bad)).toBeUndefined();
+    expect(await d.foodEntries.count()).toBe(2);
+  });
+
+  it('treats a timeout as a failure to repeat by hand, not as offline', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const d = db();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_: string, init?: RequestInit) => {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal!.reason));
+          });
+        }),
+      );
+      const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
+      const run = processQueue(d);
+      await vi.waitFor(async () => expect((await d.aiQueue.get(id))!.status).toBe('analyzing'));
+      await vi.advanceTimersByTimeAsync(120_001);
+      await run;
+      const item = (await d.aiQueue.get(id))!;
+      expect(item.status).toBe('failed');
+      expect(item.error).toMatch(/zu lange/);
+      expect(item.deferred).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('photos', () => {
@@ -706,21 +802,29 @@ describe('photos', () => {
       calls.push(`${init?.method} ${path}`);
       return new Response(null, { status: path.endsWith(b) ? 415 : 200 });
     };
-    expect(await uploadPendingPhotos(d, fetchFn)).toBe(1);
-    expect(await uploadPendingPhotos(d, fetchFn)).toBe(0);
+    expect(await uploadPendingPhotos(d, fetchFn)).toEqual({ uploaded: 1, error: null });
+    expect(await uploadPendingPhotos(d, fetchFn)).toEqual({ uploaded: 0, error: null });
     expect(calls).toHaveLength(2);
     expect((await d.photos.get(a))!.uploaded).toBe(1);
+    expect((await d.photos.get(b))!.uploaded).toBe(PHOTO_REJECTED);
+    expect(await countRejectedPhotos(d)).toBe(1);
   });
 
-  it('keeps photos queued while offline', async () => {
+  it('keeps photos queued while offline and reports the first failure after trying all', async () => {
     const d = db();
-    const id = await storePhoto(d, blob());
-    await expect(
-      uploadPendingPhotos(d, async () => {
-        throw new TypeError('Failed to fetch');
-      }),
-    ).rejects.toThrow();
-    expect((await d.photos.get(id))!.uploaded).toBe(0);
+    const a = await storePhoto(d, blob());
+    const b = await storePhoto(d, blob());
+    const c = await storePhoto(d, blob());
+    const result = await uploadPendingPhotos(d, async (path) => {
+      if (path.endsWith(a)) throw new TypeError('Failed to fetch');
+      if (path.endsWith(b)) return new Response(null, { status: 429 });
+      return new Response(null, { status: 200 });
+    });
+    expect(result.uploaded).toBe(1);
+    expect(result.error).toBeInstanceOf(TypeError);
+    expect((await d.photos.get(a))!.uploaded).toBe(0);
+    expect((await d.photos.get(b))!.uploaded).toBe(0);
+    expect((await d.photos.get(c))!.uploaded).toBe(1);
   });
 
   it('downloads a photo from another device once and caches it', async () => {

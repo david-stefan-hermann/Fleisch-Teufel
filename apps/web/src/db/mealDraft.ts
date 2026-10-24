@@ -10,7 +10,7 @@
  */
 import type { Meal, MealItem } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { storePhoto } from './photos';
+import { storePhotoBytes } from './photos';
 import { patchRecord } from './write';
 
 export interface MealDraft {
@@ -82,22 +82,26 @@ export function isDirty(draft: MealDraft, meal: Pick<Meal, 'name' | 'items'>): b
  * queued for upload) only now. Returns false when the meal is gone.
  */
 export async function saveMealDraft(db: UserDb, draft: MealDraft): Promise<boolean> {
-  const meal = await db.meals.get(draft.mealId);
-  if (!meal) return false;
-  let photoId = meal.photoId;
-  if (draft.photo === 'remove') photoId = null;
-  if (draft.photo === 'pending') {
-    const photo = await readMealDraftPhoto(db, draft.mealId);
-    if (photo) photoId = await storePhoto(db, new Blob([photo.bytes], { type: photo.type }));
-  }
   if (draft.items.length === 0) throw new Error('A meal needs at least one ingredient');
-  await patchRecord(db, 'meals', draft.mealId, {
-    name: draft.name.trim().slice(0, 120) || meal.name,
-    items: draft.items.map(mealItem),
-    photoId,
+  // Photo, meal and draft in one transaction: an empty or vanished meal leaves no orphaned photo
+  // behind, and a kill in between leaves no half-saved state.
+  return db.transaction('rw', [db.meals, db.outbox, db.photos, db.kv], async () => {
+    const meal = await db.meals.get(draft.mealId);
+    if (!meal || meal.deleted) return false;
+    let photoId = meal.photoId;
+    if (draft.photo === 'remove') photoId = null;
+    if (draft.photo === 'pending') {
+      const photo = await readMealDraftPhoto(db, draft.mealId);
+      if (photo) photoId = await storePhotoBytes(db, photo.bytes, photo.type);
+    }
+    await patchRecord(db, 'meals', draft.mealId, {
+      name: draft.name.trim().slice(0, 120) || meal.name,
+      items: draft.items.map(mealItem),
+      photoId,
+    });
+    await clearMealDraft(db, draft.mealId);
+    return true;
   });
-  await clearMealDraft(db, draft.mealId);
-  return true;
 }
 
 /**

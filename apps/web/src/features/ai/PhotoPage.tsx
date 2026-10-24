@@ -77,6 +77,7 @@ import { patchRecord } from '@/db/write';
 import { rememberFood, userPortions } from '@/foods/foodService';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
@@ -710,6 +711,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   const [saveOpen, setSaveOpen] = useState(false);
   const [hint, setHint] = useState(item.text);
   const [askRedo, setAskRedo] = useState(false);
+  const { busy: logging, run } = useSubmitting();
 
   async function redo() {
     setAskRedo(false);
@@ -765,9 +767,9 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
       footer={
         <Button
           size="lg"
-          disabled={busy || resolved.length === 0}
+          disabled={busy || logging || resolved.length === 0}
           className={cn(busy && 'saturate-50')}
-          onClick={() => void log()}
+          onClick={() => void run(log)}
         >
           Meal eintragen
         </Button>

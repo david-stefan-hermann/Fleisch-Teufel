@@ -180,6 +180,90 @@ describe('device ↔ server sync', () => {
     expect(called).toBe(true);
   });
 
+  it('skips changes of a table this app version does not know and asks for an update', async () => {
+    const a = device('future-writer');
+    const b = device('future-reader');
+    const e = entry();
+    await saveRecord(a.db, 'foodEntries', e);
+    await a.engine.sync();
+    // The server (a newer version) also sends a table and a record shape this device cannot store.
+    const engine = new SyncEngine(b.db, {
+      fetch: async (path, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set('cookie', cookie);
+        const res = await ctx.app.request(path, { ...init, headers });
+        if (!path.startsWith('/api/sync/pull')) return res;
+        const body = (await res.json()) as { changes: unknown[] };
+        body.changes.unshift(
+          { table: 'waterEntries', data: { id: 'x', updatedAt: 1, deleted: false, ml: 250 } },
+          { table: 'weightEntries', data: { id: 'w:1999-01-01', updatedAt: 1, deleted: false, kg: 'viel' } },
+        );
+        return new Response(JSON.stringify(body), { status: 200 });
+      },
+    });
+    await engine.sync();
+    expect(await b.db.foodEntries.get(e.id)).toBeTruthy();
+    expect(await b.db.weightEntries.get('w:1999-01-01')).toBeUndefined();
+    expect(engine.getState()).toMatchObject({ status: 'idle', needsUpdate: true });
+    expect((await b.db.kv.get('sync.cursor'))?.value).toBeGreaterThan(0);
+  });
+
+  it('reports a storage error as an error, not as offline', async () => {
+    const a = device('broken');
+    await saveRecord(a.db, 'foodEntries', entry());
+    a.db.close();
+    await expect(a.engine.sync()).rejects.toThrow();
+    expect(a.engine.getState().status).toBe('error');
+    expect(a.engine.getState().error).toBeTruthy();
+  });
+
+  it('pushes records even when a photo upload fails, and reports the failure afterwards', async () => {
+    const a = device('photo-fail');
+    const b = device('photo-fail-reader');
+    let photosDown = true;
+    a.engine = new SyncEngine(a.db, {
+      fetch: async (path, init) => {
+        if (photosDown && path.startsWith('/api/photos/')) return new Response(null, { status: 503 });
+        const headers = new Headers(init?.headers);
+        headers.set('cookie', cookie);
+        return ctx.app.request(path, { ...init, headers });
+      },
+    });
+    const photoId = await storePhoto(a.db, new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1])]));
+    const e = entry({ photoId, photoIds: [photoId] });
+    await saveRecord(a.db, 'foodEntries', e);
+    await expect(a.engine.sync()).rejects.toThrow('HTTP 503');
+    expect(a.engine.getState().status).toBe('error');
+    // The record is on the server, the photo is still waiting.
+    await b.engine.sync();
+    expect(await b.db.foodEntries.get(e.id)).toBeTruthy();
+    expect((await a.db.photos.get(photoId))?.uploaded).toBe(0);
+    photosDown = false;
+    await a.engine.sync();
+    expect(a.engine.getState().status).toBe('idle');
+    expect((await a.db.photos.get(photoId))?.uploaded).toBe(1);
+  });
+
+  it('re-versions records a device stamped in the future and learns its clock offset', async () => {
+    const a = device('fast-clock');
+    const b = device('fast-clock-reader');
+    const e = entry();
+    await saveRecord(a.db, 'foodEntries', e);
+    // As written by a device whose clock runs ten minutes ahead.
+    const future = Date.now() + 10 * 60_000;
+    await a.db.foodEntries.update(e.id, { updatedAt: future });
+    await a.db.outbox.update(`foodEntries:${e.id}`, { updatedAt: future });
+    const s = await a.engine.sync();
+    expect(s.rejected).toBe(0);
+    expect(await a.db.outbox.count()).toBe(0);
+    const local = (await a.db.foodEntries.get(e.id))!;
+    expect(local.updatedAt).toBeLessThan(future);
+    await b.engine.sync();
+    expect((await b.db.foodEntries.get(e.id))?.updatedAt).toBe(local.updatedAt);
+    // The clock looked fine to the server (same process), so no offset is applied.
+    expect(a.db.clockOffset).toBe(0);
+  });
+
   it('refuses invalid local writes before they reach the outbox', async () => {
     const a = device('invalid');
     await expect(saveRecord(a.db, 'foodEntries', entry({ meal: 9 }))).rejects.toThrow();

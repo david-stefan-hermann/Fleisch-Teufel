@@ -13,13 +13,38 @@ export async function saveRecord<T extends SyncTable>(
   table: T,
   input: Input<T>,
 ): Promise<SyncRecordMap[T]> {
+  return (await writeRecord(db, table, input.id, () => input))!;
+}
+
+/**
+ * Partial update of an existing record. The current version is read inside the write transaction,
+ * so a pull (or a second patch) landing in between cannot be overwritten with stale fields.
+ */
+export async function patchRecord<T extends SyncTable>(
+  db: UserDb,
+  table: T,
+  id: string,
+  patch: Partial<Omit<SyncRecordMap[T], 'id' | 'updatedAt'>>,
+): Promise<SyncRecordMap[T] | undefined> {
+  return writeRecord(db, table, id, (prev) => (prev ? ({ ...prev, ...patch } as Input<T>) : undefined));
+}
+
+/** Read-modify-write of one record and its outbox entry in a single transaction. */
+async function writeRecord<T extends SyncTable>(
+  db: UserDb,
+  table: T,
+  id: string,
+  build: (prev: SyncRecordMap[T] | undefined) => Input<T> | undefined,
+): Promise<SyncRecordMap[T] | undefined> {
   return db.transaction('rw', [db.syncTable(table), db.outbox], async () => {
     const t = db.syncTable(table);
-    const prev = await t.get(input.id);
+    const prev = (await t.get(id)) as SyncRecordMap[T] | undefined;
+    const input = build(prev);
+    if (!input) return undefined;
     const record = {
       ...input,
       deleted: input.deleted ?? false,
-      updatedAt: nextVersion(prev?.updatedAt),
+      updatedAt: nextVersion(prev?.updatedAt, Date.now() + db.clockOffset),
     } as SyncRecordMap[T];
     // Validate before it can ever reach the server (a rejected record would be dropped there).
     SYNC_SCHEMAS[table].parse(record);
@@ -27,18 +52,6 @@ export async function saveRecord<T extends SyncTable>(
     await db.outbox.put({ key: `${table}:${record.id}`, table, id: record.id, updatedAt: record.updatedAt });
     return record;
   });
-}
-
-/** Partial update of an existing record. */
-export async function patchRecord<T extends SyncTable>(
-  db: UserDb,
-  table: T,
-  id: string,
-  patch: Partial<Omit<SyncRecordMap[T], 'id' | 'updatedAt'>>,
-): Promise<SyncRecordMap[T] | undefined> {
-  const prev = (await db.syncTable(table).get(id)) as SyncRecordMap[T] | undefined;
-  if (!prev) return undefined;
-  return saveRecord(db, table, { ...prev, ...patch } as Input<T>);
 }
 
 /** Soft delete (tombstone) so the deletion syncs to other devices. */

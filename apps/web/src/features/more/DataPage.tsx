@@ -8,8 +8,9 @@ import { requestPersistentStorage } from '@/app/pwa';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
+import { countRejectedPhotos } from '@/db/photos';
 import { downloadText } from '@/features/reports/export';
-import { fmtAgo, fmt1 } from '@/lib/format';
+import { fmtAgo, fmt0, fmt1 } from '@/lib/format';
 
 export function DataPage() {
   const { db, sync } = useSession();
@@ -25,6 +26,7 @@ export function DataPage() {
         .count();
     return out;
   }, [db]);
+  const rejectedPhotos = useLiveQuery(() => countRejectedPhotos(db), [db]);
   const rejected = useLiveQuery(
     async () =>
       ((await db.kv.get('sync.rejected'))?.value as
@@ -47,8 +49,10 @@ export function DataPage() {
     dayNotes: 'Tagesnotizen',
     foodPortions: 'Eigene Portionen',
     exerciseTypes: 'Eigene Sportarten',
+    exerciseTemplates: 'Gespeicherte Trainings',
     settings: 'Einstellungen',
   };
+  const clockMinutes = Math.round(Math.abs(state.clockOffset) / 60_000);
 
   return (
     <Page title="Daten & Sync" back="/more" withTabBar={false}>
@@ -61,6 +65,25 @@ export function DataPage() {
             </p>
           )}
           <p className="text-muted-foreground">{state.pending} lokale Änderung(en) warten auf Upload.</p>
+          {state.needsUpdate && (
+            <p className="rounded-lg bg-warn/10 p-3">
+              Der Server hat Daten einer neueren App-Version geschickt, die diese Version noch nicht kennt.
+              Sie werden nach dem App-Update nachgeladen (Alles neu vom Server laden).
+            </p>
+          )}
+          {clockMinutes >= 1 && (
+            <p className="rounded-lg bg-warn/10 p-3">
+              Die Uhr dieses Geräts geht etwa {fmt0(clockMinutes)} Minute(n){' '}
+              {state.clockOffset < 0 ? 'vor' : 'nach'}. Änderungen werden mit der Serverzeit versehen, damit
+              der Abgleich zwischen Geräten stimmt.
+            </p>
+          )}
+          {!!rejectedPhotos && (
+            <p className="text-muted-foreground">
+              {rejectedPhotos} Foto(s) hat der Server endgültig abgelehnt (zu groß oder kein Bild); sie
+              bleiben nur auf diesem Gerät.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"

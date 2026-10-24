@@ -21,7 +21,8 @@ export interface LocalPhoto {
   /** Legacy (before Dexie v4): the image as Blob. Still read, never written. */
   blob?: Blob;
   /** 0 = waiting for upload, 1 = on the server (IndexedDB cannot index booleans). */
-  uploaded: 0 | 1;
+  /** 0 waiting, 1 on the server, 2 refused for good (`PHOTO_REJECTED`). */
+  uploaded: 0 | 1 | 2;
   createdAt: number;
 }
 
@@ -58,34 +59,58 @@ export async function storePhotoBytes(db: UserDb, bytes: ArrayBuffer, type: stri
   return id;
 }
 
+/** Upload state of a device photo: 0 waiting, 1 on the server, 2 refused for good (never retried). */
+export const PHOTO_REJECTED = 2;
+
+export interface PhotoUploadResult {
+  uploaded: number;
+  /** First failure of this run (network, 5xx, 429, 401); the remaining photos were still tried. */
+  error: Error | null;
+}
+
 /**
- * Uploads all photos that are not on the server yet. Network errors and 401 propagate (the sync
- * run reports offline/unauthorized); a photo the server refuses for good (too large, not an image)
- * is marked as done so it cannot block the queue forever.
+ * Uploads all photos that are not on the server yet. A failing upload (network, 5xx, 429) does not
+ * stop the others and never blocks the record push: the first error is returned for the status.
+ * A photo the server refuses for good (too large, not an image) is marked as rejected so it cannot
+ * block the queue forever.
  */
-export async function uploadPendingPhotos(db: UserDb, fetchFn: Fetch): Promise<number> {
+export async function uploadPendingPhotos(db: UserDb, fetchFn: Fetch): Promise<PhotoUploadResult> {
   const pending = await db.photos.where('uploaded').equals(0).toArray();
   let uploaded = 0;
+  let error: Error | null = null;
   for (const p of pending) {
     const body = p.bytes ?? p.blob;
     if (!body) {
       // Nothing to upload (should not happen); never let it block the queue.
-      await db.photos.update(p.id, { uploaded: 1 });
+      await db.photos.update(p.id, { uploaded: PHOTO_REJECTED });
       continue;
     }
-    const res = await fetchFn(`/api/photos/${encodeURIComponent(p.id)}`, {
-      method: 'PUT',
-      headers: { 'content-type': p.type || p.blob?.type || 'image/jpeg' },
-      body,
-    });
-    if (res.ok || res.status === 413 || res.status === 415 || res.status === 400) {
-      await db.photos.update(p.id, { uploaded: 1 });
-      if (res.ok) uploaded++;
-      continue;
+    try {
+      const res = await fetchFn(`/api/photos/${encodeURIComponent(p.id)}`, {
+        method: 'PUT',
+        headers: { 'content-type': p.type || p.blob?.type || 'image/jpeg' },
+        body,
+      });
+      if (res.ok) {
+        await db.photos.update(p.id, { uploaded: 1 });
+        uploaded++;
+      } else if (res.status === 413 || res.status === 415 || res.status === 400) {
+        await db.photos.update(p.id, { uploaded: PHOTO_REJECTED });
+      } else {
+        throw new PhotoHttpError(res.status);
+      }
+    } catch (e) {
+      error ??= e instanceof Error ? e : new Error(String(e));
+      // The session is gone: every further upload would fail the same way.
+      if (e instanceof PhotoHttpError && e.status === 401) break;
     }
-    throw new PhotoHttpError(res.status);
   }
-  return uploaded;
+  return { uploaded, error };
+}
+
+/** Number of photos the server refused for good (shown under "Daten & Sync"). */
+export function countRejectedPhotos(db: UserDb): Promise<number> {
+  return db.photos.where('uploaded').equals(PHOTO_REJECTED).count();
 }
 
 /** Returns the photo from the device, downloading it once if another device took it. */

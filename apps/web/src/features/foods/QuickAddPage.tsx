@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
 
 /** Quick add (feature #4): kcal plus optional macros, no food. */
@@ -49,6 +50,7 @@ function QuickAddForm({
   const macroKcal = kcalFromMacros({ proteinG: protein ?? 0, carbsG: carbs ?? 0, fatG: fat ?? 0 });
   const valid = kcal !== null && kcal >= 0 && kcal < 20_000;
 
+  const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
     const nutrients = quickAddNutrients({
@@ -84,7 +86,7 @@ function QuickAddForm({
         photoId: null,
         photoIds: null,
       });
-    toast.success(`${fmt0(kcal!)} kcal eingetragen`);
+    toast.success(entry ? 'Änderungen übernommen' : `${fmt0(kcal!)} kcal eingetragen`);
     await navigate({ to: '/', search: { date: entry?.date ?? date } });
   }
 
@@ -120,7 +122,7 @@ function QuickAddForm({
           className="grid gap-4 p-4"
           onSubmit={(e) => {
             e.preventDefault();
-            void save();
+            void run(save);
           }}
         >
           <div className="grid gap-1.5">
@@ -162,7 +164,7 @@ function QuickAddForm({
               </SelectContent>
             </Select>
           </div>
-          <Button type="submit" size="lg" disabled={!valid}>
+          <Button type="submit" size="lg" disabled={!valid || saving}>
             {entry ? 'Änderungen übernehmen' : 'Eintragen'}
           </Button>
         </form>

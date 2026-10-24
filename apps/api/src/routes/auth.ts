@@ -1,5 +1,5 @@
 import { credentialsSchema, loginSchema, type PublicUser } from '@ft/shared';
-import { count, eq, and, ne } from 'drizzle-orm';
+import { count, eq, and, ne, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
@@ -15,6 +15,7 @@ import {
 } from '../auth/session.js';
 import { sessions, users } from '../db/schema.js';
 import { RateLimiter } from '../rate-limit.js';
+import type { Db } from '../db/client.js';
 import type { AppEnv, Deps } from '../types.js';
 import { clientIp, parseJson } from './util.js';
 
@@ -22,7 +23,9 @@ export function toPublicUser(u: { id: string; email: string; createdAt: Date }):
   return { id: u.id, email: u.email, createdAt: u.createdAt.toISOString() };
 }
 
-export async function registrationOpen(deps: Deps): Promise<boolean> {
+export async function registrationOpen(
+  deps: Pick<Deps, 'env'> & { db: Pick<Db, 'select'> },
+): Promise<boolean> {
   if (deps.env.ALLOW_REGISTRATION) return true;
   const [row] = await deps.db.select({ n: count() }).from(users);
   return (row?.n ?? 0) === 0;
@@ -39,16 +42,25 @@ export function authRoutes(deps: Deps) {
     if (registerLimiter.take(clientIp(c)) > 0) return c.json({ error: 'too_many_requests' }, 429);
     const body = await parseJson(c, credentialsSchema);
     if (!body.ok) return body.response;
-    if (!(await registrationOpen(deps))) return c.json({ error: 'registration_closed' }, 403);
-    const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, body.data.email));
-    if (existing.length) return c.json({ error: 'email_taken' }, 409);
-    const [user] = await db
-      .insert(users)
-      .values({ email: body.data.email, passwordHash: await hashPassword(body.data.password) })
-      .returning();
-    const token = await createSession(db, user!.id, c.req.header('user-agent'));
+    const passwordHash = await hashPassword(body.data.password);
+    // Count and insert under one lock: two first users at once must not both get in, and a
+    // duplicate email is a 409 instead of a unique violation.
+    const outcome = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('register'))`);
+      if (!(await registrationOpen({ env: deps.env, db: tx })))
+        return { error: 'registration_closed' as const };
+      const [user] = await tx
+        .insert(users)
+        .values({ email: body.data.email, passwordHash })
+        .onConflictDoNothing()
+        .returning();
+      return user ? { user } : { error: 'email_taken' as const };
+    });
+    if ('error' in outcome)
+      return c.json({ error: outcome.error }, outcome.error === 'email_taken' ? 409 : 403);
+    const token = await createSession(db, outcome.user.id, c.req.header('user-agent'));
     setSessionCookie(c, token);
-    return c.json({ user: toPublicUser(user!) }, 201);
+    return c.json({ user: toPublicUser(outcome.user) }, 201);
   });
 
   app.post('/login', async (c) => {
@@ -56,6 +68,9 @@ export function authRoutes(deps: Deps) {
     if (!body.ok) return body.response;
     const ipKey = `ip:${clientIp(c)}`;
     const userKey = `user:${body.data.email}`;
+    // A locked IP or account is refused before the (expensive) hash check, also with the right password.
+    const locked = Math.max(loginLimiter.blocked(ipKey), loginLimiter.blocked(userKey));
+    if (locked > 0) return c.json({ error: 'too_many_requests', retryAfterMs: locked }, 429);
     const [user] = await db.select().from(users).where(eq(users.email, body.data.email));
     const ok = user
       ? await verifyPassword(user.passwordHash, body.data.password)

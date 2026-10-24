@@ -39,6 +39,7 @@ import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, normalizeAmount } from '@/lib/amounts';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
@@ -268,6 +269,7 @@ function FoodLogEditor({
     });
   }
 
+  const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
     if (into) return addToTarget(into);
@@ -320,7 +322,7 @@ function FoodLogEditor({
       back
       withTabBar={false}
       footer={
-        <Button size="lg" className="w-full" disabled={!valid} onClick={() => void save()}>
+        <Button size="lg" className="w-full" disabled={!valid || saving} onClick={() => void run(save)}>
           {entry
             ? 'Änderungen übernehmen'
             : into
@@ -454,6 +456,7 @@ function NewPortionDialog({
   const [label, setLabel] = useState('');
   const [grams, setGrams] = useState<number | null>(null);
   const valid = label.trim().length > 0 && grams !== null && grams > 0;
+  const { busy, run } = useSubmitting();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -481,13 +484,15 @@ function NewPortionDialog({
             Abbrechen
           </Button>
           <Button
-            disabled={!valid}
-            onClick={async () => {
-              await onSave(label.trim(), grams!);
-              setLabel('');
-              setGrams(null);
-              onOpenChange(false);
-            }}
+            disabled={!valid || busy}
+            onClick={() =>
+              void run(async () => {
+                await onSave(label.trim(), grams!);
+                setLabel('');
+                setGrams(null);
+                onOpenChange(false);
+              })
+            }
           >
             Portion speichern
           </Button>

@@ -23,6 +23,7 @@ export function syncLabel(s: SyncState): string {
     case 'unauthorized':
       return 'Bitte neu anmelden, um zu synchronisieren';
     default:
+      if (s.needsUpdate) return 'App-Update nötig: neuere Daten konnten nicht geladen werden';
       return s.lastSyncAt ? `Synchronisiert ${fmtAgo(s.lastSyncAt)}` : 'Noch nicht synchronisiert';
   }
 }

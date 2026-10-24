@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAiStatus } from '@/hooks/useAiStatus';
 import { goBackOr } from '@/lib/history';
 import { cn } from '@/lib/utils';
@@ -126,6 +127,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
     toast.success('Vom Etikett übernommen, bitte prüfen');
   }
 
+  const { busy: saving, run } = useSubmitting();
   async function save() {
     setTouched(true);
     if (!valid || !factor) return;
@@ -163,7 +165,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
       back="/custom-foods"
       withTabBar={false}
       footer={
-        <Button size="lg" type="submit" form="custom-food">
+        <Button size="lg" type="submit" form="custom-food" disabled={saving}>
           {isNew ? (search.date !== undefined ? 'Anlegen und eintragen' : 'Anlegen') : 'Speichern'}
         </Button>
       }
@@ -195,7 +197,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
         noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          void save();
+          void run(save);
         }}
       >
         {ai !== 'loading' && ai !== 'off' && (

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtFixed, fmtIngredients } from '@/lib/format';
 import { logItems } from './logMeal';
 
@@ -67,6 +68,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
     });
   }
 
+  const { busy, run } = useSubmitting();
   async function log() {
     const { length: n } = await logItems(
       db,
@@ -96,7 +98,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
         </Button>
       }
       footer={
-        <Button size="lg" onClick={() => void log()}>
+        <Button size="lg" disabled={busy} onClick={() => void run(log)}>
           {fmt0(kcal)} kcal eintragen
         </Button>
       }

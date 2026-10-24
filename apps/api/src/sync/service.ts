@@ -7,10 +7,13 @@
  * sequence values become visible in commit order, so a puller can never skip a lower value that
  * commits later.
  *
- * Pull: returns records with change_seq > cursor across all tables, merged in sequence order.
+ * Pull: returns records with change_seq > cursor across all tables, merged in sequence order. All
+ * tables are read in one repeatable-read transaction (one snapshot).
  */
 import {
+  CLOCK_AHEAD,
   incomingWins,
+  MAX_CLOCK_AHEAD_MS,
   MAX_PULL_RECORDS,
   requiredId,
   SYNC_SCHEMAS,
@@ -41,8 +44,8 @@ export function toWire(row: Record<string, unknown>): AnySyncRecord {
   return rest as unknown as AnySyncRecord;
 }
 
-export async function push(db: Db, userId: string, req: PushRequest): Promise<PushResult> {
-  const result: PushResult = { applied: 0, stale: [], rejected: [] };
+export async function push(db: Db, userId: string, req: PushRequest, now = Date.now()): Promise<PushResult> {
+  const result: PushResult = { applied: 0, stale: [], rejected: [], serverTime: now };
 
   // Validate and group; within one batch the winning version per id survives.
   const byTable = new Map<SyncTable, Map<string, AnySyncRecord>>();
@@ -58,6 +61,10 @@ export async function push(db: Db, userId: string, req: PushRequest): Promise<Pu
       continue;
     }
     const rec = parsed.data as AnySyncRecord;
+    if (rec.updatedAt > now + MAX_CLOCK_AHEAD_MS) {
+      result.rejected.push({ table: name, id: rec.id, error: CLOCK_AHEAD });
+      continue;
+    }
     const expected = requiredId(name, rec as unknown as Record<string, unknown>);
     if (expected !== null && rec.id !== expected) {
       result.rejected.push({ table: name, id: rec.id, error: `id must be ${expected}` });
@@ -108,22 +115,33 @@ export async function pull(
   since: number,
   limit = MAX_PULL_RECORDS,
 ): Promise<PullResult> {
-  const perTable = await Promise.all(
-    SYNC_TABLES.map(async (name) => {
-      const t = table(name) as unknown as PgTable & { userId: any; changeSeq: any };
-      const rows = (await db
-        .select()
-        .from(t)
-        .where(and(eq(t.userId, userId), gt(t.changeSeq, since)))
-        .orderBy(asc(t.changeSeq))
-        .limit(limit + 1)) as Record<string, unknown>[];
-      return rows.map((r) => ({ table: name, seq: r.changeSeq as number, data: toWire(r) }));
-    }),
+  // One snapshot for all tables: a push committing between two table reads would otherwise show
+  // its higher sequence (in a later table) but not its lower one, and the cursor would skip it.
+  const perTable = await db.transaction(
+    (tx) =>
+      Promise.all(
+        SYNC_TABLES.map(async (name) => {
+          const t = table(name) as unknown as PgTable & { userId: any; changeSeq: any };
+          const rows = (await tx
+            .select()
+            .from(t)
+            .where(and(eq(t.userId, userId), gt(t.changeSeq, since)))
+            .orderBy(asc(t.changeSeq))
+            .limit(limit + 1)) as Record<string, unknown>[];
+          return rows.map((r) => ({ table: name, seq: r.changeSeq as number, data: toWire(r) }));
+        }),
+      ),
+    { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
   const all = perTable.flat().sort((a, b) => a.seq - b.seq);
   // Each table returned its first limit+1 rows, so the first `limit` of the merge are complete.
   const page = all.slice(0, limit);
   const hasMore = all.length > limit;
   const cursor = page.length ? page[page.length - 1]!.seq : since;
-  return { changes: page.map(({ table: t, data }) => ({ table: t, data })), cursor, hasMore };
+  return {
+    changes: page.map(({ table: t, data }) => ({ table: t, data })),
+    cursor,
+    hasMore,
+    serverTime: Date.now(),
+  };
 }

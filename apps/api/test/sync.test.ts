@@ -215,7 +215,7 @@ describe('sync', () => {
     ];
     const r = await alice.post('/api/sync/push', { records });
     expect(r.status).toBe(200);
-    expect(r.json).toEqual({ applied: records.length, stale: [], rejected: [] });
+    expect(r.json).toMatchObject({ applied: records.length, stale: [], rejected: [] });
 
     const { changes } = await pullAll(alice);
     expect(changes).toHaveLength(records.length);
@@ -247,7 +247,7 @@ describe('sync', () => {
         { table: 'exerciseEntries', data: oldExercise },
       ],
     });
-    expect(r.json).toEqual({ applied: 2, stale: [], rejected: [] });
+    expect(r.json).toMatchObject({ applied: 2, stale: [], rejected: [] });
     const { changes } = await pullAll(alice, before);
     expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({
       ...oldEntry,
@@ -347,7 +347,7 @@ describe('sync', () => {
     expect(pages).toEqual([5, 5, 2]);
     expect(seen.size).toBe(12);
     const again = await c.get(`/api/sync/pull?since=${cursor}`);
-    expect(again.json).toEqual({ changes: [], cursor, hasMore: false });
+    expect(again.json).toMatchObject({ changes: [], cursor, hasMore: false });
   });
 
   it('rejects invalid records and wrong deterministic ids without failing the batch', async () => {
@@ -365,6 +365,23 @@ describe('sync', () => {
     expect(r.json.rejected[1].error).toMatch(/w:2026-10-10/);
     const bad = await alice.post('/api/sync/push', { records: [{ table: 'nope', data: {} }] });
     expect(bad.status).toBe(400);
+  });
+
+  it('refuses versions from the future (device clock ahead) and tells the device the time', async () => {
+    const ahead = entry({ updatedAt: Date.now() + 10 * 60_000 });
+    const fine = entry({ updatedAt: Date.now() + 60_000 });
+    const r = await alice.post('/api/sync/push', {
+      records: [
+        { table: 'foodEntries', data: ahead },
+        { table: 'foodEntries', data: fine },
+      ],
+    });
+    expect(r.status).toBe(200);
+    expect(r.json.applied).toBe(1);
+    expect(r.json.rejected).toEqual([{ table: 'foodEntries', id: ahead.id, error: 'clock_ahead' }]);
+    expect(Math.abs(r.json.serverTime - Date.now())).toBeLessThan(5_000);
+    const pulled = await alice.get('/api/sync/pull?since=0');
+    expect(typeof pulled.json.serverTime).toBe('number');
   });
 
   it('keeps the newest version when one batch contains duplicates', async () => {

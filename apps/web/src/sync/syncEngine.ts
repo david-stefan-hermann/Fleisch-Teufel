@@ -14,8 +14,10 @@
  * Free of `@/` aliases on purpose: the API test suite runs this engine against the real server.
  */
 import {
+  CLOCK_AHEAD,
   incomingWins,
   MAX_PUSH_RECORDS,
+  SYNC_SCHEMAS,
   type AnySyncRecord,
   type PullResult,
   type PushResult,
@@ -33,6 +35,10 @@ export interface SyncState {
   pending: number;
   error: string | null;
   rejected: number;
+  /** The server sent changes this app version does not know (a table or a shape): update the app. */
+  needsUpdate: boolean;
+  /** Server clock minus device clock (ms), see `UserDb.clockOffset`. */
+  clockOffset: number;
 }
 
 export interface SyncSummary {
@@ -54,6 +60,7 @@ export interface SyncEngineOptions {
 const CURSOR_KEY = 'sync.cursor';
 const LAST_SYNC_KEY = 'sync.lastSyncAt';
 const REJECTED_KEY = 'sync.rejected';
+const CLOCK_OFFSET_KEY = 'sync.clockOffset';
 
 class HttpError extends Error {
   constructor(public readonly status: number) {
@@ -61,8 +68,28 @@ class HttpError extends Error {
   }
 }
 
+/** Only a failed network request counts as offline; everything else is an error worth showing. */
+function isNetworkError(e: unknown): boolean {
+  return (
+    e instanceof TypeError ||
+    (e instanceof DOMException && (e.name === 'AbortError' || e.name === 'TimeoutError'))
+  );
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 export class SyncEngine {
-  private state: SyncState = { status: 'idle', lastSyncAt: null, pending: 0, error: null, rejected: 0 };
+  private state: SyncState = {
+    status: 'idle',
+    lastSyncAt: null,
+    pending: 0,
+    error: null,
+    rejected: 0,
+    needsUpdate: false,
+    clockOffset: 0,
+  };
   private listeners = new Set<(s: SyncState) => void>();
   private running: Promise<SyncSummary> | null = null;
   private again = false;
@@ -99,6 +126,12 @@ export class SyncEngine {
     void this.db.kv
       .get(REJECTED_KEY)
       .then((v) => this.set({ rejected: ((v?.value as unknown[]) ?? []).length }));
+    void this.db.kv.get(CLOCK_OFFSET_KEY).then((v) => {
+      const offset = typeof v?.value === 'number' ? v.value : 0;
+      // Writes before the first server answer of this start still use the last known offset.
+      if (this.db.clockOffset === 0) this.db.clockOffset = offset;
+      this.set({ clockOffset: this.db.clockOffset });
+    });
     this.subs.push(
       liveQuery(() => this.db.outbox.count()).subscribe((n) => {
         const grew = n > this.state.pending;
@@ -151,6 +184,7 @@ export class SyncEngine {
     }
     this.running = (async () => {
       const total: SyncSummary = { pushed: 0, pulled: 0, rejected: 0 };
+      let photoError: Error | null = null;
       try {
         do {
           this.again = false;
@@ -158,8 +192,12 @@ export class SyncEngine {
           const p = await this.push();
           total.pushed += p.pushed;
           total.rejected += p.rejected;
+          photoError ??= p.photoError;
           total.pulled += await this.pull();
         } while (this.again);
+        // Records went both ways; a photo that could not be uploaded is reported now, retried next run.
+        if (photoError)
+          throw photoError instanceof PhotoHttpError ? new HttpError(photoError.status) : photoError;
         const now = Date.now();
         await this.db.kv.put({ key: LAST_SYNC_KEY, value: now });
         this.set({ status: 'idle', lastSyncAt: now, pending: await this.db.outbox.count() });
@@ -170,30 +208,48 @@ export class SyncEngine {
           this.opts.onUnauthorized?.();
         } else if (e instanceof HttpError) {
           this.set({ status: 'error', error: `Server-Fehler (${e.status})` });
-        } else {
+        } else if (isNetworkError(e)) {
           this.set({ status: 'offline', error: null });
+        } else {
+          this.set({ status: 'error', error: errorText(e) });
         }
         throw e;
       } finally {
         this.running = null;
+        // A write that happened during a failed run must not wait for the next trigger.
+        if (this.again) {
+          this.again = false;
+          this.schedule(5_000);
+        }
       }
     })();
     return this.running;
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private async request<T extends { serverTime?: number }>(path: string, init?: RequestInit): Promise<T> {
     const res = await this.doFetch(path, init);
     if (!res.ok) throw new HttpError(res.status);
-    return (await res.json()) as T;
+    const body = (await res.json()) as T;
+    if (typeof body.serverTime === 'number') await this.noteServerTime(body.serverTime);
+    return body;
   }
 
-  async push(): Promise<{ pushed: number; rejected: number }> {
-    // Photos first, so a meal never arrives on another device before its photo.
-    try {
-      await uploadPendingPhotos(this.db, this.doFetch);
-    } catch (e) {
-      throw e instanceof PhotoHttpError ? new HttpError(e.status) : e;
-    }
+  /** Measures the device clock against the server's (request latency is noise at this scale). */
+  private async noteServerTime(serverTime: number): Promise<void> {
+    const offset = serverTime - Date.now();
+    // Below a few seconds the clock is fine; do not shift versions around for network jitter.
+    const next = Math.abs(offset) < 5_000 ? 0 : offset;
+    if (next === this.db.clockOffset) return;
+    this.db.clockOffset = next;
+    this.set({ clockOffset: next });
+    await this.db.kv.put({ key: CLOCK_OFFSET_KEY, value: next });
+  }
+
+  async push(): Promise<{ pushed: number; rejected: number; photoError: Error | null }> {
+    // Photos first, so a meal never arrives on another device before its photo. A failed upload
+    // (429 after many analyses, 5xx) is reported after the records went through, not instead.
+    const photos = await uploadPendingPhotos(this.db, this.doFetch);
+    if (photos.error instanceof PhotoHttpError && photos.error.status === 401) throw new HttpError(401);
     let pushed = 0;
     let rejectedCount = 0;
     for (;;) {
@@ -213,38 +269,65 @@ export class SyncEngine {
         'rw',
         [this.db.outbox, this.db.kv, ...items.map((i) => this.db.syncTable(i.table))],
         async () => {
+          // Versions from the future (device clock was ahead): stamp them with the server time
+          // and send them again instead of dropping them.
+          const ahead = new Set(
+            result.rejected.filter((r) => r.error === CLOCK_AHEAD).map((r) => `${r.table}:${r.id}`),
+          );
           for (const item of items) {
             const current = await this.db.syncTable(item.table).get(item.id);
-            // Changed again while the request was in flight → keep it queued.
-            if (!current || current.updatedAt === item.updatedAt) await this.db.outbox.delete(item.key);
+            if (!current) {
+              await this.db.outbox.delete(item.key);
+              continue;
+            }
+            // Changed again while the request was in flight → keep it queued as is.
+            if (current.updatedAt !== item.updatedAt) continue;
+            if (ahead.has(item.key) && result.serverTime) {
+              const fixed = { ...current, updatedAt: Math.min(current.updatedAt, result.serverTime) };
+              await this.db.syncTable(item.table).put(fixed);
+              await this.db.outbox.put({ ...item, updatedAt: fixed.updatedAt });
+              this.again = true;
+              continue;
+            }
+            await this.db.outbox.delete(item.key);
           }
-          if (result.rejected.length) {
+          const rejected = result.rejected.filter((r) => r.error !== CLOCK_AHEAD);
+          if (rejected.length) {
             const prev = ((await this.db.kv.get(REJECTED_KEY))?.value as unknown[]) ?? [];
-            const next = [...prev, ...result.rejected.map((r) => ({ ...r, at: Date.now() }))].slice(-50);
+            const next = [...prev, ...rejected.map((r) => ({ ...r, at: Date.now() }))].slice(-50);
             await this.db.kv.put({ key: REJECTED_KEY, value: next });
             this.set({ rejected: next.length });
           }
         },
       );
       pushed += result.applied;
-      rejectedCount += result.rejected.length;
+      rejectedCount += result.rejected.filter((r) => r.error !== CLOCK_AHEAD).length;
       if (items.length < MAX_PUSH_RECORDS) break;
     }
-    return { pushed, rejected: rejectedCount };
+    return { pushed, rejected: rejectedCount, photoError: photos.error };
   }
 
   async pull(): Promise<number> {
     let applied = 0;
+    let unknown = 0;
     const pageSize = this.opts.pullPageSize ?? 1000;
     for (;;) {
       const since = ((await this.db.kv.get(CURSOR_KEY))?.value as number) ?? 0;
       const page = await this.request<PullResult>(`/api/sync/pull?since=${since}&limit=${pageSize}`);
-      const tables = [...new Set(page.changes.map((c) => c.table))];
+      // Changes this app version cannot store (a table or a shape added by a newer version) are
+      // skipped, not fatal: the cursor still moves, so an outdated device keeps syncing the rest.
+      const changes = page.changes.filter(({ table, data }) => {
+        const schema = Object.hasOwn(SYNC_SCHEMAS, table) ? SYNC_SCHEMAS[table] : null;
+        const ok = schema && this.db.tables.some((t) => t.name === table) && schema.safeParse(data).success;
+        if (!ok) unknown++;
+        return ok;
+      });
+      const tables = [...new Set(changes.map((c) => c.table))];
       await this.db.transaction(
         'rw',
         [this.db.outbox, this.db.kv, ...tables.map((t) => this.db.syncTable(t))],
         async () => {
-          for (const { table, data } of page.changes) {
+          for (const { table, data } of changes) {
             const t = this.db.syncTable(table);
             const local = await t.get(data.id);
             if (incomingWins(local, data)) {
@@ -259,6 +342,7 @@ export class SyncEngine {
       );
       if (!page.hasMore) break;
     }
+    if (unknown > 0 && !this.state.needsUpdate) this.set({ needsUpdate: true });
     return applied;
   }
 

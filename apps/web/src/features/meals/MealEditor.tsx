@@ -28,6 +28,7 @@ import {
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { useGoals } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
@@ -120,6 +121,7 @@ function MealEditorForm({
   }
 
   /** Saving closes the editor: back to the page that opened it ("Meal eintragen" or the list). */
+  const { busy: saving, run } = useSubmitting();
   async function saveAndClose() {
     if (!(await save())) return;
     leaving.current = true;
@@ -148,12 +150,18 @@ function MealEditorForm({
       back="/meals"
       withTabBar={false}
       actions={
-        <Button variant="ghost" size="icon" aria-label="Meal löschen" onClick={() => void remove()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Meal löschen"
+          disabled={saving}
+          onClick={() => void run(remove)}
+        >
           <Trash2 className="text-destructive" aria-hidden />
         </Button>
       }
       footer={
-        <Button size="lg" disabled={!dirty} onClick={() => void saveAndClose()}>
+        <Button size="lg" disabled={!dirty || saving} onClick={() => void run(saveAndClose)}>
           Speichern
         </Button>
       }

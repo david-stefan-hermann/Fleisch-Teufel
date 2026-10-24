@@ -117,7 +117,11 @@ export function useDaySummary(date: ISODate): DaySummary | undefined {
 export function usePendingAnalyses(date: ISODate): AiQueueItem[] | undefined {
   const db = useDb();
   return useLiveQuery(
-    () => db.aiQueue.filter((i) => i.date === date && !i.result).sortBy('createdAt'),
+    // Not analysed yet, or analysed but its logging failed (shows "Wiederholen" like a failed analysis).
+    () =>
+      db.aiQueue
+        .filter((i) => i.date === date && (!i.result || (!!i.deferred && i.status === 'failed')))
+        .sortBy('createdAt'),
     [db, date],
   );
 }

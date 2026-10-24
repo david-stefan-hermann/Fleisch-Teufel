@@ -70,7 +70,18 @@ LWW anwenden, Cursor speichern, bis hasMore = false
   Geräten können keine Änderungen „verstecken“.
 - **Keine verlorenen Sequenzen:** Ein Advisory-Lock pro Nutzer serialisiert Pushes, so werden
   Sequenzwerte in Commit-Reihenfolge sichtbar; ein Pull kann keine später committete, kleinere
-  Sequenz überspringen.
+  Sequenz überspringen. Der Pull liest alle Tabellen in **einer** Repeatable-Read-Transaktion
+  (ein Snapshot): ein Push, der zwischen zwei Tabellen-Abfragen committet, kann so nicht nur mit
+  seiner höheren Sequenz sichtbar werden.
+- **Uhrzeit des Geräts:** Der Server lehnt `updatedAt` mehr als 5 Minuten in der Zukunft als
+  `clock_ahead` ab (sonst gewänne eine falsch gehende Uhr jeden Konflikt). Das Gerät misst aus
+  `serverTime` in jeder Push- und Pull-Antwort seinen Versatz (`UserDb.clockOffset`, `kv`
+  `sync.clockOffset`), stempelt neue Versionen mit `Date.now() + Versatz` und versieht abgelehnte
+  Datensätze mit der Serverzeit, bevor es sie erneut sendet. Unter „Daten & Sync“ steht ein Hinweis
+  ab einer Minute Abweichung.
+- **Unbekannte Tabellen und Formen:** Änderungen, die eine ältere App-Version nicht kennt (neue
+  Tabelle, Datensatz fällt durch das Schema), überspringt der Pull; der Cursor rückt trotzdem vor,
+  der Sync-Status zeigt „App-Update nötig“. Nach dem Update holt „Alles neu vom Server laden“ sie nach.
 - **Paging:** Jede Tabelle liefert ihre ersten `limit + 1` Zeilen; nach dem Zusammenführen sind die
   ersten `limit` Änderungen garantiert lückenlos.
 - **Abgelehnte Datensätze** (Validierung) werden aus der Outbox entfernt und unter „Daten & Sync“
@@ -87,10 +98,12 @@ kein Background Sync, deshalb gibt es keinen Service-Worker-Sync.
 Meal-Fotos laufen nicht über den Datensatz-Sync, sondern über `PUT/GET /api/photos/:id` (Tabelle
 `photos`, nur für den Besitzer). Ein Meal verweist per `photoId` darauf, Tagebuch-Gruppen per `photoIds`. Fotos sind unveränderlich (ein
 neues Foto bekommt eine neue ID), deshalb gibt es keine Konflikte und der Abruf ist dauerhaft cachebar.
-Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0/1, Bild als `bytes`/`type`, ältere
-Datensätze noch als `blob`); die `SyncEngine` lädt offene
-Fotos **vor** dem Push hoch, damit ein Meal nie vor seinem Foto auf einem anderen Gerät ankommt. Andere
-Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
+Auf dem Gerät liegen sie in der Dexie-Tabelle `photos` (`uploaded` 0 wartend / 1 hochgeladen / 2 vom
+Server endgültig abgelehnt, Bild als `bytes`/`type`, ältere Datensätze noch als `blob`); die `SyncEngine`
+lädt offene Fotos **vor** dem Push hoch, damit ein Meal nie vor seinem Foto auf einem anderen Gerät
+ankommt. Schlägt ein Upload fehl (Netz, 5xx, 429), werden die übrigen Fotos trotzdem versucht und die
+Datensätze trotzdem gepusht; der Fehler erscheint danach im Sync-Status und der Upload wird beim nächsten
+Lauf wiederholt. Andere Geräte laden ein Foto beim ersten Anzeigen und behalten es lokal.
 
 ## Was nicht synchronisiert
 

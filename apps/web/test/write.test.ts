@@ -64,6 +64,26 @@ describe('local writes', () => {
     expect(await d.outbox.count()).toBe(1);
   });
 
+  it('patches read the current version inside the transaction (no lost update)', async () => {
+    const d = db();
+    const id = uuidv7();
+    await saveRecord(d, 'customFoods', {
+      id,
+      name: 'Alt',
+      brand: null,
+      barcode: null,
+      unit: 'g',
+      nutrients: {},
+      portions: [],
+    });
+    // Two patches at once (e.g. a rename and a pull applying another device's barcode).
+    await Promise.all([
+      patchRecord(d, 'customFoods', id, { name: 'Neu' }),
+      patchRecord(d, 'customFoods', id, { barcode: '4000417025005' }),
+    ]);
+    expect(await d.customFoods.get(id)).toMatchObject({ name: 'Neu', barcode: '4000417025005' });
+  });
+
   it('soft-deletes and restores', async () => {
     const d = db();
     const w = await saveRecord(d, 'weightEntries', {
