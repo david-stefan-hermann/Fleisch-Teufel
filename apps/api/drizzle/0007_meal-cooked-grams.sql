@@ -1,0 +1,1 @@
+ALTER TABLE "meals" ADD COLUMN "cooked_grams" double precision;

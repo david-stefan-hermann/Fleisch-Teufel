@@ -132,6 +132,7 @@ export const meals = pgTable(
     name: text().notNull(),
     items: jsonb().$type<MealItem[]>().notNull(),
     photoId: text(),
+    cookedGrams: doublePrecision(),
   },
   syncExtras,
 );

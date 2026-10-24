@@ -95,6 +95,7 @@ describe('sync', () => {
       updatedAt: 5,
       deleted: false,
       photoId: 'photo-abc123',
+      cookedGrams: 420.5,
       name: 'Porridge',
       items: [{ ...entry(), id: undefined, date: undefined }].map(
         ({

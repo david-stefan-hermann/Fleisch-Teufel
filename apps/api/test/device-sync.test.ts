@@ -294,6 +294,7 @@ describe('device ↔ server sync', () => {
       id: uuidv7(),
       name: 'Spaghetti',
       photoId,
+      cookedGrams: null,
       items: [
         {
           foodId: null,

@@ -118,7 +118,13 @@ describe('local writes', () => {
     };
     for (const date of ['2026-10-01', '2026-10-02', '2026-10-03'])
       await saveRecord(d, 'weightEntries', { id: dayId.weight(date), date, kg: 80 });
-    const meal = await saveRecord(d, 'meals', { id: uuidv7(), name: 'Toast', items: [item], photoId: null });
+    const meal = await saveRecord(d, 'meals', {
+      id: uuidv7(),
+      name: 'Toast',
+      items: [item],
+      photoId: null,
+      cookedGrams: null,
+    });
     const training = (name: string) => ({
       name,
       typeKey: 'running',
@@ -613,7 +619,7 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
   async function setup() {
     const d = db();
     const items = [food('Reis', 130), food('Huhn', 110)];
-    await saveRecord(d, 'meals', { id: 'm1', name: 'Bowl', items, photoId: 'p1' });
+    await saveRecord(d, 'meals', { id: 'm1', name: 'Bowl', items, photoId: 'p1', cookedGrams: null });
     await logItems(
       d,
       items,

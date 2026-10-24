@@ -157,6 +157,7 @@ describe('food service', () => {
       groupId: null,
       groupName: null,
       photoId: null,
+      cookedGrams: null,
       photoIds: null,
     };
     await saveRecord(db, 'foodEntries', {
@@ -239,6 +240,7 @@ describe('food service', () => {
       id: 'm1',
       name: 'Sonntagsfrühstück',
       photoId: null,
+      cookedGrams: null,
       items: [
         {
           foodId: 'bls:C133000',
@@ -389,8 +391,16 @@ describe('filterOwn', () => {
       name: 'Frühstück Klassiker',
       items: [item('Haferflocken'), item('Apfel roh')],
       photoId: null,
+      cookedGrams: null,
     },
-    { ...base, id: 'm2', name: 'Bowl', items: [item('Reis'), item('Hähnchen')], photoId: null },
+    {
+      ...base,
+      id: 'm2',
+      name: 'Bowl',
+      items: [item('Reis'), item('Hähnchen')],
+      photoId: null,
+      cookedGrams: null,
+    },
   ] satisfies Meal[];
 
   it('keeps everything for an empty query', () => {

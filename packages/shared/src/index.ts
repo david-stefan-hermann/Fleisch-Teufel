@@ -10,6 +10,7 @@ export * from './goals.js';
 export * from './ids.js';
 export * from './nutrients.js';
 export * from './nutrition.js';
+export * from './recipes.js';
 export * from './reports.js';
 export * from './schemas.js';
 export * from './search.js';

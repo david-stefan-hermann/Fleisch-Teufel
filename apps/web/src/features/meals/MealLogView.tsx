@@ -1,4 +1,13 @@
-import { get, N, rescaleItem, sumNutrients, targetsForDate, type Meal } from '@ft/shared';
+import {
+  get,
+  mealFactorForGrams,
+  mealWeightGrams,
+  N,
+  rescaleItem,
+  sumNutrients,
+  targetsForDate,
+  type Meal,
+} from '@ft/shared';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
@@ -10,12 +19,13 @@ import { Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { NumberField } from '@/components/NumberField';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { fmt0, fmtFixed, fmtIngredients } from '@/lib/format';
+import { fmt0, fmtFixed, fmtGrams, fmtIngredients } from '@/lib/format';
 import { logItems } from './logMeal';
 
 const FACTOR_MIN = 0.5;
@@ -34,6 +44,14 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
   const goals = useGoals();
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => new Set());
   const [factor, setFactor] = useState(1);
+  // Recipe mode: grams eaten of the cooked meal set the factor (the slider follows, clamped to its range).
+  const cookedWeight = meal.cookedGrams ? mealWeightGrams(meal) : null;
+  const [eatenGrams, setEatenGrams] = useState<number | null>(null);
+  const setGrams = (g: number | null) => {
+    setEatenGrams(g);
+    const f = g && g > 0 && cookedWeight ? mealFactorForGrams(meal, g) : null;
+    if (f !== null) setFactor(f);
+  };
   const [target, setTarget] = useState(mealIndex);
   // One ingredient row at a time shows its nutrients.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -161,7 +179,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="meal-factor">Menge</Label>
               <output htmlFor="meal-factor" className="tabular text-lg font-semibold">
-                {fmtFixed(factor, 1)}×
+                {fmtFixed(factor, eatenGrams ? 2 : 1)}×
               </output>
             </div>
             <Slider
@@ -171,8 +189,12 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
               min={FACTOR_MIN}
               max={FACTOR_MAX}
               step={0.1}
-              value={[factor]}
-              onValueChange={([v]) => v !== undefined && setFactor(Math.round(v * 10) / 10)}
+              value={[Math.min(FACTOR_MAX, Math.max(FACTOR_MIN, factor))]}
+              onValueChange={([v]) => {
+                if (v === undefined) return;
+                setFactor(Math.round(v * 10) / 10);
+                setEatenGrams(null);
+              }}
             />
             <div className="relative h-4 text-xs text-muted-foreground" aria-hidden>
               <span className="absolute left-0">0,5×</span>
@@ -185,6 +207,16 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
               <span className="absolute right-0">2×</span>
             </div>
           </div>
+          {cookedWeight && (
+            <NumberField
+              label="Gegessen (gekocht)"
+              unit="g"
+              integer
+              value={eatenGrams}
+              onValueChange={setGrams}
+              hint={`Ganzes Rezept ${fmtGrams(cookedWeight)} gekocht; ${fmt0(factor * 100)} % davon.`}
+            />
+          )}
           <div className="grid gap-1.5">
             <Label htmlFor="meal-target">Mahlzeit</Label>
             <Select value={String(target)} onValueChange={(v) => setTarget(Number(v))}>

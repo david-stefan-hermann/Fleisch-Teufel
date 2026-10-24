@@ -147,6 +147,12 @@ export const mealSchema = z.object({
   items: z.array(mealItemSchema).min(1).max(100),
   /** Photo stored via `/api/photos` (immutable; a new photo gets a new id). Null for older records. */
   photoId: idSchema.nullable().default(null),
+  /**
+   * Recipe mode: weight of the whole meal after cooking (water lost or taken up). With it the meal
+   * can be logged by grams eaten, and "Als Lebensmittel speichern" computes per 100 g cooked.
+   * Null (default, older records): the ingredients' weights add up as they are.
+   */
+  cookedGrams: z.number().positive().max(100_000).nullable().default(null),
 });
 export type Meal = z.infer<typeof mealSchema>;
 

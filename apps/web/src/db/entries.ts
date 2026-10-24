@@ -1,5 +1,6 @@
 /** Diary write operations used by several screens (kept outside components: pure data logic). */
 import {
+  foodFromMeal,
   rescaleItem,
   scaleNutrients,
   uuidv7,
@@ -7,6 +8,7 @@ import {
   type ExerciseEntry,
   type ExerciseTemplate,
   type FoodEntry,
+  type Meal,
   type MealItem,
   photoIdsOf,
 } from '@ft/shared';
@@ -184,6 +186,7 @@ export async function createAiMeal(
     name: name.trim().slice(0, 120),
     items: aiMealItems(items),
     photoId,
+    cookedGrams: null,
   });
   return mealId;
 }
@@ -214,6 +217,7 @@ export async function logAiMeal(
       name: name.trim().slice(0, 120),
       items: mealItems,
       photoId: null,
+      cookedGrams: null,
     });
   const photoIds = await storePhotos(db, photos);
   const ids = await logItems(db, mealItems, target, {
@@ -323,6 +327,23 @@ export async function saveMealFromItems(
     name: name.trim().slice(0, 120),
     items: entriesToMealItems(items),
     photoId,
+    cookedGrams: null,
   });
   return id;
+}
+
+/**
+ * "Als Lebensmittel speichern" in the meal editor: the meal per 100 g (cooked weight when known) as an
+ * own food, so leftovers and meal prep are logged like anything packaged. Returns the new food's id, or
+ * null when the meal has no weight.
+ */
+export async function saveMealAsFood(
+  db: UserDb,
+  meal: Pick<Meal, 'name' | 'items'> & Partial<Pick<Meal, 'cookedGrams'>>,
+  name: string,
+): Promise<string | null> {
+  const food = foodFromMeal(meal, uuidv7(), name);
+  if (!food) return null;
+  await saveRecord(db, 'customFoods', food);
+  return food.id;
 }

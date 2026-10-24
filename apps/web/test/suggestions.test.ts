@@ -61,7 +61,15 @@ describe('meal suggestions ("Zuletzt hier")', () => {
 
   it('offers a logged saved meal as one suggestion and logs it as a group again', async () => {
     const d = db();
-    await d.meals.put({ id: 'm1', name: 'Müsli', items: [], photoId: 'p1', updatedAt: 1, deleted: false });
+    await d.meals.put({
+      id: 'm1',
+      name: 'Müsli',
+      items: [],
+      photoId: 'p1',
+      cookedGrams: null,
+      updatedAt: 1,
+      deleted: false,
+    });
     await logItems(
       d,
       [item('Hafer', 370, 50), item('Milch', 64, 200)],

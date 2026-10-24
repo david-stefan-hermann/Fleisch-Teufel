@@ -1,12 +1,23 @@
-import { sumNutrients, targetsForDate, type Meal, type MealItem } from '@ft/shared';
+import {
+  mealPer100,
+  mealRawGrams,
+  N,
+  get,
+  sumNutrients,
+  targetsForDate,
+  type Meal,
+  type MealItem,
+} from '@ft/shared';
 import { useBlocker, useNavigate, useRouter, type ShouldBlockFn } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, ImagePlus, Plus, Trash2, X } from 'lucide-react';
+import { Camera, ImagePlus, Plus, Salad, Trash2, X } from 'lucide-react';
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { MealPhoto } from '@/components/MealPhoto';
+import { NameDialog } from '@/components/NameDialog';
+import { NumberField } from '@/components/NumberField';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
 import { ConflictBanner } from '@/components/ConflictBanner';
@@ -28,11 +39,12 @@ import {
   type MealDraft,
   type MealDraftPhoto,
 } from '@/db/mealDraft';
+import { saveMealAsFood } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { fmtPercent } from '@/lib/format';
+import { fmt0, fmtGrams, fmtPercent } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
 import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from './IngredientCard';
@@ -131,6 +143,22 @@ function MealEditorForm({
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
   const today = useToday();
   const targets = targetsForDate(goals ?? [], today);
+  // Recipe mode: the raw sum of the ingredients, the weight after cooking, and the kcal per 100 g.
+  const rawGrams = mealRawGrams(draft.items);
+  const cooked = draft.cookedGrams ?? null;
+  const per100 = mealPer100({ items: draft.items, cookedGrams: cooked });
+  const [foodOpen, setFoodOpen] = useState(false);
+
+  async function saveAsFood(foodName: string) {
+    const id = await saveMealAsFood(db, { name, items: draft.items, cookedGrams: cooked }, foodName);
+    if (!id)
+      return void toast.error(
+        'Das Meal hat kein Gewicht: trage Mengen oder das Gewicht nach dem Kochen ein.',
+      );
+    toast.success(`„${foodName}“ als Lebensmittel gespeichert`, {
+      description: 'Unter „Eigene Lebensmittel“ und in der Suche, pro 100 g.',
+    });
+  }
 
   async function save(): Promise<boolean> {
     const ok = await saveMealDraft(db, draft);
@@ -173,15 +201,26 @@ function MealEditorForm({
       back="/meals"
       withTabBar={false}
       actions={
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Meal löschen"
-          disabled={saving}
-          onClick={() => void run(remove)}
-        >
-          <Trash2 className="text-destructive" aria-hidden />
-        </Button>
+        <>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Als Lebensmittel speichern"
+            disabled={saving || !per100}
+            onClick={() => setFoodOpen(true)}
+          >
+            <Salad aria-hidden />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Meal löschen"
+            disabled={saving}
+            onClick={() => void run(remove)}
+          >
+            <Trash2 className="text-destructive" aria-hidden />
+          </Button>
+        </>
       }
       footer={
         <Button size="lg" disabled={!dirty || saving} onClick={() => void run(saveAndClose)}>
@@ -260,6 +299,38 @@ function MealEditorForm({
           <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
         </div>
       </Section>
+      <Section title="Rezept">
+        <div className="grid gap-3 px-4 pb-4">
+          <NumberField
+            label="Gewicht nach dem Kochen (optional)"
+            unit="g"
+            integer
+            value={cooked}
+            onValueChange={(v) => commit({ ...draft, cookedGrams: v && v > 0 ? Math.round(v) : null })}
+            hint={
+              rawGrams > 0
+                ? `Zutaten roh ${fmtGrams(rawGrams)}. Mit dem Gewicht nach dem Kochen rechnet die App pro 100 g gekocht; beim Eintragen kannst du dann die gegessenen Gramm angeben.`
+                : 'Mit dem Gewicht nach dem Kochen rechnet die App pro 100 g gekocht.'
+            }
+          />
+          {per100 && (
+            <p className="tabular text-sm text-muted-foreground">
+              Pro 100 g {cooked ? 'gekocht' : 'roh'}: {fmt0(get(per100, N.kcal))} kcal · P{' '}
+              {fmt0(get(per100, N.protein))} · K {fmt0(get(per100, N.carbs))} · F {fmt0(get(per100, N.fat))}
+            </p>
+          )}
+        </div>
+      </Section>
+      <NameDialog
+        open={foodOpen}
+        onOpenChange={setFoodOpen}
+        title="Als Lebensmittel speichern"
+        description={`Die Zutaten werden pro 100 g ${cooked ? 'gekocht' : ''} als eigenes Lebensmittel gespeichert, mit der Portion „Ganzes Rezept“. Das Meal bleibt erhalten.`}
+        confirmLabel="Lebensmittel speichern"
+        defaultName={name}
+        maxLength={200}
+        onConfirm={saveAsFood}
+      />
       <DiscardDialog
         open={blocker.status === 'blocked'}
         name={meal.name}

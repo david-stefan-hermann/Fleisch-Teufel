@@ -83,7 +83,13 @@ const food = (id: string, name: string, kcal: number): Food => ({
 describe('saved meal editing (draft until "Speichern")', () => {
   const setup = async () => {
     const d = db();
-    await saveRecord(d, 'meals', { id: 'm1', name: 'Müsli', items: [item('Hafer', 370)], photoId: null });
+    await saveRecord(d, 'meals', {
+      id: 'm1',
+      name: 'Müsli',
+      items: [item('Hafer', 370)],
+      photoId: null,
+      cookedGrams: null,
+    });
     await d.outbox.clear();
     return d;
   };
@@ -97,8 +103,11 @@ describe('saved meal editing (draft until "Speichern")', () => {
       name: 'Müsli',
       items: meal.items,
       photo: 'keep',
+      cookedGrams: null,
       baseUpdatedAt: meal.updatedAt,
     });
+    // Recipe mode: the cooked weight is part of the draft and saved with it.
+    expect(isDirty({ ...draft, cookedGrams: 900 }, meal)).toBe(true);
     expect(isDirty(draft, meal)).toBe(false);
     // An empty or untrimmed name means the same name.
     expect(isDirty({ ...draft, name: '  ' }, meal)).toBe(false);
@@ -115,6 +124,7 @@ describe('saved meal editing (draft until "Speichern")', () => {
       name: 'Toast',
       items: [item('Toast', 100)],
       photoId: null,
+      cookedGrams: null,
     });
     const draft = draftFromMeal(meal);
     expect(isMealDraftStale(draft, meal)).toBe(false);

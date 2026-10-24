@@ -50,6 +50,13 @@
       "when": 1792261115502,
       "tag": "0006_food-entry-photo-ids",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792846813168,
+      "tag": "0007_meal-cooked-grams",
+      "breakpoints": true
     }
   ]
 }

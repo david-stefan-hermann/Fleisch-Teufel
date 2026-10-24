@@ -19,6 +19,8 @@ export interface MealDraft {
   items: MealItem[];
   /** `keep` the saved photo, `remove` it, or replace it with the `pending` draft photo. */
   photo: 'keep' | 'remove' | 'pending';
+  /** Recipe mode: weight after cooking (see `Meal.cookedGrams`); missing on older drafts counts as null. */
+  cookedGrams?: number | null;
   /**
    * `updatedAt` of the meal the draft started from. Differs from the current meal when another device
    * changed it meanwhile: the editor then asks before the draft overwrites that (older drafts: unset).
@@ -36,12 +38,15 @@ export interface MealDraftPhoto {
 export const draftKey = (mealId: string) => `mealDraft:${mealId}`;
 export const draftPhotoKey = (mealId: string) => `mealDraftPhoto:${mealId}`;
 
-export function draftFromMeal(meal: Pick<Meal, 'id' | 'name' | 'items' | 'updatedAt'>): MealDraft {
+export function draftFromMeal(
+  meal: Pick<Meal, 'id' | 'name' | 'items' | 'updatedAt'> & Partial<Pick<Meal, 'cookedGrams'>>,
+): MealDraft {
   return {
     mealId: meal.id,
     name: meal.name,
     items: meal.items,
     photo: 'keep',
+    cookedGrams: meal.cookedGrams ?? null,
     baseUpdatedAt: meal.updatedAt,
   };
 }
@@ -84,11 +89,15 @@ export async function clearMealDraft(db: UserDb, mealId: string): Promise<void> 
   await db.kv.bulkDelete([draftKey(mealId), draftPhotoKey(mealId)]);
 }
 
-/** Whether the draft differs from the saved meal (name, ingredients and amounts, photo). */
-export function isDirty(draft: MealDraft, meal: Pick<Meal, 'name' | 'items'>): boolean {
+/** Whether the draft differs from the saved meal (name, ingredients and amounts, photo, cooked weight). */
+export function isDirty(
+  draft: MealDraft,
+  meal: Pick<Meal, 'name' | 'items'> & Partial<Pick<Meal, 'cookedGrams'>>,
+): boolean {
   return (
     draft.photo !== 'keep' ||
     (draft.name.trim() || meal.name) !== meal.name ||
+    (draft.cookedGrams ?? null) !== (meal.cookedGrams ?? null) ||
     JSON.stringify(draft.items.map(mealItem)) !== JSON.stringify(meal.items.map(mealItem))
   );
 }
@@ -114,6 +123,7 @@ export async function saveMealDraft(db: UserDb, draft: MealDraft): Promise<boole
       name: draft.name.trim().slice(0, 120) || meal.name,
       items: draft.items.map(mealItem),
       photoId,
+      cookedGrams: draft.cookedGrams ?? null,
     });
     await clearMealDraft(db, draft.mealId);
     return true;
