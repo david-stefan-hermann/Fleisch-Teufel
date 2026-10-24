@@ -332,6 +332,8 @@ export interface ServerInfo {
   registrationOpen: boolean;
   aiEnabled: boolean;
   blsVersion: string;
+  /** Foods in the server's BLS catalog (a quick sanity check of the deployment). */
+  blsFoods?: number;
 }
 
 // ---------------------------------------------------------------- foods (catalog)

@@ -17,7 +17,7 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="icon-sm" asChild>
-        <Link to="/" search={{ date: addDays(date, -7) }} aria-label="Vorherige Woche">
+        <Link to="/" search={{ date: dateParam(addDays(date, -7), today) }} aria-label="Vorherige Woche">
           <ChevronLeft aria-hidden />
         </Link>
       </Button>
@@ -64,10 +64,15 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
         })}
       </ol>
       <Button variant="ghost" size="icon-sm" asChild>
-        <Link to="/" search={{ date: addDays(date, 7) }} aria-label="Nächste Woche">
+        <Link to="/" search={{ date: dateParam(addDays(date, 7), today) }} aria-label="Nächste Woche">
           <ChevronRight aria-hidden />
         </Link>
       </Button>
     </div>
   );
+}
+
+/** Today has no `date` in the URL (one address per day, same scroll restoration). */
+function dateParam(d: string, today: string): string | undefined {
+  return d === today ? undefined : d;
 }

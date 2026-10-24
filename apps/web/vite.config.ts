@@ -23,7 +23,8 @@ export default defineConfig({
       registerType: 'prompt',
       injectRegister: false,
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2,wasm,json}'],
+        // The offline catalog by name, not every JSON (a future data file would land in the precache).
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2,wasm}', 'data/bls-compact.json'],
         // The offline BLS file (~1 MB) and the barcode wasm must be available offline.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
@@ -49,7 +50,7 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: 'Lebensmittel hinzufügen',
+            name: 'Essen eintragen',
             url: '/add',
             icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
           },

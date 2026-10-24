@@ -24,7 +24,7 @@ export function TabBar() {
               <button
                 type="button"
                 onClick={() => addSheet.open()}
-                aria-label="Hinzufügen"
+                aria-label="Eintragen"
                 className="flex size-12 touch-manipulation items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md transition-[transform,background-color] hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:scale-95 motion-reduce:transition-none"
               >
                 <Plus className="size-6" aria-hidden />

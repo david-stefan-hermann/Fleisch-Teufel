@@ -25,7 +25,7 @@ import {
 } from '@ft/shared';
 import { liveQuery, type Subscription } from 'dexie';
 import type { UserDb } from '../db/dexie';
-import { PhotoHttpError, uploadPendingPhotos } from '../db/photos';
+import { PhotoHttpError, pruneLocalPhotos, uploadPendingPhotos } from '../db/photos';
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error' | 'unauthorized';
 
@@ -198,6 +198,8 @@ export class SyncEngine {
         // Records went both ways; a photo that could not be uploaded is reported now, retried next run.
         if (photoError)
           throw photoError instanceof PhotoHttpError ? new HttpError(photoError.status) : photoError;
+        // Uploaded photos nothing references any more (deleted on another device) leave this device too.
+        await pruneLocalPhotos(this.db);
         const now = Date.now();
         await this.db.kv.put({ key: LAST_SYNC_KEY, value: now });
         this.set({ status: 'idle', lastSyncAt: now, pending: await this.db.outbox.count() });

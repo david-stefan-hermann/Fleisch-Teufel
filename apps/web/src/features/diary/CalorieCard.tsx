@@ -26,7 +26,7 @@ export function CalorieCard({
   return (
     <section
       className="mb-4 cursor-pointer rounded-2xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)]"
-      aria-label="Kalorien heute"
+      aria-label="Kalorienübersicht des Tages"
       // Tapping anywhere on the overview toggles the details; the button below is the accessible control.
       onClick={(e) => {
         if ((e.target as Element).closest('a, button, input, select, textarea')) return;

@@ -1,7 +1,7 @@
-import { energyBreakdown, get, N, type DailyRow } from '@ft/shared';
+import { dayBudget, energyBreakdown, get, N, type DailyRow } from '@ft/shared';
 import type { ChartSeries } from '@/components/Chart';
 import { xOf } from '@/lib/time';
-import { fmt0, fmt1 } from '@/lib/format';
+import { fmt0, fmt1, fmt2 } from '@/lib/format';
 
 export type Metric = 'kcal' | 'macros' | 'weight' | 'fiber' | 'sugar' | 'satFat' | 'salt';
 
@@ -20,15 +20,17 @@ const g = (v: number) => `${fmt1(v)} g`;
 const k = (v: number) => `${fmt0(v)} kcal`;
 
 /** Series of the kcal chart (stable identity, so the chart only swaps its data). */
-const KCAL_SERIES: ChartSeries[] = [
+const kcalSeries = (targetLabel: string): ChartSeries[] => [
   // Cumulative from 0, highest first: total (fat on top), protein + carbs, protein.
   { label: 'Fett', color: '--fat', kind: 'bars', legend: false },
   { label: 'Kohlenhydrate', color: '--carbs', kind: 'bars', legend: false, gapAbove: true },
   { label: 'Protein', color: '--protein', kind: 'bars', legend: false, gapAbove: true },
   { label: 'Ohne Makros', color: '--bar-neutral', kind: 'bars', legend: false },
   { label: 'Gegessen', color: '--muted-foreground', kind: 'legend', format: k },
-  { label: 'Ziel inkl. Training', color: '--foreground', kind: 'step', dash: [4, 4], width: 1.5, format: k },
+  { label: targetLabel, color: '--foreground', kind: 'step', dash: [4, 4], width: 1.5, format: k },
 ];
+const KCAL_SERIES_CREDIT = kcalSeries('Ziel inkl. Training');
+const KCAL_SERIES_PLAIN = kcalSeries('Ziel');
 
 export type ChartData = [number[], ...(number | null)[][]];
 
@@ -40,6 +42,8 @@ export type ChartData = [number[], ...(number | null)[][]];
 export function buildChart(
   rows: DailyRow[],
   metric: Metric,
+  /** Setting "Trainingskalorien anrechnen": the target line then includes the training. */
+  creditExercise = true,
 ): { data: ChartData; series: ChartSeries[]; hasData: boolean } {
   const xs = rows.map((r) => xOf(r.date));
   const v = (fn: (r: DailyRow) => number) => rows.map((r) => (r.logged ? fn(r) : null));
@@ -61,9 +65,9 @@ export function buildChart(
         seg((x) => (x.p > 0 ? x.p : null)),
         parts.map((x) => (x && !x.has ? x.kcal : null)),
         parts.map((x) => x?.kcal ?? null),
-        rows.map((r) => r.targetKcal + r.exerciseKcal),
+        rows.map((r) => dayBudget(r, creditExercise)),
       ],
-      series: KCAL_SERIES,
+      series: creditExercise ? KCAL_SERIES_CREDIT : KCAL_SERIES_PLAIN,
       hasData: rows.some((r) => r.logged),
     };
   }
@@ -86,7 +90,7 @@ export function buildChart(
   if (metric === 'weight') {
     return {
       data: [xs, rows.map((r) => r.weightKg)],
-      series: [{ label: 'Gewicht', color: '--primary', kind: 'line', format: (x) => `${fmt1(x)} kg` }],
+      series: [{ label: 'Gewicht', color: '--primary', kind: 'line', format: (x) => `${fmt2(x)} kg` }],
       hasData: rows.some((r) => r.weightKg !== null),
     };
   }

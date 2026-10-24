@@ -128,8 +128,20 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
     setStep(step + 1);
   };
   const canNext = step === 0 ? profileValid : true;
-  const weeks =
-    targetWeight !== null && weight !== null && rate !== 0 ? Math.abs((targetWeight - weight) / rate) : null;
+  // Weeks to the target only when the pace points towards it (losing with a target above = never).
+  const toGo = targetWeight !== null && weight !== null ? targetWeight - weight : null;
+  const weeks = toGo !== null && rate !== 0 && Math.sign(toGo) === Math.sign(rate) ? toGo / rate : null;
+  const wrongWay = toGo !== null && toGo !== 0 && rate !== 0 && Math.sign(toGo) !== Math.sign(rate);
+  // More than 1 % of body weight per week is too fast for most (depends on the weight, not on a fixed pace).
+  const tooFast = weight !== null && rate < 0 && Math.abs(rate) / weight > 0.01;
+  const profileHint =
+    age !== null && (age < 14 || age > 110)
+      ? 'Der Rechner gilt für 14 bis 110 Jahre.'
+      : height !== null && (height < 120 || height > 230)
+        ? 'Größe zwischen 120 und 230 cm.'
+        : weight !== null && (weight < 30 || weight > 300)
+          ? 'Gewicht zwischen 30 und 300 kg.'
+          : null;
 
   return (
     <Page title="Ziele einrichten" back withTabBar={false}>
@@ -244,8 +256,9 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                 {rate === 0
                   ? 'Gewicht halten.'
                   : `${rate < 0 ? 'Abnehmen' : 'Zunehmen'}: ${fmt0(Math.abs(rate * 7700) / 7)} kcal ${rate < 0 ? 'weniger' : 'mehr'} pro Tag.`}
-                {weeks !== null && weeks < 300 && ` Ziel in etwa ${fmt0(weeks)} Wochen.`}
-                {rate <= -1 && ' Mehr als 1 % des Körpergewichts pro Woche ist für die meisten zu schnell.'}
+                {weeks !== null && weeks < 300 && ` Ziel in etwa ${fmt0(Math.max(1, weeks))} Wochen.`}
+                {wrongWay && ' Dieses Tempo führt vom Zielgewicht weg.'}
+                {tooFast && ' Mehr als 1 % des Körpergewichts pro Woche ist für die meisten zu schnell.'}
               </p>
             </div>
           </div>
@@ -318,9 +331,12 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
           </Button>
         )}
         {step < 3 ? (
-          <Button size="lg" className="flex-1" disabled={!canNext} onClick={next}>
-            Weiter
-          </Button>
+          <div className="grid flex-1 gap-1">
+            <Button size="lg" disabled={!canNext} onClick={next}>
+              Weiter
+            </Button>
+            {step === 0 && profileHint && <p className="text-center text-xs text-warn-text">{profileHint}</p>}
+          </div>
         ) : (
           <Button size="lg" className="flex-1" onClick={() => void finish()}>
             Ziele speichern

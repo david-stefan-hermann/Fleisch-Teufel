@@ -108,6 +108,32 @@ export async function uploadPendingPhotos(db: UserDb, fetchFn: Fetch): Promise<P
   return { uploaded, error };
 }
 
+/** A device photo must be this old before it may be pruned (a meal using it may still be on its way). */
+export const LOCAL_PHOTO_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Removes photos that are on the server (or refused for good), older than the grace period and
+ * referenced by no meal and no diary entry on this device (tombstones count, for the trash).
+ * Photos still waiting for upload are never touched. Returns the number removed.
+ */
+export async function pruneLocalPhotos(db: UserDb, now = Date.now()): Promise<number> {
+  return db.transaction('rw', [db.photos, db.meals, db.foodEntries], async () => {
+    const candidates = (await db.photos.where('uploaded').above(0).toArray()).filter(
+      (p) => p.createdAt < now - LOCAL_PHOTO_GRACE_MS,
+    );
+    if (candidates.length === 0) return 0;
+    const used = new Set<string>();
+    await db.meals.each((m) => m.photoId && used.add(m.photoId));
+    await db.foodEntries.each((e) => {
+      if (e.photoId) used.add(e.photoId);
+      for (const id of e.photoIds ?? []) used.add(id);
+    });
+    const gone = candidates.filter((p) => !used.has(p.id)).map((p) => p.id);
+    await db.photos.bulkDelete(gone);
+    return gone.length;
+  });
+}
+
 /** Number of photos the server refused for good (shown under "Daten & Sync"). */
 export function countRejectedPhotos(db: UserDb): Promise<number> {
   return db.photos.where('uploaded').equals(PHOTO_REJECTED).count();

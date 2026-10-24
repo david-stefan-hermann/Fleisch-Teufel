@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { clearClipboard, clipboardKcal, type Clipboard } from '@/db/clipboard';
+import { clearClipboard, clipboardKcal, type Clipboard, CLIPBOARD_KEY } from '@/db/clipboard';
 import { saveMealFromItems } from '@/db/entries';
 import { fmt0, fmtIngredients } from '@/lib/format';
 import { entryAmountLabel } from './MealCard';
@@ -52,7 +52,18 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
               <Save aria-hidden /> Als Meal speichern
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => void clearClipboard(db)}>
+          <DropdownMenuItem
+            onSelect={() =>
+              void clearClipboard(db).then(() =>
+                toast('Zwischenablage geleert', {
+                  action: {
+                    label: 'Rückgängig',
+                    onClick: () => void db.kv.put({ key: CLIPBOARD_KEY, value: clipboard }),
+                  },
+                }),
+              )
+            }
+          >
             <ClipboardX aria-hidden /> Zwischenablage leeren
           </DropdownMenuItem>
         </DropdownMenuContent>

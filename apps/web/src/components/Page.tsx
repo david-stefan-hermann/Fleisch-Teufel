@@ -3,6 +3,7 @@ import { ChevronLeft } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
 import { PageFooter } from '@/components/PageFooter';
 import { Button } from '@/components/ui/button';
+import { goBackOr } from '@/lib/history';
 import { cn } from '@/lib/utils';
 
 interface PageProps {
@@ -36,8 +37,8 @@ export function Page({
   const router = useRouter();
   const goBack = () => {
     if (onBack) return onBack();
-    if (window.history.length > 1) router.history.back();
-    else void router.navigate({ to: typeof back === 'string' ? back : '/' });
+    // Only this app's history counts: a deep link in a tab with other pages must not leave the app.
+    goBackOr(router.history, 1, () => void router.navigate({ to: typeof back === 'string' ? back : '/' }));
   };
   return (
     <div className="flex min-h-dvh flex-col">

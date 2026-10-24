@@ -4,6 +4,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  Link,
   Navigate,
   Outlet,
   useRouterState,
@@ -20,6 +21,7 @@ import { AddFoodPage } from '@/features/foods/AddFoodPage';
 import { QuickAddPage } from '@/features/foods/QuickAddPage';
 import { CustomFoodsPage } from '@/features/foods/CustomFoodsPage';
 import { MealsPage } from '@/features/meals/MealsPage';
+import { Button } from '@/components/ui/button';
 import { MorePage } from '@/features/more/MorePage';
 import { ProfilePage } from '@/features/more/ProfilePage';
 import { MealNamesPage } from '@/features/more/MealNamesPage';
@@ -229,6 +231,8 @@ export const routes = {
   }),
   completeDay: createRoute({
     ...r('/day/$date/complete'),
+    // A malformed date in the URL would crash the date formatter: back to today instead.
+    params: { parse: (p) => ({ date: isISODate(p.date) ? p.date : today() }), stringify: (p) => p },
     component: lazyRouteComponent(() => import('@/features/day/CompleteDayPage'), 'CompleteDayPage'),
   }),
   reports: createRoute({
@@ -266,7 +270,32 @@ export const router = createRouter({
   defaultPreload: false,
   scrollRestoration: true,
   defaultNotFoundComponent: () => <Navigate to="/" />,
+  defaultErrorComponent: RouteError,
 });
+
+/**
+ * A page failed to render or load (typically a chunk of an older build after an update): a plain
+ * message with "Neu laden" instead of the router's raw error page.
+ */
+function RouteError({ error }: { error: unknown }) {
+  return (
+    <div className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-4 p-6 text-center">
+      <h1 className="text-lg font-semibold">Diese Seite konnte nicht geladen werden</h1>
+      <p className="text-sm text-muted-foreground">
+        Meist steckt ein App-Update dahinter. Neu laden hilft; deine Daten liegen sicher auf dem Gerät.
+      </p>
+      <p className="text-xs break-all text-muted-foreground">
+        {error instanceof Error ? error.message : String(error)}
+      </p>
+      <div className="flex gap-2">
+        <Button onClick={() => window.location.reload()}>Neu laden</Button>
+        <Button variant="outline" asChild>
+          <Link to="/">Zum Tagebuch</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 declare module '@tanstack/react-router' {
   interface Register {

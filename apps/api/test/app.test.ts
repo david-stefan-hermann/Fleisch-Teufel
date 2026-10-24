@@ -17,7 +17,7 @@ describe('app', () => {
   it('reports health and server info', async () => {
     const h = await ctx.app.request('/health');
     expect(h.status).toBe(200);
-    expect(await h.json()).toMatchObject({ ok: true, blsFoods: 6 });
+    expect(await h.json()).toEqual({ ok: true });
     const info = await (await ctx.app.request('/api/info')).json();
     expect(info).toMatchObject({ name: 'Fleisch-Teufel', aiEnabled: false, blsVersion: 'test-1' });
   });

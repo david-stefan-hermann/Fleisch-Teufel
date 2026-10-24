@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 /** Height of one row in px (three rows are visible). */
@@ -48,6 +48,7 @@ export function Wheel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopped]);
   const last = items.length - 1;
+  const id = useId();
   const clamp = (i: number) => Math.max(0, Math.min(last, i));
   const rowAt = (el: HTMLElement) => clamp(Math.round(el.scrollTop / ROW));
 
@@ -110,7 +111,13 @@ export function Wheel({
       role={slider ? 'slider' : 'listbox'}
       aria-label={label}
       aria-orientation="vertical"
-      {...(slider && { 'aria-valuenow': valueNow, 'aria-valuetext': items[index] })}
+      {...(slider && {
+        'aria-valuenow': valueNow,
+        'aria-valuemin': 0,
+        'aria-valuemax': last,
+        'aria-valuetext': items[index],
+      })}
+      {...(!slider && { 'aria-activedescendant': `${id}-opt-${index}` })}
       tabIndex={0}
       onScroll={onScroll}
       onKeyDown={onKeyDown}
@@ -123,6 +130,7 @@ export function Wheel({
         <div
           key={`${i}:${text}`}
           role={slider ? undefined : 'option'}
+          id={slider ? undefined : `${id}-opt-${i}`}
           aria-selected={slider ? undefined : i === index}
           aria-hidden={slider ? true : undefined}
           onClick={() => jump(i)}

@@ -55,7 +55,8 @@ export type SearchFoods = (query: string) => Promise<string>;
 export const MAX_ANALYSIS_ROUNDS = 8;
 
 export interface FoodAnalyzer {
-  analyze(input: AnalyzeInput, searchFoods: SearchFoods): Promise<AnalyzeOutput>;
+  /** `signal` ends the whole tool loop (all rounds) when the server's budget is used up. */
+  analyze(input: AnalyzeInput, searchFoods: SearchFoods, signal?: AbortSignal): Promise<AnalyzeOutput>;
   /** Copies what 1 to 3 photos of a food label say (one call for all photos). */
   readLabel(input: LabelInput): Promise<LabelOutput>;
 }
@@ -103,7 +104,7 @@ export function createClaudeAnalyzer(opts: {
     };
   };
   return {
-    async analyze(input, searchFoods) {
+    async analyze(input, searchFoods, signal) {
       const searchTool = betaZodTool({
         name: 'search_foods',
         description:
@@ -117,43 +118,51 @@ export function createClaudeAnalyzer(opts: {
         }),
         run: (args) => searchFoods(args.query),
       });
-      const runner = client.beta.messages.toolRunner({
-        model: opts.model,
-        max_tokens: 16000,
-        max_iterations: MAX_ANALYSIS_ROUNDS,
-        ...modelParams,
-        output_config: { ...effort, format: betaZodOutputFormat(analysisSchema) },
-        // The photos are sent again with every round; from the second one they are read from the cache.
-        cache_control: { type: 'ephemeral' },
-        system: SYSTEM_PROMPT,
-        tools: [searchTool],
-        messages: [
-          {
-            role: 'user',
-            // Several photos get a label each, so the model can refer to them ("Foto 2").
-            content: [
-              ...input.images.flatMap((img, i) => [
-                ...(input.images.length > 1 ? [{ type: 'text' as const, text: `Foto ${i + 1}:` }] : []),
-                {
-                  type: 'image' as const,
-                  source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
-                },
-              ]),
-              { type: 'text', text: userPrompt(input.text, input.images.length) },
-            ],
-          },
-        ],
-      });
+      const runner = client.beta.messages.toolRunner(
+        {
+          model: opts.model,
+          max_tokens: 16000,
+          max_iterations: MAX_ANALYSIS_ROUNDS,
+          ...modelParams,
+          output_config: { ...effort, format: betaZodOutputFormat(analysisSchema) },
+          // The photos are sent again with every round; from the second one they are read from the cache.
+          cache_control: { type: 'ephemeral' },
+          system: SYSTEM_PROMPT,
+          tools: [searchTool],
+          messages: [
+            {
+              role: 'user',
+              // Several photos get a label each, so the model can refer to them ("Foto 2").
+              content: [
+                ...input.images.flatMap((img, i) => [
+                  ...(input.images.length > 1 ? [{ type: 'text' as const, text: `Foto ${i + 1}:` }] : []),
+                  {
+                    type: 'image' as const,
+                    source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+                  },
+                ]),
+                { type: 'text', text: userPrompt(input.text, input.images.length) },
+              ],
+            },
+          ],
+        },
+        signal ? { signal } : undefined,
+      );
       let response: Anthropic.Beta.BetaMessage | null = null;
       const usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
       let rounds = 0;
-      for await (const message of runner) {
-        response = message;
-        rounds++;
-        const u = usageOf(message);
-        usage.inputTokens += u.inputTokens;
-        usage.outputTokens += u.outputTokens;
-        usage.costUsd += u.costUsd;
+      try {
+        for await (const message of runner) {
+          response = message;
+          rounds++;
+          const u = usageOf(message);
+          usage.inputTokens += u.inputTokens;
+          usage.outputTokens += u.outputTokens;
+          usage.costUsd += u.costUsd;
+        }
+      } catch (e) {
+        if (signal?.aborted) throw new AiOutputError('timeout');
+        throw e;
       }
       if (!response) throw new AiOutputError('no response');
       if (response.stop_reason === 'refusal')

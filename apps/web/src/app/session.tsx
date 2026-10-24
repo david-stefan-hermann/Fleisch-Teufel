@@ -52,9 +52,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   });
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
 
+  // Server info (registration open, AI available) follows the login state, not only the start.
   useEffect(() => {
     endpoints.info().then(setServerInfo, () => {});
-  }, []);
+  }, [session?.user.id]);
+
+  // "Abmelden" that happened offline: the server cookie is still valid. Without a stored user but
+  // with a live cookie, end the server session first thing.
+  useEffect(() => {
+    if (session || readStoredUser()) return;
+    endpoints.me().then(
+      () => void endpoints.logout().catch(() => {}),
+      () => {},
+    );
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -73,18 +84,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [session]);
 
-  const signIn = useCallback((user: PublicUser) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    setNeedsReauth(false);
-    setSession((prev) => {
-      if (prev?.user.id === user.id) {
-        prev.sync.schedule(0);
-        return prev;
+  const signIn = useCallback(
+    (user: PublicUser) => {
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+      setNeedsReauth(false);
+      // Side effects outside the updater: StrictMode runs updaters twice (a second UserDb/engine).
+      if (session?.user.id === user.id) {
+        session.sync.schedule(0);
+        return;
       }
-      prev?.db.close();
-      return open(user, () => setNeedsReauth(true));
-    });
-  }, []);
+      session?.db.close();
+      setSession(open(user, () => setNeedsReauth(true)));
+    },
+    [session],
+  );
 
   const signOut = useCallback(
     async (opts: { wipeLocal?: boolean } = {}) => {

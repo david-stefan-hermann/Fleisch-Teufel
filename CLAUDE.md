@@ -35,6 +35,17 @@ Serve the production web build through the API (same origin, service worker acti
 - Synced data: read `.claude/skills/offline-sync/SKILL.md` and `docs/sync.md` before touching schemas,
   Dexie, the sync engine or the service worker. Write synced records only via `saveRecord`/`patchRecord`/
   `deleteRecord`. Keep `apps/web/src/db` and `apps/web/src/sync` free of `@/` imports (API tests import them).
+- Settings are written only through `saveSettings(db, patch)` (`src/db/settings.ts`): the fields of the saving
+  page on top of the current record (or `DEFAULT_SETTINGS`), never a copy loaded at mount.
+- Every "eintragen"/"speichern" button runs through `useSubmitting()` (`src/hooks/useSubmitting.ts`):
+  `run(fn)` ignores a second tap while the first runs, `busy` disables the button, errors become toasts
+  (`errorMessage` knows quota and Zod errors). Several records of one action go into one Dexie
+  transaction (`logItems`, `saveMealDraft`, `saveGroupDraft`, `logDeferred`).
+- Editor drafts (`MealDraft`, `GroupDraft`) carry `baseUpdatedAt`; when the record changed on another
+  device the page drops an untouched draft or shows `ConflictBanner` ("Neu laden" / "Meine Änderungen
+  behalten"). A deletion is never undone from a draft.
+- `api()` throws `TimeoutError` (not `OfflineError`) when the server did not answer in time: the request
+  may have been processed (and paid for), so callers must not repeat it by themselves.
 - React lint uses the React Compiler rules: no `setState` in effects, no refs/impure calls during render.
   Pattern for forms: the page loads data, then mounts a form component with `initial` props (and `key`).
   Put write logic with `Date.now()` into module functions (`src/db/entries.ts`, `saveOnboarding.ts`).
@@ -225,6 +236,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
   form before saving.
+- Server housekeeping (`apps/api/src/maintenance.ts`, at start and daily): photos older than 30 days that no
+  meal or entry (tombstones included) references, and expired sessions. Sessions slide up to 400 days but end
+  2 years after creation. `/health` says only `{ ok }`; version and catalog size are under `/api/info`.
 - `/projects` is an SMB dataset: PostgreSQL data dirs cannot live there (0700 permissions), hence the dev DB
   in the home directory.
 - Secrets: project `.env` (gitignored). Never print or commit them.

@@ -1,3 +1,5 @@
+import { log } from '../log.js';
+
 /** USD per million tokens (Anthropic first-party prices, checked 2026-10-07). */
 export const MODEL_PRICES: Record<string, { input: number; output: number }> = {
   'claude-fable-5-1': { input: 10, output: 50 },
@@ -9,9 +11,15 @@ export const MODEL_PRICES: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5': { input: 1, output: 5 },
 };
 
+const warned = new Set<string>();
+
 export function costUsd(model: string, usage: { inputTokens: number; outputTokens: number }): number {
   // Responses may name a dated snapshot ("claude-haiku-4-5-20251001").
   const known = Object.keys(MODEL_PRICES).find((id) => model === id || model.startsWith(`${id}-2`));
+  if (!known && !warned.has(model)) {
+    warned.add(model);
+    log.warn('unknown model, costs use Opus prices', { model });
+  }
   const p = MODEL_PRICES[known ?? 'claude-opus-5-5']!;
   return (usage.inputTokens * p.input + usage.outputTokens * p.output) / 1_000_000;
 }

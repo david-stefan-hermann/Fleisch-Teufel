@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestContext, TestClient, type TestCtx } from './helpers.js';
 
@@ -110,6 +111,18 @@ describe('auth', () => {
         })
       ).status,
     ).toBe(200);
+  });
+
+  it('ends a session two years after it was created, however active it is', async () => {
+    const c = new TestClient(ctx.app);
+    expect(
+      (await c.post('/api/auth/login', { email: 'owner@example.com', password: 'battery staple' })).status,
+    ).toBe(200);
+    expect((await c.get('/api/auth/me')).status).toBe(200);
+    await ctx.db.execute(
+      sql`update sessions set created_at = now() - interval '3 years', last_seen_at = now() - interval '2 days' where user_id in (select id from users where email = 'owner@example.com')`,
+    );
+    expect((await c.get('/api/auth/me')).status).toBe(401);
   });
 
   it('rate-limits repeated failed logins', async () => {

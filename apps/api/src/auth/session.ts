@@ -10,6 +10,8 @@ import type { AppEnv, SessionUser } from '../types.js';
 export const SESSION_COOKIE = 'ft_session';
 /** iOS home-screen apps should stay logged in; browsers cap cookies at 400 days. */
 export const SESSION_TTL_MS = 400 * 24 * 60 * 60 * 1000;
+/** Sliding expiry ends here at the latest: a stolen token cannot be kept alive forever. */
+export const SESSION_MAX_AGE_MS = 2 * 365 * 24 * 60 * 60 * 1000;
 const REFRESH_AFTER_MS = 24 * 60 * 60 * 1000;
 
 // OWASP recommendation for Argon2id: m=19 MiB, t=2, p=1.
@@ -62,11 +64,16 @@ export async function resolveSession(db: Db, token: string): Promise<SessionUser
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  // Sliding expiry, written at most once a day.
+  const hardEnd = row.s.createdAt.getTime() + SESSION_MAX_AGE_MS;
+  if (now.getTime() >= hardEnd) {
+    await db.delete(sessions).where(eq(sessions.id, id));
+    return null;
+  }
+  // Sliding expiry, written at most once a day, never beyond the absolute maximum.
   if (now.getTime() - row.s.lastSeenAt.getTime() > REFRESH_AFTER_MS) {
     await db
       .update(sessions)
-      .set({ lastSeenAt: now, expiresAt: new Date(now.getTime() + SESSION_TTL_MS) })
+      .set({ lastSeenAt: now, expiresAt: new Date(Math.min(now.getTime() + SESSION_TTL_MS, hardEnd)) })
       .where(eq(sessions.id, id));
   }
   return { ...row.u, sessionId: id };

@@ -9,6 +9,7 @@ import { createDb, runMigrations } from './db/client.js';
 import { loadEnv, type Env } from './env.js';
 import { FoodCatalog, loadBls } from './foods/catalog.js';
 import { log, setLogLevel } from './log.js';
+import { startMaintenance } from './maintenance.js';
 import { createOffClient } from './off/client.js';
 import type { Deps } from './types.js';
 
@@ -40,6 +41,7 @@ export async function main() {
   const here = dirname(fileURLToPath(import.meta.url));
   const webDist = env.WEB_DIST ?? resolve(here, 'public');
   const app = createApp(deps, { webDist });
+  const stopMaintenance = startMaintenance(deps.db);
   const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     log.info(`${APP_NAME} ${VERSION} listening`, {
       port: info.port,
@@ -49,6 +51,7 @@ export async function main() {
   });
   const shutdown = (signal: string) => {
     log.info('shutting down', { signal });
+    stopMaintenance();
     server.close(() => {
       void deps.db.$client.end({ timeout: 5 }).finally(() => process.exit(0));
     });

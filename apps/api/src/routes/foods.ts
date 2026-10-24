@@ -14,8 +14,9 @@ export function foodRoutes({ db, catalog }: Deps) {
     const limit = Math.min(50, Math.max(1, Number(c.req.query('limit') ?? 20) || 20));
     if (q.length < 2) return c.json({ foods: [], limited: false });
     const local = c.req.query('source') === 'local';
-    if (local) return c.json({ foods: catalog.searchLocal(q, limit).map((h) => h.food), limited: false });
-    return c.json(await catalog.searchOff(q.slice(0, 100), limit));
+    const query = q.slice(0, 100);
+    if (local) return c.json({ foods: catalog.searchLocal(query, limit).map((h) => h.food), limited: false });
+    return c.json(await catalog.searchOff(query, limit));
   });
 
   app.get('/barcode/:ean', async (c) => {

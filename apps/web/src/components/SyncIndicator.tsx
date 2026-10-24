@@ -1,5 +1,5 @@
 import { Cloud, CloudOff, LoaderCircle, RefreshCw, TriangleAlert } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { useSession } from '@/app/session';
 import { Button } from '@/components/ui/button';
 import type { SyncState } from '@/sync/syncEngine';
@@ -7,9 +7,8 @@ import { fmtAgo } from '@/lib/format';
 
 export function useSyncState(): SyncState {
   const { sync } = useSession();
-  const [s, setS] = useState(sync.getState());
-  useEffect(() => sync.subscribe(setS), [sync]);
-  return s;
+  const subscribe = useCallback((l: () => void) => sync.subscribe(l), [sync]);
+  return useSyncExternalStore(subscribe, () => sync.getState());
 }
 
 export function syncLabel(s: SyncState): string {

@@ -103,13 +103,14 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 
 /** A meal analysis request: `count` photos (field `image` repeated), the last one `lastBytes` large. */
+/** A fake JPEG (the server reads the format from the bytes, so the file starts with the JPEG signature). */
 function photo(type = 'image/jpeg', bytes = 1000, count = 1, lastBytes = bytes) {
   const form = new FormData();
-  for (let i = 0; i < count; i++)
-    form.append(
-      'image',
-      new File([new Uint8Array(i === count - 1 ? lastBytes : bytes)], `meal-${i + 1}.jpg`, { type }),
-    );
+  for (let i = 0; i < count; i++) {
+    const data = new Uint8Array(i === count - 1 ? lastBytes : bytes);
+    if (type === 'image/jpeg') data.set([0xff, 0xd8, 0xff, 0xe0]);
+    form.append('image', new File([data], `meal-${i + 1}.jpg`, { type }));
+  }
   form.set('text', 'mit etwas Öl gebraten');
   return form;
 }
@@ -382,6 +383,19 @@ describe('POST /api/ai/analyze', () => {
     expect(r.json.items[0].candidates[0].food.id).toBe('own-takoyaki');
   });
 
+  it('ignores choices for foods that do not exist', async () => {
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    const body = {
+      analysisId: r.json.analysisId,
+      choices: [
+        { name: 'Nudeln', foodId: 'bls:NOPE000' },
+        { name: 'Nudeln', foodId: 'not-my-food' },
+        { name: 'Nudeln', foodId: 'own-takoyaki' },
+      ],
+    };
+    expect((await c.post('/api/ai/choices', body)).json).toEqual({ ok: true, saved: 1 });
+  });
+
   it('accepts choices only for own analyses', async () => {
     const other = await registeredClient(ctx, 'b@example.com');
     const r = await c.req('POST', '/api/ai/analyze', photo());
@@ -457,8 +471,11 @@ describe('POST /api/ai/analyze', () => {
 describe('POST /api/ai/label', () => {
   const labelForm = (n: number, type = 'image/jpeg') => {
     const form = new FormData();
-    for (let i = 0; i < n; i++)
-      form.append('image', new File([new Uint8Array(500 + i)], `l${i}.jpg`, { type }));
+    for (let i = 0; i < n; i++) {
+      const data = new Uint8Array(500 + i);
+      if (type === 'image/jpeg') data.set([0xff, 0xd8, 0xff, 0xe0]);
+      form.append('image', new File([data], `l${i}.jpg`, { type }));
+    }
     form.set('text', 'Riegel');
     return form;
   };

@@ -8,6 +8,7 @@ import {
   type ExerciseTemplate,
   type FoodEntry,
   type MealItem,
+  photoIdsOf,
 } from '@ft/shared';
 import type { AiItem } from './aiDraft';
 import type { UserDb } from './dexie';
@@ -292,7 +293,14 @@ export async function saveMealFromEntries(
   name: string,
   entries: readonly FoodEntry[],
 ): Promise<string> {
-  return saveMealFromItems(db, name, entriesToMealItems(entries), null);
+  // The photo of the group (the analysed or the meal photo it was logged with), like the clipboard.
+  const first = entries[0];
+  return saveMealFromItems(
+    db,
+    name,
+    entriesToMealItems(entries),
+    first ? (photoIdsOf(first)[0] ?? null) : null,
+  );
 }
 
 /**

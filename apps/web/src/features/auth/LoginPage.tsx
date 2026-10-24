@@ -75,7 +75,7 @@ export function LoginPage() {
             autoComplete="email"
             spellCheck={false}
             autoCapitalize="none"
-            placeholder="du@example.com…"
+            placeholder="du@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required

@@ -94,7 +94,7 @@ describe('labels', () => {
     ).toBe('2 × Riegel · 90 g');
     expect(
       entryAmountLabel({ source: 'quick', quantity: 1, portionLabel: null, portionGrams: null, grams: null }),
-    ).toBe('Schnell hinzugefügt');
+    ).toBe('Schnell eingetragen');
   });
 
   it('turns API errors into actionable German messages', () => {

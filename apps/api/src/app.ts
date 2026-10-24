@@ -78,7 +78,8 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
   const health = async (c: import('hono').Context) => {
     try {
       await deps.db.execute(sql`select 1`);
-      return c.json({ ok: true, version: deps.version, blsFoods: deps.catalog.blsCount });
+      // Unauthenticated: only liveness. Version and catalog size are under /api/info.
+      return c.json({ ok: true });
     } catch {
       return c.json({ ok: false, error: 'database_unavailable' }, 503);
     }
@@ -93,6 +94,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
       registrationOpen: await registrationOpen(deps),
       aiEnabled: deps.analyzer !== null,
       blsVersion: deps.catalog.blsVersion,
+      blsFoods: deps.catalog.blsCount,
     };
     return c.json(info);
   });

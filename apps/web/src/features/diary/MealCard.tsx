@@ -20,7 +20,7 @@ import { copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard'
 import type { AiQueueItem, UserDb } from '@/db/dexie';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
-import { fmt0, fmt1, fmtGrams, fmtIngredients } from '@/lib/format';
+import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
@@ -30,12 +30,12 @@ import { warmUpCamera } from '@/components/cameraWarmup';
 export function entryAmountLabel(
   e: Pick<FoodEntry, 'source' | 'quantity' | 'portionLabel' | 'portionGrams' | 'grams'>,
 ): string {
-  if (e.source === 'quick') return 'Schnell hinzugefügt';
+  if (e.source === 'quick') return 'Schnell eingetragen';
   if (!e.portionLabel || e.portionGrams === null) return e.grams !== null ? fmtGrams(e.grams) : '';
   const isUnit = /^(100|1)\s?(g|ml)$/.test(e.portionLabel);
   if (isUnit)
     return fmtGrams(e.grams ?? e.portionGrams * e.quantity, e.portionLabel.endsWith('ml') ? 'ml' : 'g');
-  return `${fmt1(e.quantity)} × ${e.portionLabel}${e.grams !== null ? ` · ${fmtGrams(e.grams)}` : ''}`;
+  return `${fmt2(e.quantity)} × ${e.portionLabel}${e.grams !== null ? ` · ${fmtGrams(e.grams)}` : ''}`;
 }
 
 export function MealCard({

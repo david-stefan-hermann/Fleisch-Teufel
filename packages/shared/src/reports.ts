@@ -80,7 +80,10 @@ export interface PeriodStats {
   avgNutrients: NutrientMap;
   /** Average daily targets over the logged days (kcal and macro grams). */
   avgTargets: DayTarget;
+  /** Logged days with eaten kcal at or below the budget (target, plus training when credited). */
   daysUnderGoal: number;
+  /** Logged days within ±10 % of the budget ("im Ziel": neither far under nor over). */
+  daysOnTarget: number;
   totalExerciseKcal: number;
   totalExerciseMinutes: number;
   weightStart: number | null;
@@ -88,7 +91,18 @@ export interface PeriodStats {
   weightChange: number | null;
 }
 
-export function periodStats(rows: readonly DailyRow[]): PeriodStats {
+export interface PeriodOptions {
+  /** Whether training kcal raise the day's budget (setting "Trainingskalorien anrechnen"). */
+  creditExercise?: boolean;
+}
+
+/** The kcal a day may have: its target, plus the training when that is credited. */
+export function dayBudget(r: Pick<DailyRow, 'targetKcal' | 'exerciseKcal'>, creditExercise = true): number {
+  return r.targetKcal + (creditExercise ? r.exerciseKcal : 0);
+}
+
+export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {}): PeriodStats {
+  const credit = opts.creditExercise ?? true;
   const logged = rows.filter((r) => r.logged);
   const n = logged.length || 1;
   const avgOf = (key: string) => round(logged.reduce((s, r) => s + get(r.nutrients, key), 0) / n, 1);
@@ -116,7 +130,12 @@ export function periodStats(rows: readonly DailyRow[]): PeriodStats {
       fatG: round(logged.reduce((s, r) => s + r.targetFatG, 0) / n, 1),
       carbsG: round(logged.reduce((s, r) => s + r.targetCarbsG, 0) / n, 1),
     },
-    daysUnderGoal: logged.filter((r) => get(r.nutrients, N.kcal) <= r.targetKcal + r.exerciseKcal).length,
+    daysUnderGoal: logged.filter((r) => get(r.nutrients, N.kcal) <= dayBudget(r, credit)).length,
+    daysOnTarget: logged.filter((r) => {
+      const budget = dayBudget(r, credit);
+      const kcal = get(r.nutrients, N.kcal);
+      return budget > 0 && kcal >= budget * 0.9 && kcal <= budget * 1.1;
+    }).length,
     totalExerciseKcal: round(
       rows.reduce((s, r) => s + r.exerciseKcal, 0),
       0,

@@ -12,7 +12,13 @@ import { mealKcal } from './logMeal';
 
 export function MealsPage() {
   const db = useDb();
-  const meals = useLiveQuery(() => db.meals.filter((m) => !m.deleted).sortBy('name'), [db]);
+  const meals = useLiveQuery(
+    async () =>
+      (await db.meals.filter((m) => !m.deleted).toArray()).sort((a, b) =>
+        a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }),
+      ),
+    [db],
+  );
   return (
     <Page title="Gespeicherte Meals" back="/more" withTabBar={false}>
       {meals?.length === 0 && (

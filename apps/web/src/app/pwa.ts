@@ -4,7 +4,7 @@
  * script-writable storage of sites that are not used for 7 days unless the site runs as a
  * home-screen app, so installing matters on the iPhone).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Workbox } from 'workbox-window';
 
 let wb: Workbox | null = null;
@@ -25,19 +25,26 @@ export function registerServiceWorker(): void {
   });
 }
 
+let reloadOnControl = false;
+
 export function applyUpdate(): void {
   if (!wb) return;
-  wb.addEventListener('controlling', () => window.location.reload());
+  // One listener however often the banner is tapped (each tap used to add another reload).
+  if (!reloadOnControl) {
+    reloadOnControl = true;
+    wb.addEventListener('controlling', () => window.location.reload());
+  }
   wb.messageSkipWaiting();
 }
 
+const subscribeUpdate = (l: (ready: boolean) => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+
+/** Whether a new version waits; cannot miss a `waiting` event between render and effect. */
 export function useUpdateReady(): boolean {
-  const [ready, setReady] = useState(updateReady);
-  useEffect(() => {
-    listeners.add(setReady);
-    return () => void listeners.delete(setReady);
-  }, []);
-  return ready;
+  return useSyncExternalStore(subscribeUpdate, () => updateReady);
 }
 
 export async function requestPersistentStorage(): Promise<boolean | null> {

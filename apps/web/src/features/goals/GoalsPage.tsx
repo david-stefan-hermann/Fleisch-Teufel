@@ -36,7 +36,7 @@ import { cn } from '@/lib/utils';
 
 const MICRO_ROWS: { key: MicroKey; label: string }[] = [
   { key: N.fiber, label: 'Ballaststoffe (mind.)' },
-  { key: N.sugar, label: 'Zucker (max.)' },
+  { key: N.sugar, label: 'Zucker gesamt (Orientierung)' },
   { key: N.satFat, label: 'Ges. Fettsäuren (max.)' },
   { key: N.salt, label: 'Salz (max.)' },
 ];

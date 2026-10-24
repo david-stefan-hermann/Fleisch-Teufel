@@ -70,15 +70,20 @@ export function AboutPage() {
             <h3 className="font-medium">Formeln & Empfehlungen</h3>
             <p className="text-muted-foreground">
               Grundumsatz nach Mifflin-St Jeor (1990). Nährstoff-Orientierungswerte der Deutschen Gesellschaft
-              für Ernährung (DGE): Ballaststoffe ≥ 30 g, Salz ≤ 6 g, freie Zucker und gesättigte Fettsäuren je
-              ≤ 10 % der Energie. 7700 kcal ≈ 1 kg Körpergewicht (Näherung).
+              für Ernährung (DGE): Ballaststoffe ≥ 30 g, Salz ≤ 6 g, gesättigte Fettsäuren ≤ 10 % der Energie.
+              Der Zuckerwert ist eine Orientierung für den Gesamtzucker: die DGE/WHO-Grenze von 10 % gilt für
+              freie Zucker, die Datenbanken weisen aber nur den Gesamtzucker aus (mit Milch- und
+              Fruchtzucker). 7700 kcal ≈ 1 kg Körpergewicht (Näherung).
             </p>
           </div>
           <div>
             <h3 className="font-medium">KI-Foto-Analyse</h3>
             <p className="text-muted-foreground">
-              Claude von Anthropic erkennt Lebensmittel und schätzt Mengen; Fotos werden nicht gespeichert.
-              Nährwerte stammen immer aus BLS bzw. Open Food Facts.
+              Claude von Anthropic erkennt Lebensmittel und schätzt Mengen. Die Fotos liegen auf deinem Gerät
+              und deinem eigenen Server (für die anderen Geräte); an Anthropic gehen sie nur zur Analyse und
+              werden dort nicht gespeichert. Nährwerte kommen aus BLS, Open Food Facts und deinen eigenen
+              Lebensmitteln; nur wenn nichts passt, schätzt die KI selbst, und das steht dann dran
+              („KI-Schätzung“).
             </p>
           </div>
         </div>

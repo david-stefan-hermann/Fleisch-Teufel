@@ -103,7 +103,7 @@ interface Shot {
   blob: Blob;
 }
 
-const addLabel = (n: number) => (n === 0 ? 'Übernehmen' : `Übernehmen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
+const addLabel = (n: number) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
 
 /**
  * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
@@ -610,7 +610,7 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Erneut versuchen"
+          aria-label="Wiederholen"
           onClick={() => void retryQueueItem(db, item.localId!)}
         >
           <RotateCcw aria-hidden />
@@ -1088,7 +1088,7 @@ function ReviewRow({
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Kein passendes Lebensmittel gefunden, wird nicht gespeichert.{' '}
+            Kein passendes Lebensmittel gefunden, wird nicht eingetragen.{' '}
             <button type="button" onClick={onSearch} className="text-primary underline">
               Selbst suchen
             </button>

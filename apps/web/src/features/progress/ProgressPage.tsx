@@ -44,6 +44,14 @@ export function ProgressPage() {
   const settings = useSettings();
   const range = RANGES.find((r) => r.id === search.range) ?? RANGES[1];
   const [editing, setEditing] = useState<WeightEntry | null>(null);
+  // The list shows the newest entries; older ones come in pages (every entry stays editable).
+  const [shown, setShown] = useState(60);
+  async function removeWeight(w: WeightEntry) {
+    await deleteRecord(db, 'weightEntries', w.id);
+    toast('Gewicht gelöscht', {
+      action: { label: 'Rückgängig', onClick: () => void restoreRecord(db, 'weightEntries', w.id) },
+    });
+  }
   const logOpen = search.log === true || editing !== null;
   const setLogOpen = (open: boolean) => {
     if (!open) setEditing(null);
@@ -81,7 +89,7 @@ export function ProgressPage() {
   const change = (days: number) => {
     if (!weights || weights.length < 2 || !latest) return null;
     const ref = [...weights].reverse().find((w) => w.date <= addDays(latest.date, -days));
-    return ref ? round(latest.kg - ref.kg, 1) : null;
+    return ref ? round(latest.kg - ref.kg, 2) : null;
   };
   const weekly = trend30 ? round(trend30.slopePerDay * 7, 2) : null;
 
@@ -113,7 +121,7 @@ export function ProgressPage() {
               <div>
                 <dt className="text-xs text-muted-foreground">Trend / Woche</dt>
                 <dd className="text-xl font-bold">
-                  {weekly === null ? NO_VALUE : `${weekly > 0 ? '+' : ''}${fmt1(weekly)}`}
+                  {weekly === null ? NO_VALUE : `${weekly > 0 ? '+' : ''}${fmt2(weekly)} kg`}
                 </dd>
                 <dd className="text-[11px] text-muted-foreground">letzte 30 Tage</dd>
               </div>
@@ -123,10 +131,10 @@ export function ProgressPage() {
                 </dt>
                 <dd className="text-xl font-bold">
                   {target !== null && latest
-                    ? kg(round(latest.kg - target, 1))
+                    ? kg(round(Math.abs(latest.kg - target), 2))
                     : change(30) === null
                       ? NO_VALUE
-                      : `${change(30)! > 0 ? '+' : ''}${fmt1(change(30)!)}`}
+                      : `${change(30)! > 0 ? '+' : ''}${fmt2(change(30)!)} kg`}
                 </dd>
                 {target !== null && <dd className="text-[11px] text-muted-foreground">Ziel {kg(target)}</dd>}
               </div>
@@ -164,7 +172,11 @@ export function ProgressPage() {
                   xRange={[from, today]}
                   data={data}
                   series={series}
-                  title={`Gewicht der letzten ${range.days ?? 'gesamten'} Tage mit 7-Tage-Mittel`}
+                  title={
+                    range.days
+                      ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
+                      : 'Gewicht gesamt mit 7-Tage-Mittel'
+                  }
                 />
               ) : (
                 <p className="p-4 text-sm text-muted-foreground">Keine Werte in diesem Zeitraum.</p>
@@ -176,23 +188,15 @@ export function ProgressPage() {
             <ul className="divide-y divide-border/70 pb-1">
               {[...(weights ?? [])]
                 .reverse()
-                .slice(0, 60)
+                .slice(0, shown)
                 .map((w, i, arr) => {
                   const prev = arr[i + 1];
-                  const diff = prev ? round(w.kg - prev.kg, 1) : null;
+                  const diff = prev ? round(w.kg - prev.kg, 2) : null;
                   return (
                     <li key={w.id}>
                       <SwipeToDelete
                         label={`Eintrag vom ${fmtDate(w.date)} löschen`}
-                        onDelete={async () => {
-                          await deleteRecord(db, 'weightEntries', w.id);
-                          toast('Gewicht gelöscht', {
-                            action: {
-                              label: 'Rückgängig',
-                              onClick: () => void restoreRecord(db, 'weightEntries', w.id),
-                            },
-                          });
-                        }}
+                        onDelete={() => void removeWeight(w)}
                       >
                         <button
                           type="button"
@@ -205,7 +209,7 @@ export function ProgressPage() {
                             {diff !== null && diff !== 0 && (
                               <span className="ml-2 text-xs text-muted-foreground">
                                 {diff > 0 ? '+' : ''}
-                                {fmt1(diff)}
+                                {fmt2(diff)}
                               </span>
                             )}
                           </span>
@@ -215,6 +219,13 @@ export function ProgressPage() {
                   );
                 })}
             </ul>
+            {(weights?.length ?? 0) > shown && (
+              <div className="px-4 pb-4">
+                <Button variant="outline" className="w-full" onClick={() => setShown((n) => n + 60)}>
+                  Ältere Einträge laden ({(weights?.length ?? 0) - shown})
+                </Button>
+              </div>
+            )}
           </Section>
         </>
       )}
@@ -224,6 +235,7 @@ export function ProgressPage() {
         today={today}
         entry={editing}
         last={latest?.kg ?? null}
+        onDelete={editing ? () => void removeWeight(editing) : undefined}
       />
     </Page>
   );
@@ -235,9 +247,12 @@ function WeightDialog({
   today,
   entry,
   last,
+  onDelete,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** Editing an entry: deletes it (same undo toast as the swipe), for keyboard and screen reader users. */
+  onDelete?: () => void;
   today: string;
   entry: WeightEntry | null;
   last: number | null;
@@ -313,6 +328,18 @@ function WeightDialog({
           )}
         </DialogBody>
         <DialogFooter>
+          {entry && onDelete && (
+            <Button
+              variant="ghost"
+              className="text-destructive sm:mr-auto"
+              onClick={() => {
+                onDelete();
+                onOpenChange(false);
+              }}
+            >
+              Löschen
+            </Button>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
@@ -320,11 +347,11 @@ function WeightDialog({
             disabled={!valid}
             onClick={async () => {
               await saveRecord(db, 'weightEntries', { id: dayId.weight(date), date, kg: round(value!, 2) });
-              toast.success(`${fmt2(value!)} kg gespeichert`);
+              toast.success(`${fmt2(value!)} kg eingetragen`);
               onOpenChange(false);
             }}
           >
-            Speichern
+            {entry ? 'Änderungen übernehmen' : 'Eintragen'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,7 +8,10 @@ import type { Goal, DayTarget } from './schemas.js';
  * Deutsche Gesellschaft für Ernährung (DGE):
  * - Fibre: at least 30 g/day (DGE reference value for adults, 2015/2021).
  * - Salt: at most 6 g/day (DGE position 2016, "Speisesalzzufuhr in Deutschland").
- * - Free sugars: less than 10 % of energy (DGE/DAG/DDG consensus 2018, in line with WHO 2015).
+ * - Sugar: the DGE/WHO limit (free sugars < 10 % of energy) is about added sugars, which the data
+ *   does not separate from the sugar of milk and fruit (BLS and labels list total sugar). The
+ *   default is therefore an orientation for total sugar, with the limit as its source; the UI
+ *   shows it as a soft maximum.
  * - Saturated fatty acids: at most 10 % of energy (DGE reference values for fat, 2015).
  * `kind` tells the UI whether the value is a minimum to reach or a maximum to stay below.
  */
@@ -18,7 +21,12 @@ export const MICRO_DEFAULTS: Record<
 > = {
   [N.fiber]: { kind: 'min', grams: 30, source: 'DGE-Referenzwert: mind. 30 g/Tag' },
   [N.salt]: { kind: 'max', grams: 6, source: 'DGE: max. 6 g Speisesalz/Tag' },
-  [N.sugar]: { kind: 'max', energyPct: 10, source: 'DGE/WHO: freie Zucker < 10 % der Energie' },
+  [N.sugar]: {
+    kind: 'max',
+    energyPct: 10,
+    source:
+      'Orientierung Gesamtzucker; DGE/WHO: freie Zucker < 10 % der Energie (Milch- und Fruchtzucker zählen dort nicht)',
+  },
   [N.satFat]: { kind: 'max', energyPct: 10, source: 'DGE: gesättigte Fettsäuren max. 10 % der Energie' },
 };
 

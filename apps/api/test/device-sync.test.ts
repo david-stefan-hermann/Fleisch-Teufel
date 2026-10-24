@@ -6,7 +6,7 @@ import 'fake-indexeddb/auto';
 import { dayId, uuidv7, type FoodEntry } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UserDb } from '../../web/src/db/dexie';
-import { loadPhoto, storePhoto } from '../../web/src/db/photos';
+import { loadPhoto, pruneLocalPhotos, storePhoto } from '../../web/src/db/photos';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
 import { SyncEngine } from '../../web/src/sync/syncEngine';
 import { createTestContext, registeredClient, type TestCtx } from './helpers.js';
@@ -262,6 +262,21 @@ describe('device ↔ server sync', () => {
     expect((await b.db.foodEntries.get(e.id))?.updatedAt).toBe(local.updatedAt);
     // The clock looked fine to the server (same process), so no offset is applied.
     expect(a.db.clockOffset).toBe(0);
+  });
+
+  it('prunes old uploaded photos nothing references, never pending ones', async () => {
+    const a = device('prune');
+    const old = Date.now() - 40 * 24 * 60 * 60 * 1000;
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1]);
+    const orphan = await storePhoto(a.db, new Blob([bytes]));
+    const used = await storePhoto(a.db, new Blob([bytes]));
+    const pending = await storePhoto(a.db, new Blob([bytes]));
+    await a.db.photos.update(orphan, { uploaded: 1, createdAt: old });
+    await a.db.photos.update(used, { uploaded: 1, createdAt: old });
+    await a.db.photos.update(pending, { createdAt: old });
+    await saveRecord(a.db, 'foodEntries', entry({ photoId: used, photoIds: [used] }));
+    expect(await pruneLocalPhotos(a.db)).toBe(1);
+    expect((await a.db.photos.toArray()).map((p) => p.id).sort()).toEqual([pending, used].sort());
   });
 
   it('refuses invalid local writes before they reach the outbox', async () => {

@@ -24,6 +24,8 @@ import { readingHasContent, sanitizeReading } from '../ai/label.js';
 import { createFoodSearch } from '../ai/foodSearch.js';
 import { matchItem, type LocalSearch } from '../ai/match.js';
 import { requireUser } from '../auth/session.js';
+import { customFoods } from '../db/schema.js';
+import { sniffImage } from './photos.js';
 import { aiAnalyses, aiFoodChoices } from '../db/schema.js';
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
@@ -104,9 +106,30 @@ export function candidatesFor(
 }
 
 /** Maps the errors of a Claude call to responses (shared by meal photos and labels). */
+/**
+ * Whole budget of one analysis over all tool rounds and retries. Below the device's 120 s, so the
+ * person gets a clear answer instead of a client timeout while the server still pays for rounds.
+ */
+export const ANALYSIS_BUDGET_MS = 100_000;
+
+/** Reads the uploaded images; the format comes from the bytes, not from the declared type. */
+async function readImages(files: File[]): Promise<{ base64: string; mediaType: ImageMediaType }[] | null> {
+  const out: { base64: string; mediaType: ImageMediaType }[] = [];
+  for (const f of files) {
+    const buf = Buffer.from(await f.arrayBuffer());
+    const mediaType = sniffImage(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+    if (!mediaType || !MEDIA_TYPES.includes(mediaType)) return null;
+    out.push({ base64: buf.toString('base64'), mediaType });
+  }
+  return out;
+}
+
 function aiError(c: Context<AppEnv>, e: unknown) {
   if (e instanceof AiRefusalError) return c.json({ error: 'refused', category: e.category }, 422);
+  if (e instanceof AiOutputError && e.message === 'timeout') return c.json({ error: 'ai_timeout' }, 504);
   if (e instanceof AiOutputError) return c.json({ error: 'no_result' }, 502);
+  if (e instanceof Anthropic.APIUserAbortError || (e instanceof DOMException && e.name === 'TimeoutError'))
+    return c.json({ error: 'ai_timeout' }, 504);
   if (e instanceof Anthropic.RateLimitError) return c.json({ error: 'upstream_rate_limited' }, 503);
   if (e instanceof Anthropic.AuthenticationError) {
     log.error('Anthropic API key rejected');
@@ -125,6 +148,18 @@ export function aiRoutes(deps: Deps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireUser(db));
 
+  // Own foods carry their record id (no prefix); catalog ids are "bls:…" or "off:…".
+  const foodExists = async (foodId: string, userId: string): Promise<boolean> => {
+    if (!foodId.includes(':')) {
+      const [row] = await db
+        .select({ id: customFoods.id })
+        .from(customFoods)
+        .where(and(eq(customFoods.userId, userId), eq(customFoods.id, foodId)));
+      return !!row;
+    }
+    return (await catalog.get(foodId)) !== null;
+  };
+
   app.get('/status', (c) =>
     c.json({ enabled: analyzer !== null, model: analyzer ? deps.env.AI_MODEL : null }),
   );
@@ -138,7 +173,6 @@ export function aiRoutes(deps: Deps) {
     async (c) => {
       if (!analyzer) return c.json({ error: 'ai_disabled' }, 503);
       const user = c.get('user');
-      if (limiter.take(user.id) > 0) return c.json({ error: 'too_many_requests' }, 429);
 
       let form: FormData;
       try {
@@ -153,24 +187,19 @@ export function aiRoutes(deps: Deps) {
         return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_ANALYSIS_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
       const files = images as File[];
-      if (!files.every((f) => MEDIA_TYPES.includes(f.type as ImageMediaType)))
-        return c.json({ error: 'unsupported_image_type' }, 415);
       if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);
+      const read = await readImages(files);
+      if (!read) return c.json({ error: 'unsupported_image_type' }, 415);
+      // Counted only for a request that is actually analysed (an invalid one costs nothing).
+      if (limiter.take(user.id) > 0) return c.json({ error: 'too_many_requests' }, 429);
 
       const started = Date.now();
       try {
         const foodSearch = await createFoodSearch(deps, user.id);
         const out = await analyzer.analyze(
-          {
-            images: await Promise.all(
-              files.map(async (f) => ({
-                base64: Buffer.from(await f.arrayBuffer()).toString('base64'),
-                mediaType: f.type as ImageMediaType,
-              })),
-            ),
-            text: text?.trim() || null,
-          },
+          { images: read, text: text?.trim() || null },
           foodSearch.search,
+          AbortSignal.timeout(ANALYSIS_BUDGET_MS),
         );
         const [row] = await db
           .insert(aiAnalyses)
@@ -236,6 +265,8 @@ export function aiRoutes(deps: Deps) {
     for (const ch of body.data.choices) {
       const term = normalize(ch.name);
       if (!term || ch.foodId.startsWith(ESTIMATED_ID_PREFIX)) continue;
+      // Only foods that exist (catalog, or this person's own): the table feeds later prompts.
+      if (!(await foodExists(ch.foodId, user.id))) continue;
       rows.set(`${term}\n${ch.foodId}`, { userId: user.id, term, foodId: ch.foodId });
     }
     if (rows.size > 0)
@@ -289,20 +320,15 @@ export function aiRoutes(deps: Deps) {
         return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_LABEL_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
       const files = images as File[];
-      if (!files.every((f) => MEDIA_TYPES.includes(f.type as ImageMediaType)))
-        return c.json({ error: 'unsupported_image_type' }, 415);
       if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);
+      const read = await readImages(files);
+      if (!read) return c.json({ error: 'unsupported_image_type' }, 415);
       if (limiter.take(user.id) > 0) return c.json({ error: 'too_many_requests' }, 429);
 
       const started = Date.now();
       try {
         const out = await analyzer.readLabel({
-          images: await Promise.all(
-            files.map(async (f) => ({
-              base64: Buffer.from(await f.arrayBuffer()).toString('base64'),
-              mediaType: f.type as ImageMediaType,
-            })),
-          ),
+          images: read,
           text: text?.trim() || null,
         });
         const reading = sanitizeReading(out.reading);

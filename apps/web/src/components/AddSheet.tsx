@@ -25,7 +25,7 @@ export interface AddSheetTarget {
 
 const AddSheetContext = createContext<{ open: (target?: AddSheetTarget) => void } | null>(null);
 
-/** Opens the "Hinzufügen" sheet (tab bar "+"). */
+/** Opens the "Eintragen" sheet (tab bar "+"). */
 export function useAddSheet() {
   const ctx = useContext(AddSheetContext);
   if (!ctx) throw new Error('useAddSheet outside AddSheetProvider');
@@ -106,7 +106,7 @@ function AddSheet({
       {/* On wide screens a centered card instead of a full-width sheet with giant square tiles. */}
       <DrawerContent className="pb-[calc(var(--safe-bottom)+1rem)] sm:mx-auto sm:max-w-md sm:rounded-t-2xl sm:border-x">
         <DrawerHeader>
-          <DrawerTitle>Hinzufügen</DrawerTitle>
+          <DrawerTitle>Eintragen</DrawerTitle>
           <DrawerDescription>Was möchtest du eintragen?</DrawerDescription>
         </DrawerHeader>
         <div className="grid grid-cols-3 gap-3 px-4">

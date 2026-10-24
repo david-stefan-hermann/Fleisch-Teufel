@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
-import { fmt0, fmt1, fmtDate, fmtMonth, NO_VALUE } from '@/lib/format';
+import { fmt0, fmt2, fmtDate, fmtMonth, NO_VALUE } from '@/lib/format';
 import { buildChart, METRICS, type Metric } from './chartData';
 import { dailyCsv, shareOrDownloadText, entriesCsv, exerciseCsv, weightsCsv } from './export';
 
@@ -108,9 +108,10 @@ export function ReportsPage() {
       goals,
     });
   }, [data, goals, today]);
-  const stats = rows ? periodStats(rows) : null;
+  const credit = settings?.addExerciseCalories ?? true;
+  const stats = rows ? periodStats(rows, { creditExercise: credit }) : null;
 
-  const chart = useMemo(() => (rows ? buildChart(rows, metric) : null), [rows, metric]);
+  const chart = useMemo(() => (rows ? buildChart(rows, metric, credit) : null), [rows, metric, credit]);
   // Choices live in the URL; the page keeps its scroll position (no "reload" feeling).
   const set = (patch: Partial<{ range: string; end: string; metric: string }>) =>
     void navigate({ search: (s) => ({ ...s, ...patch }), replace: true, resetScroll: false });
@@ -163,21 +164,21 @@ export function ReportsPage() {
             <Stat
               label="Ø kcal"
               value={stats.loggedDays ? fmt0(stats.avg.kcal) : NO_VALUE}
-              sub={`Ziel Ø ${fmt0(stats.avgTargetKcal)}`}
+              sub={`Ziel Ø ${stats.loggedDays ? fmt0(stats.avgTargetKcal) : NO_VALUE}`}
             />
             <Stat
               label="Tage erfasst"
               value={`${stats.loggedDays}/${stats.days}`}
-              sub={`${stats.daysUnderGoal} im Ziel`}
+              sub={`${stats.daysOnTarget} im Ziel (±10 %)`}
             />
             <Stat
               label="Gewicht"
               value={
                 stats.weightChange === null
                   ? NO_VALUE
-                  : `${stats.weightChange > 0 ? '+' : ''}${fmt1(stats.weightChange)} kg`
+                  : `${stats.weightChange > 0 ? '+' : ''}${fmt2(stats.weightChange)} kg`
               }
-              sub={stats.weightEnd !== null ? `${fmt1(stats.weightEnd)} kg` : 'keine Werte'}
+              sub={stats.weightEnd !== null ? `${fmt2(stats.weightEnd)} kg` : 'keine Werte'}
             />
             <Stat
               label="Training"

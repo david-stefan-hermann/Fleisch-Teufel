@@ -91,7 +91,8 @@ export function createOffClient(opts: OffClientOptions): OffClient {
       } catch (e) {
         log.warn('OFF search-a-licious error', { error: String(e) });
       }
-      // … with the classic search as fallback.
+      // … with the classic search as fallback (a second request, so it takes a second slot).
+      if (searchLimiter.take() > 0) throw new OffRateLimitedError(searchLimiter.blocked());
       const { status, body } = await getJson(
         `${opts.baseUrl}/cgi/search.pl?search_terms=${q}&search_simple=1&json=1&page_size=${limit}&fields=${FIELDS}`,
       );
