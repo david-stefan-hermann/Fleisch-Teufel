@@ -72,19 +72,28 @@ export class AiOutputError extends Error {}
 export function createClaudeAnalyzer(opts: {
   apiKey: string;
   model: string;
+  /** Model for the label reading; the plate analysis always uses `model`. */
+  labelModel?: string;
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }): FoodAnalyzer {
   const client = new Anthropic({ apiKey: opts.apiKey, timeout: 120_000, maxRetries: 2 });
   // Claude Haiku 4.5 takes neither adaptive thinking nor an effort level nor the refusal fallback.
-  const haiku = opts.model.startsWith('claude-haiku');
-  const modelParams = haiku
-    ? {}
-    : {
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default' as const,
-        thinking: { type: 'adaptive' as const },
-      };
-  const effort = haiku ? {} : { effort: opts.effort };
+  const paramsFor = (model: string) => {
+    const haiku = model.startsWith('claude-haiku');
+    return {
+      modelParams: haiku
+        ? {}
+        : {
+            betas: ['server-side-fallback-2026-07-01'],
+            fallbacks: 'default' as const,
+            thinking: { type: 'adaptive' as const },
+          },
+      effort: haiku ? {} : { effort: opts.effort },
+    };
+  };
+  const { modelParams, effort } = paramsFor(opts.model);
+  const labelModel = opts.labelModel ?? opts.model;
+  const label = paramsFor(labelModel);
   /**
    * Usage of a response. The token count includes cache writes and reads; the cost takes their
    * rates (writes 1.25 ×, reads 0.1 × the input price), which matters in the tool loop where the
@@ -188,10 +197,10 @@ export function createClaudeAnalyzer(opts: {
 
     async readLabel(input) {
       const response = await client.beta.messages.parse({
-        model: opts.model,
+        model: labelModel,
         max_tokens: 16000,
-        ...modelParams,
-        output_config: { ...effort, format: betaZodOutputFormat(labelSchema) },
+        ...label.modelParams,
+        output_config: { ...label.effort, format: betaZodOutputFormat(labelSchema) },
         system: LABEL_SYSTEM_PROMPT,
         messages: [
           {

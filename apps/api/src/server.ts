@@ -29,7 +29,12 @@ export async function buildDeps(env: Env): Promise<Deps> {
   await catalog.init();
   const analyzer =
     env.aiEnabled && env.ANTHROPIC_API_KEY
-      ? createClaudeAnalyzer({ apiKey: env.ANTHROPIC_API_KEY, model: env.AI_MODEL, effort: env.AI_EFFORT })
+      ? createClaudeAnalyzer({
+          apiKey: env.ANTHROPIC_API_KEY,
+          model: env.AI_MODEL,
+          labelModel: env.AI_LABEL_MODEL,
+          effort: env.AI_EFFORT,
+        })
       : null;
   return { db, env, catalog, off, analyzer, version: VERSION };
 }

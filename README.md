@@ -101,6 +101,8 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 2. In Dockge **„+ Compose“**, Name `fleisch-teufel`, Inhalt von [`deploy/docker-compose.yml`](deploy/docker-compose.yml) einfügen.
 3. Im **.env-Editor** des Stacks die Variablen aus [`deploy/.env.example`](deploy/.env.example) setzen:
    mindestens `POSTGRES_PASSWORD` (lang, zufällig), `ANTHROPIC_API_KEY` (optional) und `OFF_CONTACT_EMAIL`.
+   `AI_LABEL_MODEL` (z. B. `claude-sonnet-5-5`) nimmt ein günstigeres Modell fürs Abschreiben von
+   Nährwerttabellen; Tellerfotos bleiben bei `AI_MODEL`.
 4. **Deploy**. Nach ~30 s liefert `http://<nas>:30300/health` `{"ok":true,…}`.
 5. Reverse Proxy (Nginx Proxy Manager): Host → `http://<nas-ip>:30300`, SSL erzwingen, Websockets an,
    Zugriffsliste nach Wunsch (z. B. nur LAN/VPN). Die App wertet `X-Forwarded-Proto` aus und setzt das
@@ -110,8 +112,19 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 7. **Updates**: in Dockge „Update“ drücken. Das zieht das neue `:latest` und startet neu; Migrationen laufen
    automatisch.
 
-**Backup**: Das PostgreSQL-Verzeichnis per ZFS-Snapshot sichern; zusätzlich kann jedes Gerät unter
-„Mehr → Daten & Sync“ eine JSON-Sicherung herunterladen.
+**Backup**: Das PostgreSQL-Verzeichnis per ZFS-Snapshot sichern (ein Snapshot eines laufenden Postgres ist
+konsistent, weil Postgres beim Start das WAL nachspielt). Zusätzlich lohnt ein logisches Backup, das sich
+ohne ZFS zurückspielen lässt: `docker exec fleisch-teufel-db pg_dump -U fleisch_teufel -Fc fleisch_teufel >
+/mnt/tank/applications/fleisch-teufel/backup/ft-$(date +%F).dump` als täglicher Cron auf dem NAS, die
+letzten 7 Dateien behalten; Rückspielen mit `pg_restore -U fleisch_teufel -d fleisch_teufel --clean <datei>`. Jedes Gerät
+kann außerdem unter „Mehr → Daten & Sync“ eine JSON-Sicherung teilen oder herunterladen.
+
+**Passwort vergessen**: Es gibt keinen E-Mail-Weg. Auf dem Server setzt
+`pnpm --filter @ft/api user:reset-password <email>` (mit `DATABASE_URL` der Produktion, z. B. in einem
+Checkout auf dem NAS oder per `docker exec` im App-Container) ein neues Passwort und meldet alle Geräte ab.
+
+Der Server räumt täglich auf: Fotos, die seit 30 Tagen kein Meal und kein Eintrag mehr verwendet, und
+abgelaufene Sitzungen (Sitzungen enden spätestens zwei Jahre nach der Anmeldung).
 
 ## Auf dem iPhone installieren
 

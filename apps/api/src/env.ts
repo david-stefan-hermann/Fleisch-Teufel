@@ -22,6 +22,8 @@ const envSchema = z.object({
   /** Feature flag for the AI photo analysis; defaults to on when a key is present. */
   AI_ENABLED: z.enum(['true', 'false']).optional(),
   AI_MODEL: z.string().default('claude-opus-5-5'),
+  /** Model for reading food labels (copying printed values): a cheaper one does; defaults to AI_MODEL. */
+  AI_LABEL_MODEL: z.string().optional(),
   AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
   /** Static files of the web app (production). */
   WEB_DIST: z.string().optional(),
