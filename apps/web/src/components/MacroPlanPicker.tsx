@@ -93,7 +93,7 @@ export function MacroPlanPicker({
         </dl>
       )}
       {m && weightKg && m.proteinG < Math.round(plan.proteinPerKg * weightKg) - 1 && (
-        <p className="text-xs text-warn">
+        <p className="text-xs text-warn-text">
           Eiweiß ist auf 35 % der Kalorien begrenzt ({fmt0(m.proteinG)} g statt{' '}
           {fmt0(plan.proteinPerKg * weightKg)} g). Mehr ist bei diesem Kalorienziel nicht sinnvoll.
         </p>

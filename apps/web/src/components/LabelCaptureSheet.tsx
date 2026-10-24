@@ -107,7 +107,7 @@ export function LabelCaptureSheet({
         <>
           {code && (
             <p className="absolute top-3 left-1/2 z-10 flex h-8 -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/60 px-3 text-[0.8125rem] font-semibold whitespace-nowrap text-white">
-              <Check className="size-4 text-good" strokeWidth={2.5} aria-hidden /> Barcode {code} erkannt
+              <Check className="size-4 text-good-text" strokeWidth={2.5} aria-hidden /> Barcode {code} erkannt
             </p>
           )}
           {busy && <AnalyzingOverlay title="Lese Etikett…" steps={LABEL_STEPS} />}

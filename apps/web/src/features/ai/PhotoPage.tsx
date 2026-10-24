@@ -812,7 +812,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
               disabled={busy}
               onClick={() => setSaveOpen(true)}
               aria-label={`Als Meal „${name}“ gespeichert, Namen ändern`}
-              className="flex h-8 items-center gap-1 rounded-full bg-good/10 px-2.5 text-sm font-medium text-good focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-40"
+              className="flex h-8 items-center gap-1 rounded-full bg-good/10 px-2.5 text-sm font-medium text-good-text focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-40"
             >
               <Check className="size-4" aria-hidden /> Gespeichert
             </button>

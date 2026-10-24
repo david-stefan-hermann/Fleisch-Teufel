@@ -72,7 +72,7 @@ function NoteForm({ date, note }: { date: ISODate; note: DayNote | null }) {
           <Link
             to="/day/$date/complete"
             params={{ date }}
-            className="flex items-center gap-2 text-sm text-good hover:underline"
+            className="flex items-center gap-2 text-sm text-good-text hover:underline"
           >
             <CheckCircle2 className="size-4" aria-hidden /> Tag abgeschlossen um {fmtTime(note.completedAt)}.
             Prognose ansehen

@@ -224,11 +224,9 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
     if (!first) return false;
     const meal = first.mealId ? await db.meals.get(first.mealId) : undefined;
     const typed = draft.name.trim().slice(0, 120);
-    const groupNameValue = !typed
-      ? first.groupName
-      : meal && typed === meal.name && !first.groupName
-        ? null
-        : typed;
+    // A name equal to the saved meal's is no own name: the row follows the meal again (also when the
+    // group had its own name before).
+    const groupNameValue = !typed ? first.groupName : meal && typed === meal.name ? null : typed;
 
     // Photos: unchanged without added ones; else the group's (or the meal photo it showed) plus the new.
     let photos: { photoId: string | null; photoIds: string[] | null } = {

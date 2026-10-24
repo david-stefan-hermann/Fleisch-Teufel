@@ -643,6 +643,17 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     expect(isGroupDirty({ ...draft, items: draft.items.slice(1) }, entries, 'Bowl')).toBe(true);
   });
 
+  it('a name typed back to the saved meal name follows the meal again', async () => {
+    const { d, entries, groupId } = await setup();
+    const draft = draftFromEntries(entries, 'Bowl');
+    expect(await saveGroupDraft(d, { ...draft, name: 'Große Bowl' })).toBe(true);
+    let live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live.every((e) => e.groupName === 'Große Bowl')).toBe(true);
+    expect(await saveGroupDraft(d, { ...draftFromEntries(live, 'Große Bowl'), name: 'Bowl' })).toBe(true);
+    live = await groupEntries(d, groupId, '2026-10-09');
+    expect(live.every((e) => e.groupName === null)).toBe(true);
+  });
+
   it('never brings back an ingredient another device deleted meanwhile, and notices the change', async () => {
     const { d, entries, groupId } = await setup();
     const draft = draftFromEntries(entries, 'Bowl');

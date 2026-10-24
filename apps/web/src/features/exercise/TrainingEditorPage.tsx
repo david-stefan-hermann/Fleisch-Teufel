@@ -98,6 +98,8 @@ function TrainingEditorForm({ template }: { template: ExerciseTemplate }) {
     });
     setFields((f) => ({ ...f, name: f.name.trim() || template.name, note: f.note.trim() }));
     toast.success(`„${name}“ gespeichert`);
+    // Like the meal and food editors: saving closes the editor.
+    await navigate({ to: '/trainings', ignoreBlocker: true });
     return true;
   }
 

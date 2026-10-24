@@ -348,6 +348,12 @@ export class SyncEngine {
     return applied;
   }
 
+  /** Empties the list of records the server rejected ("Daten & Sync"). */
+  async clearRejected(): Promise<void> {
+    await this.db.kv.delete(REJECTED_KEY);
+    this.set({ rejected: 0 });
+  }
+
   /** Forget the cursor and re-download everything (repair tool in settings). */
   async resetAndPull(): Promise<number> {
     await this.db.kv.delete(CURSOR_KEY);

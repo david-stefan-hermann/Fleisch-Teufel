@@ -47,7 +47,9 @@ export function SyncIndicator() {
       aria-label={syncLabel(s)}
       title={syncLabel(s)}
       onClick={() => void sync.sync().catch(() => {})}
-      className={s.status === 'error' || s.status === 'unauthorized' ? 'text-warn' : 'text-muted-foreground'}
+      className={
+        s.status === 'error' || s.status === 'unauthorized' ? 'text-warn-text' : 'text-muted-foreground'
+      }
     >
       <Icon
         className={`size-6 ${s.status === 'syncing' ? 'animate-spin motion-reduce:animate-none' : ''}`}

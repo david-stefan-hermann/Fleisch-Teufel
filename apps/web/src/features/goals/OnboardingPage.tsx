@@ -283,7 +283,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
               </div>
             </dl>
             {goal.clamped && (
-              <p className="px-4 pb-4 text-xs text-warn">
+              <p className="px-4 pb-4 text-xs text-warn-text">
                 Das rechnerische Ziel lag unter {fmt0(goal.kcal)} kcal und wurde angehoben. Wähle ein
                 langsameres Tempo für ein nachhaltiges Defizit.
               </p>
@@ -310,7 +310,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                 fat !== null &&
                 carbs !== null &&
                 Math.abs(kcalFromMacros({ proteinG: protein, fatG: fat, carbsG: carbs }) - kcal) > 50 && (
-                  <p className="text-xs text-warn">
+                  <p className="text-xs text-warn-text">
                     Die Makros ergeben {fmt0(kcalFromMacros({ proteinG: protein, fatG: fat, carbsG: carbs }))}{' '}
                     kcal. Passe sie an dein Kalorienziel an.
                   </p>

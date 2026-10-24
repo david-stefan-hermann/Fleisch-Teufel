@@ -200,7 +200,7 @@ function GoalsForm({
           <p
             className={cn(
               'text-xs',
-              Math.abs(macroKcal - day.kcal) > 50 ? 'text-warn' : 'text-muted-foreground',
+              Math.abs(macroKcal - day.kcal) > 50 ? 'text-warn-text' : 'text-muted-foreground',
             )}
           >
             Makros ergeben {fmt0(macroKcal)} kcal

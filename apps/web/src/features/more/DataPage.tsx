@@ -118,6 +118,9 @@ export function DataPage() {
                   </li>
                 ))}
               </ul>
+              <Button variant="ghost" size="sm" className="mt-2" onClick={() => void sync.clearRejected()}>
+                Liste leeren
+              </Button>
             </details>
           )}
         </div>

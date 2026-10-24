@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { Download, EllipsisVertical, LogIn, Share, SquarePlus, X } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState, type ReactNode } from 'react';
 import { encode } from 'uqr';
 import { Button } from '@/components/ui/button';
@@ -105,8 +106,14 @@ function AppIcon({ size }: { size: number }) {
  * computer shows a QR code of the app for the phone. Closing it hides it for good.
  */
 export function AppBanners() {
-  const { needsReauth } = useSessionContext();
-  const updateReady = useUpdateReady();
+  const { needsReauth, session } = useSessionContext();
+  // An update reloads the app: never offer it while a paid analysis is in flight.
+  const analyzing =
+    useLiveQuery(
+      () => (session ? session.db.aiQueue.filter((i) => i.status === 'analyzing').count() : 0),
+      [session],
+    ) ?? 0;
+  const updateReady = useUpdateReady() && analyzing === 0;
   const { canPrompt, installed } = useInstallState();
   const [platform] = useState(installPlatform);
   const [dismissed, setDismissed] = useState(readDismissed);

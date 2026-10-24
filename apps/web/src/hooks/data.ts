@@ -77,9 +77,11 @@ export function useWeights(): WeightEntry[] | undefined {
   return useLiveQuery(() => db.weightEntries.filter((w) => !w.deleted).sortBy('date'), [db]);
 }
 
+/** The weight valid on a date: the last one logged up to it, before the first entry the earliest one. */
 export function useCurrentWeight(date: ISODate): number | undefined {
   const weights = useWeights();
-  return weights ? weightOn(weights, date) : undefined;
+  if (!weights) return undefined;
+  return weightOn(weights, date) ?? weights.find((w) => !w.deleted)?.kg;
 }
 
 export function useDayNote(date: ISODate) {
