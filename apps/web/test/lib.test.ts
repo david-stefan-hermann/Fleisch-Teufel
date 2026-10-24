@@ -35,6 +35,10 @@ describe('format', () => {
   it('parses German and English decimals', () => {
     expect(parseDecimal('1,5')).toBe(1.5);
     expect(parseDecimal(' 2.25 ')).toBe(2.25);
+    // German thousands grouping is not a decimal point.
+    expect(parseDecimal('1.000')).toBe(1000);
+    expect(parseDecimal('12.500,5')).toBe(12500.5);
+    expect(parseDecimal('1.5')).toBe(1.5);
     expect(parseDecimal('')).toBeNaN();
     expect(parseDecimal('1,2,3')).toBeNaN();
     expect(parseDecimal('abc')).toBeNaN();

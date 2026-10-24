@@ -28,6 +28,8 @@ export function AccountPage() {
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<null | 'logout' | 'wipe'>(null);
+  const [leaving, setLeaving] = useState(false);
+  const engine = session?.sync;
   if (!session) return null;
   const nextValid = credentialsSchema.shape.password.safeParse(next).success;
 
@@ -105,10 +107,12 @@ export function AccountPage() {
           <DialogHeader>
             <DialogTitle>{confirm === 'wipe' ? 'Gerätedaten löschen?' : 'Abmelden?'}</DialogTitle>
             <DialogDescription>
-              {sync.pending > 0
-                ? `Achtung: ${sync.pending} Änderung(en) sind noch nicht synchronisiert und gehen verloren, wenn du die Gerätedaten löschst.`
-                : confirm === 'wipe'
-                  ? 'Alle Daten bleiben auf dem Server und kommen nach der nächsten Anmeldung zurück.'
+              {confirm === 'wipe'
+                ? sync.pending > 0
+                  ? `Achtung: ${sync.pending} Änderung(en) sind noch nicht synchronisiert. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; gelingt das nicht, gehen sie verloren.`
+                  : 'Alle Daten bleiben auf dem Server und kommen nach der nächsten Anmeldung zurück.'
+                : sync.pending > 0
+                  ? `Deine Daten bleiben auf diesem Gerät; ${sync.pending} Änderung(en) werden nach der nächsten Anmeldung hochgeladen.`
                   : 'Deine Daten bleiben auf diesem Gerät.'}
             </DialogDescription>
           </DialogHeader>
@@ -118,9 +122,23 @@ export function AccountPage() {
             </Button>
             <Button
               variant={confirm === 'wipe' ? 'destructive' : 'default'}
+              disabled={leaving}
               onClick={async () => {
-                await signOut({ wipeLocal: confirm === 'wipe' });
-                await navigate({ to: '/login' });
+                setLeaving(true);
+                try {
+                  // Wiping with pending changes: one last upload attempt; the person decides on failure.
+                  if (confirm === 'wipe' && sync.pending > 0) {
+                    const ok = await (engine?.sync() ?? Promise.reject(new Error('no session'))).then(
+                      () => true,
+                      () => false,
+                    );
+                    if (!ok && !window.confirm('Hochladen nicht möglich. Trotzdem löschen?')) return;
+                  }
+                  await signOut({ wipeLocal: confirm === 'wipe' });
+                  await navigate({ to: '/login' });
+                } finally {
+                  setLeaving(false);
+                }
               }}
             >
               {confirm === 'wipe' ? 'Löschen und abmelden' : 'Abmelden'}

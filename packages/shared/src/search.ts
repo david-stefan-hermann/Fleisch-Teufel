@@ -34,11 +34,17 @@ const FOLD: Record<string, string> = {
   ç: 'c',
 };
 
-/** Lower-case, umlauts folded (ä → ae), everything else non-alphanumeric becomes a space. */
+/**
+ * Lower-case, umlauts folded (ä → ae), every other accent dropped (û → u, ø → o), everything else
+ * non-alphanumeric becomes a space.
+ */
 export function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/[äöüßéèêáàâóôíñç]/g, (c) => FOLD[c] ?? c)
+    .replace(/[øœæ]/g, (c) => ({ ø: 'o', œ: 'oe', æ: 'ae' })[c] ?? c)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }

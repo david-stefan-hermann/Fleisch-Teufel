@@ -87,6 +87,11 @@ export function AddFoodPage() {
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
   const qOnline = useDebounced(query.trim(), 600);
+  // The typed text lives in the URL too (debounced, replace): opening a result and coming back keeps it.
+  useEffect(() => {
+    if ((search.q ?? '') === q) return;
+    void navigate({ search: (s) => ({ ...s, q: q || undefined }), replace: true, resetScroll: false });
+  }, [q, search.q, navigate]);
   // From 2 characters on, the search results replace the tab content of "Häufig" and "Kürzlich".
   // "Eigene" stays selected and only filters the user's own foods and meals (no BLS, no online).
   const searching = q.length >= 2 && tab !== 'mine';

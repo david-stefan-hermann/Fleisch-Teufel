@@ -305,7 +305,12 @@ export function exerciseKcal(met: number, weightKg: number, minutes: number): nu
   return met * weightKg * (minutes / 60);
 }
 
-/** Energy above resting for the workout ((MET − 1) × kg × h): what is added to the daily budget. */
+/**
+ * Energy above resting for the workout ((MET − 1) × kg × h): what is added to the daily budget.
+ * Deliberately generous: the activity level (PAL) already contains some everyday movement during
+ * these hours, so part of a workout is counted twice. The person chooses the level "without
+ * workouts" (see `ACTIVITY_FACTORS`), which keeps that overlap small.
+ */
 export function netExerciseKcal(met: number, weightKg: number, minutes: number): number {
   return Math.max(0, met - 1) * weightKg * (minutes / 60);
 }

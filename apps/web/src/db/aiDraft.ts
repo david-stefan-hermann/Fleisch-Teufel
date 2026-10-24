@@ -20,7 +20,8 @@ export function draftFromResult(item: Pick<AiQueueItem, 'meal' | 'result'>): AiD
     rows: result.items.map((it, i) => ({
       key: `ai-${i}`,
       name: it.name,
-      grams: Math.round(it.grams),
+      // Whole grams, but never 0 for something the model saw (a pinch of spice stays 1 g).
+      grams: it.grams > 0 ? Math.max(1, Math.round(it.grams)) : 0,
       confidence: it.confidence,
       candidates: it.candidates.map((c) => c.food),
       foodId: it.candidates[0]?.food.id ?? null,
@@ -54,12 +55,13 @@ export async function updateDraft(
   db: UserDb,
   localId: number,
   change: (d: AiDraft) => AiDraft,
-): Promise<void> {
-  await db.transaction('rw', db.aiQueue, async () => {
+): Promise<boolean> {
+  return db.transaction('rw', db.aiQueue, async () => {
     const item = await db.aiQueue.get(localId);
     // A review exists once there is a result (also after a failed re-analysis), not while it runs.
-    if (!item?.result || item.status === 'pending' || item.status === 'analyzing') return;
+    if (!item?.result || item.status === 'pending' || item.status === 'analyzing') return false;
     await db.aiQueue.update(localId, { draft: change(currentDraft(item)) });
+    return true;
   });
 }
 
@@ -79,8 +81,15 @@ export interface AiItem {
  * for ("Selbst suchen", `searchRowKey`; the row keeps its name, so the choice can be learned), else
  * as a new ingredient the model missed.
  */
-export async function addFoodToDraft(db: UserDb, localId: number, food: Food, grams: number): Promise<void> {
-  await updateDraft(db, localId, (d) => {
+export async function addFoodToDraft(
+  db: UserDb,
+  localId: number,
+  food: Food,
+  grams: number,
+  /** The unit the amount was set in (kept for the row, like the review's own portions). */
+  portion: Portion | null = null,
+): Promise<boolean> {
+  return updateDraft(db, localId, (d) => {
     const { searchRowKey, ...rest } = d;
     if (searchRowKey && d.rows.some((r) => r.key === searchRowKey))
       return {
@@ -92,7 +101,7 @@ export async function addFoodToDraft(db: UserDb, localId: number, food: Food, gr
                 grams: Math.round(grams),
                 candidates: [food, ...r.candidates.filter((c) => c.id !== food.id)],
                 foodId: food.id,
-                portion: null,
+                portion,
               }
             : r,
         ),
@@ -108,6 +117,7 @@ export async function addFoodToDraft(db: UserDb, localId: number, food: Food, gr
           confidence: null,
           candidates: [food],
           foodId: food.id,
+          portion,
         },
       ],
     };
@@ -152,7 +162,8 @@ export function scaleDraft(d: AiDraft, base: RowGrams, factor: number): AiDraft 
       const g = base[r.key];
       if (g == null) return r;
       const pg = r.portion?.grams;
-      if (!pg) return { ...r, grams: Math.max(0, Math.round(g * factor)) };
+      // Like the meal editor: scaling never takes an ingredient below 1 g.
+      if (!pg) return { ...r, grams: Math.max(1, Math.round(g * factor)) };
       const pieces = Math.max(0.1, Math.round(((g * factor) / pg) * 10) / 10);
       return { ...r, grams: Math.round(pieces * pg * 100) / 100 };
     }),

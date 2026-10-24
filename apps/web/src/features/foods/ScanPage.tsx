@@ -1,6 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Keyboard, LoaderCircle, PackageSearch, ScanText } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
 import { Page } from '@/components/Page';
@@ -49,8 +49,17 @@ export function ScanPage() {
   const [camError, setCamError] = useState<ScannerError | null>(null);
   const [manual, setManual] = useState('');
 
+  // A lookup can take seconds: once the page is gone its result must not navigate anywhere.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const apply = useCallback(
     async (code: string, r: Awaited<ReturnType<typeof lookupBarcode>>) => {
+      if (!alive.current) return;
       if (r.status === 'found')
         await navigate({
           to: '/food/$foodId',
@@ -183,9 +192,9 @@ export function ScanPage() {
             placeholder="z. B. 4000417025005…"
             value={manual}
             onChange={(e) => setManual(e.target.value)}
-            aria-invalid={manual.length >= 8 && !validGtin(manual.replace(/\D/g, '')) ? true : undefined}
+            aria-invalid={manual.length >= 6 && !validGtin(manual.replace(/\D/g, '')) ? true : undefined}
           />
-          <Button type="submit" disabled={manual.replace(/\D/g, '').length < 8}>
+          <Button type="submit" disabled={manual.replace(/\D/g, '').length < 6}>
             Suchen
           </Button>
         </div>

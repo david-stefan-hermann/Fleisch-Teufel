@@ -413,9 +413,13 @@ function GroupRow({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 font-medium">
                 {photoId ? null : fromPhoto ? (
-                  <Camera className="size-4 shrink-0 text-muted-foreground" aria-label="aus Foto" />
+                  <Camera
+                    className="size-4 shrink-0 text-muted-foreground"
+                    role="img"
+                    aria-label="aus Foto"
+                  />
                 ) : (
-                  <ListPlus className="size-4 shrink-0 text-muted-foreground" aria-label="Meal" />
+                  <ListPlus className="size-4 shrink-0 text-muted-foreground" role="img" aria-label="Meal" />
                 )}
                 <Link
                   to="/diary-group/$groupId"

@@ -85,15 +85,18 @@ import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
 import { compressImage, IMAGE_PRESETS } from './image';
 import {
-  discardQueueItem,
   addQueuePhotos,
+  discardQueueItem,
   enqueuePhotos,
   leaveAnalysis,
   loadQueueImages,
   processQueue,
   reanalyze,
   removeQueuePhoto,
+  restoreQueueItem,
+  restoreQueuePhoto,
   retryQueueItem,
+  takeQueueItem,
 } from './queue';
 import { useAiImages } from './useAiImage';
 
@@ -159,7 +162,7 @@ export function PhotoPage() {
     const id = waiting.current;
     waiting.current = null;
     if (id !== null) void leaveAnalysis(db, id);
-    void navigate({ to: '/', search: { date } });
+    void navigate({ to: '/', search: { date }, replace: true });
   }
 
   /** Compresses taken or picked photos and adds them to the preview. */
@@ -211,7 +214,7 @@ export function PhotoPage() {
         toast(
           'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
         );
-        return void navigate({ to: '/', search: { date } });
+        return void navigate({ to: '/', search: { date }, replace: true });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
     } finally {
@@ -530,7 +533,10 @@ function CameraCapture({
             className="sr-only"
             tabIndex={-1}
             aria-hidden
-            onChange={(e) => void pick([...(e.target.files ?? [])])}
+            onChange={(e) => {
+              void pick([...(e.target.files ?? [])]);
+              e.target.value = '';
+            }}
           />
           <div className="grid grid-cols-2 gap-3">
             <Button
@@ -601,7 +607,7 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
         onClick={onOpen}
       >
         <div className="truncate text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className="truncate text-xs text-muted-foreground">
           {fmtTime(item.createdAt)}
           {item.text ? ` · ${item.text}` : ''}
         </div>
@@ -620,7 +626,15 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
         variant="ghost"
         size="icon"
         aria-label="Verwerfen"
-        onClick={() => void discardQueueItem(db, item.localId!)}
+        onClick={() =>
+          // A paid result and its photos: gone only once the undo toast has passed.
+          void takeQueueItem(db, item.localId!).then((taken) => {
+            if (!taken) return;
+            toast(`${label} verworfen`, {
+              action: { label: 'Rückgängig', onClick: () => void restoreQueueItem(db, taken) },
+            });
+          })
+        }
       >
         <Trash2 aria-hidden />
       </Button>
@@ -762,7 +776,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder eintragen und bearbeiten.',
       });
     else toast.success(`„${name}“ eingetragen`);
-    await navigate({ to: '/', search: { date: item.date } });
+    // Replace: "back" from the diary must not reopen the review of a logged analysis.
+    await navigate({ to: '/', search: { date: item.date }, replace: true });
   }
 
   return (
@@ -835,7 +850,14 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             warmUpCamera();
             setSheet(true);
           }}
-          onRemove={(key) => void removeQueuePhoto(db, Number(key.slice(key.lastIndexOf(':') + 1)))}
+          onRemove={(key) =>
+            void removeQueuePhoto(db, Number(key.slice(key.lastIndexOf(':') + 1))).then((row) => {
+              if (!row) return;
+              toast('Foto entfernt', {
+                action: { label: 'Rückgängig', onClick: () => void restoreQueuePhoto(db, row) },
+              });
+            })
+          }
         >
           {busy && <AnalyzingOverlay />}
         </PhotoStrip>
@@ -927,7 +949,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
                   step={0.05}
                   value={[scale]}
                   onValueChange={([v]) => v !== undefined && rescale(v)}
-                  onValueCommit={() => commit(draft)}
+                  // From the commit value, not the draft of this render (keyboard steps change and commit at once).
+                  onValueCommit={([v]) => commit(scaleDraft(draft, scaleBase, v ?? scale))}
                 />
               </div>
             )}

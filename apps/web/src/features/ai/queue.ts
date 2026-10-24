@@ -8,7 +8,7 @@
  * item itself: the item is rewritten on every status change and review edit, which on WebKit made an
  * inline Blob read earlier unreadable (see `AiImage` in `db/dexie.ts`).
  */
-import type { AiAnalysisResult } from '@ft/shared';
+import { MAX_ANALYSIS_PHOTOS, type AiAnalysisResult } from '@ft/shared';
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
@@ -318,15 +318,33 @@ export async function enqueuePhotos(
   });
 }
 
-/** Adds photos to a queue item (review "Fotos hinzufügen"); they are analysed with the next ↻. */
-export async function addQueuePhotos(db: UserDb, localId: number, images: readonly Blob[]): Promise<void> {
+/**
+ * Adds photos to a queue item (review "Fotos hinzufügen"); they are analysed with the next ↻. Never
+ * more than `MAX_ANALYSIS_PHOTOS` in total (two quick shutter taps could overshoot the sheet's count).
+ * Returns how many were added.
+ */
+export async function addQueuePhotos(db: UserDb, localId: number, images: readonly Blob[]): Promise<number> {
   const rows = await photoRows(localId, images);
-  await db.aiPhotos.bulkAdd(rows);
+  return db.transaction('rw', db.aiPhotos, async () => {
+    const have = await db.aiPhotos.where('localId').equals(localId).count();
+    const taken = rows.slice(0, Math.max(0, MAX_ANALYSIS_PHOTOS - have));
+    if (taken.length) await db.aiPhotos.bulkAdd(taken);
+    return taken.length;
+  });
 }
 
-/** Removes one photo of a queue item (review). */
-export async function removeQueuePhoto(db: UserDb, id: number): Promise<void> {
-  await db.aiPhotos.delete(id);
+/** Removes one photo of a queue item (review); returns the row so `restoreQueuePhoto` can undo it. */
+export async function removeQueuePhoto(db: UserDb, id: number): Promise<AiPhoto | null> {
+  return db.transaction('rw', db.aiPhotos, async () => {
+    const row = (await db.aiPhotos.get(id)) ?? null;
+    if (row) await db.aiPhotos.delete(id);
+    return row;
+  });
+}
+
+/** Puts a removed photo back (same id, so it keeps its place in the order). */
+export async function restoreQueuePhoto(db: UserDb, row: AiPhoto): Promise<void> {
+  await db.aiPhotos.put(row);
 }
 
 /**

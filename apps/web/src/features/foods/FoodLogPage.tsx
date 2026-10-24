@@ -40,7 +40,7 @@ import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { editorPortions, normalizeAmount } from '@/lib/amounts';
+import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
 import { parseInto, returnFromInto, type Into } from '@/lib/into';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
@@ -255,10 +255,18 @@ function FoodLogEditor({
     } else if (target.kind === 'group') {
       if (!(await addItemToGroupDraft(db, target.groupId, date, item)))
         return void toast.error('Den Eintrag gibt es nicht mehr.');
-    } else {
-      await addFoodToDraft(db, target.localId, food, grams);
+    } else if (
+      !(await addFoodToDraft(
+        db,
+        target.localId,
+        food,
+        grams,
+        isBasePortion(effectivePortion) ? null : effectivePortion,
+      ))
+    ) {
+      return void toast.error('Die Analyse gibt es nicht mehr.');
     }
-    await rememberFood(db, food);
+    if (food.id) await rememberFood(db, food);
     toast.success(`${food.name} hinzugefügt`);
     returnFromInto(router.history, () => {
       if (target.kind === 'meal')
@@ -301,7 +309,8 @@ function FoodLogEditor({
       toast.success(`${food.name} eingetragen`);
     }
     if (food.id) await rememberFood(db, food);
-    await navigate({ to: '/', search: { date: entry?.date ?? date } });
+    // Replace: "back" from the diary must not reopen the filled food page (an invitation to log twice).
+    await navigate({ to: '/', search: { date: entry?.date ?? date }, replace: true });
   }
 
   async function remove() {

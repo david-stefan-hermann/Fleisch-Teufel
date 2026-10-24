@@ -215,6 +215,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 id="cf-name"
                 name="name"
                 autoComplete="off"
+                maxLength={200}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="z. B. Omas Apfelkuchen…"
@@ -228,6 +229,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
               <Input
                 id="cf-brand"
                 autoComplete="off"
+                maxLength={200}
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
                 className={cn(flash.has('brand') && 'field-flash')}
@@ -367,6 +369,7 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
                 <Input
                   id="cf-portion"
                   autoComplete="off"
+                  maxLength={80}
                   placeholder="1 Stück…"
                   value={newPortion.label}
                   onChange={(e) => setNewPortion({ ...newPortion, label: e.target.value })}

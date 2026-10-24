@@ -129,7 +129,18 @@ function GoalsForm({
               z. B. mehr Kalorien an Trainings- oder Wochenendtagen
             </span>
           </Label>
-          <Switch id="per-day" checked={perDay} onCheckedChange={setPerDay} />
+          <Switch
+            id="per-day"
+            checked={perDay}
+            onCheckedChange={(v) => {
+              // Off: the shown day's values become the week's (said out loud, nothing silently lost).
+              if (!v && days.some((d) => JSON.stringify(d) !== JSON.stringify(day))) {
+                setDays(uniformWeek(day));
+                toast(`Alle Wochentage übernehmen die Werte von ${WEEKDAYS_LONG_DE[idx] ?? 'Montag'}`);
+              }
+              setPerDay(v);
+            }}
+          />
         </div>
         {perDay && (
           <div className="grid grid-cols-7 gap-1 px-4 pb-4" role="tablist" aria-label="Wochentag">

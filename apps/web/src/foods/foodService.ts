@@ -105,8 +105,12 @@ type MealSearchable = { id: string; name: string; keywords: string; source: 'mea
 let ownCache: { sig: string; foods: IndexedItem<Food>[]; meals: IndexedItem<MealSearchable>[] } | null = null;
 
 function ownIndexes(foods: Food[], meals: Meal[]) {
+  // Nutrients and portions are part of the signature: an edited own food must show its new values.
   const sig = [
-    ...foods.map((f) => `${f.id}:${f.name}:${f.brand ?? ''}`),
+    ...foods.map(
+      (f) =>
+        `${f.id}:${f.name}:${f.brand ?? ''}:${f.unit}:${Object.entries(f.nutrients).join('/')}:${f.portions.map((p) => `${p.label}=${p.grams}`).join('/')}`,
+    ),
     '|',
     ...meals.map((m) => `${m.id}:${m.updatedAt}`),
   ].join(',');
@@ -247,7 +251,8 @@ export async function getFood(db: UserDb, id: string, opts: { enrich?: boolean }
   // BLS foods are complete in the cache once enriched (more keys than the compact set).
   if (cached && (id.startsWith('off:') || Object.keys(cached.nutrients).length > 15)) return cached;
   let local: Food | null = cached ?? null;
-  if (!local && id.startsWith('bls:')) local = (await loadBls()).foods.get(id) ?? null;
+  // The catalog file can be missing offline before the first precache: then only the server knows.
+  if (!local && id.startsWith('bls:')) local = (await loadBls().catch(() => null))?.foods.get(id) ?? null;
   if (opts.enrich === false) return local;
   try {
     const { food } = await endpoints.food(id, local ? 2500 : 8000);
@@ -266,18 +271,19 @@ export type BarcodeResult =
 
 export async function lookupBarcode(db: UserDb, raw: string): Promise<BarcodeResult> {
   const ean = raw.replace(/\D/g, '');
-  const custom = await db.customFoods
-    .where('barcode')
-    .equals(ean)
-    .filter((f) => !f.deleted)
-    .first();
-  if (custom) return { status: 'found', food: customToFood(custom) };
+  // UPC-A (12 digits) and EAN-13 with a leading zero are the same code; own foods may hold either.
   const variants =
     ean.length === 12
       ? [`0${ean}`, ean]
       : ean.length === 13 && ean.startsWith('0')
         ? [ean, ean.slice(1)]
         : [ean];
+  const custom = await db.customFoods
+    .where('barcode')
+    .anyOf(variants)
+    .filter((f) => !f.deleted)
+    .first();
+  if (custom) return { status: 'found', food: customToFood(custom) };
   for (const v of variants) {
     const cached = await db.foodCache.get(foodIds.off(v));
     if (cached) return { status: 'found', food: cached };

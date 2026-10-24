@@ -273,6 +273,15 @@ function DiaryGroupForm({
     };
   }, [analysisId]);
 
+  // The page was left while a re-analysis ran: its result must not replace the draft from the diary.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
   /** "Neu analysieren": one more Claude call with all photos; the result goes into the draft only. */
   async function reanalyze() {
     if (photoCount === 0 || busy) return;
@@ -289,6 +298,7 @@ function DiaryGroupForm({
         return;
       }
       const result = await analyzePhotos(photos, hint ?? '');
+      if (!alive.current) return;
       const next = groupDraftFromAnalysis(draft, result, Boolean(first.mealId));
       if (!next) {
         toast.error('Kein Essen erkannt', { description: result.notes ?? undefined });

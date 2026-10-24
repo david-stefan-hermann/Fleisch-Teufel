@@ -95,7 +95,7 @@ export function CompleteDayPage() {
               <TrendingUp className="size-8 text-warn" aria-hidden />
             )}
             <p className="text-sm text-muted-foreground text-balance">
-              Wenn jeder Tag so wäre wie heute, würdest du in 5 Wochen etwa so viel wiegen:
+              Wenn jeder Tag so wäre wie dieser, würdest du in 5 Wochen etwa so viel wiegen:
             </p>
             <p className="tabular text-4xl font-bold">{fmt1(forecast.kg)} kg</p>
             <p className="tabular text-sm text-muted-foreground">

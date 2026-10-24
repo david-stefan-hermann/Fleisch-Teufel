@@ -35,7 +35,7 @@ export function TabBar() {
               <Link
                 to={t.to}
                 activeOptions={{ exact: t.to === '/', includeSearch: false }}
-                className="flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none data-[status=active]:text-primary"
+                className="flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 rounded-md text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none data-[status=active]:text-primary"
               >
                 <t.icon className="size-[22px]" aria-hidden />
                 {t.label}

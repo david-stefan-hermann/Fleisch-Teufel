@@ -25,7 +25,10 @@ export const fmtKcal = (n: number) => `${fmt0(n)}\u00a0kcal`;
 
 /** Parses German or English decimal input ("1,5" / "1.5"); NaN for empty/invalid. */
 export function parseDecimal(input: string): number {
-  const s = input.trim().replace(/\s/g, '').replace(',', '.');
+  let s = input.trim().replace(/\s/g, '');
+  // "1.000" is the German thousands grouping, not one point zero.
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '');
+  s = s.replace(',', '.');
   if (!s || !/^-?\d*\.?\d*$/.test(s)) return Number.NaN;
   return Number.parseFloat(s);
 }

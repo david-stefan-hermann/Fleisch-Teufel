@@ -101,6 +101,8 @@ export function PhotoCaptureSheet({
   }
 
   async function shoot() {
+    // A second tap while a photo is still being compressed, or past the limit, does nothing.
+    if (locked || full) return;
     const blob = await capture.current?.();
     if (!blob) return toast.error('Die Kamera liefert noch kein Bild.');
     navigator.vibrate?.(30);

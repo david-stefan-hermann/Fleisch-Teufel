@@ -70,7 +70,8 @@ export function TargetBar({
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={Math.round(target)}
-      aria-valuenow={Math.round(value)}
+      // A meter's value never exceeds its maximum; the text next to it carries the real number.
+      aria-valuenow={Math.min(Math.round(value), Math.round(target))}
       aria-valuetext={valueText}
     >
       <div data-part="fill" className={cn('h-full rounded-full', color)} style={{ width: `${fill}%` }} />

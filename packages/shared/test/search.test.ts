@@ -20,6 +20,9 @@ describe('search', () => {
   it('normalizes umlauts and punctuation', () => {
     expect(normalize('Käse (Gouda), 45 %')).toBe('kaese gouda 45');
     expect(normalize('Grüße')).toBe('gruesse');
+    // Accents the table does not list are dropped instead of becoming spaces.
+    expect(normalize('Crème brûlée')).toBe('creme brulee');
+    expect(normalize('Smørrebrød à la Noël')).toBe('smorrebrod a la noel');
   });
 
   it('finds umlaut words typed with ae/oe/ue', () => {

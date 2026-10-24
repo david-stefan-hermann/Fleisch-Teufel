@@ -147,17 +147,21 @@ export function aiMealItems(items: AiItem[]): MealItem[] {
   return items.map(({ food, grams, portion }) => {
     const p =
       portion && portion.grams > 0 ? portion : { label: food.unit === 'ml' ? '1 ml' : '1 g', grams: 1 };
+    // The quantity is what gets stored and edited later (editor: quantity × portion); the grams
+    // follow it, so the entry never shows one amount and computes with another.
+    const quantity = Math.round((grams / p.grams) * 100) / 100;
+    const exact = p.grams === 1 ? grams : Math.round(quantity * p.grams * 100) / 100;
     return {
       foodId: food.estimated ? null : food.id,
       source: 'ai',
       name: food.name,
       brand: food.brand,
-      grams,
+      grams: exact,
       portionLabel: p.label,
       portionGrams: p.grams,
-      quantity: Math.round((grams / p.grams) * 100) / 100,
+      quantity,
       per100: food.nutrients,
-      nutrients: scaleNutrients(food.nutrients, grams),
+      nutrients: scaleNutrients(food.nutrients, exact),
     };
   });
 }

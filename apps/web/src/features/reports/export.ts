@@ -1,6 +1,7 @@
 /** CSV export built on the device from IndexedDB (feature #11). */
 import {
   get,
+  INTENSITY_LABELS_DE,
   N,
   toCsv,
   type CsvDialect,
@@ -126,10 +127,11 @@ export function exerciseCsv(list: ExerciseEntry[], dialect: CsvDialect): string 
       { header: 'Datum', value: (e) => e.date },
       { header: 'Sportart', value: (e) => e.name },
       { header: 'Minuten', value: (e) => e.minutes },
-      { header: 'Intensität', value: (e) => e.intensity },
+      { header: 'Intensität', value: (e) => INTENSITY_LABELS_DE[e.intensity] ?? e.intensity },
       { header: 'MET', value: (e) => e.met },
       { header: 'Gewicht (kg)', value: (e) => e.weightKg },
       { header: 'kcal', value: (e) => e.kcal },
+      { header: 'Notiz', value: (e) => e.note ?? '' },
     ],
     dialect,
   );
