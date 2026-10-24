@@ -450,7 +450,8 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   const before = Number((await page.getByLabel('Menge', { exact: true }).nth(1).inputValue()) || '0');
   await scale.focus();
   for (let i = 0; i < 10; i++) await scale.press('ArrowRight');
-  await expect(summary.getByText('150 %')).toBeVisible();
+  // The output, not the 150 % preset button next to the slider.
+  await expect(summary.locator('output')).toHaveText('150 %');
   await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('270');
   await expect(page.getByLabel('Menge', { exact: true }).nth(1)).toHaveValue(
     String(Math.round(before * 1.5)),
@@ -459,7 +460,7 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(summary.getByText('130 %')).toBeVisible();
   await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('234');
   await page.getByLabel('Menge', { exact: true }).first().fill('200');
-  await expect(summary.getByText('100 %')).toBeVisible();
+  await expect(summary.locator('output')).toHaveText('100 %');
   await expect(page.getByLabel('Menge', { exact: true }).nth(1)).toHaveValue(
     String(Math.round(before * 1.3)),
   );
