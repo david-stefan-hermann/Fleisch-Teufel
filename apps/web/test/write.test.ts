@@ -30,6 +30,7 @@ import {
   groupDraftFromAnalysis,
   groupEntries,
   groupName,
+  groupVersion,
   isGroupDirty,
   isGroupDraftStale,
   readGroupDraft,
@@ -659,6 +660,22 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     expect(await saveGroupDraft(d, { ...draftFromEntries(live, 'Große Bowl'), name: 'Bowl' })).toBe(true);
     live = await groupEntries(d, groupId, '2026-10-09');
     expect(live.every((e) => e.groupName === null)).toBe(true);
+  });
+
+  it('notices a deleted entry even when the remaining ones share the newest version', () => {
+    // Two ingredients logged in one transaction can carry the same updatedAt; deleting the newer
+    // one must still count as a change (the maximum alone would not move).
+    const same = [{ updatedAt: 1000 }, { updatedAt: 1000 }];
+    const draft = {
+      groupId: 'g',
+      date: '2026-10-09',
+      name: 'x',
+      items: [],
+      baseUpdatedAt: groupVersion(same),
+    };
+    expect(isGroupDraftStale(draft, same)).toBe(false);
+    expect(isGroupDraftStale(draft, same.slice(1))).toBe(true);
+    expect(isGroupDraftStale(draft, [...same, { updatedAt: 999 }])).toBe(true);
   });
 
   it('never brings back an ingredient another device deleted meanwhile, and notices the change', async () => {

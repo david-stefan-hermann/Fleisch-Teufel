@@ -34,13 +34,18 @@ export interface GroupDraft {
   items: GroupDraftItem[];
   /** Set by "Neu analysieren": the analysis the new ingredients come from. */
   aiAnalysisId?: string;
-  /** Newest `updatedAt` of the entries the draft started from (see `MealDraft.baseUpdatedAt`). */
+  /** `groupVersion` of the entries the draft started from (see `MealDraft.baseUpdatedAt`). */
   baseUpdatedAt?: number;
 }
 
-/** The version of a group: its newest entry version (any change to any entry bumps it). */
+/**
+ * The version of a group: the sum of its live entries' versions. Any change to any entry bumps it,
+ * and so does an entry leaving (deleted on another device) or joining, even when the remaining ones
+ * share the newest version (two ingredients logged in the same millisecond, the newer one deleted:
+ * the maximum would not move). Epoch milliseconds times a handful of entries stay exact in a double.
+ */
 export function groupVersion(entries: readonly Pick<FoodEntry, 'updatedAt'>[]): number {
-  return Math.max(0, ...entries.map((e) => e.updatedAt));
+  return entries.reduce((s, e) => s + e.updatedAt, 0);
 }
 
 /** Whether the group's entries changed since the draft was started (another device, or a pull). */
