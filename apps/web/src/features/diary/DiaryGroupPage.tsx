@@ -395,7 +395,7 @@ function DiaryGroupForm({
           title="Foto aufnehmen oder wählen"
           max={MAX_ANALYSIS_PHOTOS - photoCount}
           preset={IMAGE_PRESETS.analysis}
-          footerLabel={(n) => (n === 0 ? 'Übernehmen' : `Übernehmen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`)}
+          footerLabel={(n) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`)}
           hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt. Gespeichert wird mit „Änderungen übernehmen“.`}
           onSubmit={(blobs) => {
             setSheet(false);

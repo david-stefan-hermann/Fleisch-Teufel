@@ -32,7 +32,7 @@ test('register, log food, survive offline reload, sync to a second device', asyn
 
   // Log 60 g oats (348 kcal/100 g → 209 kcal).
   await addOats(page, '60');
-  await expect(page.getByRole('region', { name: 'Kalorien heute' })).toContainText('209');
+  await expect(page.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toContainText('209');
 
   // Service worker takes control, then the app must work fully offline.
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
@@ -48,7 +48,7 @@ test('register, log food, survive offline reload, sync to a second device', asyn
   await expect(page.getByText('Hafer Flocken')).toBeVisible();
   // Offline search (BLS on the device) and logging still work.
   await addOats(page, '40');
-  await expect(page.getByRole('region', { name: 'Kalorien heute' })).toContainText('348');
+  await expect(page.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toContainText('348');
 
   // Back online: the pending entry is pushed.
   await context.setOffline(false);
@@ -73,6 +73,6 @@ test('register, log food, survive offline reload, sync to a second device', asyn
   await phone2.getByLabel('E-Mail').fill(email);
   await phone2.getByLabel('Passwort').fill(password);
   await phone2.getByRole('button', { name: 'Anmelden' }).click();
-  await expect(phone2.getByRole('region', { name: 'Kalorien heute' })).toContainText('348');
+  await expect(phone2.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toContainText('348');
   await other.close();
 });

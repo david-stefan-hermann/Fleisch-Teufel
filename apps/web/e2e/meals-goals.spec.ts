@@ -99,7 +99,7 @@ test('day overview: "Nährstoffe" swaps the target bars for the nutrient overvie
   await register(page);
   await quickAdd(page, 0, 'Müsli', '350');
   await page.goto('/');
-  const overview = page.getByRole('region', { name: 'Kalorien heute' });
+  const overview = page.getByRole('region', { name: 'Kalorienübersicht des Tages' });
   const targetBars = overview.getByRole('meter', { name: 'Protein' });
   await expect(targetBars).toHaveCount(1);
   await expect(overview.getByText('Ballaststoffe')).toHaveCount(0);
@@ -957,7 +957,7 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
     const sheet = page.getByRole('dialog', { name: title });
     await expect(sheet).toBeVisible();
     await sheet.locator('input[type=file]').setInputFiles(file);
-    await sheet.getByRole('button', { name: 'Übernehmen (1 Foto)' }).click();
+    await sheet.getByRole('button', { name: 'Hinzufügen (1 Foto)' }).click();
     await expect(sheet).toHaveCount(0);
   }
 

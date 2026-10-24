@@ -138,8 +138,7 @@ test('saved trainings: manage under "Mehr", edit with explicit save, trash', asy
   await ask.getByRole('button', { name: 'Weiter bearbeiten' }).click();
   await save.click();
   await expect(page.getByText('„Intervalle“ gespeichert', { exact: true })).toBeVisible();
-  await expect(save).toBeDisabled();
-  await page.getByRole('button', { name: 'Zurück' }).click();
+  // Saving closes the editor (like the meal and food editors).
   await expect(page).toHaveURL(/\/trainings$/);
   await expect(page.getByRole('link', { name: /Intervalle/ })).toContainText('60 Min.');
 
@@ -197,8 +196,8 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
 }) => {
   await register(page);
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Hinzufügen', exact: true });
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Eintragen', exact: true });
   await expect(sheet.getByRole('button')).toHaveText([
     'Gewicht eintragen',
     'Essen eintragen',
@@ -213,7 +212,7 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
   await expect(page.getByRole('heading', { level: 1, name: 'Training eintragen' })).toBeVisible();
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await sheet.getByRole('button', { name: 'Essen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Essen eintragen');
@@ -245,8 +244,8 @@ test('add menu stays compact on a desktop screen', async ({ browser }) => {
   await register(page);
   await page.goto('/');
   // (exact: the meal cards have "Zu … hinzufügen" buttons as well)
-  await page.getByRole('button', { name: 'Hinzufügen', exact: true }).click();
-  const sheet = page.getByRole('dialog', { name: 'Hinzufügen', exact: true });
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Eintragen', exact: true });
   await expect(sheet).toBeVisible();
   const box = (await sheet.boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(460);
@@ -464,8 +463,8 @@ test('weight: measuring tape snaps to 0,05 kg, exact value with two decimals', a
   expect((await dialog.boundingBox())!.y).toBeLessThan(40);
   await expect(dialog.getByRole('button', { name: /kg (weniger|mehr)/ })).toHaveCount(0);
   await dialog.getByLabel('Genauer Wert').fill('84,5');
-  await dialog.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByText('84,5 kg gespeichert')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Eintragen' }).click();
+  await expect(page.getByText('84,5 kg eingetragen')).toBeVisible();
 
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
   const tape = dialog.getByRole('slider', { name: 'Gewicht in Kilogramm' });
@@ -495,12 +494,12 @@ test('weight: measuring tape snaps to 0,05 kg, exact value with two decimals', a
   await expect(dialog.locator('output')).toHaveText('84,37');
   await dialog.getByLabel('Genauer Wert').fill('500');
   await expect(dialog.getByText('Zwischen 20 und 400 kg.')).toBeVisible();
-  await expect(dialog.getByRole('button', { name: 'Speichern' })).toBeDisabled();
+  await expect(dialog.getByRole('button', { name: 'Eintragen' })).toBeDisabled();
   await dialog.getByLabel('Genauer Wert').fill('84,3');
   await dialog.getByLabel('Genauer Wert').blur();
   await expect(dialog.getByLabel('Genauer Wert')).toHaveValue('84,30');
-  await dialog.getByRole('button', { name: 'Speichern' }).click();
-  await expect(page.getByText('84,3 kg gespeichert')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Eintragen' }).click();
+  await expect(page.getByText('84,3 kg eingetragen')).toBeVisible();
 });
 
 test('dialog scrolls its middle part on a short screen, the buttons stay visible', async ({ page }) => {
@@ -509,7 +508,7 @@ test('dialog scrolls its middle part on a short screen, the buttons stay visible
   await page.goto('/progress');
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
-  const save = dialog.getByRole('button', { name: 'Speichern' });
+  const save = dialog.getByRole('button', { name: 'Eintragen' });
   const box = (await dialog.boundingBox())!;
   expect(box.y + box.height).toBeLessThanOrEqual(400);
   await expect(save).toBeInViewport();
@@ -526,7 +525,7 @@ test('weight entries delete by swipe only, with undo', async ({ page }) => {
   await page.getByRole('button', { name: 'Gewicht eintragen' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Gewicht eintragen' });
   await dialog.getByLabel('Genauer Wert').fill('84,5');
-  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await dialog.getByRole('button', { name: 'Eintragen' }).click();
   await expect(dialog).toHaveCount(0);
   const entries = page.locator('section', { has: page.getByRole('heading', { name: 'Einträge' }) });
   // No trash icon in the row any more; the delete button only appears after a swipe.

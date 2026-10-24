@@ -7,9 +7,11 @@ import { captureInstallPrompt, registerServiceWorker, requestPersistentStorage }
 import { router } from './app/router';
 import { SessionProvider } from './app/session';
 import { startAppearance, useAppearance } from './lib/appearance';
+import { installErrorLog } from './lib/errorLog';
 
 const TOAST_BOTTOM = 'calc(var(--tabbar-h) + var(--safe-bottom) + 12px)';
 
+installErrorLog();
 startAppearance();
 captureInstallPrompt();
 registerServiceWorker();

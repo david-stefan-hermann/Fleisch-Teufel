@@ -199,8 +199,8 @@ export function PhotoPage() {
     try {
       if (gone.current) return void leaveAnalysis(db, id);
       waiting.current = id;
-      // Stored: the preview is done, whatever the analysis brings (a second "Analysieren" would queue twice).
-      setShots([]);
+      // The preview stays (with its overlay and the hint) while the analysis runs; `analyzing`
+      // keeps its button inactive, so the photos cannot be queued a second time.
       await processQueue(db);
       // Left meanwhile (or handed over): never navigate from here any more.
       if (waiting.current !== id) return;
@@ -208,6 +208,8 @@ export function PhotoPage() {
       // Left during the read: the result goes to the diary by itself.
       if (waiting.current !== id || gone.current) return void leaveAnalysis(db, id);
       waiting.current = null;
+      // Stored and analysed: the preview is done, whatever the outcome.
+      setShots([]);
       if (item?.status === 'done' && !item.deferred) return setActiveId(id);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.

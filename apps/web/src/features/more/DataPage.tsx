@@ -1,6 +1,7 @@
 import { SYNC_TABLES, today } from '@ft/shared';
+import { useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Download, RefreshCw } from 'lucide-react';
+import { Copy, Download, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useSession } from '@/app/session';
@@ -8,9 +9,12 @@ import { requestPersistentStorage } from '@/app/pwa';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
+import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { countRejectedPhotos } from '@/db/photos';
 import { canShareFiles, shareOrDownloadText } from '@/features/reports/export';
-import { fmtAgo, fmt0, fmt1 } from '@/lib/format';
+import { clearErrorLog, errorLogText, useErrorLog } from '@/lib/errorLog';
+import { errorMessage } from '@/lib/api';
+import { fmtAgo, fmt0, fmt1, fmtTime, fmtDate } from '@/lib/format';
 
 export function DataPage() {
   const { db, sync } = useSession();
@@ -27,6 +31,25 @@ export function DataPage() {
     return out;
   }, [db]);
   const rejectedPhotos = useLiveQuery(() => countRejectedPhotos(db), [db]);
+  const errors = useErrorLog();
+  const restoreInput = useRef<HTMLInputElement>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  async function restore(file: File) {
+    setRestoring(true);
+    try {
+      const backup = parseBackup(await file.text());
+      const r = await restoreBackup(db, backup);
+      const invalid = Object.values(r.invalid).reduce((a, b) => a + b, 0);
+      toast.success(`${r.restored} Datensätze wiederhergestellt`, {
+        description: `${r.unchanged} waren schon aktuell${invalid ? `, ${invalid} passten nicht zu dieser App-Version` : ''}. Sie werden mit dem nächsten Abgleich hochgeladen.`,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error && !(e instanceof TypeError) ? e.message : errorMessage(e));
+    } finally {
+      setRestoring(false);
+    }
+  }
   const rejected = useLiveQuery(
     async () =>
       ((await db.kv.get('sync.rejected'))?.value as
@@ -167,12 +190,7 @@ export function DataPage() {
           <Button
             variant="outline"
             onClick={async () => {
-              const dump: Record<string, unknown> = {
-                app: 'fleisch-teufel',
-                exportedAt: new Date().toISOString(),
-                version: __APP_VERSION__,
-              };
-              for (const t of SYNC_TABLES) dump[t] = await db.syncTable(t).toArray();
+              const dump = await createBackup(db, __APP_VERSION__);
               await shareOrDownloadText(
                 `fleisch-teufel_backup_${today()}.json`,
                 JSON.stringify(dump, null, 1),
@@ -182,6 +200,67 @@ export function DataPage() {
           >
             <Download aria-hidden /> JSON-Sicherung {canShareFiles() ? 'teilen' : 'herunterladen'}
           </Button>
+          <input
+            ref={restoreInput}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) void restore(file);
+            }}
+          />
+          <Button variant="ghost" disabled={restoring} onClick={() => restoreInput.current?.click()}>
+            <Upload aria-hidden /> Aus JSON-Sicherung wiederherstellen
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Spielt nur Datensätze ein, die neuer sind als die auf diesem Gerät; nichts wird gelöscht. Fotos
+            sind nicht Teil der Sicherung.
+          </p>
+        </div>
+      </Section>
+      <Section title="Fehlerprotokoll">
+        <div className="grid gap-2 px-4 pb-4 text-sm">
+          {errors.length === 0 ? (
+            <p className="text-muted-foreground">Keine Fehler aufgezeichnet.</p>
+          ) : (
+            <>
+              <ul className="grid max-h-60 gap-2 overflow-y-auto text-xs">
+                {errors.map((e) => (
+                  <li key={e.at} className="break-words">
+                    <span className="text-muted-foreground">
+                      {fmtDate(new Date(e.at).toISOString().slice(0, 10))} {fmtTime(e.at)} · {e.source}
+                    </span>
+                    <br />
+                    {e.message}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    void navigator.clipboard?.writeText(errorLogText(errors)).then(
+                      () => toast.success('Protokoll kopiert'),
+                      () => toast.error('Kopieren nicht möglich'),
+                    )
+                  }
+                >
+                  <Copy aria-hidden /> Kopieren
+                </Button>
+                <Button variant="ghost" size="sm" onClick={clearErrorLog}>
+                  Protokoll leeren
+                </Button>
+              </div>
+            </>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Unerwartete Fehler dieser App auf diesem Gerät, für die Fehlersuche. Nichts wird gesendet.
+          </p>
         </div>
       </Section>
     </Page>

@@ -46,6 +46,7 @@ import {
   readClipboard,
 } from '@/db/clipboard';
 import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
+import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { saveDayNote } from '@/db/notes';
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
@@ -1026,5 +1027,36 @@ describe('settings, notes and onboarding writes', () => {
     // A different weight is a real measurement.
     await saveOnboarding(d, { base, profile, weightKg: 68.5, target, today: '2026-10-23' });
     expect(await d.weightEntries.get(dayId.weight('2026-10-23'))).toMatchObject({ kg: 68.5 });
+  });
+});
+
+describe('JSON backup', () => {
+  it('restores records that are newer than the device has, skips the rest and invalid ones', async () => {
+    const a = db();
+    const w = await saveRecord(a, 'weightEntries', {
+      id: dayId.weight('2026-10-07'),
+      date: '2026-10-07',
+      kg: 80,
+    });
+    const n = await saveRecord(a, 'dayNotes', {
+      id: dayId.note('2026-10-07'),
+      date: '2026-10-07',
+      note: 'alt',
+      completedAt: null,
+    });
+    const backup = parseBackup(JSON.stringify(await createBackup(a, 'test')));
+    expect(backup.weightEntries).toHaveLength(1);
+    // Later: the note changed on the device, the weight was lost (new device).
+    await patchRecord(a, 'dayNotes', n.id, { note: 'neu' });
+    const b = db();
+    await saveRecord(b, 'dayNotes', { id: n.id, date: '2026-10-07', note: 'neu', completedAt: null });
+    (backup.customFoods as unknown[]).push({ id: 'x', updatedAt: 1, deleted: false, name: 7 });
+    const r = await restoreBackup(b, backup);
+    expect(r).toEqual({ restored: 1, unchanged: 1, invalid: { customFoods: 1 } });
+    expect(await b.weightEntries.get(w.id)).toMatchObject({ kg: 80 });
+    expect((await b.weightEntries.get(w.id))!.updatedAt).toBeGreaterThan(w.updatedAt);
+    expect(await b.dayNotes.get(n.id)).toMatchObject({ note: 'neu' });
+    expect(await b.outbox.count()).toBe(2);
+    expect(() => parseBackup('{"app":"other"}')).toThrow();
   });
 });
