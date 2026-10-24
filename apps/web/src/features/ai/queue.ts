@@ -215,7 +215,8 @@ async function runQueue(db: UserDb): Promise<void> {
     const item = (await db.aiQueue.toArray()).find((i) => i.status === 'pending');
     if (!item) break;
     const photos = await loadQueuePhotos(db, item);
-    if (photos.length === 0) {
+    // A described meal has no photos on purpose; anything else without them cannot be analysed.
+    if (photos.length === 0 && !(item.textOnly && item.text.trim())) {
       await db.aiQueue.update(item.localId!, { status: 'failed', error: 'Foto nicht mehr vorhanden' });
       continue;
     }
@@ -316,6 +317,23 @@ export async function enqueuePhotos(
     await db.aiPhotos.bulkAdd(rows.map((r) => ({ ...r, localId })));
     return localId;
   });
+}
+
+/**
+ * Queues a meal described in words (no photo) for analysis; returns the new item's `localId`. The
+ * description is the item's `text`: the review shows and edits it like the hint of a photo.
+ */
+export async function enqueueDescription(
+  db: UserDb,
+  item: Pick<AiQueueItem, 'date' | 'meal' | 'text'>,
+): Promise<number> {
+  return (await db.aiQueue.add({
+    ...item,
+    text: item.text.trim(),
+    textOnly: true,
+    status: 'pending',
+    createdAt: Date.now(),
+  })) as number;
 }
 
 /**

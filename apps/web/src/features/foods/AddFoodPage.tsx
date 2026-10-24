@@ -22,6 +22,7 @@ import {
   filterOwn,
   getFood,
   mergeOnline,
+  ownBarcodes,
   recentAndFrequent,
   rowAmount,
   searchLocal,
@@ -157,8 +158,9 @@ export function AddFoodPage() {
   // Until the answer for the current query is there (debounce included), the online search loads.
   const onlineState = q.length < 3 ? null : online?.q === q ? online.state : 'loading';
   const rows = useMemo(
-    () => (local ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage) : null),
-    [local, onlineFoods, q, history],
+    () =>
+      local ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage, ownBarcodes(custom ?? [])) : null,
+    [local, onlineFoods, q, history, custom],
   );
   const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
 

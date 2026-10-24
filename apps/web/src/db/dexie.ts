@@ -69,6 +69,11 @@ export interface AiQueueItem {
    * it (marked "Neu" until ↻). Missing on items from older app versions: then all count as analysed.
    */
   analyzedPhotoIds?: number[];
+  /**
+   * "Beschreiben statt fotografieren": the meal was described in `text`, there are no photos (unless
+   * some were added in the review later). Analysed with the same call, without images.
+   */
+  textOnly?: boolean;
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */

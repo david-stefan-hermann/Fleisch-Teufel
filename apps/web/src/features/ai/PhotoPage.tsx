@@ -16,6 +16,7 @@ import {
   Camera,
   Check,
   Images,
+  Keyboard,
   LoaderCircle,
   Plus,
   RotateCcw,
@@ -63,6 +64,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Textarea } from '@/components/ui/textarea';
 import {
   currentDraft,
   draftChanged,
@@ -70,24 +72,27 @@ import {
   patchRow,
   rowGrams,
   scaleDraft,
+  userRow,
   type RowGrams,
 } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
 import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
-import { rememberFood, userPortions } from '@/foods/foodService';
+import { getFood, recentAndFrequent, rememberFood, userPortions, type FoodUsage } from '@/foods/foodService';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { useGoals, useSettings } from '@/hooks/data';
+import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion, SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
 import { endpoints, errorMessage } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
 import { rememberIntoStart } from '@/lib/into';
 import { cn } from '@/lib/utils';
+import { FAT_OPTIONS, isFatFood, type FatOption } from './fatSuggestion';
 import { compressImage, IMAGE_PRESETS } from './image';
 import {
   addQueuePhotos,
   discardQueueItem,
+  enqueueDescription,
   enqueuePhotos,
   leaveAnalysis,
   loadQueueImages,
@@ -108,7 +113,15 @@ interface Shot {
 }
 
 /** Hints people type most; a tap appends one to the hint field. */
-const HINT_CHIPS = ['halbe Portion', 'mit Öl gebraten', 'ohne Soße', 'große Portion', 'Light-Variante'];
+const HINT_CHIPS = [
+  'halbe Portion',
+  'mit Öl gebraten',
+  'ohne Öl',
+  'ohne Soße',
+  'Restaurantportion',
+  'große Portion',
+  'Light-Variante',
+];
 
 const addLabel = (n: number) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
 
@@ -136,6 +149,8 @@ export function PhotoPage() {
   const nextShot = useRef(1);
   const [analyzing, setAnalyzing] = useState(false);
   const [adding, setAdding] = useState(false);
+  // "Beschreiben statt fotografieren": the camera makes way for a text field.
+  const [describing, setDescribing] = useState(false);
   // The queue item the preview waits for, and whether the page was left meanwhile. Both are read
   // after awaits, where the component may be gone (state would be stale there).
   const waiting = useRef<number | null>(null);
@@ -184,16 +199,33 @@ export function PhotoPage() {
     setShots((s) => [...s, ...added].slice(0, MAX_ANALYSIS_PHOTOS));
   }
 
+  /** Queues the preview photos with the hint and waits for the result. */
   async function analyze(text: string) {
     if (analyzing || shots.length === 0) return;
-    setAnalyzing(true);
-    let id: number;
-    try {
-      id = await enqueuePhotos(
+    await follow(() =>
+      enqueuePhotos(
         db,
         { date, meal, text },
         shots.map((s) => s.blob),
-      );
+      ),
+    );
+  }
+
+  /** "Beschreiben": queues the description (no photo) and waits for the result. */
+  async function describeMeal(text: string) {
+    if (analyzing || !text.trim()) return;
+    await follow(() => enqueueDescription(db, { date, meal, text }));
+  }
+
+  /**
+   * Queues an analysis and waits for it while the person stays here: a finished one opens its review,
+   * an offline one goes to the diary as a placeholder, a failed one says so.
+   */
+  async function follow(enqueue: () => Promise<number>) {
+    setAnalyzing(true);
+    let id: number;
+    try {
+      id = await enqueue();
     } catch (e) {
       // Only storing can fail here; the analysis itself reports through the queue item.
       toast.error(errorMessage(e));
@@ -214,11 +246,14 @@ export function PhotoPage() {
       waiting.current = null;
       // Stored and analysed: the preview is done, whatever the outcome.
       setShots([]);
+      setDescribing(false);
       if (item?.status === 'done' && !item.deferred) return setActiveId(id);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.
         toast(
-          'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
+          item?.textOnly
+            ? 'Offline gespeichert. Die Beschreibung steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.'
+            : 'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
         );
         return void navigate({ to: '/', search: { date }, replace: true });
       }
@@ -244,6 +279,7 @@ export function PhotoPage() {
 
   const mealName = settings?.mealNames[meal];
   const preview = shots.length > 0;
+  const describe = describing && !preview;
   return (
     <Page
       title={
@@ -254,8 +290,16 @@ export function PhotoPage() {
       }
       back
       // In the preview, back drops the photos and returns to the camera; during the analysis it
-      // leaves for the diary.
-      onBack={analyzing ? leaveToDiary : preview ? () => setShots([]) : undefined}
+      // leaves for the diary; the describe form goes back to the camera.
+      onBack={
+        analyzing
+          ? leaveToDiary
+          : preview
+            ? () => setShots([])
+            : describe
+              ? () => setDescribing(false)
+              : undefined
+      }
       withTabBar={false}
       actions={
         <>
@@ -265,6 +309,18 @@ export function PhotoPage() {
               <Zap aria-hidden />
             </Link>
           </Button>
+          {!preview && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Beschreiben statt fotografieren"
+              aria-pressed={describe}
+              disabled={analyzing}
+              onClick={() => setDescribing((d) => !d)}
+            >
+              <Keyboard aria-hidden />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" asChild>
             {/* Replaces the page: switching between food page and search never piles up history. */}
             <Link to="/add" search={{ date, meal }} replace aria-label="Lebensmittel suchen">
@@ -274,8 +330,13 @@ export function PhotoPage() {
         </>
       }
       footer={
-        preview ? (
-          <Button size="lg" form="photo-preview" type="submit" disabled={analyzing || adding}>
+        preview || describe ? (
+          <Button
+            size="lg"
+            form={preview ? 'photo-preview' : 'describe-meal'}
+            type="submit"
+            disabled={analyzing || adding}
+          >
             {analyzing ? (
               <>
                 <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden /> Wird
@@ -299,6 +360,8 @@ export function PhotoPage() {
           onRemove={(id) => setShots((s) => s.filter((x) => x.id !== id))}
           onAnalyze={(text) => void analyze(text)}
         />
+      ) : describe ? (
+        <DescribeForm busy={analyzing} onAnalyze={(text) => void describeMeal(text)} />
       ) : (
         <>
           {aiEnabled === false && (
@@ -430,6 +493,53 @@ function PhotoPreview({
           }}
           onClose={() => setSheet(false)}
         />
+      )}
+    </form>
+  );
+}
+
+/**
+ * "Beschreiben statt fotografieren": the meal in words (restaurant, canteen, logging later), analysed
+ * with the same call as a photo and reviewed the same way. The camera is off meanwhile.
+ */
+function DescribeForm({ busy, onAnalyze }: { busy: boolean; onAnalyze: (text: string) => void }) {
+  const [text, setText] = useState('');
+  return (
+    <form
+      id="describe-meal"
+      className="grid gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (text.trim()) onAnalyze(text);
+      }}
+    >
+      <div className="grid gap-1.5">
+        <Label htmlFor="describe-text">Was hast du gegessen?</Label>
+        <Textarea
+          id="describe-text"
+          value={text}
+          disabled={busy}
+          maxLength={1000}
+          rows={4}
+          autoFocus
+          enterKeyHint="done"
+          onChange={(e) => setText(e.target.value)}
+          placeholder="z. B. „Döner mit allem, kleine Pommes, Cola 0,33 l“ oder „2 Scheiben Vollkornbrot mit Butter und Gouda, ein Apfel“"
+          aria-describedby="describe-hint"
+        />
+        <p id="describe-hint" className="text-xs text-muted-foreground text-pretty">
+          {busy
+            ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
+            : 'Mengen helfen („200 g“, „halbe Portion“, „Restaurantportion“); ohne Angabe nimmt die KI übliche Portionen. Danach prüfst du die Zutaten wie bei einem Foto.'}
+        </p>
+      </div>
+      {busy && (
+        <div className="relative h-28 overflow-hidden rounded-2xl border border-border/70 bg-muted">
+          <AnalyzingOverlay
+            title="Analysiere Beschreibung…"
+            steps={['Lese die Beschreibung', 'Suche die Lebensmittel', 'Schätze die Mengen']}
+          />
+        </div>
       )}
     </form>
   );
@@ -731,6 +841,17 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     .filter((x) => x !== null);
   const totals = sumNutrients(resolved.map((r) => r.nutrients));
   const targets = targetsForDate(goals ?? [], item.date);
+  // "N× gegessen" next to the candidates: a food logged before is the safer pick.
+  const today = useToday();
+  const usage = useLiveQuery(async () => (await recentAndFrequent(db, today)).usage, [db, today]);
+  // Fat is what photo estimates miss most: offer oil and butter while no ingredient is a fat.
+  const fatMissing = resolved.length > 0 && !resolved.some((r) => isFatFood(r.food));
+
+  async function addFat(opt: FatOption) {
+    const food = await getFood(db, opt.foodId);
+    if (!food) return void toast.error('Das Lebensmittel ist auf diesem Gerät nicht verfügbar.');
+    commitRows({ ...draft, rows: [...rows, userRow(opt.name, food, opt.grams)] });
+  }
 
   /** Opens the food search: for a row ("Selbst suchen", its food gets replaced) or for a new ingredient. */
   async function searchIngredient(row?: AiDraftRow) {
@@ -910,7 +1031,9 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
           </EmptyState>
         )}
         <div className="mb-4 grid gap-1.5">
-          <Label htmlFor="review-hint">Hinweis für die Analyse</Label>
+          <Label htmlFor="review-hint">
+            {item.textOnly ? 'Beschreibung der Mahlzeit' : 'Hinweis für die Analyse'}
+          </Label>
           <Input
             id="review-hint"
             value={hint}
@@ -933,12 +1056,34 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             key={r.key}
             row={r}
             targets={targets}
+            usage={usage}
             onPreview={(patch) => preview(r.key, patch)}
             onChange={(patch) => update(r.key, patch)}
             onRemove={() => commitRows({ ...draft, rows: rows.filter((x) => x.key !== r.key) })}
             onSearch={() => void searchIngredient(r)}
           />
         ))}
+        {fatMissing && (
+          <div
+            className="mb-3 flex flex-wrap items-center gap-2 px-1 text-sm text-muted-foreground"
+            role="group"
+            aria-label="Bratfett ergänzen"
+          >
+            <span>Kein Bratfett dabei?</span>
+            {FAT_OPTIONS.map((opt) => (
+              <Button
+                key={opt.foodId}
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-8 rounded-full"
+                onClick={() => void addFat(opt)}
+              >
+                <Plus aria-hidden /> {opt.label}
+              </Button>
+            ))}
+          </div>
+        )}
         <Button variant="outline" className="mb-4 w-full" onClick={() => void searchIngredient()}>
           <Plus aria-hidden /> Zutat hinzufügen
         </Button>
@@ -1048,6 +1193,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
 function ReviewRow({
   row: r,
   targets,
+  usage,
   onPreview,
   onChange,
   onRemove,
@@ -1055,6 +1201,8 @@ function ReviewRow({
 }: {
   row: AiDraftRow;
   targets: ResolvedTargets;
+  /** How often each food was logged (candidates say "3× gegessen"). */
+  usage: FoodUsage | undefined;
   onPreview: (patch: Partial<AiDraftRow>) => void;
   onChange: (patch: Partial<AiDraftRow>) => void;
   onRemove: () => void;
@@ -1077,6 +1225,10 @@ function ReviewRow({
     portion: isBasePortion(a.portion) ? null : a.portion,
     grams: a.quantity === null ? null : Math.round(a.quantity * a.portion.grams * 100) / 100,
   });
+  const eaten = (id: string) => {
+    const n = usage?.get(id)?.count ?? 0;
+    return n > 0 ? ` · ${fmt0(n)}× gegessen` : '';
+  };
   return (
     <Section>
       <div className="grid grid-cols-[minmax(0,1fr)] gap-3 p-4">
@@ -1116,6 +1268,7 @@ function ReviewRow({
                   <SelectItem key={c.id} value={c.id}>
                     {c.name}
                     {c.brand ? ` (${c.brand})` : ''} · {fmt0(get(c.nutrients, N.kcal))} kcal/100 g
+                    {eaten(c.id)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1133,7 +1286,7 @@ function ReviewRow({
           <p className="text-sm text-muted-foreground">
             {r.candidates[0]!.name}
             {r.candidates[0]!.brand ? ` (${r.candidates[0]!.brand})` : ''} ·{' '}
-            {fmt0(get(r.candidates[0]!.nutrients, N.kcal))} kcal/100 g
+            {fmt0(get(r.candidates[0]!.nutrients, N.kcal))} kcal/100 g{eaten(r.candidates[0]!.id)}
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">

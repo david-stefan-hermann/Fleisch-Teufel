@@ -41,7 +41,7 @@ import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
-import { parseInto, returnFromInto, type Into } from '@/lib/into';
+import { formatInto, parseInto, returnFromInto, type Into } from '@/lib/into';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
@@ -350,8 +350,21 @@ function FoodLogEditor({
         </Button>
       }
       actions={
-        food.source === 'custom' || entry ? (
+        food.source === 'custom' || food.source === 'off' || entry ? (
           <>
+            {/* A database product with wrong values: an own copy takes its place (scan and search prefer it). */}
+            {food.source === 'off' && food.id && !entry && (
+              <Button variant="ghost" size="icon" asChild>
+                <Link
+                  to="/custom-food/$id"
+                  params={{ id: 'new' }}
+                  search={{ copy: food.id, date, meal, ...(into ? { into: formatInto(into) } : {}) }}
+                  aria-label="Werte korrigieren"
+                >
+                  <Pencil aria-hidden />
+                </Link>
+              </Button>
+            )}
             {food.source === 'custom' && food.id && (
               <Button variant="ghost" size="icon" asChild>
                 {/* Edits the food, not the entry; the unsaved form state survives the way there and back. */}

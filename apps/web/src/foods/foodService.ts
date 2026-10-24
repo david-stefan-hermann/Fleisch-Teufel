@@ -68,6 +68,26 @@ export async function rememberFood(db: UserDb, food: Food): Promise<void> {
   await db.foodCache.put(cached);
 }
 
+/** Barcodes (EAN-13 and the UPC-A form) of the person's own foods that have one. */
+export function ownBarcodes(custom: readonly Pick<CustomFood, 'barcode' | 'deleted'>[]): Set<string> {
+  const out = new Set<string>();
+  for (const c of custom) {
+    if (c.deleted || !c.barcode) continue;
+    out.add(c.barcode);
+    if (c.barcode.length === 13 && c.barcode.startsWith('0')) out.add(c.barcode.slice(1));
+    if (c.barcode.length === 12) out.add(`0${c.barcode}`);
+  }
+  return out;
+}
+
+/** An Open Food Facts product whose barcode one of the person's own foods carries (its corrected copy). */
+export function shadowedByOwn(
+  food: Pick<Food, 'source' | 'sourceId'>,
+  corrected: ReadonlySet<string>,
+): boolean {
+  return food.source === 'off' && !!food.sourceId && corrected.has(food.sourceId);
+}
+
 /** How often (and when last) each food was logged, from `recentAndFrequent`. */
 export type FoodUsage = Map<string, { count: number; lastLoggedAt: number; last?: FoodEntry }>;
 
@@ -151,7 +171,12 @@ export async function searchLocal(
     db.foodCache.where('id').startsWith('off:').toArray(),
     opts.meals ? db.meals.filter((m) => !m.deleted).toArray() : Promise.resolve([] as Meal[]),
   ]);
-  const own = ownIndexes([...custom.map(customToFood), ...cached], meals);
+  // An own copy of a database product ("Werte korrigieren", same barcode) replaces it in the results.
+  const corrected = ownBarcodes(custom);
+  const own = ownIndexes(
+    [...custom.map(customToFood), ...cached.filter((f) => !shadowedByOwn(f, corrected))],
+    meals,
+  );
   const boost = (f: Food) => (f.source === 'custom' ? OWN_BOOST : CACHED_BOOST) + usageBoost(usage, f.id);
   const foodHits = [
     ...search(own.foods, query, limit, boost),
@@ -185,9 +210,11 @@ export function mergeOnline(
   online: Food[],
   query: string,
   usage?: FoodUsage,
+  /** Barcodes of the person's own foods: products with one of them stay out (the own copy is in `rows`). */
+  corrected: ReadonlySet<string> = new Set(),
 ): SearchRow[] {
   const ids = new Set(rows.map((r) => r.id));
-  const fresh = online.filter((f) => !ids.has(f.id));
+  const fresh = online.filter((f) => !ids.has(f.id) && !shadowedByOwn(f, corrected));
   if (fresh.length === 0) return rows;
   const ranked = search(fresh.map(indexItem), query, fresh.length, (f) => usageBoost(usage, f.id));
   const matched = new Set(ranked.map((h) => h.item.id));

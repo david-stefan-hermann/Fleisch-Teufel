@@ -159,10 +159,13 @@ export const routes = {
       from?: 'food';
       /** '1': open the label camera right away (scan page, unknown product). */
       label?: '1';
+      /** Food id (Open Food Facts) whose values prefill a new own food ("Werte korrigieren"). */
+      copy?: string;
     } =>
       clean({
         from: s.from === 'food' ? ('food' as const) : undefined,
         label: s.label === '1' || s.label === 1 ? ('1' as const) : undefined,
+        copy: strParam(s.copy),
         into: intoParam(s.into),
         barcode: digitsParam(s.barcode),
         name: strParam(s.name),

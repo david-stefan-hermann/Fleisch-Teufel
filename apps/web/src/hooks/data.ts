@@ -1,4 +1,5 @@
 import {
+  addDays as addDaysOf,
   SETTINGS_ID,
   summarizeDay,
   today as todayOf,
@@ -17,6 +18,7 @@ import { useDb } from '@/app/session';
 import { readClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
 import { DEFAULT_SETTINGS } from '@/db/settings';
+import { mealSuggestions, type MealSuggestion } from '@/db/suggestions';
 
 export { DEFAULT_SETTINGS };
 
@@ -150,6 +152,28 @@ export function useMealInfo(
     const list = key ? await db.meals.bulkGet(key.split(',')) : [];
     return new Map(list.filter((m) => !!m).map((m) => [m.id, { name: m.name, photoId: m.photoId ?? null }]));
   }, [db, key]);
+}
+
+/**
+ * "Zuletzt hier" of a diary meal: what this meal usually gets (`db/suggestions.ts`), and the kcal of
+ * the same meal yesterday (for "Wie gestern"; 0 when nothing was logged). Undefined while loading.
+ */
+export function useMealSuggestions(
+  date: ISODate,
+  meal: number,
+): { suggestions: MealSuggestion[]; yesterdayKcal: number } | undefined {
+  const db = useDb();
+  return useLiveQuery(async () => {
+    const yesterday = await db.foodEntries
+      .where('[date+meal]')
+      .equals([addDaysOf(date, -1), meal])
+      .filter((e) => !e.deleted)
+      .toArray();
+    return {
+      suggestions: await mealSuggestions(db, date, meal),
+      yesterdayKcal: yesterday.reduce((s, e) => s + (e.nutrients.ENERCC ?? 0), 0),
+    };
+  }, [db, date, meal]);
 }
 
 /** The diary clipboard on this device (`db/clipboard.ts`); null when empty, undefined while loading. */

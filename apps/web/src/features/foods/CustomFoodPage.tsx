@@ -1,4 +1,11 @@
-import { targetsForDate, uuidv7, type AiLabelResult, type CustomFood, type Portion } from '@ft/shared';
+import {
+  targetsForDate,
+  uuidv7,
+  type AiLabelResult,
+  type CustomFood,
+  type Food,
+  type Portion,
+} from '@ft/shared';
 import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, ScanBarcode, ScanText, Sparkles, Trash2, X } from 'lucide-react';
@@ -15,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { getFood } from '@/foods/foodService';
 import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAiStatus } from '@/hooks/useAiStatus';
@@ -35,17 +43,23 @@ const FLASH_MS = 1200;
 
 export function CustomFoodPage() {
   const { id } = useParams({ from: '/authed/custom-food/$id' });
+  const { copy } = useSearch({ from: '/authed/custom-food/$id' });
   const db = useDb();
   const isNew = id === 'new';
   const existing = useLiveQuery(
     async () => (isNew ? null : ((await db.customFoods.get(id)) ?? null)),
     [db, id, isNew],
   );
-  if (existing === undefined) return null;
-  return <CustomFoodForm key={existing?.id ?? 'new'} existing={existing} />;
+  // "Werte korrigieren" of a database product: its values prefill the new own food.
+  const template = useLiveQuery(
+    async () => (isNew && copy ? await getFood(db, copy, { enrich: false }) : null),
+    [db, isNew, copy],
+  );
+  if (existing === undefined || template === undefined) return null;
+  return <CustomFoodForm key={existing?.id ?? 'new'} existing={existing} template={template} />;
 }
 
-function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
+function CustomFoodForm({ existing, template }: { existing: CustomFood | null; template: Food | null }) {
   const search = useSearch({ from: '/authed/custom-food/$id' });
   const db = useDb();
   const navigate = useNavigate();
@@ -54,14 +68,18 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
   const today = useToday();
   const isNew = existing === null;
   const toList = () => void navigate({ to: '/custom-foods', replace: true });
-  const [name, setName] = useState(existing?.name ?? search.name ?? '');
-  const [brand, setBrand] = useState(existing?.brand ?? '');
-  const [barcode, setBarcode] = useState(existing?.barcode ?? search.barcode ?? '');
-  const [unit, setUnit] = useState<'g' | 'ml'>(existing?.unit ?? 'g');
+  const [name, setName] = useState(existing?.name ?? template?.name ?? search.name ?? '');
+  const [brand, setBrand] = useState(existing?.brand ?? template?.brand ?? '');
+  const [barcode, setBarcode] = useState(
+    existing?.barcode ?? (template?.source === 'off' ? template.sourceId : null) ?? search.barcode ?? '',
+  );
+  const [unit, setUnit] = useState<'g' | 'ml'>(existing?.unit ?? template?.unit ?? 'g');
   const [mode, setMode] = useState<'per100' | 'perPortion'>('per100');
   const [servingGrams, setServingGrams] = useState<number | null>(null);
-  const [nutrients, setNutrients] = useState(() => initFromFood(existing?.nutrients ?? null));
-  const [portions, setPortions] = useState<Portion[]>(existing?.portions ?? []);
+  const [nutrients, setNutrients] = useState(() =>
+    initFromFood(existing?.nutrients ?? template?.nutrients ?? null),
+  );
+  const [portions, setPortions] = useState<Portion[]>(existing?.portions ?? template?.portions ?? []);
   const [newPortion, setNewPortion] = useState<{ label: string; grams: number | null }>({
     label: '',
     grams: null,
@@ -201,9 +219,18 @@ function CustomFoodForm({ existing }: { existing: CustomFood | null }) {
           void run(save);
         }}
       >
+        {template && (
+          <p className="mb-4 flex gap-2 rounded-xl bg-muted p-3 text-sm text-pretty">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span>
+              Kopie von Open Food Facts. Korrigiere die Werte (oder lies sie vom Etikett ab); beim Scannen und
+              Suchen gilt danach dein Lebensmittel statt des Datenbank-Eintrags.
+            </span>
+          </p>
+        )}
         {ai !== 'loading' && ai !== 'off' && (
           <LabelEntry
-            compact={!isNew || filledFromLabel}
+            compact={!isNew || filledFromLabel || template !== null}
             offline={ai === 'offline'}
             onOpen={() => setLabelOpen(true)}
           />

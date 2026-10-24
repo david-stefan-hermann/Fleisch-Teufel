@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Keyboard, LoaderCircle, PackageSearch, ScanText } from 'lucide-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
+import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
 import { Page } from '@/components/Page';
@@ -30,18 +31,22 @@ export function ScanPage() {
   const navigate = useNavigate();
   const ai = useAiStatus();
   /** New custom food with the scanned code; `label`: open the label camera right away. */
-  const create = (code: string, label: boolean) =>
-    void navigate({
-      to: '/custom-food/$id',
-      params: { id: 'new' },
-      search: {
-        barcode: code,
-        date,
-        meal,
-        ...(into ? { into } : {}),
-        ...(label ? { label: '1' as const } : {}),
-      },
-    });
+  const create = useCallback(
+    (code: string, label: boolean, replace = false) =>
+      void navigate({
+        to: '/custom-food/$id',
+        params: { id: 'new' },
+        search: {
+          barcode: code,
+          date,
+          meal,
+          ...(into ? { into } : {}),
+          ...(label ? { label: '1' as const } : {}),
+        },
+        replace,
+      }),
+    [navigate, date, meal, into],
+  );
   const db = useDb();
   const [state, setState] = useState<State>(
     initialCode ? { kind: 'looking', code: initialCode } : { kind: 'scanning' },
@@ -67,11 +72,17 @@ export function ScanPage() {
           search: { date, meal, ...(into ? { into } : {}) },
           replace: true,
         });
-      else if (r.status === 'not_found') setState({ kind: 'notfound', code });
-      else if (r.status === 'offline') setState({ kind: 'offline', code });
+      else if (r.status === 'not_found') {
+        // Unknown product and the AI is there: straight on to the label camera (the editor opens with the
+        // code filled in; closing the camera leaves the empty form). Without AI the panel below offers the editor.
+        if (ai === 'on') {
+          toast(`Produkt ${code} ist unbekannt. Fotografiere das Etikett.`);
+          create(code, true, true);
+        } else setState({ kind: 'notfound', code });
+      } else if (r.status === 'offline') setState({ kind: 'offline', code });
       else setState({ kind: 'error', code });
     },
-    [navigate, date, meal, into],
+    [navigate, date, meal, into, ai, create],
   );
   // State changes only happen once the lookup resolves (keeps the effect below free of sync setState).
   const lookup = useCallback(

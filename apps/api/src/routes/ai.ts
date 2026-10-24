@@ -180,11 +180,12 @@ export function aiRoutes(deps: Deps) {
       } catch {
         return c.json({ error: 'expected_multipart' }, 400);
       }
-      // One meal, one to MAX_ANALYSIS_PHOTOS photos (field `image` repeated, like the label reading).
+      // One meal, one to MAX_ANALYSIS_PHOTOS photos (field `image` repeated, like the label reading), or
+      // none and a description in `text` ("Beschreiben statt fotografieren").
       const images = form.getAll('image');
       const text = typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, 1000) : null;
-      if (images.length === 0 || !images.every((i) => i instanceof File))
-        return c.json({ error: 'image_missing' }, 400);
+      if (!images.every((i) => i instanceof File)) return c.json({ error: 'image_missing' }, 400);
+      if (images.length === 0 && !text?.trim()) return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_ANALYSIS_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
       const files = images as File[];
       if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);

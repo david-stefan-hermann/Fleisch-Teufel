@@ -427,6 +427,22 @@ describe('POST /api/ai/analyze', () => {
     expect(row!.result.photos).toBe(3);
   });
 
+  it('analyzes a meal described in words, without any photo', async () => {
+    const form = new FormData();
+    form.set('text', 'Döner mit allem, kleine Pommes, Cola 0,33 l');
+    const r = await c.req('POST', '/api/ai/analyze', form);
+    expect(r.status).toBe(200);
+    expect(received.at(-1)).toEqual({ images: [], text: 'Döner mit allem, kleine Pommes, Cola 0,33 l' });
+    const [row] = await ctx.db
+      .$client`select result, user_text from ai_analyses where id = ${r.json.analysisId}`;
+    expect(row!.result.photos).toBe(0);
+    expect(row!.user_text).toBe('Döner mit allem, kleine Pommes, Cola 0,33 l');
+    // Neither a photo nor a description is nothing to analyse.
+    const blank = new FormData();
+    blank.set('text', '   ');
+    expect((await c.req('POST', '/api/ai/analyze', blank)).status).toBe(400);
+  });
+
   it('refuses more photos than one analysis takes, and an oversized one among them', async () => {
     const calls = received.length;
     const tooMany = await c.req(

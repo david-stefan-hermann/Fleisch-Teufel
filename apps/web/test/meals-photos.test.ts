@@ -36,6 +36,7 @@ import {
 import {
   discardQueueItem,
   addQueuePhotos,
+  enqueueDescription,
   enqueuePhotos,
   leaveAnalysis,
   loadQueueImages,
@@ -756,6 +757,35 @@ describe('AI review: re-analyze with the hint', () => {
     expect(fetchFn).not.toHaveBeenCalled();
     expect(await d.aiQueue.get(bad)).toBeUndefined();
     expect(await d.foodEntries.count()).toBe(2);
+  });
+
+  it('analyses a described meal without photos and logs it when the person left', async () => {
+    const d = db();
+    const { images, hints } = server(analysis('Doener', 350));
+    const id = await enqueueDescription(d, { date: '2026-10-07', meal: 1, text: ' Döner mit allem ' });
+    expect(await d.aiQueue.get(id)).toMatchObject({
+      textOnly: true,
+      text: 'Döner mit allem',
+      status: 'pending',
+    });
+    await processQueue(d);
+    // No image field, the description as text; the review waits for the person like a photo result.
+    expect(images).toEqual([0]);
+    expect(hints).toEqual(['Döner mit allem']);
+    expect(await d.aiQueue.get(id)).toMatchObject({ status: 'done', analyzedPhotoIds: [] });
+    expect(await d.foodEntries.count()).toBe(0);
+    await leaveAnalysis(d, id);
+    await processQueue(d);
+    expect(await d.aiQueue.count()).toBe(0);
+    const logged = await d.foodEntries.toArray();
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({
+      name: 'Doener',
+      grams: 350,
+      groupName: 'Doener',
+      photoId: null,
+      photoIds: null,
+    });
   });
 
   it('treats a timeout as a failure to repeat by hand, not as offline', async () => {

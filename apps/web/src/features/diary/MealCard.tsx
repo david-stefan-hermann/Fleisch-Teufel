@@ -22,6 +22,7 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { MealSuggestions } from './MealSuggestions';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
 import { readExpanded, setGroupExpanded } from './expandedGroups';
@@ -105,18 +106,22 @@ export function MealCard({
       }
     >
       {entries.length === 0 && pending.length === 0 ? (
-        <Link
-          to="/photo"
-          preload="intent"
-          onClick={warmUpCamera}
-          search={{ date, meal }}
-          className={cn(
-            'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-            dragActive && 'border-primary/50 text-primary',
-          )}
-        >
-          {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
-        </Link>
+        <>
+          <Link
+            to="/photo"
+            preload="intent"
+            onClick={warmUpCamera}
+            search={{ date, meal }}
+            className={cn(
+              'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+              dragActive && 'border-primary/50 text-primary',
+            )}
+          >
+            {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
+          </Link>
+          {/* What this meal usually gets: one tap logs it again. */}
+          <MealSuggestions date={date} meal={meal} mealName={name} />
+        </>
       ) : (
         <>
           {entries.length > 0 && <DiaryRows entries={entries} date={date} meal={meal} draggable />}
