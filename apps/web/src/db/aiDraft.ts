@@ -76,6 +76,19 @@ export interface AiItem {
   portion?: Portion | null;
 }
 
+/** A row the person added (no confidence): one food, the given grams, counted in grams. */
+export function userRow(name: string, food: Food, grams: number, portion: Portion | null = null): AiDraftRow {
+  return {
+    key: `user-${Date.now().toString(36)}`,
+    name,
+    grams: Math.round(grams),
+    confidence: null,
+    candidates: [food],
+    foodId: food.id,
+    portion,
+  };
+}
+
 /**
  * Takes a food from the food search into the review: as the food of the row the search was opened
  * for ("Selbst suchen", `searchRowKey`; the row keeps its name, so the choice can be learned), else
@@ -106,21 +119,7 @@ export async function addFoodToDraft(
             : r,
         ),
       };
-    return {
-      ...rest,
-      rows: [
-        ...d.rows,
-        {
-          key: `user-${Date.now().toString(36)}`,
-          name: food.name,
-          grams: Math.round(grams),
-          confidence: null,
-          candidates: [food],
-          foodId: food.id,
-          portion,
-        },
-      ],
-    };
+    return { ...rest, rows: [...d.rows, userRow(food.name, food, grams, portion)] };
   });
 }
 
