@@ -99,12 +99,12 @@ export function AddFoodPage() {
   const filteringOwn = q.length >= 2 && tab === 'mine';
 
   const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
-  // Saved meals cannot be part of a saved meal, an AI review or a diary group.
-  const withMeals = !into;
+  // A saved meal goes into a meal, an AI review or a diary group as its ingredients; only not into itself.
+  const ownMealId = into?.kind === 'meal' ? into.mealId : null;
   // Waits for the history so that previously logged foods rank first from the first result on.
   const local = useLiveQuery(
-    async () => (searching && history ? searchLocal(db, q, 40, history.usage, { meals: withMeals }) : null),
-    [db, q, searching, history, withMeals],
+    async () => (searching && history ? searchLocal(db, q, 40, history.usage, { meals: true }) : null),
+    [db, q, searching, history],
   );
   const portionList = useLiveQuery(() => db.foodPortions.filter((p) => !p.deleted).toArray(), [db]);
   const userPortions = useMemo(() => {
@@ -146,11 +146,14 @@ export function AddFoodPage() {
   }, [qOnline, wantsOnline]);
 
   const custom = useLiveQuery(() => db.customFoods.filter((f) => !f.deleted).sortBy('name'), [db]);
-  const meals = useLiveQuery(() => db.meals.filter((m) => !m.deleted).sortBy('name'), [db]);
+  const meals = useLiveQuery(
+    () => db.meals.filter((m) => !m.deleted && m.id !== ownMealId).sortBy('name'),
+    [db, ownMealId],
+  );
 
   const own = useMemo(
-    () => (custom && meals ? filterOwn(filteringOwn ? q : '', custom, into ? [] : meals) : null),
-    [custom, meals, q, filteringOwn, into],
+    () => (custom && meals ? filterOwn(filteringOwn ? q : '', custom, meals) : null),
+    [custom, meals, q, filteringOwn],
   );
 
   // Online products join the list once they belong to the query the local results are for.
@@ -159,8 +162,12 @@ export function AddFoodPage() {
   const onlineState = q.length < 3 ? null : online?.q === q ? online.state : 'loading';
   const rows = useMemo(
     () =>
-      local ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage, ownBarcodes(custom ?? [])) : null,
-    [local, onlineFoods, q, history, custom],
+      local
+        ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage, ownBarcodes(custom ?? [])).filter(
+            (r) => r.kind !== 'meal' || r.meal.id !== ownMealId,
+          )
+        : null,
+    [local, onlineFoods, q, history, custom, ownMealId],
   );
   const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
 
@@ -347,7 +354,7 @@ export function AddFoodPage() {
             <>
               <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Meals ({own.meals.length})</h2>
               <div className="mb-4">
-                <MealList meals={own.meals} date={date} meal={meal} />
+                <MealList meals={own.meals} search={linkSearch} />
               </div>
             </>
           )}
@@ -379,21 +386,18 @@ export function AddFoodPage() {
 
       {tab === 'mine' && !filteringOwn && (
         <>
-          {/* Saved meals cannot be part of a saved meal, an AI review or a diary group. */}
-          {!into && (
-            <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
-              <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
-                <span>Meals{meals ? ` (${meals.length})` : ''}</span>
-                <ChevronDown
-                  className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                  aria-hidden
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <MealList meals={meals} date={date} meal={meal} />
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+          <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
+            <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+              <span>Meals{meals ? ` (${meals.length})` : ''}</span>
+              <ChevronDown
+                className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                aria-hidden
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <MealList meals={meals} search={linkSearch} />
+            </CollapsibleContent>
+          </Collapsible>
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
           <Button variant="outline" className="mb-3 w-full" asChild>
             <Link to="/custom-food/$id" params={{ id: 'new' }} search={linkSearch}>
@@ -492,7 +496,7 @@ function SearchResultRow({
         <Link
           to="/meals/$mealId"
           params={{ mealId: m.id }}
-          search={{ date: search.date, meal: search.meal }}
+          search={search}
           className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
         >
           <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
@@ -561,13 +565,12 @@ function FoodRow({
   );
 }
 
-function MealList({ meals, date, meal }: { meals: Meal[] | undefined; date: string; meal: number }) {
+function MealList({ meals, search }: { meals: Meal[] | undefined; search: FoodLinkSearch }) {
   if (!meals) return null;
   if (meals.length === 0)
     return (
       <p className="py-2 text-sm text-muted-foreground text-pretty">
-        Noch keine gespeicherten Meals. Öffne im Tagebuch eine Mahlzeit und tippe oben auf das Speichern-Icon,
-        um sie als Meal abzulegen.
+        Noch keine gespeicherten Meals. Tippe im Tagebuch auf ⋯ einer Mahlzeit und wähle „Als Meal speichern“.
       </p>
     );
   return (
@@ -577,7 +580,7 @@ function MealList({ meals, date, meal }: { meals: Meal[] | undefined; date: stri
           <Link
             to="/meals/$mealId"
             params={{ mealId: m.id }}
-            search={{ date, meal }}
+            search={search}
             className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
           >
             <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />

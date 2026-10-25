@@ -25,6 +25,7 @@ import {
 import {
   addGroupDraftPhotos,
   addItemToGroupDraft,
+  addItemsToGroupDraft,
   clearGroupDraft,
   draftFromEntries,
   groupDraftFromAnalysis,
@@ -1244,5 +1245,34 @@ describe('diary group editor: "Als Meal speichern"', () => {
       [mealId, 'AB'],
       [mealId, 'AB'],
     ]);
+  });
+});
+
+describe('diary group editor: a saved meal as ingredients', () => {
+  it('appends all ingredients to the group draft, false when the group is gone', async () => {
+    const item = (name: string): MealItem => ({
+      foodId: `bls:${name}`,
+      source: 'bls',
+      name,
+      brand: null,
+      grams: 100,
+      portionLabel: '1 g',
+      portionGrams: 1,
+      quantity: 100,
+      per100: { ENERCC: 100 },
+      nutrients: { ENERCC: 100 },
+    });
+    const d = db();
+    await logItems(d, [item('A'), item('B')], { date: '2026-10-09', meal: 0 }, { groupName: 'AB' });
+    const groupId = (await d.foodEntries.toCollection().first())!.groupId!;
+    expect(await addItemsToGroupDraft(d, groupId, '2026-10-09', [item('C'), item('D')])).toBe(true);
+    const draft = (await readGroupDraft(d, groupId))!;
+    expect(draft.items.map((i) => [i.name, i.entryId === null])).toEqual([
+      ['A', false],
+      ['B', false],
+      ['C', true],
+      ['D', true],
+    ]);
+    expect(await addItemsToGroupDraft(d, 'gone', '2026-10-09', [item('C')])).toBe(false);
   });
 });

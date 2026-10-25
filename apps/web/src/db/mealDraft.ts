@@ -135,11 +135,20 @@ export async function saveMealDraft(db: UserDb, draft: MealDraft): Promise<boole
  * draft from the saved meal when there is none. Returns false when the meal is gone.
  */
 export async function addItemToMealDraft(db: UserDb, mealId: string, item: MealItem): Promise<boolean> {
+  return addItemsToMealDraft(db, mealId, [item]);
+}
+
+/** Like `addItemToMealDraft` for several ingredients at once (another saved meal taken apart). */
+export async function addItemsToMealDraft(
+  db: UserDb,
+  mealId: string,
+  items: readonly MealItem[],
+): Promise<boolean> {
   return db.transaction('rw', [db.meals, db.kv], async () => {
     const meal = await db.meals.get(mealId);
     if (!meal || meal.deleted) return false;
     const draft = (await readMealDraft(db, mealId)) ?? draftFromMeal(meal);
-    await writeMealDraft(db, { ...draft, items: [...draft.items, mealItem(item)] });
+    await writeMealDraft(db, { ...draft, items: [...draft.items, ...items.map(mealItem)] });
     return true;
   });
 }

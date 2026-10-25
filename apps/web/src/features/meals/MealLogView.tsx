@@ -5,10 +5,13 @@ import {
   N,
   rescaleItem,
   sumNutrients,
+  scaleNutrients,
   targetsForDate,
+  type Food,
   type Meal,
+  type MealItem,
 } from '@ft/shared';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -26,6 +29,13 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { useGoals, useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtFixed, fmtGrams, fmtIngredients } from '@/lib/format';
+import { addFoodsToDraft, type AiItem } from '@/db/aiDraft';
+import type { UserDb } from '@/db/dexie';
+import { addItemsToGroupDraft } from '@/db/groupDraft';
+import { addItemsToMealDraft } from '@/db/mealDraft';
+import { getFood } from '@/foods/foodService';
+import { isBasePortion } from '@/lib/amounts';
+import { openTarget, returnFromInto, type Into } from '@/lib/into';
 import { logItems } from './logMeal';
 
 const FACTOR_MIN = 0.5;
@@ -36,10 +46,23 @@ const FACTOR_MAX = 2;
  * out of this entry only (an open row goes with it), a tap shows the nutrients of one ingredient, the
  * amount goes from 0,5× to 2×. The pencil ("Meal bearbeiten") opens the
  * editor; saving there comes back here with the new ingredients (`MealPage` keys this view by `updatedAt`).
+ * With `into` (food search for a meal, an AI review or a diary group) the kept ingredients are added
+ * there one by one instead ("N Zutaten hinzufügen"; no pencil, no diary meal to pick).
  */
-export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: string; mealIndex: number }) {
+export function MealLogView({
+  meal,
+  date,
+  mealIndex,
+  into = null,
+}: {
+  meal: Meal;
+  date: string;
+  mealIndex: number;
+  into?: Into | null;
+}) {
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
   const settings = useSettings();
   const goals = useGoals();
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => new Set());
@@ -98,27 +121,54 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
     await navigate({ to: '/', search: { date } });
   }
 
+  async function add(target: Into) {
+    const ok =
+      target.kind === 'meal'
+        ? await addItemsToMealDraft(db, target.mealId, scaled)
+        : target.kind === 'group'
+          ? await addItemsToGroupDraft(db, target.groupId, date, scaled)
+          : await addFoodsToDraft(db, target.localId, await Promise.all(scaled.map((i) => aiItemOf(db, i))));
+    if (!ok)
+      return void toast.error(
+        target.kind === 'meal'
+          ? 'Das Meal gibt es nicht mehr.'
+          : target.kind === 'group'
+            ? 'Den Eintrag gibt es nicht mehr.'
+            : 'Die Analyse gibt es nicht mehr.',
+      );
+    toast.success(`„${meal.name}“: ${fmtIngredients(scaled.length)} hinzugefügt`);
+    returnFromInto(router.history, () => openTarget(navigate, target, date, mealIndex));
+  }
+
   return (
     <Page
       title={meal.name}
       back
       withTabBar={false}
       actions={
-        <Button variant="ghost" size="icon" asChild>
-          <Link
-            to="/meals/$mealId"
-            params={{ mealId: meal.id }}
-            search={{ from: 'log' }}
-            aria-label="Meal bearbeiten"
-          >
-            <Pencil aria-hidden />
-          </Link>
-        </Button>
+        into ? undefined : (
+          <Button variant="ghost" size="icon" asChild>
+            <Link
+              to="/meals/$mealId"
+              params={{ mealId: meal.id }}
+              search={{ from: 'log' }}
+              aria-label="Meal bearbeiten"
+            >
+              <Pencil aria-hidden />
+            </Link>
+          </Button>
+        )
       }
       footer={
-        <Button size="lg" disabled={busy} onClick={() => void run(log)}>
-          {fmt0(kcal)} kcal eintragen
-        </Button>
+        into ? (
+          <Button size="lg" disabled={busy} onClick={() => void run(() => add(into))}>
+            {fmtIngredients(scaled.length)} hinzufügen
+          </Button>
+        ) : (
+          <Button size="lg" disabled={busy} onClick={() => void run(log)}>
+            {fmt0(kcal)} kcal eintragen
+          </Button>
+        )
       }
     >
       {meal.photoId && (
@@ -173,7 +223,7 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
       <Section title="Nährwerte">
         <NutrientBreakdown className="px-4 pb-3" nutrients={totals} targets={targets} />
       </Section>
-      <Section title="Eintragen">
+      <Section title={into ? 'Menge' : 'Eintragen'}>
         <div className="grid gap-4 px-4 pb-4">
           <div className="grid gap-2">
             <div className="flex items-baseline justify-between gap-2">
@@ -217,23 +267,53 @@ export function MealLogView({ meal, date, mealIndex }: { meal: Meal; date: strin
               hint={`Ganzes Rezept ${fmtGrams(cookedWeight)} gekocht; ${fmt0(factor * 100)} % davon.`}
             />
           )}
-          <div className="grid gap-1.5">
-            <Label htmlFor="meal-target">Mahlzeit</Label>
-            <Select value={String(target)} onValueChange={(v) => setTarget(Number(v))}>
-              <SelectTrigger id="meal-target" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(settings?.mealNames ?? []).map((n, i) => (
-                  <SelectItem key={i} value={String(i)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {!into && (
+            <div className="grid gap-1.5">
+              <Label htmlFor="meal-target">Mahlzeit</Label>
+              <Select value={String(target)} onValueChange={(v) => setTarget(Number(v))}>
+                <SelectTrigger id="meal-target" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(settings?.mealNames ?? []).map((n, i) => (
+                    <SelectItem key={i} value={String(i)}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </Section>
     </Page>
   );
+}
+
+/**
+ * An ingredient of a saved meal as a row of an AI review: its database food (portions included) when
+ * there is one, else a snapshot with its values per 100 g, logged like an estimate (without food id).
+ */
+async function aiItemOf(db: UserDb, item: MealItem): Promise<AiItem> {
+  const grams = item.grams ?? 100;
+  const portion =
+    item.portionLabel && item.portionGrams && item.portionGrams > 0
+      ? { label: item.portionLabel, grams: item.portionGrams }
+      : null;
+  const known = item.foodId ? await getFood(db, item.foodId).catch(() => null) : null;
+  const per100 = item.per100 ?? scaleNutrients(item.nutrients, item.grams ? 10_000 / item.grams : 100);
+  const food: Food = known ?? {
+    id: item.foodId ?? `meal-item:${item.name}`,
+    source: item.foodId?.startsWith('bls:') ? 'bls' : item.foodId?.startsWith('off:') ? 'off' : 'custom',
+    sourceId: null,
+    name: item.name,
+    nameEn: null,
+    brand: item.brand,
+    group: null,
+    unit: item.portionLabel?.endsWith('ml') ? 'ml' : 'g',
+    nutrients: per100,
+    portions: portion && !isBasePortion(portion) ? [portion] : [],
+    estimated: !item.foodId,
+  };
+  return { food, grams, portion: portion && !isBasePortion(portion) ? portion : null };
 }

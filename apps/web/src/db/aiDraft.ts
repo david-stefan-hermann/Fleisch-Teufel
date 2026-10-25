@@ -124,6 +124,26 @@ export async function addFoodToDraft(
 }
 
 /**
+ * Adds several foods as new rows at once (a saved meal taken apart in the food search), each with its
+ * grams and unit. Returns false when the review is gone.
+ */
+export async function addFoodsToDraft(
+  db: UserDb,
+  localId: number,
+  items: readonly AiItem[],
+): Promise<boolean> {
+  return updateDraft(db, localId, (d) => {
+    const { searchRowKey: _drop, ...rest } = d;
+    const rows = items.map((it, i) => {
+      const row = userRow(it.food.name, it.food, it.grams, it.portion ?? null);
+      // One millisecond for all of them: the index keeps the keys apart.
+      return { ...row, key: `${row.key}-${i}` };
+    });
+    return { ...rest, rows: [...d.rows, ...rows] };
+  });
+}
+
+/**
  * The foods the person picked instead of the proposed one, by the model's item name (rows of the
  * analysis only, estimated foods left out). Sent to the server when the review is logged, so the
  * next analysis offers them first.

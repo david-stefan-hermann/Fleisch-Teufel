@@ -192,12 +192,23 @@ export async function addItemToGroupDraft(
   date: string,
   item: MealItem,
 ): Promise<boolean> {
+  return addItemsToGroupDraft(db, groupId, date, [item]);
+}
+
+/** Like `addItemToGroupDraft` for several ingredients at once (a saved meal taken apart). */
+export async function addItemsToGroupDraft(
+  db: UserDb,
+  groupId: string,
+  date: string,
+  items: readonly MealItem[],
+): Promise<boolean> {
   return db.transaction('rw', [db.foodEntries, db.meals, db.kv], async () => {
     const entries = await groupEntries(db, groupId, date);
     if (entries.length === 0) return false;
     const draft =
       (await readGroupDraft(db, groupId)) ?? draftFromEntries(entries, await groupName(db, entries));
-    await writeGroupDraft(db, { ...draft, items: [...draft.items, { ...mealItem(item), entryId: null }] });
+    const added = items.map((i) => ({ ...mealItem(i), entryId: null }));
+    await writeGroupDraft(db, { ...draft, items: [...draft.items, ...added] });
     return true;
   });
 }

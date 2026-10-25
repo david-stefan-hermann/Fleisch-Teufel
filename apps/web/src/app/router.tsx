@@ -189,11 +189,15 @@ export const routes = {
   meal: createRoute({
     ...r('/meals/$mealId'),
     // `from: 'log'`: the editor was opened from "Meal eintragen" (deleting returns past that page).
-    validateSearch: (s: Record<string, unknown>): { date?: string; meal?: number; from?: 'log' } =>
+    // `into`: the food search adds the meal's ingredients to that target instead of logging it.
+    validateSearch: (
+      s: Record<string, unknown>,
+    ): { date?: string; meal?: number; from?: 'log'; into?: string } =>
       clean({
         date: dateParam(s.date),
         meal: s.meal === undefined ? undefined : mealParam(s.meal),
         from: s.from === 'log' ? ('log' as const) : undefined,
+        into: intoParam(s.into),
       }),
     component: lazyRouteComponent(() => import('@/features/meals/MealPage'), 'MealPage'),
   }),

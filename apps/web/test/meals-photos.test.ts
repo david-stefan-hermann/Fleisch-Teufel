@@ -2,6 +2,7 @@ import { uuidv7, type AiAnalysisResult, type Food, type MealItem } from '@ft/sha
 import { Blob as NodeBlob } from 'node:buffer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  addFoodsToDraft,
   addFoodToDraft,
   currentDraft,
   draftChanged,
@@ -15,6 +16,7 @@ import {
 import { UserDb, type AiDraft } from '@/db/dexie';
 import { addItemToMeal, aiMealItems } from '@/db/entries';
 import {
+  addItemsToMealDraft,
   clearMealDraft,
   draftFromMeal,
   isDirty,
@@ -237,6 +239,32 @@ describe('AI review draft', () => {
       ['Nudeln', 150, 'high'],
       ['Parmesan', 12, null],
     ]);
+  });
+
+  it('adds the ingredients of a saved meal as rows with keys of their own', async () => {
+    const d = db();
+    const localId = (await d.aiQueue.add({
+      createdAt: 1,
+      date: '2026-10-07',
+      meal: 2,
+      text: '',
+      image: new Blob(['x'], { type: 'image/jpeg' }),
+      status: 'done',
+      result,
+    })) as number;
+    const ok = await addFoodsToDraft(d, localId, [
+      { food: food('bls:R', 'Reis', 130), grams: 150 },
+      { food: food('bls:H', 'Huhn', 110), grams: 120, portion: { label: 'Stück', grams: 120 } },
+    ]);
+    expect(ok).toBe(true);
+    const rows = currentDraft((await d.aiQueue.get(localId))!).rows;
+    expect(rows.map((r) => [r.name, r.grams, r.portion?.label ?? null])).toEqual([
+      ['Nudeln', 201, null],
+      ['Reis', 150, null],
+      ['Huhn', 120, 'Stück'],
+    ]);
+    expect(new Set(rows.map((r) => r.key)).size).toBe(3);
+    expect(await addFoodsToDraft(d, 999, [{ food: food('bls:R', 'Reis', 130), grams: 1 }])).toBe(false);
   });
 
   it('replaces the food of the row a search was opened for and reports it as a choice', async () => {
@@ -935,5 +963,23 @@ describe('into parameter', () => {
     expect(moves).toEqual([-3]);
     returnFromInto(history, () => fallback++);
     expect(fallback).toBe(1);
+  });
+});
+
+describe('a saved meal as ingredients (food search with a target)', () => {
+  it('appends all ingredients to the draft of another meal, false when the meal is gone', async () => {
+    const d = db();
+    await saveRecord(d, 'meals', {
+      id: 'm1',
+      name: 'Bowl',
+      items: [item('Reis', 130)],
+      photoId: null,
+      cookedGrams: null,
+    });
+    expect(await addItemsToMealDraft(d, 'm1', [item('Huhn', 110), item('Mais', 90)])).toBe(true);
+    expect((await readMealDraft(d, 'm1'))!.items.map((i) => i.name)).toEqual(['Reis', 'Huhn', 'Mais']);
+    // The saved meal itself stays until the editor saves.
+    expect((await d.meals.get('m1'))!.items).toHaveLength(1);
+    expect(await addItemsToMealDraft(d, 'gone', [item('Huhn', 110)])).toBe(false);
   });
 });

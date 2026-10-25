@@ -41,7 +41,7 @@ import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
-import { formatInto, parseInto, returnFromInto, type Into } from '@/lib/into';
+import { formatInto, openTarget, parseInto, returnFromInto, type Into } from '@/lib/into';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
@@ -269,18 +269,7 @@ function FoodLogEditor({
     }
     if (food.id) await rememberFood(db, food);
     toast.success(`${food.name} hinzugefügt`);
-    returnFromInto(router.history, () => {
-      if (target.kind === 'meal')
-        void navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true });
-      else if (target.kind === 'group')
-        void navigate({
-          to: '/diary-group/$groupId',
-          params: { groupId: target.groupId },
-          search: { date },
-          replace: true,
-        });
-      else void navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true });
-    });
+    returnFromInto(router.history, () => openTarget(navigate, target, date, meal));
   }
 
   const { busy: saving, run } = useSubmitting();

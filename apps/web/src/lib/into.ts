@@ -1,3 +1,5 @@
+import type { UseNavigateResult } from '@tanstack/react-router';
+
 /**
  * Target of the food search when it is not the diary: a saved meal being edited, the ingredient
  * list of an AI photo analysis under review, or a diary group being edited (its day is the `date`
@@ -70,4 +72,23 @@ export function returnFromInto(history: HistoryLike, fallback: () => void): void
   const current = history.location.state.__TSR_index ?? -1;
   if (start >= 0 && current > start) history.go(start - current);
   else fallback();
+}
+
+/** Opens the screen of a target directly: the fallback of `returnFromInto` (e.g. after a reload). */
+export function openTarget(
+  navigate: UseNavigateResult<string>,
+  target: Into,
+  date: string,
+  meal: number,
+): void {
+  if (target.kind === 'meal')
+    void navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true });
+  else if (target.kind === 'group')
+    void navigate({
+      to: '/diary-group/$groupId',
+      params: { groupId: target.groupId },
+      search: { date },
+      replace: true,
+    });
+  else void navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true });
 }
