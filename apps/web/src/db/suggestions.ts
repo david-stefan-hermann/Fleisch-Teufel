@@ -8,7 +8,7 @@
  */
 import { addDays, diffDays, groupDiaryEntries, photoIdsOf, type FoodEntry, type MealItem } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { entriesToMealItems, logItems } from './entries';
+import { diaryParts, entriesToMealItems, logParts } from './entries';
 
 /** How far back the diary is read. */
 export const SUGGESTION_DAYS = 60;
@@ -125,13 +125,20 @@ export async function logSuggestion(
   s: MealSuggestion,
   target: { date: string; meal: number },
 ): Promise<string[]> {
-  if (s.kind === 'food') return logItems(db, s.items, target);
-  return logItems(db, s.items, target, {
-    mealId: s.mealId,
-    groupName: s.groupName ?? (s.mealId ? null : s.name),
-    aiAnalysisId: s.aiAnalysisId,
-    photoIds: s.photoIds,
-  });
+  return logParts(
+    db,
+    [
+      {
+        kind: s.kind === 'food' ? 'entry' : 'group',
+        items: s.items,
+        mealId: s.mealId,
+        groupName: s.groupName ?? (s.mealId ? null : s.name),
+        aiAnalysisId: s.aiAnalysisId,
+        photoIds: s.photoIds,
+      },
+    ],
+    target,
+  );
 }
 
 /**
@@ -148,22 +155,5 @@ export async function copyMealFromDay(
     .equals([from.date, from.meal])
     .filter((e) => !e.deleted)
     .sortBy('loggedAt');
-  const ids: string[] = [];
-  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
-    for (const row of groupDiaryEntries(entries)) {
-      if (row.kind === 'entry') ids.push(...(await logItems(db, [row.entry], to)));
-      else {
-        const first = row.entries[0]!;
-        ids.push(
-          ...(await logItems(db, row.entries, to, {
-            mealId: row.mealId,
-            groupName: row.groupName ?? (row.mealId ? null : 'Meal'),
-            aiAnalysisId: first.aiAnalysisId,
-            photoIds: photoIdsOf(first),
-          })),
-        );
-      }
-    }
-  });
-  return ids;
+  return logParts(db, diaryParts(entries), to);
 }

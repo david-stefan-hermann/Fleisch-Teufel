@@ -1,6 +1,7 @@
 /** Diary write operations used by several screens (kept outside components: pure data logic). */
 import {
   foodFromMeal,
+  groupDiaryEntries,
   rescaleItem,
   scaleNutrients,
   uuidv7,
@@ -295,20 +296,94 @@ export function entriesToMealItems(entries: readonly MealItem[]): MealItem[] {
   );
 }
 
+/**
+ * One row of a diary meal as something that can be logged again: a plain entry, or a group (entries
+ * logged together) with its saved meal, own name, analysis and photos. A snapshot, no references to
+ * the source entries ("Wie gestern", the clipboard, suggestions).
+ */
+export interface DiaryPart {
+  kind: 'entry' | 'group';
+  items: MealItem[];
+  mealId: string | null;
+  groupName: string | null;
+  aiAnalysisId: string | null;
+  photoIds: string[];
+}
+
+/** The rows of a diary meal as parts, in diary order (`entries` sorted by `loggedAt`). */
+export function diaryParts(entries: readonly FoodEntry[]): DiaryPart[] {
+  return groupDiaryEntries([...entries]).map((row) => {
+    if (row.kind === 'entry')
+      return {
+        kind: 'entry',
+        items: entriesToMealItems([row.entry]),
+        mealId: null,
+        groupName: null,
+        aiAnalysisId: null,
+        photoIds: [],
+      };
+    const first = row.entries[0]!;
+    return {
+      kind: 'group',
+      items: entriesToMealItems(row.entries),
+      mealId: row.mealId,
+      groupName: row.groupName,
+      aiAnalysisId: first.aiAnalysisId,
+      photoIds: photoIdsOf(first),
+    };
+  });
+}
+
+/**
+ * Logs parts into a diary meal in one transaction: a group as a new group (new ids, new `groupId`)
+ * with the same saved meal, name, analysis and photos, an entry as a plain entry. A group with neither
+ * saved meal nor name is called "Meal" (it needs one to stay a group). Returns the new entry ids.
+ */
+export async function logParts(
+  db: UserDb,
+  parts: readonly DiaryPart[],
+  target: { date: string; meal: number },
+): Promise<string[]> {
+  const ids: string[] = [];
+  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
+    for (const p of parts) {
+      if (p.kind === 'entry') ids.push(...(await logItems(db, p.items, target)));
+      else
+        ids.push(
+          ...(await logItems(db, p.items, target, {
+            mealId: p.mealId,
+            groupName: p.groupName ?? (p.mealId ? null : 'Meal'),
+            aiAnalysisId: p.aiAnalysisId,
+            photoIds: p.photoIds,
+          })),
+        );
+    }
+  });
+  return ids;
+}
+
+/** All ingredients of the parts, groups taken apart (saving a meal, kcal). */
+export function partsItems(parts: readonly DiaryPart[]): MealItem[] {
+  return parts.flatMap((p) => p.items);
+}
+
+/** The first photo of any group (the analysed or the meal photo it was logged with), or null. */
+export function firstPhotoId(entries: readonly FoodEntry[]): string | null {
+  for (const e of entries) {
+    const id = photoIdsOf(e)[0];
+    if (id) return id;
+  }
+  return null;
+}
+
 /** Saves the entries of a diary meal as a reusable meal ("Als Meal speichern"); returns its id. */
 export async function saveMealFromEntries(
   db: UserDb,
   name: string,
   entries: readonly FoodEntry[],
 ): Promise<string> {
-  // The photo of the group (the analysed or the meal photo it was logged with), like the clipboard.
-  const first = entries[0];
-  return saveMealFromItems(
-    db,
-    name,
-    entriesToMealItems(entries),
-    first ? (photoIdsOf(first)[0] ?? null) : null,
-  );
+  // All ingredients one by one (groups taken apart); the photo of the first group that has one.
+  return saveMealFromItems(db, name, entriesToMealItems(entries), firstPhotoId(entries));
 }
 
 /**

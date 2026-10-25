@@ -10,7 +10,7 @@
  */
 import { get, N, photoIdsOf, type FoodEntry, type MealItem } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { entriesToMealItems, logItems } from './entries';
+import { entriesToMealItems, logParts } from './entries';
 
 export interface Clipboard {
   /** `group`: entries logged together (saved meal, AI analysis); `entry`: one plain entry. */
@@ -68,14 +68,21 @@ export async function pasteClipboard(
   clip: Clipboard,
   target: { date: string; meal: number },
 ): Promise<string[]> {
-  if (clip.kind === 'entry') return logItems(db, clip.items, target);
-  return logItems(db, clip.items, target, {
-    mealId: clip.mealId,
-    // Without a saved meal a group needs a name to stay a group.
-    groupName: clip.groupName ?? (clip.mealId ? null : clip.name),
-    aiAnalysisId: clip.aiAnalysisId,
-    photoIds: clip.photoIds,
-  });
+  return logParts(
+    db,
+    [
+      {
+        kind: clip.kind,
+        items: clip.items,
+        mealId: clip.mealId,
+        // Without a saved meal a group needs a name to stay a group.
+        groupName: clip.groupName ?? (clip.mealId ? null : clip.name),
+        aiAnalysisId: clip.aiAnalysisId,
+        photoIds: clip.photoIds,
+      },
+    ],
+    target,
+  );
 }
 
 /** Energy of the copied items (kcal). */

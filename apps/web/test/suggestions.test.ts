@@ -1,7 +1,15 @@
 import { addDays, groupDiaryEntries, uuidv7, type MealItem } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
-import { logFoodEntry, logItems } from '@/db/entries';
+import {
+  diaryParts,
+  firstPhotoId,
+  logFoodEntry,
+  logItems,
+  logParts,
+  partsItems,
+  saveMealFromEntries,
+} from '@/db/entries';
 import { copyMealFromDay, logSuggestion, mealSuggestions } from '@/db/suggestions';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -143,5 +151,59 @@ describe('copyMealFromDay ("Wie gestern")', () => {
     const original = await d.foodEntries.where('[date+meal]').equals([y, 0]).toArray();
     expect(new Set(copied.map((e) => e.groupId)).has(original.find((e) => e.groupId)!.groupId)).toBe(false);
     expect(await d.foodEntries.where('[date+meal]').equals([y, 2]).count()).toBe(1);
+  });
+});
+
+describe('diary parts (shared by "Wie gestern", clipboard and suggestions)', () => {
+  it('splits a meal into plain entries and groups and logs them again with the same structure', async () => {
+    const d = db();
+    const y = addDays(TODAY, -1);
+    await logFoodEntry(d, entry('Brot', 250), y);
+    await logItems(
+      d,
+      [item('Hafer', 370, 50), item('Milch', 64, 200)],
+      { date: y, meal: 0 },
+      { mealId: 'm1' },
+    );
+    await logItems(
+      d,
+      [item('Curry', 200)],
+      { date: y, meal: 0 },
+      { aiAnalysisId: 'a1', groupName: 'Curry', photoIds: ['p1'] },
+    );
+    const source = await d.foodEntries.where('[date+meal]').equals([y, 0]).sortBy('loggedAt');
+    const parts = diaryParts(source);
+    expect(
+      parts.map((p) => [p.kind, p.items.length, p.mealId, p.groupName, p.aiAnalysisId, p.photoIds]),
+    ).toEqual([
+      ['entry', 1, null, null, null, []],
+      ['group', 2, 'm1', null, null, []],
+      ['group', 1, null, 'Curry', 'a1', ['p1']],
+    ]);
+    expect(partsItems(parts).map((i) => i.name)).toEqual(['Brot', 'Hafer', 'Milch', 'Curry']);
+    expect(firstPhotoId(source)).toBe('p1');
+
+    const ids = await logParts(d, parts, { date: TODAY, meal: 2 });
+    const logged = await d.foodEntries.where('[date+meal]').equals([TODAY, 2]).sortBy('loggedAt');
+    expect(logged.map((e) => e.id)).toEqual(ids);
+    expect(groupDiaryEntries(logged).map((r) => r.kind)).toEqual(['entry', 'group', 'group']);
+    expect(new Set(logged.map((e) => e.groupId)).size).toBe(3);
+    expect(logged.some((e) => source.some((s) => s.groupId && s.groupId === e.groupId))).toBe(false);
+  });
+
+  it('saves a diary meal as a meal with the photo of a later group', async () => {
+    const d = db();
+    await logFoodEntry(d, entry('Brot', 250), TODAY);
+    await logItems(
+      d,
+      [item('Curry', 200)],
+      { date: TODAY, meal: 0 },
+      { aiAnalysisId: 'a1', groupName: 'Curry', photoIds: ['p2'] },
+    );
+    const entries = await d.foodEntries.where('[date+meal]').equals([TODAY, 0]).sortBy('loggedAt');
+    const id = await saveMealFromEntries(d, 'Frühstück', entries);
+    const meal = (await d.meals.get(id))!;
+    expect(meal.photoId).toBe('p2');
+    expect(meal.items.map((i) => i.name)).toEqual(['Brot', 'Curry']);
   });
 });
