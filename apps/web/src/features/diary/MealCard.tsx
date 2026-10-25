@@ -23,6 +23,7 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { DiaryMealMenu } from './DiaryMealMenu';
 import { MealSuggestions } from './MealSuggestions';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
@@ -94,6 +95,13 @@ export function MealCard({
       action={
         <div className="flex items-center">
           {clipboard && <PasteButton db={db} clipboard={clipboard} date={date} meal={meal} mealName={name} />}
+          <DiaryMealMenu
+            date={date}
+            meal={meal}
+            mealName={name}
+            entries={entries}
+            yesterdayKcal={suggestions?.yesterdayKcal ?? 0}
+          />
           {/* At a meal only food makes sense: straight to the food page for this meal. */}
           <Button variant="ghost" size="icon" asChild>
             <Link

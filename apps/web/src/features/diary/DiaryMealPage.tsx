@@ -1,27 +1,24 @@
 import { sumNutrients, targetsForDate } from '@ft/shared';
 import { Link, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Save, UtensilsCrossed } from 'lucide-react';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { Plus, UtensilsCrossed } from 'lucide-react';
 import { useDb } from '@/app/session';
-import { NameDialog } from '@/components/NameDialog';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useClipboard, useDaySuggestions, useGoals, useSettings, useToday } from '@/hooks/data';
-import { saveMealFromEntries } from '@/db/entries';
-import { fmt0, fmtDate, fmtRelativeDay } from '@/lib/format';
+import { fmtRelativeDay } from '@/lib/format';
 import { DiaryRows, PasteButton } from './MealCard';
+import { DiaryMealMenu } from './DiaryMealMenu';
 import { MealSuggestions } from './MealSuggestions';
 import { warmUpCamera } from '@/components/cameraWarmup';
 
 /**
  * One diary meal (Frühstück, Mittagessen, ...) of a day, opened from its card header: the nutrient
- * overview of the meal against the day's targets, then its entries (swipe to delete, tap to edit).
- * The save icon stores the entries as a reusable meal, the paste icon (when something is copied) logs
- * the clipboard into this meal, "+" opens the food page for this meal.
+ * overview of the meal against the day's targets, then its entries (swipe to delete, tap to edit) and
+ * "Zuletzt hier". Header like the diary card: the paste icon (when something is copied) logs the
+ * clipboard into this meal, ⋯ (`DiaryMealMenu`) copies, saves or empties it, "+" opens the food page.
  */
 export function DiaryMealPage() {
   const { date, meal } = useSearch({ from: '/authed/diary-meal' });
@@ -29,7 +26,6 @@ export function DiaryMealPage() {
   const today = useToday();
   const settings = useSettings();
   const goals = useGoals();
-  const [saveOpen, setSaveOpen] = useState(false);
   const clipboard = useClipboard();
   const suggestions = useDaySuggestions(date);
   const entries = useLiveQuery(
@@ -56,15 +52,6 @@ export function DiaryMealPage() {
       withTabBar={false}
       actions={
         <>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Als Meal speichern"
-            disabled={!entries || entries.length === 0}
-            onClick={() => setSaveOpen(true)}
-          >
-            <Save aria-hidden />
-          </Button>
           {clipboard && (
             <PasteButton
               db={db}
@@ -75,6 +62,14 @@ export function DiaryMealPage() {
               iconClassName=""
             />
           )}
+          <DiaryMealMenu
+            date={date}
+            meal={meal}
+            mealName={name}
+            entries={entries ?? []}
+            yesterdayKcal={suggestions?.get(meal)?.yesterdayKcal ?? 0}
+            iconClassName=""
+          />
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/photo"
@@ -126,19 +121,6 @@ export function DiaryMealPage() {
           </Section>
         </>
       )}
-      <NameDialog
-        open={saveOpen}
-        onOpenChange={setSaveOpen}
-        title="Als Meal speichern"
-        description={`${(entries?.length ?? 0) === 1 ? '1 Eintrag wird' : `${fmt0(entries?.length ?? 0)} Einträge werden`} als wiederverwendbares Meal gespeichert.`}
-        confirmLabel="Meal speichern"
-        defaultName={`${name} ${fmtDate(date)}`}
-        placeholder="z. B. Mein Mittagessen…"
-        onConfirm={async (mealName) => {
-          await saveMealFromEntries(db, mealName, entries ?? []);
-          toast.success(`„${mealName}“ gespeichert`);
-        }}
-      />
     </Page>
   );
 }

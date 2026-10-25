@@ -23,8 +23,8 @@ export function MealsPage() {
     <Page title="Gespeicherte Meals" back="/more" withTabBar={false}>
       {meals?.length === 0 && (
         <EmptyState icon={<UtensilsCrossed />} title="Noch keine Meals">
-          Öffne im Tagebuch eine Mahlzeit und tippe oben auf das Speichern-Icon, um sie als Meal abzulegen.
-          Eingetragen wird ein Meal über die Lebensmittelsuche, Reiter „Eigene“.
+          Tippe im Tagebuch auf ⋯ einer Mahlzeit und wähle „Als Meal speichern“. Eingetragen wird ein Meal
+          über die Lebensmittelsuche, Reiter „Eigene“.
         </EmptyState>
       )}
       <ul className="-mx-4 divide-y divide-border/70">

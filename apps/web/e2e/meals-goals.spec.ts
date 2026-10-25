@@ -45,12 +45,13 @@ async function swipeRight(page: Page, target: string | ReturnType<Page['getByTex
   await page.mouse.up();
 }
 
-/** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
+/** Saves the entries of a diary meal as a reusable meal: meal page, ⋯ menu, name dialog. */
 async function saveDiaryMeal(page: Page, mealName: string, name: string) {
   await page.goto('/');
   await page.getByRole('link', { name: new RegExp(`^${mealName}`) }).click();
   await expect(page).toHaveURL(/\/diary-meal\?/);
-  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  await page.getByRole('button', { name: `Aktionen für ${mealName}` }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
   await dialog.getByLabel('Name').fill(name);
   await dialog.getByRole('button', { name: 'Meal speichern' }).click();

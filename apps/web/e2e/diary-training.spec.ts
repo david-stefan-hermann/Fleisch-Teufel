@@ -265,10 +265,16 @@ async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
 const mealCard = (page: Page, name: string) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name }) });
 
-test('the "+" of a meal opens the food page for that meal, the meal card has no menu', async ({ page }) => {
+test('the "+" of a meal opens the food page for that meal, ⋯ of an empty meal has nothing to do', async ({
+  page,
+}) => {
   await register(page);
   await page.goto('/');
-  await expect(page.getByRole('button', { name: /^Aktionen für/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Aktionen für Mittagessen' }).click();
+  for (const name of ['Kopieren', 'Als Meal speichern', 'Alle Einträge löschen'])
+    await expect(page.getByRole('menuitem', { name })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Wie gestern eintragen' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Mittagessen');
