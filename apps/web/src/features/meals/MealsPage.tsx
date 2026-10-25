@@ -1,17 +1,22 @@
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { UtensilsCrossed } from 'lucide-react';
+import { Plus, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
+import { Button } from '@/components/ui/button';
+import { startNewMeal } from '@/db/mealDraft';
 import { deleteRecord, restoreRecord } from '@/db/write';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtIngredients } from '@/lib/format';
 import { mealKcal } from './logMeal';
 
 export function MealsPage() {
   const db = useDb();
+  const navigate = useNavigate();
+  const { busy, run } = useSubmitting();
   const meals = useLiveQuery(
     async () =>
       (await db.meals.filter((m) => !m.deleted).toArray()).sort((a, b) =>
@@ -21,10 +26,24 @@ export function MealsPage() {
   );
   return (
     <Page title="Gespeicherte Meals" back="/more" withTabBar={false}>
+      <Button
+        variant="outline"
+        className="mb-3 w-full"
+        disabled={busy}
+        onClick={() =>
+          void run(async () => {
+            const mealId = await startNewMeal(db);
+            await navigate({ to: '/meals/$mealId', params: { mealId } });
+          })
+        }
+      >
+        <Plus aria-hidden /> Neues Meal
+      </Button>
       {meals?.length === 0 && (
         <EmptyState icon={<UtensilsCrossed />} title="Noch keine Meals">
-          Tippe im Tagebuch auf ⋯ einer Mahlzeit und wähle „Als Meal speichern“. Eingetragen wird ein Meal
-          über die Lebensmittelsuche, Reiter „Eigene“.
+          Lege oben ein neues Meal an, oder tippe im Tagebuch auf ⋯ einer Mahlzeit bzw. das Speichern-Symbol
+          eines Eintrags und wähle „Als Meal speichern“. Eingetragen wird ein Meal über die Lebensmittelsuche,
+          Reiter „Eigene“.
         </EmptyState>
       )}
       <ul className="-mx-4 divide-y divide-border/70">

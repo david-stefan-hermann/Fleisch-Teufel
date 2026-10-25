@@ -8,10 +8,10 @@
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import type { Meal, MealItem } from '@ft/shared';
+import { uuidv7, type Meal, type MealItem } from '@ft/shared';
 import type { UserDb } from './dexie';
 import { storePhotoBytes } from './photos';
-import { patchRecord } from './write';
+import { patchRecord, saveRecord } from './write';
 
 export interface MealDraft {
   mealId: string;
@@ -26,6 +26,8 @@ export interface MealDraft {
    * changed it meanwhile: the editor then asks before the draft overwrites that (older drafts: unset).
    */
   baseUpdatedAt?: number;
+  /** "Neues Meal": there is no record yet; saving creates it under `mealId`. */
+  isNew?: true;
 }
 
 export interface MealDraftPhoto {
@@ -103,8 +105,23 @@ export function isDirty(
 }
 
 /**
- * Writes the draft to the meal (one synced change) and drops it. A pending photo is stored (and
- * queued for upload) only now. Returns false when the meal is gone.
+ * "Neues Meal" (Gespeicherte Meals): an empty draft under a new id, the record follows on "Speichern".
+ * Returns the id for the editor.
+ */
+export async function startNewMeal(db: UserDb): Promise<string> {
+  const mealId = uuidv7();
+  await writeMealDraft(db, { mealId, name: '', items: [], photo: 'keep', cookedGrams: null, isNew: true });
+  return mealId;
+}
+
+/** Stand-in for the record of a new meal while only its draft exists (the editor needs a `Meal`). */
+export function newMealPlaceholder(mealId: string): Meal {
+  return { id: mealId, name: '', items: [], photoId: null, cookedGrams: null, updatedAt: 0, deleted: false };
+}
+
+/**
+ * Writes the draft to the meal (one synced change) and drops it; a new meal's draft creates the record.
+ * A pending photo is stored (and queued for upload) only now. Returns false when the meal is gone.
  */
 export async function saveMealDraft(db: UserDb, draft: MealDraft): Promise<boolean> {
   if (draft.items.length === 0) throw new Error('A meal needs at least one ingredient');
@@ -112,6 +129,20 @@ export async function saveMealDraft(db: UserDb, draft: MealDraft): Promise<boole
   // behind, and a kill in between leaves no half-saved state.
   return db.transaction('rw', [db.meals, db.outbox, db.photos, db.kv], async () => {
     const meal = await db.meals.get(draft.mealId);
+    if (!meal && draft.isNew) {
+      const name = draft.name.trim().slice(0, 120);
+      if (!name) throw new Error('A meal needs a name');
+      const photo = draft.photo === 'pending' ? await readMealDraftPhoto(db, draft.mealId) : null;
+      await saveRecord(db, 'meals', {
+        id: draft.mealId,
+        name,
+        items: draft.items.map(mealItem),
+        photoId: photo ? await storePhotoBytes(db, photo.bytes, photo.type) : null,
+        cookedGrams: draft.cookedGrams ?? null,
+      });
+      await clearMealDraft(db, draft.mealId);
+      return true;
+    }
     if (!meal || meal.deleted) return false;
     let photoId = meal.photoId;
     if (draft.photo === 'remove') photoId = null;
@@ -146,8 +177,11 @@ export async function addItemsToMealDraft(
 ): Promise<boolean> {
   return db.transaction('rw', [db.meals, db.kv], async () => {
     const meal = await db.meals.get(mealId);
-    if (!meal || meal.deleted) return false;
-    const draft = (await readMealDraft(db, mealId)) ?? draftFromMeal(meal);
+    const saved = await readMealDraft(db, mealId);
+    // A new meal has only its draft.
+    if (!meal && !saved?.isNew) return false;
+    if (meal?.deleted) return false;
+    const draft = saved ?? draftFromMeal(meal!);
     await writeMealDraft(db, { ...draft, items: [...draft.items, ...items.map(mealItem)] });
     return true;
   });

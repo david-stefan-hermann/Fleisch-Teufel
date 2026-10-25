@@ -17,6 +17,7 @@ import { UserDb, type AiDraft } from '@/db/dexie';
 import { addItemToMeal, aiMealItems } from '@/db/entries';
 import {
   addItemsToMealDraft,
+  addItemToMealDraft,
   clearMealDraft,
   draftFromMeal,
   isDirty,
@@ -25,6 +26,7 @@ import {
   readMealDraftPhoto,
   saveMealDraft,
   setMealDraftPhoto,
+  startNewMeal,
   writeMealDraft,
 } from '@/db/mealDraft';
 import {
@@ -981,5 +983,40 @@ describe('a saved meal as ingredients (food search with a target)', () => {
     // The saved meal itself stays until the editor saves.
     expect((await d.meals.get('m1'))!.items).toHaveLength(1);
     expect(await addItemsToMealDraft(d, 'gone', [item('Huhn', 110)])).toBe(false);
+  });
+});
+
+describe('"Neues Meal": a meal from scratch', () => {
+  it('starts as a draft only, takes ingredients and creates the record on saving', async () => {
+    const d = db();
+    const id = await startNewMeal(d);
+    expect(await d.meals.get(id)).toBeUndefined();
+    expect(await readMealDraft(d, id)).toMatchObject({ name: '', items: [], isNew: true });
+    expect(await addItemToMealDraft(d, id, item('Hafer', 370))).toBe(true);
+    const draft = { ...(await readMealDraft(d, id))!, name: ' Oats ' };
+    // Without a name it cannot be saved.
+    await expect(saveMealDraft(d, { ...draft, name: '' })).rejects.toThrow();
+    expect(await saveMealDraft(d, draft)).toBe(true);
+    expect(await d.meals.get(id)).toMatchObject({ name: 'Oats', deleted: false, cookedGrams: null });
+    expect((await d.meals.get(id))!.items.map((i) => i.name)).toEqual(['Hafer']);
+    expect(await readMealDraft(d, id)).toBeNull();
+  });
+
+  it('refuses an empty new meal, and a deleted existing meal stays gone', async () => {
+    const d = db();
+    const id = await startNewMeal(d);
+    await expect(saveMealDraft(d, (await readMealDraft(d, id))!)).rejects.toThrow();
+    await saveRecord(d, 'meals', {
+      id: 'm1',
+      name: 'Alt',
+      items: [item('A', 1)],
+      photoId: null,
+      cookedGrams: null,
+    });
+    await d.meals.update('m1', { deleted: true });
+    expect(await saveMealDraft(d, { mealId: 'm1', name: 'Alt', items: [item('A', 1)], photo: 'keep' })).toBe(
+      false,
+    );
+    expect(await addItemToMealDraft(d, 'm1', item('B', 1))).toBe(false);
   });
 });

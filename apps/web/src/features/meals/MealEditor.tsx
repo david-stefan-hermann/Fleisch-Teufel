@@ -52,7 +52,8 @@ import { IngredientCard, SCALE_MAX, SCALE_MIN, scaleItems } from './IngredientCa
 /**
  * Editor of a saved meal (Mehr → Gespeicherte Meals): photo, name, ingredients with amount wheels,
  * total amount and nutrients. Nothing is logged here and nothing is written until "Speichern"; the
- * draft lives in `kv` (see `db/mealDraft.ts`) and leaving with changes asks first.
+ * draft lives in `kv` (see `db/mealDraft.ts`) and leaving with changes asks first. A new meal
+ * ("Neues Meal", `isNew` draft, `meal` is a placeholder) saves once it has a name and an ingredient.
  */
 export function MealEditor({ meal, fromLog = false }: { meal: Meal; fromLog?: boolean }) {
   const db = useDb();
@@ -125,21 +126,26 @@ function MealEditorForm({
     setDraft({ ...draft, items: scaleItems(scaleBase, factor) });
   };
 
+  const isNew = draft.isNew === true;
   const dirty = isDirty(draft, meal);
+  // A new meal needs a name and an ingredient (the schema wants at least one).
+  const canSave = dirty && (!isNew || (draft.name.trim().length > 0 && draft.items.length > 0));
   const into = `meal:${meal.id}`;
   // Set right before leaving after a save or delete: the meal prop still shows the old state then.
   const leaving = useRef(false);
   // The way through the ingredient search keeps the draft, so it does not count as leaving.
   const shouldBlockFn = useCallback<ShouldBlockFn>(
-    ({ next }) =>
-      !leaving.current &&
-      dirty &&
-      !(next.pathname === '/add' && (next.search as { into?: string }).into === into),
-    [dirty, into],
+    ({ next }) => {
+      const toSearch = next.pathname === '/add' && (next.search as { into?: string }).into === into;
+      // A new meal left without any input leaves nothing behind.
+      if (isNew && !dirty && !toSearch && !leaving.current) void clearMealDraft(db, meal.id);
+      return !leaving.current && dirty && !toSearch;
+    },
+    [dirty, into, isNew, db, meal.id],
   );
   const blocker = useBlocker({ shouldBlockFn, withResolver: true, enableBeforeUnload: false });
 
-  const name = draft.name.trim() || meal.name;
+  const name = draft.name.trim() || meal.name || 'Neues Meal';
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
   const today = useToday();
   const targets = targetsForDate(goals ?? [], today);
@@ -161,6 +167,10 @@ function MealEditorForm({
   }
 
   async function save(): Promise<boolean> {
+    if (!canSave) {
+      toast.error('Ein neues Meal braucht einen Namen und mindestens eine Zutat.');
+      return false;
+    }
     const ok = await saveMealDraft(db, draft);
     if (!ok) {
       toast.error('Das Meal gibt es nicht mehr.');
@@ -211,19 +221,21 @@ function MealEditorForm({
           >
             <Salad aria-hidden />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Meal löschen"
-            disabled={saving}
-            onClick={() => void run(remove)}
-          >
-            <Trash2 className="text-destructive" aria-hidden />
-          </Button>
+          {!isNew && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Meal löschen"
+              disabled={saving}
+              onClick={() => void run(remove)}
+            >
+              <Trash2 className="text-destructive" aria-hidden />
+            </Button>
+          )}
         </>
       }
       footer={
-        <Button size="lg" disabled={!dirty || saving} onClick={() => void run(saveAndClose)}>
+        <Button size="lg" disabled={!canSave || saving} onClick={() => void run(saveAndClose)}>
           Speichern
         </Button>
       }
@@ -238,6 +250,7 @@ function MealEditorForm({
             autoComplete="off"
             maxLength={120}
             value={draft.name}
+            placeholder={isNew ? 'z. B. Overnight Oats' : undefined}
             onChange={(e) => commit({ ...draft, name: e.target.value })}
           />
         </div>
@@ -259,7 +272,9 @@ function MealEditorForm({
         <Plus aria-hidden /> Zutat hinzufügen
       </Button>
       <p className="mb-4 px-1 text-xs text-muted-foreground text-pretty">
-        Änderungen gelten für künftige Einträge. Bereits eingetragene Tage bleiben, wie sie sind.
+        {isNew
+          ? 'Füge Lebensmittel oder ein anderes Meal als Zutaten hinzu. Eingetragen wird es später über die Suche.'
+          : 'Änderungen gelten für künftige Einträge. Bereits eingetragene Tage bleiben, wie sie sind.'}
       </p>
       <Section>
         <div className="grid gap-3 p-4">
@@ -333,7 +348,7 @@ function MealEditorForm({
       />
       <DiscardDialog
         open={blocker.status === 'blocked'}
-        name={meal.name}
+        name={name}
         onKeepEditing={() => blocker.reset?.()}
         onDiscard={async () => {
           await clearMealDraft(db, meal.id);

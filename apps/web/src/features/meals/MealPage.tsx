@@ -2,6 +2,7 @@ import { useParams, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useDb } from '@/app/session';
 import { EmptyState, Page } from '@/components/Page';
+import { newMealPlaceholder, readMealDraft } from '@/db/mealDraft';
 import { parseInto } from '@/lib/into';
 import { MealEditor } from './MealEditor';
 import { MealLogView } from './MealLogView';
@@ -9,15 +10,18 @@ import { MealLogView } from './MealLogView';
 /**
  * A saved meal. With day and meal in the URL (food search, tab "Eigene") it is logged
  * (`MealLogView`), with `into` as well its ingredients are added to that target instead; without them
- * (Mehr → Gespeicherte Meals) it is edited (`MealEditor`).
+ * (Mehr → Gespeicherte Meals) it is edited (`MealEditor`), also a new meal that has only its draft.
  */
 export function MealPage() {
   const { mealId } = useParams({ from: '/authed/meals/$mealId' });
   const search = useSearch({ from: '/authed/meals/$mealId' });
   const db = useDb();
   const meal = useLiveQuery(async () => (await db.meals.get(mealId)) ?? null, [db, mealId]);
+  // "Neues Meal": no record yet, only the editor's draft.
+  const isNew = useLiveQuery(async () => (await readMealDraft(db, mealId))?.isNew === true, [db, mealId]);
 
-  if (meal === undefined) return null;
+  if (meal === undefined || isNew === undefined) return null;
+  if (!meal && isNew) return <MealEditor meal={newMealPlaceholder(mealId)} />;
   if (!meal || meal.deleted) {
     return (
       <Page title="Meal" back withTabBar={false}>
