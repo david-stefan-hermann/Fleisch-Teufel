@@ -11,6 +11,8 @@ import { NutrientEditor } from '@/components/NutrientEditor';
 import { initFromFood, resetKcal, setField } from '@/features/foods/customFoodForm';
 import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from '@/components/MealPhoto';
 import { NameDialog } from '@/components/NameDialog';
+import { HintCount, HintField } from '@/components/HintField';
+import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
@@ -1241,5 +1243,68 @@ describe('ingredient amount wheel', () => {
     render(<Card onCommit={() => {}} />);
     fireEvent.click(screen.getByText('scale'));
     expect(wheel().getAttribute('aria-valuenow')).toBe('300');
+  });
+});
+
+describe('HintField (analysis hint growing with its text)', () => {
+  it('follows the content height where field-sizing is missing, also for values set from outside', () => {
+    // jsdom claims `field-sizing` support; older iOS Safari has none.
+    const supports = vi.spyOn(CSS, 'supports').mockReturnValue(false);
+    const scroll = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(120);
+    function Field() {
+      const [v, setV] = useState('');
+      return (
+        <>
+          <HintField aria-label="Hinweis" value={v} onChange={(e) => setV(e.target.value)} />
+          <button type="button" onClick={() => setV('x'.repeat(300))}>
+            Chip
+          </button>
+        </>
+      );
+    }
+    render(<Field />);
+    const field = screen.getByLabelText('Hinweis') as HTMLTextAreaElement;
+    expect(field.tagName).toBe('TEXTAREA');
+    expect(field.maxLength).toBe(1000);
+    expect(field.style.height).toBe('120px');
+    scroll.mockReturnValue(200);
+    fireEvent.click(screen.getByRole('button', { name: 'Chip' }));
+    expect(field.value).toHaveLength(300);
+    expect(field.style.height).toBe('200px');
+    scroll.mockRestore();
+    supports.mockRestore();
+  });
+
+  it('counts characters only near the limit', () => {
+    const { container, rerender } = render(<HintCount length={799} />);
+    expect(container.textContent).toBe('');
+    rerender(<HintCount length={850} />);
+    expect(container.textContent).toBe('850 von 1.000 Zeichen');
+  });
+});
+
+describe('SaveMealDialog', () => {
+  it('offers to update the meal a group came from and fills in its name', async () => {
+    const onConfirm = vi.fn();
+    render(
+      <SaveMealDialog
+        open
+        onOpenChange={() => {}}
+        count={3}
+        defaultName="Curry vom Foto"
+        existing={{ name: 'Curry' }}
+        dirty
+        onConfirm={onConfirm}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Als Meal speichern' });
+    expect(dialog.textContent).toContain('Alle 3 Zutaten werden einzeln');
+    expect(dialog.textContent).toContain('Übernimmt auch deine Änderungen');
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Curry vom Foto');
+    fireEvent.click(screen.getByRole('radio', { name: '„Curry“ aktualisieren' }));
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Curry');
+    expect(dialog.textContent).toContain('Bereits eingetragene Tage bleiben');
+    fireEvent.click(screen.getByRole('button', { name: 'Meal speichern' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('Curry', 'update'));
   });
 });

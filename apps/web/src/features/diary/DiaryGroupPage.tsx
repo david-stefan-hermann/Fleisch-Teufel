@@ -22,6 +22,7 @@ import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
+import { HintCount, HintField } from '@/components/HintField';
 import { PhotoStrip } from '@/components/PhotoStrip';
 import { SaveMealDialog, type SaveMealMode } from '@/components/SaveMealDialog';
 import { warmUpCamera } from '@/components/cameraWarmup';
@@ -522,21 +523,16 @@ function DiaryGroupForm({
           </DialogHeader>
           <DialogBody className="gap-1.5">
             <Label htmlFor="group-hint">Hinweis für die Analyse (optional)</Label>
-            <Input
+            <HintField
               id="group-hint"
               value={hint ?? ''}
-              maxLength={500}
-              autoComplete="off"
-              enterKeyHint="go"
               placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
+              aria-describedby="group-hint-count"
               onChange={(e) => setHint(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void reanalyze();
-                }
-              }}
             />
+            <p id="group-hint-count" className="text-xs text-muted-foreground empty:hidden">
+              <HintCount length={(hint ?? '').length} />
+            </p>
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRedoOpen(false)}>

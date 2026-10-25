@@ -419,6 +419,8 @@ export type AiItem = z.infer<typeof aiItemSchema>;
 
 /** Most photos one meal analysis takes (plates, courses, a label or ingredient list). */
 export const MAX_ANALYSIS_PHOTOS = 5;
+/** Longest hint or description of a meal analysis (characters); the server cuts off the rest. */
+export const MAX_HINT_LENGTH = 1000;
 
 /** Id prefix of an estimated food (`est:<analysisId>:<index>`); such a food exists only in its analysis. */
 export const ESTIMATED_ID_PREFIX = 'est:';

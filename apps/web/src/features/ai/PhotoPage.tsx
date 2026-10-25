@@ -2,6 +2,7 @@ import {
   computeItem,
   get,
   MAX_ANALYSIS_PHOTOS,
+  MAX_HINT_LENGTH,
   N,
   portionsFor,
   scaleNutrients,
@@ -31,6 +32,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
+import { HintCount, HintField } from '@/components/HintField';
 import {
   BarcodeScanner,
   CAM_ERRORS,
@@ -60,7 +62,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
@@ -448,12 +449,10 @@ function PhotoPreview({
       </PhotoStrip>
       <div className="grid gap-1.5">
         <Label htmlFor="ai-text">Hinweis für die Analyse (optional)</Label>
-        <Input
+        <HintField
           id="ai-text"
           value={text}
           disabled={busy}
-          maxLength={500}
-          enterKeyHint="go"
           onChange={(e) => setText(e.target.value)}
           placeholder="z. B. „mit Butter gebraten“, „halbe Portion“, „250 g Hähnchen“…"
           aria-describedby="ai-text-hint"
@@ -467,7 +466,9 @@ function PhotoPreview({
                 size="sm"
                 variant="secondary"
                 className="h-8 rounded-full"
-                onClick={() => setText((t) => (t.trim() ? `${t.trim()}, ${chip}` : chip).slice(0, 500))}
+                onClick={() =>
+                  setText((t) => (t.trim() ? `${t.trim()}, ${chip}` : chip).slice(0, MAX_HINT_LENGTH))
+                }
               >
                 {chip}
               </Button>
@@ -475,6 +476,7 @@ function PhotoPreview({
           </div>
         )}
         <p id="ai-text-hint" className="text-xs text-muted-foreground">
+          <HintCount length={text.length} />
           {busy
             ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
             : 'Erst mit „Analysieren“ gehen die Fotos an Claude. Mit + kommen weitere Teller, Gänge oder die Nährwerttabelle dazu.'}
@@ -519,7 +521,7 @@ function DescribeForm({ busy, onAnalyze }: { busy: boolean; onAnalyze: (text: st
           id="describe-text"
           value={text}
           disabled={busy}
-          maxLength={1000}
+          maxLength={MAX_HINT_LENGTH}
           rows={4}
           autoFocus
           enterKeyHint="done"
@@ -528,6 +530,7 @@ function DescribeForm({ busy, onAnalyze }: { busy: boolean; onAnalyze: (text: st
           aria-describedby="describe-hint"
         />
         <p id="describe-hint" className="text-xs text-muted-foreground text-pretty">
+          <HintCount length={text.length} />
           {busy
             ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
             : 'Mengen helfen („200 g“, „halbe Portion“, „Restaurantportion“); ohne Angabe nimmt die KI übliche Portionen. Danach prüfst du die Zutaten wie bei einem Foto.'}
@@ -1034,12 +1037,10 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
           <Label htmlFor="review-hint">
             {item.textOnly ? 'Beschreibung der Mahlzeit' : 'Hinweis für die Analyse'}
           </Label>
-          <Input
+          <HintField
             id="review-hint"
             value={hint}
             disabled={busy}
-            maxLength={500}
-            enterKeyHint="done"
             onChange={(e) => {
               setHint(e.target.value);
               void db.aiQueue.update(item.localId!, { text: e.target.value });
@@ -1048,6 +1049,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             aria-describedby="review-hint-help"
           />
           <p id="review-hint-help" className="text-xs text-muted-foreground">
+            <HintCount length={hint.length} />
             Ändern und oben auf ↻ tippen, um neu zu analysieren.
           </p>
         </div>

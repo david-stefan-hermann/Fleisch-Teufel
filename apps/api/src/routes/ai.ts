@@ -5,6 +5,7 @@ import {
   ESTIMATED_ID_PREFIX,
   kcalFromMacrosEu,
   MAX_ANALYSIS_PHOTOS,
+  MAX_HINT_LENGTH,
   N,
   normalize,
   type AiAnalysisResult,
@@ -183,7 +184,8 @@ export function aiRoutes(deps: Deps) {
       // One meal, one to MAX_ANALYSIS_PHOTOS photos (field `image` repeated, like the label reading), or
       // none and a description in `text` ("Beschreiben statt fotografieren").
       const images = form.getAll('image');
-      const text = typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, 1000) : null;
+      const text =
+        typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, MAX_HINT_LENGTH) : null;
       if (!images.every((i) => i instanceof File)) return c.json({ error: 'image_missing' }, 400);
       if (images.length === 0 && !text?.trim()) return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_ANALYSIS_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
@@ -316,7 +318,8 @@ export function aiRoutes(deps: Deps) {
         return c.json({ error: 'expected_multipart' }, 400);
       }
       const images = form.getAll('image');
-      const text = typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, 1000) : null;
+      const text =
+        typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, MAX_HINT_LENGTH) : null;
       if (images.length === 0 || !images.every((i) => i instanceof File))
         return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_LABEL_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
