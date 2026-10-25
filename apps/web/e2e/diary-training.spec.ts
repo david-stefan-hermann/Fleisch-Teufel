@@ -13,12 +13,13 @@ async function register(page: Page) {
   await expect(page).toHaveURL(/\/onboarding$/);
 }
 
-/** Saves the entries of a diary meal as a reusable meal: meal page, save icon, name dialog. */
+/** Saves the entries of a diary meal as a reusable meal: meal page, ⋯ menu, name dialog. */
 async function saveDiaryMeal(page: Page, mealName: string, name: string) {
   await page.goto('/');
   await page.getByRole('link', { name: new RegExp(`^${mealName}`) }).click();
   await expect(page).toHaveURL(/\/diary-meal\?/);
-  await page.getByRole('button', { name: 'Als Meal speichern' }).click();
+  await page.getByRole('button', { name: `Aktionen für ${mealName}` }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
   await dialog.getByLabel('Name').fill(name);
   await dialog.getByRole('button', { name: 'Meal speichern' }).click();
@@ -284,9 +285,11 @@ test('the "+" of a meal opens the food page for that meal, ⋯ of an empty meal 
   await mealCard(page, 'Abendessen').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=2/);
 
-  // So do the "+" and the empty state on the meal page, whose save icon is off while it is empty.
+  // So do the "+" and the empty state on the meal page, whose ⋯ menu has nothing to save while it is empty.
   await page.goto('/diary-meal?meal=3');
-  await expect(page.getByRole('button', { name: 'Als Meal speichern' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Aktionen für Snacks' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Als Meal speichern' })).toBeDisabled();
+  await page.keyboard.press('Escape');
   await page.getByRole('main').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=3/);
   await page.goto('/diary-meal?meal=3');

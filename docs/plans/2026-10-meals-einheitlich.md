@@ -2,6 +2,13 @@
 
 Ablage im Repo bei Umsetzung: `docs/plans/2026-10-meals-einheitlich.md` (Kopie dieser Datei, kommt mit Block 1 in den Commit).
 
+## Status (2026-10-25)
+
+Umgesetzt (Blöcke 1 bis 9, je ein Commit, nicht gepusht). Abweichungen: Block 4 vor Block 3 committet (das ⋯-Menü
+braucht `yesterdayKcal`); `RadioGroup` von Hand nach shadcn-Vorlage angelegt (`components/ui/radio-group.tsx`, kein
+CLI); Hinweisfelder über die gemeinsame Komponente `HintField`. Die Kopfzeilen-Prüfung steht in
+`e2e/meals-unified.spec.ts` (Chromium-iPhone), weil WebKit im Container fehlt.
+
 ## Context
 
 Der Nutzer hat am 2026-10-25 die Meal-Funktionen auf Einheitlichkeit geprüft. Heute sind Speichern, Kopieren und

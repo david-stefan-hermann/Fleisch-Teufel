@@ -161,10 +161,10 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
 
   await page.getByRole('button', { name: 'Zutat hinzufügen' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Zutat hinzufügen' })).toBeVisible();
-  // Saved meals cannot go into a saved meal: "Eigene" has no meals section here.
+  // Other saved meals can go in as ingredients, but not the meal itself (the only one here).
   await page.getByRole('tab', { name: 'Eigene' }).click();
   await expect(page.getByRole('heading', { name: 'Eigene Lebensmittel' })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Meals/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Meals (0)' })).toBeVisible();
   // "Eigene" only searches own foods; the catalog search runs from the other tabs.
   await page.getByRole('tab', { name: 'Häufig' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');

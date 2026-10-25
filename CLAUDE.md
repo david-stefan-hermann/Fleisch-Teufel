@@ -62,10 +62,14 @@ Serve the production web build through the API (same origin, service worker acti
   Diary rows (`EntryRow`, `GroupRow` in `features/diary/MealCard.tsx`) also swipe right (`onCopy`): that copies
   into the device clipboard (`src/db/clipboard.ts`, `kv` key `clipboard`, not synced, one snapshot that stays
   after pasting). A group keeps `mealId`/`groupName`/`aiAnalysisId`/`photoIds` (photo ids are shared, not
-  copied); a single entry or one ingredient of an expanded group pastes as a plain entry. While something is
-  copied each diary meal (and `/diary-meal`) shows `PasteButton` left of "+" (`pasteClipboard`, undo toast), and
-  the diary header shows `ClipboardMenu` left of the sync cloud: "Als Meal speichern" (groups only,
-  `saveMealFromItems`) and "Zwischenablage leeren". `logItems` returns the new entry ids.
+  copied); a single entry or one ingredient of an expanded group pastes as a plain entry. A whole diary meal is
+  copied with "Kopieren" in its ⋯ menu (kind `meal`, `parts`: its rows as `DiaryPart`s, pasted with the same
+  structure). Header of each diary meal (and `/diary-meal`): [`PasteButton` while something is copied]
+  [⋯ `DiaryMealMenu`: Kopieren, Als Meal speichern, Wie gestern eintragen, Alle Einträge löschen] [+]. The diary
+  header shows `ClipboardMenu` left of the sync cloud: "Als Meal speichern" (groups and meals,
+  `saveMealFromItems`) and "Zwischenablage leeren". "Wie gestern", the clipboard and suggestions log through
+  `diaryParts`/`logParts` (`src/db/entries.ts`); a meal saved from diary rows takes every ingredient on its own
+  and the first photo of any group (`firstPhotoId`). All "Als Meal speichern" use `SaveMealDialog`. `logItems` returns the new entry ids.
   Entries logged together share `groupId`: from a saved meal (`mealId`, name from the meal) or as a named group
   without meal (`groupName`, AI review "Meal eintragen" without saving, via `logAiItems`). `groupDiaryEntries` (shared) builds
   diary rows; `DiaryRows` (`features/diary/MealCard.tsx`) renders them in the diary and on `/diary-meal`.
@@ -74,7 +78,10 @@ Serve the production web build through the API (same origin, service worker acti
   current photo (with `PhotoCount` when there are several), and its own `groupName` before the meal name. The group row is a
   stretched link to the group editor; only "N Zutaten ⌄" (its own button above the link) expands the items.
 - Diary group editor: `/diary-group/$groupId?date=` (`features/diary/DiaryGroupPage.tsx`) changes only these
-  entries, never the saved meal: name, amounts, total amount (`scaleItems`, shared with the meal editor), remove
+  entries, never the saved meal, except its save icon "Als Meal speichern" (`saveGroupAsMeal`, `SaveMealDialog`):
+  what the editor shows becomes a new meal or, for a group logged from a meal, updates that meal (keeps its photo
+  and cooked weight); the entries take over the draft and are attached to the meal (`mealId`, own name dropped
+  when equal), then the editor closes. Otherwise: name, amounts, total amount (`scaleItems`, shared with the meal editor), remove
   and add (`into=group:<id>`). Device draft in `db/groupDraft.ts` (`kv`); `saveGroupDraft` patches, soft-deletes
   and adds entries of the same group. A name equal to the meal's stays `groupName: null`. The editor shows all
   photos (`PhotoStrip`) and takes new ones ("Foto aufnehmen oder wählen", `PhotoCaptureSheet`): they wait as
@@ -96,9 +103,13 @@ Serve the production web build through the API (same origin, service worker acti
   `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; OFF results are sorted into it
   when they arrive. Rows show the last logged amount, else a serving (never the whole package), and "N× gegessen".
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` / `group:<groupId>` (its day is `date`) on `/add`,
-  `/food/$foodId`, `/scan`, `/custom-food/$id` adds to a saved meal / AI review / diary group draft instead of the diary (`src/lib/into.ts`; return via
+  `/food/$foodId`, `/scan`, `/custom-food/$id`, `/meals/$mealId` (a saved meal: `MealLogView` adds its kept,
+  scaled ingredients one by one via `addItemsToMealDraft` / `addItemsToGroupDraft` / `addFoodsToDraft`; the meal
+  being edited is not listed) adds to a saved meal / AI review / diary group draft instead of the diary (`src/lib/into.ts`; return via
   `rememberIntoStart`/`returnFromInto`). AI review state lives in `aiQueue.draft`, the open review in `/photo?review=`.
-  The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, all its photos, one more Claude call,
+  Hint fields of the analysis (photo preview, review, group editor's ↻ dialog) are `HintField`
+  (`components/HintField.tsx`: `Textarea autoGrow`, one line growing to about six, Enter is a new line, at most
+  `MAX_HINT_LENGTH` = 1 000 like the server, `HintCount` near the limit). The review keeps the hint editable; ↻ calls `reanalyze` (same queue item, all its photos, one more Claude call,
   asks first when `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old
   result. The review shows the photos as `PhotoStrip`; "+" adds more (`addQueuePhotos`), X removes one; photos not
   in `analyzedPhotoIds` carry "Neu" and wait for ↻ (no automatic re-analysis).
@@ -146,7 +157,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   history entry). "Anlegen und eintragen" still replaces the editor with the new food's page.
 - Dialogs sit at the top of the visual viewport (`ViewportVars` sets `--vvh`/`--vvt`) and stay above the iOS
   keyboard; put everything between header and footer into `DialogBody` (scrolls, buttons stay visible).
-- Saved meals: `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
+- Saved meals: "Neues Meal" on `/meals` (`startNewMeal`: a draft with `isNew`, no record until "Speichern" with
+  a name and an ingredient; left without input it is dropped). `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
   entry only), without them edits (`MealEditor`). The editor writes a device draft (`db/mealDraft.ts`, `kv`) and
   only `saveMealDraft` touches the synced record; `addItemToMeal` (food search `into=meal:`) appends to the draft.
 - Saved trainings (`exerciseTemplates`, never "Vorlage" in the UI): `/trainings`, `/trainings/$templateId`; sport
@@ -240,10 +252,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
   form before saving.
-- Diary meal without entries: `MealSuggestions` ("Zuletzt hier", `src/db/suggestions.ts`): foods and groups
-  of this meal index in the last 60 days, scored by frequency and recency (same weekday higher), one tap logs
-  the last amount (`logSuggestion`) or copies yesterday's meal (`copyMealFromDay`, "Wie gestern"), with undo.
-  Nothing shows once the meal has entries.
+- Diary meal suggestions: `MealSuggestions` ("Zuletzt hier", `src/db/suggestions.ts`) under every diary meal
+  (and on `/diary-meal`), below its entries: foods and groups of this meal index in the last 60 days, scored by
+  frequency and recency (same weekday higher), without what the meal already has that day (cut to 4 after
+  that). One live query per day for all cards (`daySuggestions`, `useDaySuggestions`). One tap logs the last
+  amount (`logSuggestion`) with undo; "Wie gestern" (`copyMealFromDay`) is a chip only while the meal is empty,
+  else in the ⋯ menu.
 - "Beschreiben statt fotografieren": the keyboard icon on `/photo` swaps the camera for a text form; the
   queue item has `textOnly: true` and no photos (`enqueueDescription`), `/api/ai/analyze` takes text without
   images, the review is the same (its hint field is labelled "Beschreibung der Mahlzeit").
