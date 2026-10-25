@@ -4,7 +4,8 @@
  * "Änderungen übernehmen"; the draft lives on this device in `kv` so it survives the way through the
  * ingredient search (`/add?into=group:<id>` → food page → back) and a reload.
  *
- * Saving changes only these diary entries, never the saved meal they came from.
+ * Saving changes only these diary entries, never the saved meal they came from; only "Als Meal
+ * speichern" (`saveGroupAsMeal`) writes a saved meal, on purpose.
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
@@ -21,7 +22,7 @@ import type { UserDb } from './dexie';
 import { aiMealItems } from './entries';
 import { mealItem } from './mealDraft';
 import { storePhotoBytes } from './photos';
-import { deleteRecord, patchRecord, saveRecord } from './write';
+import { deleteRecord, patchRecord, restoreRecord, saveRecord } from './write';
 
 /** An ingredient of the draft; `entryId` links it to its diary entry, null for one added in the editor. */
 export type GroupDraftItem = MealItem & { entryId: string | null };
@@ -221,17 +222,42 @@ export async function groupName(db: UserDb, entries: readonly FoodEntry[]): Prom
  * null), so the row keeps following the meal. Returns false when the group is gone.
  */
 export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boolean> {
+  return (await writeGroup(db, draft, null)) !== null;
+}
+
+/** How "Als Meal speichern" in the group editor treats the saved meal. */
+export interface GroupAsMeal {
+  /** `new`: a new meal; `update`: the meal the group was logged from takes over name and ingredients. */
+  mode: 'new' | 'update';
+  name: string;
+}
+
+/**
+ * "Als Meal speichern" in the group editor: what the editor shows (the draft) becomes a saved meal and
+ * the group's entries take over the draft like `saveGroupDraft`, now attached to that meal (`mealId`;
+ * the own name is dropped when it equals the meal's, analysis and photos stay). `update` replaces name
+ * and ingredients of the group's meal (a deleted one comes back) and keeps its photo (without one: the
+ * group's first) and cooked weight; `new` creates a meal with the group's first photo. Days logged
+ * before stay as they are. Returns the meal id, or null when the group is gone.
+ */
+export async function saveGroupAsMeal(
+  db: UserDb,
+  draft: GroupDraft,
+  asMeal: GroupAsMeal,
+): Promise<string | null> {
+  return writeGroup(db, draft, asMeal);
+}
+
+/** `saveGroupDraft` and `saveGroupAsMeal` in one transaction; returns the group's meal id ('' without). */
+async function writeGroup(db: UserDb, draft: GroupDraft, asMeal: GroupAsMeal | null): Promise<string | null> {
   if (draft.items.length === 0) throw new Error('A group needs at least one ingredient');
   const added = await readGroupDraftPhotos(db, draft.groupId);
   return db.transaction('rw', [db.foodEntries, db.meals, db.outbox, db.kv, db.photos], async () => {
     const entries = await groupEntries(db, draft.groupId, draft.date);
     const first = entries[0];
-    if (!first) return false;
+    if (!first) return null;
     const meal = first.mealId ? await db.meals.get(first.mealId) : undefined;
     const typed = draft.name.trim().slice(0, 120);
-    // A name equal to the saved meal's is no own name: the row follows the meal again (also when the
-    // group had its own name before).
-    const groupNameValue = !typed ? first.groupName : meal && typed === meal.name ? null : typed;
 
     // Photos: unchanged without added ones; else the group's (or the meal photo it showed) plus the new.
     let photos: { photoId: string | null; photoIds: string[] | null } = {
@@ -247,6 +273,37 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
     }
     const photosChanged = added.length > 0;
 
+    let mealId = first.mealId;
+    let groupNameValue: string | null;
+    if (asMeal) {
+      const mealName = asMeal.name.trim().slice(0, 120);
+      const items = draft.items.map(mealItem);
+      const groupPhoto = photos.photoIds?.[0] ?? photos.photoId ?? meal?.photoId ?? null;
+      if (asMeal.mode === 'update' && first.mealId && meal) {
+        if (meal.deleted) await restoreRecord(db, 'meals', meal.id);
+        await patchRecord(db, 'meals', meal.id, {
+          name: mealName,
+          items,
+          photoId: meal.photoId ?? groupPhoto,
+        });
+      } else {
+        mealId = uuidv7();
+        await saveRecord(db, 'meals', {
+          id: mealId,
+          name: mealName,
+          items,
+          photoId: groupPhoto,
+          cookedGrams: null,
+        });
+      }
+      const own = typed || first.groupName;
+      groupNameValue = !own || own === mealName ? null : own;
+    } else {
+      // A name equal to the saved meal's is no own name: the row follows the meal again (also when the
+      // group had its own name before).
+      groupNameValue = !typed ? first.groupName : meal && typed === meal.name ? null : typed;
+    }
+
     const byId = new Map(entries.map((e) => [e.id, e]));
     const kept = new Set<string>();
     let loggedAt = Math.max(...entries.map((e) => e.loggedAt));
@@ -254,10 +311,16 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
       const prev = item.entryId ? byId.get(item.entryId) : undefined;
       if (prev) {
         kept.add(prev.id);
-        const next = { ...mealItem(item), groupName: groupNameValue, ...(photosChanged ? photos : {}) };
+        const next = {
+          ...mealItem(item),
+          groupName: groupNameValue,
+          mealId,
+          ...(photosChanged ? photos : {}),
+        };
         const changed =
           JSON.stringify(mealItem(prev)) !== JSON.stringify(mealItem(item)) ||
           prev.groupName !== groupNameValue ||
+          prev.mealId !== mealId ||
           photosChanged;
         if (changed) await patchRecord(db, 'foodEntries', prev.id, next);
         continue;
@@ -271,7 +334,7 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
         date: first.date,
         meal: first.meal,
         loggedAt: ++loggedAt,
-        mealId: first.mealId,
+        mealId,
         aiAnalysisId: draft.aiAnalysisId ?? first.aiAnalysisId,
         groupId: first.groupId,
         groupName: groupNameValue,
@@ -280,6 +343,6 @@ export async function saveGroupDraft(db: UserDb, draft: GroupDraft): Promise<boo
     }
     for (const e of entries) if (!kept.has(e.id)) await deleteRecord(db, 'foodEntries', e.id);
     await clearGroupDraft(db, draft.groupId);
-    return true;
+    return mealId ?? '';
   });
 }

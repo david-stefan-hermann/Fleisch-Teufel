@@ -2,7 +2,7 @@ import { ClipboardList, ClipboardX, Save } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { NameDialog } from '@/components/NameDialog';
+import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -75,14 +75,11 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <NameDialog
+      <SaveMealDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
-        title="Als Meal speichern"
-        description={saveMealDescription(clipboard.items.length)}
-        confirmLabel="Meal speichern"
+        count={clipboard.items.length}
         defaultName={clipboard.name}
-        placeholder="z. B. Mein Mittagessen…"
         onConfirm={async (name) => {
           await saveMealFromItems(db, name, clipboard.items, clipboard.photoIds[0] ?? null);
           toast.success(`„${name}“ gespeichert`);
@@ -90,11 +87,4 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
       />
     </>
   );
-}
-
-/** Dialog text of "Als Meal speichern": every ingredient goes in on its own (groups taken apart). */
-export function saveMealDescription(count: number): string {
-  return count === 1
-    ? '1 Zutat wird als wiederverwendbares Meal gespeichert.'
-    : `Alle ${fmt0(count)} Zutaten werden einzeln als wiederverwendbares Meal gespeichert.`;
 }

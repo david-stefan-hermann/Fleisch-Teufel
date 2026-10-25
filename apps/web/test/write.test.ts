@@ -36,6 +36,7 @@ import {
   readGroupDraft,
   readGroupDraftPhotos,
   removeGroupDraftPhoto,
+  saveGroupAsMeal,
   saveGroupDraft,
   writeGroupDraft,
 } from '@/db/groupDraft';
@@ -1153,5 +1154,95 @@ describe('diary clipboard: a whole diary meal', () => {
     const pasted = await live(d, '2026-10-06', 0);
     expect(groupDiaryEntries(pasted)).toHaveLength(1);
     expect(pasted[0]!.groupName).toBe('Alt');
+  });
+});
+
+describe('diary group editor: "Als Meal speichern"', () => {
+  const food = (name: string, kcalPer100: number): MealItem => ({
+    foodId: `bls:${name}`,
+    source: 'bls',
+    name,
+    brand: null,
+    grams: 100,
+    portionLabel: '1 g',
+    portionGrams: 1,
+    quantity: 100,
+    per100: { ENERCC: kcalPer100 },
+    nutrients: { ENERCC: kcalPer100 },
+  });
+  const DATE = '2026-10-09';
+
+  it('saves an analysed group as a new meal with the draft and attaches the entries to it', async () => {
+    const d = db();
+    await logItems(
+      d,
+      [food('Reis', 130), food('Curry', 200)],
+      { date: DATE, meal: 1 },
+      {
+        groupName: 'Curry vom Foto',
+        aiAnalysisId: 'a1',
+        photoIds: ['p1', 'p2'],
+      },
+    );
+    const groupId = (await d.foodEntries.toCollection().first())!.groupId!;
+    const entries = await groupEntries(d, groupId, DATE);
+    const draft = draftFromEntries(entries, 'Curry vom Foto');
+    // An open change in the editor goes into the meal and the entries.
+    draft.items[0] = { ...rescaleItem(draft.items[0]!, 150), entryId: draft.items[0]!.entryId };
+    const mealId = (await saveGroupAsMeal(d, draft, { mode: 'new', name: 'Curry vom Foto' }))!;
+    const meal = (await d.meals.get(mealId))!;
+    expect(meal).toMatchObject({ name: 'Curry vom Foto', photoId: 'p1', cookedGrams: null });
+    expect(meal.items.map((i) => [i.name, i.grams])).toEqual([
+      ['Reis', 150],
+      ['Curry', 100],
+    ]);
+    const after = await groupEntries(d, groupId, DATE);
+    expect(after.map((e) => [e.mealId, e.groupName, e.aiAnalysisId, e.photoIds, e.grams])).toEqual([
+      [mealId, null, 'a1', ['p1', 'p2'], 150],
+      [mealId, null, 'a1', ['p1', 'p2'], 100],
+    ]);
+    expect(await readGroupDraft(d, groupId)).toBeNull();
+  });
+
+  it('updates the meal the group came from, keeps its photo and cooked weight, brings a deleted one back', async () => {
+    const d = db();
+    const items = [food('Reis', 130), food('Huhn', 110)];
+    await saveRecord(d, 'meals', { id: 'm1', name: 'Bowl', items, photoId: 'p1', cookedGrams: 500 });
+    await logItems(d, items, { date: DATE, meal: 1 }, { mealId: 'm1' });
+    await deleteRecord(d, 'meals', 'm1');
+    const groupId = (await d.foodEntries.toCollection().first())!.groupId!;
+    const entries = await groupEntries(d, groupId, DATE);
+    const draft = { ...draftFromEntries(entries, 'Bowl'), name: 'Bowl XL' };
+    draft.items = [draft.items[0]!, { ...food('Mais', 90), entryId: null }];
+    expect(await saveGroupAsMeal(d, draft, { mode: 'update', name: 'Bowl XL' })).toBe('m1');
+    const meal = (await d.meals.get('m1'))!;
+    expect(meal).toMatchObject({ name: 'Bowl XL', photoId: 'p1', cookedGrams: 500, deleted: false });
+    expect(meal.items.map((i) => i.name)).toEqual(['Reis', 'Mais']);
+    const after = await groupEntries(d, groupId, DATE);
+    expect(after.map((e) => [e.name, e.mealId, e.groupName])).toEqual([
+      ['Reis', 'm1', null],
+      ['Mais', 'm1', null],
+    ]);
+  });
+
+  it('takes photos added in the editor into the entries and as the photo of a new meal', async () => {
+    const d = db();
+    await logItems(d, [food('A', 100), food('B', 100)], { date: DATE, meal: 0 }, { groupName: 'AB' });
+    const groupId = (await d.foodEntries.toCollection().first())!.groupId!;
+    await addGroupDraftPhotos(d, groupId, [new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' })]);
+    const entries = await groupEntries(d, groupId, DATE);
+    const mealId = (await saveGroupAsMeal(d, draftFromEntries(entries, 'AB'), {
+      mode: 'new',
+      name: 'Mein AB',
+    }))!;
+    const after = await groupEntries(d, groupId, DATE);
+    const photo = after[0]!.photoId!;
+    expect(photo).toBeTruthy();
+    expect((await d.meals.get(mealId))!.photoId).toBe(photo);
+    // The own name differs from the meal's, so it stays.
+    expect(after.map((e) => [e.mealId, e.groupName])).toEqual([
+      [mealId, 'AB'],
+      [mealId, 'AB'],
+    ]);
   });
 });

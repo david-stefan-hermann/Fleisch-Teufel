@@ -3,7 +3,7 @@ import { Copy, History, MoreHorizontal, Save, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { NameDialog } from '@/components/NameDialog';
+import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,7 +16,6 @@ import { saveMealFromEntries } from '@/db/entries';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { saveMealDescription } from './ClipboardMenu';
 import { copyMealWithToast, removeEntriesWithUndo } from './MealCard';
 import { copyYesterdayWithToast } from './MealSuggestions';
 
@@ -82,14 +81,11 @@ export function DiaryMealMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <NameDialog
+      <SaveMealDialog
         open={saveOpen}
         onOpenChange={setSaveOpen}
-        title="Als Meal speichern"
-        description={saveMealDescription(entries.length)}
-        confirmLabel="Meal speichern"
+        count={entries.length}
         defaultName={`${mealName} ${fmtDate(date)}`}
-        placeholder="z. B. Mein Mittagessen…"
         onConfirm={async (name) => {
           await saveMealFromEntries(db, name, entries);
           toast.success(`„${name}“ gespeichert`);

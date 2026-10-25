@@ -15,7 +15,7 @@ import {
   type ShouldBlockFn,
 } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Camera, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -23,6 +23,7 @@ import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
 import { PhotoStrip } from '@/components/PhotoStrip';
+import { SaveMealDialog, type SaveMealMode } from '@/components/SaveMealDialog';
 import { warmUpCamera } from '@/components/cameraWarmup';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
@@ -55,6 +56,7 @@ import {
   readGroupDraft,
   readGroupDraftPhotos,
   removeGroupDraftPhoto,
+  saveGroupAsMeal,
   saveGroupDraft,
   writeGroupDraft,
   type GroupDraft,
@@ -92,7 +94,8 @@ interface GroupData {
  * with photos can be analysed again with all of them (↻, with an optional hint): the result
  * replaces the ingredients of the draft. It changes only these diary entries, never the saved meal. Nothing is written until
  * "Änderungen übernehmen"; the draft lives in `kv` (see `db/groupDraft.ts`) and leaving with changes
- * asks first.
+ * asks first. The save icon ("Als Meal speichern", `SaveMealDialog`) keeps what the editor shows as a
+ * saved meal (new, or updating the meal the group came from) and attaches the entries to it.
  */
 export function DiaryGroupPage() {
   const { groupId } = useParams({ from: '/authed/diary-group/$groupId' });
@@ -248,6 +251,19 @@ function DiaryGroupForm({
     goBackOr(router.history, 1, back);
   }
 
+  const [saveMealOpen, setSaveMealOpen] = useState(false);
+  /** "Als Meal speichern": the draft becomes a saved meal, the entries take it over; then the editor closes. */
+  async function saveAsMeal(mealName: string, mode: SaveMealMode) {
+    const mealId = await saveGroupAsMeal(db, draft, { mode, name: mealName });
+    if (mealId === null) {
+      toast.error('Den Eintrag gibt es nicht mehr.');
+      return;
+    }
+    toast.success(`„${mealName}“ gespeichert`);
+    leaving.current = true;
+    goBackOr(router.history, 1, back);
+  }
+
   async function remove() {
     await clearGroupDraft(db, draft.groupId);
     await removeEntriesWithUndo(db, entries, `${data.name} gelöscht`);
@@ -344,6 +360,15 @@ function DiaryGroupForm({
               <RotateCcw aria-hidden />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Als Meal speichern"
+            disabled={busy || saving}
+            onClick={() => setSaveMealOpen(true)}
+          >
+            <Save aria-hidden />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -521,6 +546,15 @@ function DiaryGroupForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SaveMealDialog
+        open={saveMealOpen}
+        onOpenChange={setSaveMealOpen}
+        count={draft.items.length}
+        defaultName={name}
+        existing={first.mealId && meal ? { name: meal.name } : null}
+        dirty={dirty}
+        onConfirm={saveAsMeal}
+      />
       <DiscardDialog
         open={blocker.status === 'blocked'}
         name={data.name}
