@@ -1,6 +1,7 @@
 /**
- * The diary clipboard: one copied diary row (a single entry or a whole group) on this device, filled by
- * swiping a row to the right and pasted with the paste icon of a diary meal. Lives in `kv` (not synced),
+ * The diary clipboard: one copied diary row (a single entry or a whole group) or a whole diary meal
+ * ("Kopieren" in its ⋯ menu) on this device, filled by swiping a row to the right and pasted with the
+ * paste icon of a diary meal. Lives in `kv` (not synced),
  * survives a reload and stays filled after pasting until it is cleared or something else is copied.
  *
  * It holds a snapshot (item fields, group fields, photo ids), no references to the source entries: the
@@ -10,11 +11,21 @@
  */
 import { get, N, photoIdsOf, type FoodEntry, type MealItem } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { entriesToMealItems, logParts } from './entries';
+import {
+  diaryParts,
+  entriesToMealItems,
+  firstPhotoId,
+  logParts,
+  partsItems,
+  type DiaryPart,
+} from './entries';
 
 export interface Clipboard {
-  /** `group`: entries logged together (saved meal, AI analysis); `entry`: one plain entry. */
-  kind: 'entry' | 'group';
+  /**
+   * `group`: entries logged together (saved meal, AI analysis); `entry`: one plain entry; `meal`: all
+   * rows of a diary meal (`parts`).
+   */
+  kind: 'entry' | 'group' | 'meal';
   /** What the row showed: name for toasts, the menu and the default name when saving. */
   name: string;
   items: MealItem[];
@@ -22,6 +33,8 @@ export interface Clipboard {
   groupName: string | null;
   aiAnalysisId: string | null;
   photoIds: string[];
+  /** Only `meal`: its rows, logged again with the same structure. `items` holds all their ingredients. */
+  parts?: DiaryPart[];
   copiedAt: number;
 }
 
@@ -39,7 +52,7 @@ export async function clearClipboard(db: UserDb): Promise<void> {
 /** Copies a diary row; replaces what was copied before. A group keeps its group fields and photos. */
 export async function copyToClipboard(
   db: UserDb,
-  kind: Clipboard['kind'],
+  kind: 'entry' | 'group',
   name: string,
   entries: readonly FoodEntry[],
 ): Promise<Clipboard> {
@@ -60,14 +73,41 @@ export async function copyToClipboard(
 }
 
 /**
+ * Copies a whole diary meal ("Kopieren" in its ⋯ menu): its rows keep their structure; `items` are all
+ * ingredients and `photoIds` the first photo of any group (the meal photo when saving it).
+ */
+export async function copyMealToClipboard(
+  db: UserDb,
+  name: string,
+  entries: readonly FoodEntry[],
+): Promise<Clipboard> {
+  const parts = diaryParts(entries);
+  const photo = firstPhotoId(entries);
+  const clip: Clipboard = {
+    kind: 'meal',
+    name: name.trim().slice(0, 120),
+    items: partsItems(parts),
+    mealId: null,
+    groupName: null,
+    aiAnalysisId: null,
+    photoIds: photo ? [photo] : [],
+    parts,
+    copiedAt: Date.now(),
+  };
+  await db.kv.put({ key: CLIPBOARD_KEY, value: clip });
+  return clip;
+}
+
+/**
  * Logs the clipboard into a diary meal: a group as a new group (new ids, new `groupId`, logged now) with
- * the same saved meal, name, analysis and photos; an entry as a plain entry. Returns the new entry ids.
+ * the same saved meal, name, analysis and photos; an entry as a plain entry; a meal row by row. Returns the new entry ids.
  */
 export async function pasteClipboard(
   db: UserDb,
   clip: Clipboard,
   target: { date: string; meal: number },
 ): Promise<string[]> {
+  if (clip.kind === 'meal') return logParts(db, clip.parts ?? [], target);
   return logParts(
     db,
     [

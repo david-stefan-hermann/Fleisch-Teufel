@@ -16,7 +16,7 @@ import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
-import { copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
+import { copyMealToClipboard, copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem, UserDb } from '@/db/dexie';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
@@ -174,11 +174,25 @@ export function PasteButton({
 /** Copies a diary row (swipe right) and says so; replaces what was copied before. */
 async function copyWithToast(
   db: UserDb,
-  kind: Clipboard['kind'],
+  kind: 'entry' | 'group',
   name: string,
   entries: readonly FoodEntry[],
 ): Promise<void> {
   await copyToClipboard(db, kind, name, entries);
+  copiedToast(name);
+}
+
+/** Copies a whole diary meal ("Kopieren" in its ⋯ menu) and says so. */
+export async function copyMealWithToast(
+  db: UserDb,
+  name: string,
+  entries: readonly FoodEntry[],
+): Promise<void> {
+  await copyMealToClipboard(db, name, entries);
+  copiedToast(name);
+}
+
+function copiedToast(name: string) {
   toast(`„${name}“ kopiert`, { description: 'Zum Eintragen auf das Einfügen-Symbol einer Mahlzeit tippen.' });
 }
 
@@ -378,7 +392,7 @@ function GroupRow({
   meal: number;
   draggable: boolean;
   onDelete: (entries: FoodEntry[]) => void;
-  onCopy: (kind: Clipboard['kind'], name: string, entries: FoodEntry[]) => void;
+  onCopy: (kind: 'entry' | 'group', name: string, entries: FoodEntry[]) => void;
 }) {
   const [expanded, setExpanded] = useState(() => readExpanded().has(groupId));
   const { dragging } = useDiaryDrag();

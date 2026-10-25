@@ -19,16 +19,23 @@ import { entryAmountLabel } from './MealCard';
 
 /**
  * The clipboard icon in the diary header (only while something is copied): what is copied, "Als Meal
- * speichern" for a copied group (e.g. a scanned meal) and "Zwischenablage leeren".
+ * speichern" for a copied group (e.g. a scanned meal) or diary meal and "Zwischenablage leeren".
  */
 export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
   const db = useDb();
   const [saveOpen, setSaveOpen] = useState(false);
-  const isGroup = clipboard.kind === 'group';
+  const kind = clipboard.kind;
   const first = clipboard.items[0];
+  const rows = clipboard.parts?.length ?? 0;
   const detail = [
     `${fmt0(clipboardKcal(clipboard))} kcal`,
-    isGroup ? fmtIngredients(clipboard.items.length) : first ? entryAmountLabel(first) : '',
+    kind === 'meal'
+      ? `${fmt0(rows)} ${rows === 1 ? 'Eintrag' : 'Einträge'}`
+      : kind === 'group'
+        ? fmtIngredients(clipboard.items.length)
+        : first
+          ? entryAmountLabel(first)
+          : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -47,7 +54,7 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
             <span className="tabular block text-xs font-normal text-muted-foreground">{detail}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {isGroup && (
+          {kind !== 'entry' && (
             <DropdownMenuItem onSelect={() => setSaveOpen(true)}>
               <Save aria-hidden /> Als Meal speichern
             </DropdownMenuItem>
@@ -72,7 +79,7 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
         open={saveOpen}
         onOpenChange={setSaveOpen}
         title="Als Meal speichern"
-        description={`${fmtIngredients(clipboard.items.length)} ${clipboard.items.length === 1 ? 'wird' : 'werden'} als wiederverwendbares Meal gespeichert.`}
+        description={saveMealDescription(clipboard.items.length)}
         confirmLabel="Meal speichern"
         defaultName={clipboard.name}
         placeholder="z. B. Mein Mittagessen…"
@@ -83,4 +90,11 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
       />
     </>
   );
+}
+
+/** Dialog text of "Als Meal speichern": every ingredient goes in on its own (groups taken apart). */
+export function saveMealDescription(count: number): string {
+  return count === 1
+    ? '1 Zutat wird als wiederverwendbares Meal gespeichert.'
+    : `Alle ${fmt0(count)} Zutaten werden einzeln als wiederverwendbares Meal gespeichert.`;
 }

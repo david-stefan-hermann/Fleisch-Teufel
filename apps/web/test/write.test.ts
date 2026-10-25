@@ -42,6 +42,7 @@ import {
 import {
   clearClipboard,
   clipboardKcal,
+  copyMealToClipboard,
   copyToClipboard,
   pasteClipboard,
   readClipboard,
@@ -1081,5 +1082,76 @@ describe('JSON backup', () => {
     expect(await b.dayNotes.get(n.id)).toMatchObject({ note: 'neu' });
     expect(await b.outbox.count()).toBe(2);
     expect(() => parseBackup('{"app":"other"}')).toThrow();
+  });
+});
+
+describe('diary clipboard: a whole diary meal', () => {
+  const item = (name: string, kcal: number): MealItem => ({
+    foodId: null,
+    source: 'quick',
+    name,
+    brand: null,
+    grams: 100,
+    portionLabel: '1 g',
+    portionGrams: 1,
+    quantity: 100,
+    per100: null,
+    nutrients: { ENERCC: kcal },
+  });
+  const live = (d: UserDb, date: string, meal: number) =>
+    d.foodEntries
+      .where('[date+meal]')
+      .equals([date, meal])
+      .filter((e) => !e.deleted)
+      .sortBy('loggedAt');
+
+  it('copies single entries and groups and pastes them with the same structure', async () => {
+    const d = db();
+    await logItems(d, [item('Brot', 250)], { date: '2026-10-07', meal: 1 });
+    await logItems(
+      d,
+      [item('Reis', 130), item('Curry', 200)],
+      { date: '2026-10-07', meal: 1 },
+      { mealId: 'm1', aiAnalysisId: 'a1', photoIds: ['p1', 'p2'] },
+    );
+    const source = await live(d, '2026-10-07', 1);
+    const clip = await copyMealToClipboard(d, 'Mittagessen', source);
+    expect(clip).toMatchObject({ kind: 'meal', name: 'Mittagessen', photoIds: ['p1'] });
+    expect(clip.items.map((i) => i.name)).toEqual(['Brot', 'Reis', 'Curry']);
+    expect(clipboardKcal(clip)).toBe(580);
+
+    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-06', meal: 2 });
+    const pasted = await live(d, '2026-10-06', 2);
+    const rows = groupDiaryEntries(pasted);
+    expect(rows.map((r) => r.kind)).toEqual(['entry', 'group']);
+    expect(pasted[1]).toMatchObject({ mealId: 'm1', aiAnalysisId: 'a1', photoIds: ['p1', 'p2'] });
+    expect(pasted[1]!.groupId).not.toBe(source[1]!.groupId);
+
+    // Saved as a meal: every ingredient on its own, the photo of the group.
+    const id = await saveMealFromItems(d, clip.name, clip.items, clip.photoIds[0] ?? null);
+    const meal = (await d.meals.get(id))!;
+    expect(meal.items.map((i) => i.name)).toEqual(['Brot', 'Reis', 'Curry']);
+    expect(meal.photoId).toBe('p1');
+  });
+
+  it('still pastes a group clipboard stored by an older version (no parts)', async () => {
+    const d = db();
+    await d.kv.put({
+      key: 'clipboard',
+      value: {
+        kind: 'group',
+        name: 'Alt',
+        items: [item('A', 1), item('B', 2)],
+        mealId: null,
+        groupName: 'Alt',
+        aiAnalysisId: null,
+        photoIds: [],
+        copiedAt: 1,
+      },
+    });
+    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-06', meal: 0 });
+    const pasted = await live(d, '2026-10-06', 0);
+    expect(groupDiaryEntries(pasted)).toHaveLength(1);
+    expect(pasted[0]!.groupName).toBe('Alt');
   });
 });
