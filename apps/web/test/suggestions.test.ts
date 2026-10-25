@@ -10,7 +10,7 @@ import {
   partsItems,
   saveMealFromEntries,
 } from '@/db/entries';
-import { copyMealFromDay, logSuggestion, mealSuggestions } from '@/db/suggestions';
+import { copyMealFromDay, daySuggestions, logSuggestion, mealSuggestions } from '@/db/suggestions';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 const TODAY = '2026-10-24'; // a Saturday
@@ -205,5 +205,49 @@ describe('diary parts (shared by "Wie gestern", clipboard and suggestions)', () 
     const meal = (await d.meals.get(id))!;
     expect(meal.photoId).toBe('p2');
     expect(meal.items.map((i) => i.name)).toEqual(['Brot', 'Curry']);
+  });
+});
+
+describe('suggestions under a meal with entries', () => {
+  it('leaves out what the meal already has and moves the next best up', async () => {
+    const d = db();
+    for (const [i, name] of ['A', 'B', 'C', 'D', 'E'].entries())
+      for (let k = 0; k <= 4 - i; k++) await logFoodEntry(d, entry(name, 100), addDays(TODAY, -1 - k));
+    expect((await mealSuggestions(d, TODAY, 0)).map((s) => s.name)).toEqual(['A', 'B', 'C', 'D']);
+    await logFoodEntry(d, entry('B', 100), TODAY);
+    expect((await mealSuggestions(d, TODAY, 0)).map((s) => s.name)).toEqual(['A', 'C', 'D', 'E']);
+  });
+
+  it('leaves out a saved meal logged today and gives every meal its yesterday kcal', async () => {
+    const d = db();
+    await d.meals.put({
+      id: 'm1',
+      name: 'Müsli',
+      items: [],
+      photoId: null,
+      cookedGrams: null,
+      updatedAt: 1,
+      deleted: false,
+    });
+    await logItems(
+      d,
+      [item('Hafer', 400, 50), item('Milch', 50, 200)],
+      { date: addDays(TODAY, -1), meal: 0 },
+      { mealId: 'm1' },
+    );
+    await logFoodEntry(d, { ...entry('Suppe', 100, 300), meal: 1 }, addDays(TODAY, -1));
+    const before = await daySuggestions(d, TODAY);
+    expect(before.get(0)).toMatchObject({
+      yesterdayKcal: 300,
+      suggestions: [{ key: 'meal:m1', name: 'Müsli' }],
+    });
+    expect(before.get(1)).toMatchObject({ yesterdayKcal: 300, suggestions: [{ name: 'Suppe' }] });
+    await logItems(
+      d,
+      [item('Hafer', 400, 40), item('Milch', 50, 200)],
+      { date: TODAY, meal: 0 },
+      { mealId: 'm1' },
+    );
+    expect((await daySuggestions(d, TODAY)).get(0)!.suggestions).toEqual([]);
   });
 });

@@ -2,11 +2,19 @@
  * "Zuletzt hier": what a diary meal usually gets, from the diary itself. A food or a group (saved
  * meal, named group) logged in this meal index lately scores by how often and how recently it was
  * logged, the same weekday a little higher (the Sunday breakfast). One tap logs it again with the
- * last amount (`logSuggestion`).
+ * last amount (`logSuggestion`). Shown under every diary meal, without what the meal already has.
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { addDays, diffDays, groupDiaryEntries, photoIdsOf, type FoodEntry, type MealItem } from '@ft/shared';
+import {
+  addDays,
+  diffDays,
+  groupDiaryEntries,
+  photoIdsOf,
+  type DiaryRow,
+  type FoodEntry,
+  type MealItem,
+} from '@ft/shared';
 import type { UserDb } from './dexie';
 import { diaryParts, entriesToMealItems, logParts } from './entries';
 
@@ -41,24 +49,80 @@ const weight = (ageDays: number, sameWeekday: boolean) =>
 
 const weekday = (date: string) => new Date(`${date}T12:00:00`).getDay();
 
+/** What tells repeated logs of the same thing apart; null for rows that are never suggested. */
+function suggestionKey(row: DiaryRow): string | null {
+  if (row.kind === 'entry') {
+    const e = row.entry;
+    // Quick adds and estimated foods (no food id) are no food to log again.
+    return e.foodId && e.source !== 'quick' ? `food:${e.foodId}` : null;
+  }
+  return row.mealId ? `meal:${row.mealId}` : row.groupName ? `group:${row.groupName}` : null;
+}
+
+/** "Zuletzt hier" of one diary meal: the suggestions and the kcal of the same meal yesterday (0: nothing). */
+export interface MealSuggestions {
+  suggestions: MealSuggestion[];
+  yesterdayKcal: number;
+}
+
 /**
- * Suggestions for a diary meal on a date, best first. Entries of `date` itself are left out (they are
- * what is being logged right now); quick adds and estimated foods (no food id) too.
+ * Suggestions for every diary meal of a date (by meal index), best first, from one read of the diary.
+ * Earlier days count; what is already in the meal on `date` is left out before cutting to `limit`
+ * (the next best moves up), and so are quick adds and estimated foods (no food id).
  */
+export async function daySuggestions(
+  db: UserDb,
+  date: string,
+  limit = 4,
+): Promise<Map<number, MealSuggestions>> {
+  const from = addDays(date, -SUGGESTION_DAYS);
+  const yesterday = addDays(date, -1);
+  const all = (
+    await db.foodEntries
+      .where('date')
+      .between(from, date, true, true)
+      .filter((e) => !e.deleted)
+      .toArray()
+  ).sort((a, b) => a.loggedAt - b.loggedAt);
+  const byMeal = new Map<number, FoodEntry[]>();
+  for (const e of all) (byMeal.get(e.meal) ?? byMeal.set(e.meal, []).get(e.meal)!).push(e);
+  const out = new Map<number, MealSuggestions>();
+  for (const [meal, entries] of byMeal) {
+    const today = entries.filter((e) => e.date === date);
+    const logged = new Set(groupDiaryEntries(today).map(suggestionKey));
+    const suggestions = await rank(
+      db,
+      entries.filter((e) => e.date < date),
+      date,
+      logged,
+      limit,
+    );
+    const yesterdayKcal = entries
+      .filter((e) => e.date === yesterday)
+      .reduce((s, e) => s + (e.nutrients.ENERCC ?? 0), 0);
+    out.set(meal, { suggestions, yesterdayKcal });
+  }
+  return out;
+}
+
+/** Suggestions for one diary meal on a date (see `daySuggestions`). */
 export async function mealSuggestions(
   db: UserDb,
   date: string,
   meal: number,
   limit = 4,
 ): Promise<MealSuggestion[]> {
-  const from = addDays(date, -SUGGESTION_DAYS);
-  const entries = (
-    await db.foodEntries
-      .where('date')
-      .between(from, date, true, false)
-      .filter((e) => !e.deleted && e.meal === meal)
-      .toArray()
-  ).sort((a, b) => a.loggedAt - b.loggedAt);
+  return (await daySuggestions(db, date, limit)).get(meal)?.suggestions ?? [];
+}
+
+/** Scores the rows of one meal's earlier days (`entries` sorted by `loggedAt`). */
+async function rank(
+  db: UserDb,
+  entries: readonly FoodEntry[],
+  date: string,
+  exclude: ReadonlySet<string | null>,
+  limit: number,
+): Promise<MealSuggestion[]> {
   const wd = weekday(date);
   const byKey = new Map<string, MealSuggestion>();
   const bump = (
@@ -81,10 +145,11 @@ export async function mealSuggestions(
   for (const e of entries) (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
   for (const dayEntries of byDate.values()) {
     for (const row of groupDiaryEntries(dayEntries)) {
+      const key = suggestionKey(row);
+      if (!key || exclude.has(key)) continue;
       if (row.kind === 'entry') {
         const e = row.entry;
-        if (!e.foodId || e.source === 'quick') continue;
-        bump(`food:${e.foodId}`, e, () => ({
+        bump(key, e, () => ({
           kind: 'food',
           name: e.name,
           brand: e.brand,
@@ -97,8 +162,6 @@ export async function mealSuggestions(
         continue;
       }
       const first = row.entries[0]!;
-      const key = row.mealId ? `meal:${row.mealId}` : row.groupName ? `group:${row.groupName}` : null;
-      if (!key) continue;
       bump(key, first, () => ({
         kind: 'group',
         name: row.groupName ?? '',

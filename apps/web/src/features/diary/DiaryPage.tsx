@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   useClipboard,
+  useDaySuggestions,
   useDayEntries,
   useDayExercises,
   useDaySummary,
@@ -34,6 +35,7 @@ export function DiaryPage() {
   const exercises = useDayExercises(date);
   const pending = usePendingAnalyses(date);
   const clipboard = useClipboard();
+  const suggestions = useDaySuggestions(date);
   const settings = useSettings();
   const goals = useGoals();
   const navigate = useNavigate();
@@ -127,6 +129,7 @@ export function DiaryPage() {
                 totals={summary.perMeal[m] ?? {}}
                 pending={pending?.filter((p) => p.meal === m)}
                 clipboard={clipboard ?? null}
+                suggestions={suggestions?.get(m)}
               />
             ))}
           </DiaryDnd>

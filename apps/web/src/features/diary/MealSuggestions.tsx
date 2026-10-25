@@ -3,51 +3,78 @@ import { History } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { copyMealFromDay, logSuggestion, type MealSuggestion } from '@/db/suggestions';
+import type { UserDb } from '@/db/dexie';
+import {
+  copyMealFromDay,
+  logSuggestion,
+  type MealSuggestion,
+  type MealSuggestions as MealSuggestionsData,
+} from '@/db/suggestions';
 import { deleteRecord } from '@/db/write';
-import { useMealSuggestions } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
+import { cn } from '@/lib/utils';
 import { fmt0, fmtIngredients } from '@/lib/format';
 import { entryAmountLabel } from './MealCard';
 
-/**
- * "Zuletzt hier" under an empty diary meal: what this meal usually gets (foods and groups, with the last
- * amount) and "Wie gestern" (the whole meal of the day before). One tap logs it, with undo. Nothing shows
- * while the meal has entries: adding more goes through "+".
- */
-export function MealSuggestions({ date, meal, mealName }: { date: ISODate; meal: number; mealName: string }) {
-  const db = useDb();
-  const data = useMealSuggestions(date, meal);
-  const { busy, run } = useSubmitting();
-  if (!data || (data.suggestions.length === 0 && data.yesterdayKcal <= 0)) return null;
+const undo = (db: UserDb, ids: string[]) => ({
+  label: 'Rückgängig',
+  onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'foodEntries', id))),
+});
 
-  const undo = (ids: string[]) => ({
-    label: 'Rückgängig',
-    onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'foodEntries', id))),
-  });
+/** "Wie gestern": logs the whole meal of the day before into this meal, with undo. */
+export async function copyYesterdayWithToast(
+  db: UserDb,
+  date: ISODate,
+  meal: number,
+  mealName: string,
+): Promise<void> {
+  const ids = await copyMealFromDay(db, { date: addDays(date, -1), meal }, { date, meal });
+  toast(`${mealName} von gestern eingetragen`, { action: undo(db, ids) });
+}
+
+/**
+ * "Zuletzt hier" of a diary meal: what this meal usually gets (foods and groups, with the last amount)
+ * without what it already has, below its entries. While the meal is `empty` "Wie gestern" (the whole
+ * meal of the day before) comes first; with entries it is in the ⋯ menu. One tap logs it, with undo.
+ */
+export function MealSuggestions({
+  date,
+  meal,
+  mealName,
+  data,
+  empty,
+}: {
+  date: ISODate;
+  meal: number;
+  mealName: string;
+  /** This meal's part of `useDaySuggestions` (undefined while loading). */
+  data: MealSuggestionsData | undefined;
+  /** No entries and no waiting analysis: offer "Wie gestern", no divider above. */
+  empty: boolean;
+}) {
+  const db = useDb();
+  const { busy, run } = useSubmitting();
+  const yesterday = empty && (data?.yesterdayKcal ?? 0) > 0;
+  if (!data || (data.suggestions.length === 0 && !yesterday)) return null;
+
   const logOne = (s: MealSuggestion) =>
     run(async () => {
       const ids = await logSuggestion(db, s, { date, meal });
-      toast(`„${s.name}“ in ${mealName} eingetragen`, { action: undo(ids) });
-    });
-  const copyYesterday = () =>
-    run(async () => {
-      const ids = await copyMealFromDay(db, { date: addDays(date, -1), meal }, { date, meal });
-      toast(`${mealName} von gestern eingetragen`, { action: undo(ids) });
+      toast(`„${s.name}“ in ${mealName} eingetragen`, { action: undo(db, ids) });
     });
 
   return (
-    <div className="px-4 pb-4">
+    <div className={cn('px-4 pb-4', !empty && 'border-t border-border/70 pt-3')}>
       <p className="mb-2 text-xs text-muted-foreground">Zuletzt hier</p>
       <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5" aria-label={`Zuletzt in ${mealName}`}>
-        {data.yesterdayKcal > 0 && (
+        {yesterday && (
           <li className="shrink-0">
             <Chip
               title="Wie gestern"
               detail={`${fmt0(data.yesterdayKcal)} kcal`}
               icon={<History className="size-3.5 shrink-0" aria-hidden />}
               disabled={busy}
-              onClick={() => void copyYesterday()}
+              onClick={() => void run(() => copyYesterdayWithToast(db, date, meal, mealName))}
             />
           </li>
         )}

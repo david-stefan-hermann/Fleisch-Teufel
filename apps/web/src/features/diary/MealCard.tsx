@@ -18,6 +18,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { copyMealToClipboard, copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem, UserDb } from '@/db/dexie';
+import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
@@ -47,6 +48,7 @@ export function MealCard({
   totals,
   pending = [],
   clipboard = null,
+  suggestions,
 }: {
   date: ISODate;
   meal: number;
@@ -57,6 +59,8 @@ export function MealCard({
   pending?: AiQueueItem[];
   /** What was copied (swipe right); shows the paste icon next to "+". */
   clipboard?: Clipboard | null;
+  /** "Zuletzt hier" of this meal (`useDaySuggestions`), undefined while loading. */
+  suggestions?: MealSuggestionsData;
 }) {
   const db = useDb();
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
@@ -120,7 +124,7 @@ export function MealCard({
             {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
           </Link>
           {/* What this meal usually gets: one tap logs it again. */}
-          <MealSuggestions date={date} meal={meal} mealName={name} />
+          <MealSuggestions date={date} meal={meal} mealName={name} data={suggestions} empty />
         </>
       ) : (
         <>
@@ -136,6 +140,7 @@ export function MealCard({
               ))}
             </ul>
           )}
+          <MealSuggestions date={date} meal={meal} mealName={name} data={suggestions} empty={false} />
         </>
       )}
     </Section>

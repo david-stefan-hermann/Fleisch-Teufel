@@ -10,10 +10,11 @@ import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useClipboard, useGoals, useSettings, useToday } from '@/hooks/data';
+import { useClipboard, useDaySuggestions, useGoals, useSettings, useToday } from '@/hooks/data';
 import { saveMealFromEntries } from '@/db/entries';
 import { fmt0, fmtDate, fmtRelativeDay } from '@/lib/format';
 import { DiaryRows, PasteButton } from './MealCard';
+import { MealSuggestions } from './MealSuggestions';
 import { warmUpCamera } from '@/components/cameraWarmup';
 
 /**
@@ -30,6 +31,7 @@ export function DiaryMealPage() {
   const goals = useGoals();
   const [saveOpen, setSaveOpen] = useState(false);
   const clipboard = useClipboard();
+  const suggestions = useDaySuggestions(date);
   const entries = useLiveQuery(
     () =>
       db.foodEntries
@@ -114,6 +116,13 @@ export function DiaryMealPage() {
             ) : (
               <DiaryRows entries={entries} date={date} meal={meal} />
             )}
+            <MealSuggestions
+              date={date}
+              meal={meal}
+              mealName={name}
+              data={suggestions?.get(meal)}
+              empty={entries.length === 0}
+            />
           </Section>
         </>
       )}
