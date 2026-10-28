@@ -4,8 +4,20 @@ Ablage im Repo bei Umsetzung: `docs/plans/2026-10-feedback-runde-9.md` (Kopie di
 
 ## Status (2026-10-28)
 
-Plan geschrieben (Fable). Noch nichts umgesetzt. Block 4 (Trainingsseite) wartet auf das Mockup-OK des Nutzers
-(Schritt 0), die Blöcke 1 bis 3 brauchen kein Mockup.
+Umgesetzt (Blöcke 1 bis 5, je ein Commit, nicht gepusht) von Fable in derselben Sitzung, nachdem der Nutzer
+„kannst du gerne direkt umsetzen“ gesagt hat; **Schritt 0 (Mockup der Trainingsseite) entfiel damit**. Abweichungen:
+
+- Block 2: Die Portion „Portion (350 g)“ gilt nur für Gruppe Y (Gerichte & Menüs), nicht für X (dort stehen auch
+  Beilagen wie „Zwiebeln gebraten“; Suppen haben die Haushaltsmaße). Stück-Tabelle um Zucchini, Aubergine, Kohlrabi,
+  Mozzarella (Kugel), Frikadelle, Waffel, Muffin, Eis (Kugel), Eigelb/Eiklar ergänzt; Wiener/Bratwurst 50/100 g.
+  OFF-Labels ohne Zahl bei 1 („Riegel (45 g)“), mit Zahl ab 2 („2 Scheiben (50 g)“). Ein Stück mit denselben Gramm
+  wie eine eigene oder Produkt-Portion wird nicht doppelt angeboten.
+- Block 3: `TapeMeasure` bleibt ohne Datenzugriff, `WeightDialog` reicht Raster und Bereich aus `useSettings()`
+  durch. Striche nie enger als 7 px.
+- Block 4: Vorschläge auf der Seite zeigen auch heute schon eingetragene Sportarten (`withLogged`, ein zweiter Lauf
+  am Tag); im Tagebuch fallen sie raus. `recentTrainings` (shared) und die alte Schnellauswahl sind entfernt.
+  Die Sportsuche listet gespeicherte Trainings nur bei Suchtext (sonst stehen sie als Badges).
+- E2E (Chromium) komplett grün; WebKit-Lauf nicht ausgeführt.
 
 ## Context
 

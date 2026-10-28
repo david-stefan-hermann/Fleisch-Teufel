@@ -164,7 +164,20 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Saved trainings (`exerciseTemplates`, never "Vorlage" in the UI): `/trainings`, `/trainings/$templateId`; sport
   picker and fields shared with logging (`features/exercise/TrainingFields.tsx`, `training.ts`). Trash covers
   weights, meals and saved trainings.
-- Weight entry uses `TapeMeasure` (0,05 raster, `role=slider`); weights display with up to two decimals.
+- Training entry (`features/exercise/ExercisePage.tsx`): several trainings of a day at once. The page holds rows
+  under "Ausgewählt" (own duration, intensity, note; the last one added is open; "Als Training speichern" per row)
+  and logs them with `logTrainings` (`db/entries.ts`, one transaction, one `exerciseEntry` each, `loggedAt`
+  ascending). Badges "Zuletzt & häufig" (`TrainingChip`/`ChipRow` in `TrainingChips.tsx`): the sports this person
+  logs with the values of last time (`db/trainingSuggestions.ts` `trainingHistory`: 60 days, frequency and recency
+  like the meal suggestions, same weekday higher; `withLogged` on the page keeps today's sports) and the saved
+  trainings; a tap selects or deselects (`aria-pressed`). `SportPicker` marks `selectedKeys` and lists saved
+  trainings that match the search. The diary's `ExerciseCard` shows `TrainingSuggestions` below its entries (one
+  tap logs, undo deletes; nothing already logged that day). Editing an entry (`entryId`) stays a single open row.
+- Weight entry uses `TapeMeasure` (`role=slider`): raster and visible range are personal settings
+  (`settings.weightStepKg` 0,01/0,05/0,1 and `weightRangeKg` ±0,5/1/2/5, null = default 0,05 and ±0,5; Profil →
+  "Gewichtseingabe"; `WEIGHT_STEPS`/`WEIGHT_RANGES` in shared). The value sits on the raster also while dragging;
+  marks never crowd closer than 7 px (`MIN_MARK_PX`: 0,01 over ±0,5 kg draws marks every 0,05), labels per kg and
+  at the half kilograms when less than 1,5 kg is visible. Weights display with up to two decimals.
 - Food amounts use one component, `components/AmountEditor.tsx` (food page, AI review rows, `IngredientCard` of the
   meal and diary group editors): two picker wheels (`components/Wheel.tsx`, scroll-snap, three rows; amount as
   `role=slider`, unit as `listbox`), below them the field and "= X g" for portions. No slider, no −/+ (round 8).
@@ -172,14 +185,25 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   the field takes any amount up to `MAX_AMOUNT`, and one off the raster (137 g, 1,25 portions) gets its own row on
   the wheel and keeps it while the wheel turns (`extra` in the editor). `onChange` is live (turning), `onCommit`
   final (wheel stopped, typed, unit switched): drafts are written on commit. The wheel reports its stop through
-  state and an effect, never straight from its timer (a stale closure overwrote newer state). A unit switch keeps
-  the grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
+  state and an effect, never straight from its timer (a stale closure overwrote newer state). Only input turns the
+  wheel: a scroll event counts as a turn after `pointerdown`/`touchstart`/`wheel` on it; scrolls from outside (a new
+  `index`, rows swapped, clamping) are set in a layout effect and their events ignored (`pending`). The amount
+  wheel is keyed by the kind of unit (`key={kind}`), so a unit switch builds it anew instead of swapping 200 gram
+  rows against 20 portion rows (that once logged the row the old position landed on: 2 portions became 20 g). A
+  unit switch keeps the grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
   `aiMealItems` logs with its count. "Eigene Portion" is a button next to the label (food page). The food page logs
   on one day only.
-- Units offered for a food: `portionsFor` (shared `foods.ts`) adds only the household measures that fit
-  (`householdPortionsFor`: name words first, then the BLS group letter, drinks by unit ml; no cup for toast). Pass
-  the food's `name` when there is no full `Food` (ingredient without a loaded food). Grams, the food's own and the
-  user's portions are always offered, and `editorPortions` keeps the current portion of an older entry.
+- Units offered for a food: `portionsFor` (shared `foods.ts`), in this order: the user's portions, the food's own
+  (OFF serving, custom food), the pieces a BLS food is counted in (shared `portions.ts` `piecePortionsFor`: a
+  curated table by name words and BLS group, "Stück (120 g)" for a banana, "Scheibe (45 g)" for bread, "Zehe (3 g)",
+  "Portion (350 g)" for dishes of group Y; none for dried, powdered, juiced or canned forms, `PROCESSED`; only
+  `source: 'bls'`), the base units, then the household measures that fit (`householdPortionsFor`: name words first,
+  then the BLS group letter, drinks by unit ml; no cup for toast). Labels carry the grams. `defaultPortion` picks
+  the first before the base units (never a package or a household measure) for the food page and the search rows,
+  else 100 g. OFF servings get their label from the serving text (`servingLabel`: "1 Riegel (45g)" → "Riegel
+  (45 g)", English words translated, a bare weight stays "Portion (30 g)"). Pass the food's `name`, `source` and
+  `sourceId` when there is no full `Food`. Grams, the food's own and the user's portions are always offered, and
+  `editorPortions` keeps the current portion of an older entry.
 - Photos waiting for analysis: a first analysis that had to wait for a connection, was left on the photo page
   (`leaveAnalysis`) or was cut off by closing the app gets `deferred` on its `aiQueue` item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
   (`usePendingAnalyses`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
