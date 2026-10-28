@@ -186,9 +186,11 @@ describe('TapeMeasure', () => {
       },
     );
   }
-  function Tape({ initial = 84.5 }: { initial?: number }) {
+  function Tape({ initial = 84.5, step, range = 1 }: { initial?: number; step?: number; range?: number }) {
     const [v, setV] = useState(initial);
-    return <TapeMeasure value={v} onChange={setV} label="Gewicht in Kilogramm" />;
+    return (
+      <TapeMeasure value={v} onChange={setV} step={step} visibleRange={range} label="Gewicht in Kilogramm" />
+    );
   }
   const slider = () => screen.getByRole('slider', { name: 'Gewicht in Kilogramm' });
 
@@ -217,7 +219,7 @@ describe('TapeMeasure', () => {
     expect(slider().getAttribute('aria-valuenow')).toBe('20');
   });
 
-  it('follows a drag (one kg per 170 px) and snaps to 0,05 on release', () => {
+  it('follows a drag (one kg per 170 px) on the 0,05 raster', () => {
     stubWidth(340);
     render(<Tape />);
     const el = slider();
@@ -226,10 +228,11 @@ describe('TapeMeasure', () => {
     // Dragging left by 170 px brings one more kilogram under the pointer.
     fireEvent.pointerMove(el, { pointerId: 1, clientX: 130 });
     expect(el.getAttribute('aria-valuenow')).toBe('85.5');
-    // In between it follows freely ...
+    // In between it stays on the raster (never 85,53 in the display) ...
     fireEvent.pointerMove(el, { pointerId: 1, clientX: 125 });
-    expect(el.getAttribute('aria-valuenow')).toBe('85.53');
-    // ... and snaps to the raster when released.
+    expect(el.getAttribute('aria-valuenow')).toBe('85.55');
+    expect(el.getAttribute('aria-valuetext')).toBe('85,55 kg');
+    // ... and so after the release.
     fireEvent.pointerUp(el, { pointerId: 1, clientX: 125 });
     expect(el.getAttribute('aria-valuenow')).toBe('85.55');
     // Dragging right lowers the value and stops at the minimum.
@@ -268,6 +271,46 @@ describe('TapeMeasure', () => {
     expect(slider().getAttribute('aria-valuenow')).toBe('84.37');
     const centre = marks.find((m) => (m as HTMLElement).style.left === 'calc(50% + 0px)');
     expect(centre).toBeTruthy();
+  });
+
+  it('0,01 raster over ±0,5 kg: steps of 0,01, marks every 0,05, labels at the half kilograms', () => {
+    stubWidth(340);
+    render(<Tape initial={80} step={0.01} range={0.5} />);
+    fireEvent.keyDown(slider(), { key: 'ArrowRight' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('80.01');
+    expect(slider().getAttribute('aria-valuetext')).toBe('80,01 kg');
+    // 340 px for 1 kg: 0,01 kg would be 3,4 px apart, so the marks sit at 0,05 (17 px).
+    const marks = [...document.querySelectorAll('[data-mark]')];
+    // ±0,7 kg around 80,01: 79,30 to 80,75 on the 0,05 raster.
+    expect(marks).toHaveLength(30);
+    expect(marks.filter((m) => m.getAttribute('data-mark') === 'unit').map((m) => m.textContent)).toEqual([
+      '80',
+    ]);
+    expect(marks.filter((m) => m.getAttribute('data-mark') === 'half').map((m) => m.textContent)).toEqual([
+      '79,5',
+      '80,5',
+    ]);
+    // The marks sit where their value is, 3,4 px left of the pointer for the 80,00 mark.
+    const unit = marks.find((m) => m.getAttribute('data-mark') === 'unit') as HTMLElement;
+    expect(unit.style.left).toBe('calc(50% - 3.4px)');
+    // Dragging by 11 px is 0,03 kg on this raster.
+    const el = slider();
+    el.setPointerCapture = () => undefined;
+    fireEvent.pointerDown(el, { pointerId: 1, button: 0, clientX: 200 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 189 });
+    expect(el.getAttribute('aria-valuenow')).toBe('80.04');
+  });
+
+  it('0,1 raster shows one decimal', () => {
+    stubWidth(340);
+    render(<Tape initial={80} step={0.1} range={2} />);
+    fireEvent.keyDown(slider(), { key: 'ArrowRight' });
+    expect(slider().getAttribute('aria-valuenow')).toBe('80.1');
+    expect(slider().getAttribute('aria-valuetext')).toBe('80,1 kg');
+    // No half-kilogram labels when more than 1,5 kg is visible.
+    expect([...document.querySelectorAll('[data-mark="half"]')].every((m) => m.textContent === '')).toBe(
+      true,
+    );
   });
 });
 

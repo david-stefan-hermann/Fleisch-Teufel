@@ -85,6 +85,8 @@ export const userSettings = pgTable(
     addExerciseCalories: boolean().notNull(),
     onboardedAt: bigint({ mode: 'number' }),
     macroPlan: jsonb().$type<MacroPlan>(),
+    weightStepKg: doublePrecision(),
+    weightRangeKg: doublePrecision(),
   },
   syncExtras,
 );

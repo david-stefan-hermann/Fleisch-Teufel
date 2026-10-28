@@ -2,6 +2,8 @@ import {
   addDays,
   bmi,
   dayId,
+  DEFAULT_WEIGHT_RANGE,
+  DEFAULT_WEIGHT_STEP,
   exponentialTrend,
   linearTrend,
   movingAverage,
@@ -29,7 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TapeMeasure } from '@/components/TapeMeasure';
+import { TapeMeasure, tapeDecimals } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
@@ -295,6 +297,10 @@ function WeightDialog({
   const valid = value !== null && value >= 20 && value <= 400;
   // The tape starts at the last weight; "Genauer Wert" takes anything from 20 to 400 kg.
   const base = entry?.kg ?? last ?? 80;
+  // Raster and visible range of the tape are personal settings (Mehr → Profil → Gewichtseingabe).
+  const settings = useSettings();
+  const step = settings?.weightStepKg ?? DEFAULT_WEIGHT_STEP;
+  const range = settings?.weightRangeKg ?? DEFAULT_WEIGHT_RANGE;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -310,9 +316,15 @@ function WeightDialog({
             <span className="ml-1 text-lg text-muted-foreground">kg</span>
           </div>
           <div className="grid gap-1.5">
-            <TapeMeasure value={valid ? value : base} onChange={setValue} label="Gewicht in Kilogramm" />
+            <TapeMeasure
+              value={valid ? value : base}
+              onChange={setValue}
+              step={step}
+              visibleRange={range}
+              label="Gewicht in Kilogramm"
+            />
             <p className="text-center text-xs text-muted-foreground">
-              Ziehen oder wischen, rastet auf 0,05 kg ein
+              Ziehen oder wischen, rastet auf {fmtFixed(step, tapeDecimals(step))} kg ein
             </p>
           </div>
           <NumberField

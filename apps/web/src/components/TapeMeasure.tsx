@@ -1,3 +1,4 @@
+import { DEFAULT_WEIGHT_RANGE, DEFAULT_WEIGHT_STEP } from '@ft/shared';
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { fmt0, fmtFixed } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -7,9 +8,9 @@ interface TapeMeasureProps {
   onChange: (value: number) => void;
   min?: number;
   max?: number;
-  /** Raster the tape snaps to. */
+  /** Raster the tape snaps to (settings "Raster"). */
   step?: number;
-  /** Units visible on each side of the pointer (1 = ±1 kg). */
+  /** Units visible on each side of the pointer (settings "Sichtbarer Bereich"; 1 = ±1 kg). */
   visibleRange?: number;
   /** Accessible name. */
   label: string;
@@ -18,20 +19,31 @@ interface TapeMeasureProps {
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+/** Marks closer than this are not drawn; the tape snaps to `step` all the same. */
+const MIN_MARK_PX = 7;
+const MARK_STEPS = [0.01, 0.05, 0.1, 0.5, 1];
+
+/** Decimals a value on the raster needs: 80,05 for 0,05 and 0,01, 80,1 for 0,1. */
+export const tapeDecimals = (step: number) => (step >= 0.1 ? 1 : 2);
 
 /**
  * An endless measuring tape with a fixed pointer in the middle (weight entry). Drag or swipe it
- * sideways, use a trackpad, or the keyboard (arrows ±step, Page Up/Down ±1, Home/End); it snaps to
- * `step` when released. Only the visible window is rendered, so 20 to 400 kg cost the same as ±1 kg.
- * A value off the raster (typed 84,37) shows the nearest mark.
+ * sideways, use a trackpad, or the keyboard (arrows ±step, Page Up/Down ±1, Home/End). The value
+ * always sits on the raster (80 / 80,05 / 80,10), also while dragging. Only the visible window is
+ * rendered, so 20 to 400 kg cost the same as ±1 kg. A value off the raster (typed 84,37) shows the
+ * nearest mark.
+ *
+ * Marks follow the raster as long as they are at least `MIN_MARK_PX` apart (0,01 kg over ±0,5 kg
+ * draws a mark every 0,05 kg; the value still snaps to 0,01). Labels sit at every kilogram, and at
+ * the half kilograms too when less than 1,5 kg is visible.
  */
 export function TapeMeasure({
   value,
   onChange,
   min = 20,
   max = 400,
-  step = 0.05,
-  visibleRange = 1,
+  step = DEFAULT_WEIGHT_STEP,
+  visibleRange = DEFAULT_WEIGHT_RANGE,
   label,
   unit = 'kg',
   className,
@@ -52,6 +64,7 @@ export function TapeMeasure({
   const drag = useRef<{ x: number; start: number; id: number } | null>(null);
   // Trackpad deltas are often smaller than one mark; they add up here between events.
   const wheel = useRef<{ raw: number; base: number } | null>(null);
+  const decimals = tapeDecimals(step);
 
   /** Light tick when the value crosses a mark (ignored where vibration is unavailable, e.g. iOS). */
   const tick = (from: number, to: number) => {
@@ -70,8 +83,8 @@ export function TapeMeasure({
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
     if (!d || d.id !== e.pointerId) return;
-    // Moving the tape to the left brings higher values under the pointer.
-    emit(round2(clamp(d.start - (e.clientX - d.x) / pxPerUnit)));
+    // Moving the tape to the left brings higher values under the pointer; always on the raster.
+    emit(snap(d.start - (e.clientX - d.x) / pxPerUnit));
   }
   function onPointerUp(e: PointerEvent<HTMLDivElement>) {
     const d = drag.current;
@@ -107,20 +120,22 @@ export function TapeMeasure({
     emit(next);
   }
 
-  // Marks of the visible window (a bit wider, so they slide in from under the faded edges).
+  // Marks of the visible window (a bit wider, so they slide in from under the faded edges), on the
+  // coarsest raster that keeps them apart; never finer than the step.
   const shown = snap(value);
+  const markStep = MARK_STEPS.filter((s) => s >= step - 1e-9).find((s) => s * pxPerUnit >= MIN_MARK_PX) ?? 1;
   const r = visibleRange + 0.2;
   // (±1e-9: 83,15 / 0,05 is 1662,9999… in floating point.)
-  const first = Math.max(Math.ceil(min / step - 1e-9), Math.floor((shown - r) / step + 1e-9));
-  const last = Math.min(Math.floor(max / step + 1e-9), Math.ceil((shown + r) / step - 1e-9));
-  const perUnit = Math.round(1 / step);
-  const centre = Math.round(shown / step);
+  const first = Math.max(Math.ceil(min / markStep - 1e-9), Math.floor((shown - r) / markStep + 1e-9));
+  const last = Math.min(Math.floor(max / markStep + 1e-9), Math.ceil((shown + r) / markStep - 1e-9));
+  const perUnit = Math.round(1 / markStep);
+  const halfLabels = visibleRange <= 0.75;
   const marks: { i: number; v: number; kind: 'unit' | 'half' | 'small' }[] = [];
   if (width > 0)
     for (let i = first; i <= last; i++)
       marks.push({
         i,
-        v: i * step,
+        v: round2(i * markStep),
         kind: i % perUnit === 0 ? 'unit' : (2 * i) % perUnit === 0 ? 'half' : 'small',
       });
 
@@ -133,7 +148,7 @@ export function TapeMeasure({
       aria-valuemin={min}
       aria-valuemax={max}
       aria-valuenow={round2(value)}
-      aria-valuetext={`${fmtFixed(value, 2)} ${unit}`}
+      aria-valuetext={`${fmtFixed(value, decimals)} ${unit}`}
       aria-orientation="horizontal"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -155,7 +170,7 @@ export function TapeMeasure({
             key={m.i}
             data-mark={m.kind}
             className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
-            style={{ left: `calc(50% + ${(m.i - centre) * step * pxPerUnit}px)` }}
+            style={{ left: `calc(50% + ${round2((m.v - shown) * pxPerUnit)}px)` }}
           >
             <div
               className={cn(
@@ -165,6 +180,9 @@ export function TapeMeasure({
             />
             {m.kind === 'unit' && (
               <span className="tabular mt-1.5 text-xs text-muted-foreground">{fmt0(m.v)}</span>
+            )}
+            {m.kind === 'half' && halfLabels && (
+              <span className="tabular mt-1.5 text-xs text-muted-foreground">{fmtFixed(m.v, 1)}</span>
             )}
           </div>
         ))}

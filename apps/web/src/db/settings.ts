@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS: Settings = {
   addExerciseCalories: true,
   onboardedAt: null,
   macroPlan: null,
+  weightStepKg: null,
+  weightRangeKg: null,
 };
 
 /**

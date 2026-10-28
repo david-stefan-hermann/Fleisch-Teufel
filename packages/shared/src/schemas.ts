@@ -49,6 +49,13 @@ export const MEAL_COUNT = 4;
 export const DEFAULT_MEAL_NAMES = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'] as const;
 export const SETTINGS_ID = 'profile';
 
+/** Raster of the weight tape in kg (settings `weightStepKg`); null in the record means the default. */
+export const WEIGHT_STEPS = [0.01, 0.05, 0.1] as const;
+export const DEFAULT_WEIGHT_STEP = 0.05;
+/** Kilograms visible on each side of the tape's pointer (settings `weightRangeKg`). */
+export const WEIGHT_RANGES = [0.5, 1, 2, 5] as const;
+export const DEFAULT_WEIGHT_RANGE = 0.5;
+
 // ---------------------------------------------------------------- synced entities
 
 export const settingsSchema = z.object({
@@ -70,6 +77,15 @@ export const settingsSchema = z.object({
       fatPct: z.number().min(10).max(70).nullable(),
       carbsPct: z.number().min(0).max(80).nullable(),
     })
+    .nullable()
+    .default(null),
+  /** Weight tape: raster and visible range (null = default). Older records have neither. */
+  weightStepKg: z
+    .union([z.literal(0.01), z.literal(0.05), z.literal(0.1)])
+    .nullable()
+    .default(null),
+  weightRangeKg: z
+    .union([z.literal(0.5), z.literal(1), z.literal(2), z.literal(5)])
     .nullable()
     .default(null),
 });

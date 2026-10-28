@@ -81,6 +81,8 @@ describe('sync', () => {
       addExerciseCalories: true,
       onboardedAt: 5,
       macroPlan: { preset: 'low_carb', proteinPerKg: 1.8, fatPct: null, carbsPct: 20 },
+      weightStepKg: 0.01,
+      weightRangeKg: 2,
     };
     const goal = {
       id: dayId.goal('2026-10-01'),

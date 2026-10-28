@@ -64,6 +64,13 @@
       "when": 1792847205969,
       "tag": "0008_push-subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793222055824,
+      "tag": "0009_weight-tape-settings",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,11 @@
 import {
   ACTIVITY_LABELS_DE,
   ageOn,
+  DEFAULT_WEIGHT_RANGE,
+  DEFAULT_WEIGHT_STEP,
   WEEKLY_RATES,
+  WEIGHT_RANGES,
+  WEIGHT_STEPS,
   type ActivityLevel,
   type Settings,
   type Sex,
@@ -19,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
+import { fmtFixed } from '@/lib/format';
 
 export function ProfilePage() {
   const settings = useSettings();
@@ -115,6 +120,51 @@ function ProfileForm({ initial }: { initial: Settings }) {
           </div>
         </div>
       </Section>
+      <Section title="Gewichtseingabe">
+        <div className="grid gap-4 p-4">
+          <div className="grid grid-cols-2 items-start gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor="p-weight-step">Raster</Label>
+              <Select
+                value={String(s.weightStepKg ?? DEFAULT_WEIGHT_STEP)}
+                onValueChange={(v) => set({ weightStepKg: Number(v) as Settings['weightStepKg'] })}
+              >
+                <SelectTrigger id="p-weight-step" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEIGHT_STEPS.map((w) => (
+                    <SelectItem key={w} value={String(w)}>
+                      {fmtFixed(w, 2)} kg
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="p-weight-range">Sichtbarer Bereich</Label>
+              <Select
+                value={String(s.weightRangeKg ?? DEFAULT_WEIGHT_RANGE)}
+                onValueChange={(v) => set({ weightRangeKg: Number(v) as Settings['weightRangeKg'] })}
+              >
+                <SelectTrigger id="p-weight-range" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {WEIGHT_RANGES.map((w) => (
+                    <SelectItem key={w} value={String(w)}>
+                      ±{fmtFixed(w, 1)} kg
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Gilt für das Band bei „Gewicht eintragen“; der genaue Wert nimmt immer zwei Stellen.
+          </p>
+        </div>
+      </Section>
       <Button
         size="lg"
         className="w-full"
@@ -127,6 +177,8 @@ function ProfileForm({ initial }: { initial: Settings }) {
             activityLevel: s.activityLevel,
             targetWeightKg: s.targetWeightKg,
             weeklyRateKg: s.weeklyRateKg,
+            weightStepKg: s.weightStepKg,
+            weightRangeKg: s.weightRangeKg,
           });
           toast.success('Profil gespeichert');
         }}
