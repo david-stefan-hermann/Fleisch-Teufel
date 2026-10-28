@@ -17,6 +17,7 @@ import {
   logFoodEntry,
   logItems,
   moveEntriesToMeal,
+  logTrainings,
   saveExercise,
   saveExerciseTemplate,
   saveMealFromEntries,
@@ -602,6 +603,30 @@ describe('local writes', () => {
     await saveExercise(d, { ...data, minutes: 45, note: 'Intervalle' }, x!);
     expect(await d.exerciseEntries.count()).toBe(1);
     expect(await d.exerciseEntries.get(x!.id)).toMatchObject({ minutes: 45, note: 'Intervalle' });
+  });
+
+  it('logs several trainings at once, in order, each queued for the server', async () => {
+    const d = db();
+    const row = (typeKey: string, name: string, minutes: number) => ({
+      typeKey,
+      name,
+      minutes,
+      intensity: 'moderate' as const,
+      met: 6,
+      weightKg: 80,
+      kcal: 200,
+      note: null,
+    });
+    const ids = await logTrainings(d, '2026-10-07', [
+      row('strength', 'Krafttraining', 60),
+      row('stretching', 'Dehnen', 15),
+    ]);
+    expect(ids).toHaveLength(2);
+    const entries = await d.exerciseEntries.where('date').equals('2026-10-07').sortBy('loggedAt');
+    expect(entries.map((e) => e.name)).toEqual(['Krafttraining', 'Dehnen']);
+    expect(entries[0]!.loggedAt).toBeLessThan(entries[1]!.loggedAt);
+    expect(entries.map((e) => e.id)).toEqual(ids);
+    expect(await d.outbox.filter((o) => o.table === 'exerciseEntries').count()).toBe(2);
   });
 });
 

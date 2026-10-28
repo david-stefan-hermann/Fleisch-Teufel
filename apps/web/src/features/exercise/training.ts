@@ -43,28 +43,8 @@ export function describe(
     .join(' · ');
 }
 
-export interface TrainingSetup {
-  typeKey: string | null;
-  minutes: number | null;
-  intensity: Intensity;
-  note: string | null;
-}
-
-/** Whether a form state matches a saved or earlier training (quick selection shows it as picked). */
-export function sameSetup(
-  a: TrainingSetup,
-  b: { typeKey: string; minutes: number; intensity: Intensity; note: string | null },
-): boolean {
-  return (
-    a.typeKey === b.typeKey &&
-    a.minutes === b.minutes &&
-    a.intensity === b.intensity &&
-    (a.note ?? null) === (b.note?.trim() || null)
-  );
-}
-
 /**
- * Quick selection search: every word of the query occurs in one of the fields (name, sport, note),
+ * Training search: every word of the query occurs in one of the fields (name, sport, note),
  * case and umlauts ignored like the food search. An empty query matches everything.
  */
 export function matchesTraining(query: string, fields: (string | null | undefined)[]): boolean {

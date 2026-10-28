@@ -41,9 +41,13 @@ async function swipeLeft(page: Page, target: string | Locator) {
   await page.mouse.up();
 }
 
-test('training with note, quick selection of recent and saved trainings', async ({ page }) => {
+test('several trainings at once, saved training from a row, badges on the page and in the diary', async ({
+  page,
+}) => {
   await register(page);
   await page.goto('/exercise');
+  await expect(page.getByText('Wähle unten eine Sportart oder einen Vorschlag.')).toBeVisible();
+  // A sport from the list becomes a row under "Ausgewählt", open with its fields.
   await page.getByLabel('Sportart suchen').fill('lauf');
   await page
     .getByRole('option', { name: /^Laufen/ })
@@ -51,57 +55,65 @@ test('training with note, quick selection of recent and saved trainings', async 
     .click();
   await page.getByLabel('Dauer').fill('40');
   await page.getByLabel('Notiz (optional)').fill('Intervalle 6 × 400 m');
-  // The save icon in the header stores a saved training without logging it.
+  // The row's "Als Training speichern" stores a saved training without logging it; its badge is selected.
   await page.getByRole('button', { name: 'Als Training speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Training speichern' });
   await expect(dialog).toContainText('Mehr → Gespeicherte Trainings');
   await dialog.getByLabel('Name').fill('Bahntraining');
   await dialog.getByRole('button', { name: 'Training speichern' }).click();
   await expect(page.getByText('„Bahntraining“ gespeichert')).toBeVisible();
-  await expect(page).toHaveURL(/\/exercise/);
-  await page.getByRole('button', { name: 'Training eintragen' }).click();
+  await expect(page.getByRole('button', { name: /^Bahntraining, / })).toHaveAttribute('aria-pressed', 'true');
+  // A second sport: two rows, the new one open, the footer counts them.
+  await page.getByLabel('Sportart suchen').fill('dehn');
+  await page
+    .getByRole('option', { name: /^Dehnen/ })
+    .first()
+    .click();
+  await page.getByRole('button', { name: '15 Min.' }).click();
+  await expect(page.getByRole('button', { name: /^Laufen.*entfernen$/ })).toBeVisible();
+  const footer = page.getByRole('button', { name: /^2 Trainings eintragen/ });
+  await expect(footer).toContainText(/kcal/);
+  await footer.click();
 
-  // The diary shows the note under the training.
+  // The diary shows both, with the note.
   await expect(page).toHaveURL(/\/(\?.*)?$/);
   await expect(page.getByText(/40 Min\. · .* · Intervalle 6 × 400 m/)).toBeVisible();
+  await expect(page.getByText(/15 Min\. · Mittel/)).toBeVisible();
+  // Nothing to suggest today (both are logged); tomorrow the badges log with one tap, with undo
+  // (suggestions come from the days up to the date, so yesterday knows nothing yet).
+  await expect(page.getByText('Zuletzt & häufig')).toHaveCount(0);
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  await page.goto(`/?date=${tomorrow}`);
+  await page.getByRole('button', { name: /^Laufen \/ Joggen, 40 Min\. · .*, eintragen$/ }).click();
+  await expect(page.getByText(/^Laufen \/ Joggen eingetragen: \d+ kcal$/)).toBeVisible();
+  await expect(page.getByText(/40 Min\. · .* · Intervalle 6 × 400 m/)).toBeVisible();
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
+  await expect(page.getByText(/40 Min\. · .* · Intervalle 6 × 400 m/)).toHaveCount(0);
 
-  // Next time: saved and last training are one tap away and fill the whole form.
+  // On the page a badge selects the sport with the values of last time, a second tap takes it out.
   await page.goto('/exercise');
-  await expect(page.getByRole('heading', { name: 'Schnellauswahl' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Gespeichert' })).toBeVisible();
-  await page.getByRole('button', { name: /^Bahntraining/ }).click();
+  const laufen = page.getByRole('button', { name: /^Laufen \/ Joggen, 40 Min\./ });
+  await laufen.click();
+  await expect(laufen).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Notiz (optional)')).toHaveValue('Intervalle 6 × 400 m');
   await expect(page.getByLabel('Dauer')).toHaveValue('40');
-  await expect(page.getByRole('button', { name: /^Laufen.*Intervalle/ })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
+  await laufen.click();
+  await expect(laufen).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByText('Wähle unten eine Sportart oder einen Vorschlag.')).toBeVisible();
+  // The saved training's badge selects it too; the sport search finds it by name.
+  await page.getByRole('button', { name: /^Bahntraining, / }).click();
+  await expect(page.getByLabel('Dauer')).toHaveValue('40');
+  await page.getByLabel('Sportart suchen').fill('bahn');
+  await expect(page.getByRole('option', { name: /^Bahntraining/ })).toHaveAttribute('aria-selected', 'true');
 
-  // One search filters both lists (name, sport, note); an empty part disappears with its heading.
-  await expect(page.getByRole('link', { name: 'Verwalten' })).toHaveCount(0);
-  const quick = page.getByLabel('Gespeicherte und letzte Trainings suchen');
-  const saved = page.getByRole('heading', { name: 'Gespeichert' });
-  const last = page.getByRole('heading', { name: 'Zuletzt' });
-  await quick.fill('bahn');
-  await expect(saved).toBeVisible();
-  await expect(last).toHaveCount(0);
-  await quick.fill('LAUF');
-  await expect(saved).toBeVisible();
-  await expect(last).toBeVisible();
-  await quick.fill('intervalle 400');
-  await expect(page.getByRole('button', { name: /^Bahntraining/ })).toBeVisible();
-  await expect(last).toBeVisible();
-  await quick.fill('schwimmen');
-  await expect(page.getByText('Kein Training gefunden.')).toBeVisible();
-  await expect(saved).toHaveCount(0);
-  await expect(last).toHaveCount(0);
-  await quick.fill('');
-
-  // Swipe a saved training away.
-  await swipeLeft(page, 'Bahntraining');
-  await page.getByRole('button', { name: 'Bahntraining löschen' }).click();
-  await expect(page.getByText('„Bahntraining“ gelöscht')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Bahntraining/ })).toHaveCount(0);
+  // Editing an entry stays one form.
+  await page.goto('/');
+  await page.getByRole('link', { name: /Laufen \/ Joggen.*40 Min\./ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Training bearbeiten' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ausgewählt' })).toHaveCount(0);
+  await page.getByLabel('Dauer').fill('45');
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page.getByText(/45 Min\. · .* · Intervalle 6 × 400 m/)).toBeVisible();
 });
 
 test('saved trainings: manage under "Mehr", edit with explicit save, trash', async ({ page }) => {
@@ -485,7 +497,7 @@ test('weight: measuring tape snaps to 0,05 kg, exact value with two decimals', a
   await expect(dialog.locator('output')).toHaveText('84,55');
   await expect(dialog.getByLabel('Genauer Wert')).toHaveValue('84,55');
 
-  // Dragging: half the width is one kilogram; releasing snaps to the raster.
+  // Dragging: half the width is half a kilogram (±0,5 kg visible by default); always on the raster.
   const box = (await tape.boundingBox())!;
   const y = box.y + box.height / 2;
   await page.mouse.move(box.x + box.width * 0.75, y);
@@ -494,8 +506,8 @@ test('weight: measuring tape snaps to 0,05 kg, exact value with two decimals', a
   await page.mouse.move(box.x + box.width * 0.25 - 3, y, { steps: 5 });
   await page.mouse.up();
   const after = Number(await tape.getAttribute('aria-valuenow'));
-  expect(after).toBeGreaterThan(85.5);
-  expect(after).toBeLessThan(85.7);
+  expect(after).toBeGreaterThan(85.0);
+  expect(after).toBeLessThan(85.2);
   expect(Math.round(after * 100) % 5).toBe(0);
 
   // Off the raster is fine when typed; out of range is not.

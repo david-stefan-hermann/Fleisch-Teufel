@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { groupDiaryEntries, photoIdsOf } from '../src/diary.js';
-import { recentTrainings } from '../src/exercise.js';
 import { exerciseEntrySchema, foodEntrySchema } from '../src/schemas.js';
 
 const entry = (id: string, loggedAt: number, kcal: number, groupId: string | null = null) => ({
@@ -81,48 +80,6 @@ describe('groupDiaryEntries', () => {
     const { groupId: _omit, ...old } = entry('old', 1, 10);
     const rows = groupDiaryEntries([old as never]);
     expect(rows).toEqual([{ kind: 'entry', entry: old }]);
-  });
-});
-
-describe('recentTrainings', () => {
-  const t = (
-    loggedAt: number,
-    typeKey: string,
-    minutes = 30,
-    note: string | null = null,
-    deleted = false,
-  ) => ({
-    typeKey,
-    name: typeKey,
-    minutes,
-    intensity: 'moderate' as const,
-    note,
-    loggedAt,
-    deleted,
-  });
-
-  it('returns the newest distinct setups, at most five', () => {
-    const list = recentTrainings([
-      t(1, 'a'),
-      t(2, 'b'),
-      t(3, 'a'),
-      t(4, 'c'),
-      t(5, 'd'),
-      t(6, 'e'),
-      t(7, 'f'),
-      t(8, 'a', 45),
-      t(9, 'x', 30, null, true),
-    ]);
-    expect(list.map((e) => `${e.typeKey}${e.minutes}`)).toEqual(['a45', 'f30', 'e30', 'd30', 'c30']);
-  });
-
-  it('treats a different note as a different training', () => {
-    const list = recentTrainings([
-      t(1, 'gym', 60, 'Beine'),
-      t(2, 'gym', 60, 'Oberkörper'),
-      t(3, 'gym', 60, ' Beine '),
-    ]);
-    expect(list.map((e) => e.note)).toEqual([' Beine ', 'Oberkörper']);
   });
 });
 

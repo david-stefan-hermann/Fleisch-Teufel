@@ -8,6 +8,7 @@ import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { deleteRecord, restoreRecord } from '@/db/write';
+import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
 import { fmt0 } from '@/lib/format';
 
 export function ExerciseCard({
@@ -40,13 +41,16 @@ export function ExerciseCard({
       }
     >
       {exercises.length === 0 ? (
-        <Link
-          to="/exercise"
-          search={{ date }}
-          className="mx-4 mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <Dumbbell className="size-4" aria-hidden /> Training eintragen
-        </Link>
+        <>
+          <Link
+            to="/exercise"
+            search={{ date }}
+            className="mx-4 mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Dumbbell className="size-4" aria-hidden /> Training eintragen
+          </Link>
+          <TrainingSuggestions date={date} />
+        </>
       ) : (
         <ul className="divide-y divide-border/70">
           {exercises.map((e) => (
@@ -89,6 +93,7 @@ export function ExerciseCard({
           )}
         </ul>
       )}
+      {exercises.length > 0 && <TrainingSuggestions date={date} className="border-t border-border/70 pt-3" />}
     </Section>
   );
 }

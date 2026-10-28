@@ -18,6 +18,7 @@ import { readClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
+import { trainingHistory, type TrainingHistory } from '@/db/trainingSuggestions';
 
 export { DEFAULT_SETTINGS };
 
@@ -71,6 +72,12 @@ export function useDayExercises(date: ISODate): ExerciseEntry[] | undefined {
         .sortBy('loggedAt'),
     [db, date],
   );
+}
+
+/** "Zuletzt & häufig" of the trainings for a date and the last values per sport (`trainingHistory`). */
+export function useTrainingHistory(date: ISODate, withLogged = false): TrainingHistory | undefined {
+  const db = useDb();
+  return useLiveQuery(() => trainingHistory(db, date, { withLogged }), [db, date, withLogged]);
 }
 
 export function useWeights(): WeightEntry[] | undefined {

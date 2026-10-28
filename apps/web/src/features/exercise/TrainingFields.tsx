@@ -1,5 +1,5 @@
 import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, normalize, uuidv7, type Intensity } from '@ft/shared';
-import { Plus, Search } from 'lucide-react';
+import { Bookmark, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { useDb } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
@@ -20,27 +20,42 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveRecord } from '@/db/write';
 import { fmt0, fmt1, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { TypeOption } from './training';
+import { matchesTraining, type TypeOption } from './training';
 
-/** Sport search and list with "Eigene Sportart" (logging a training and the saved training editor). */
+/**
+ * Sport search and list with "Eigene Sportart" (logging a training and the saved training editor).
+ * Marks one sport (`typeKey`) or several (`selectedKeys`, the page "Training eintragen"); while the
+ * search has text, saved trainings whose name or sport matches are listed first (`templates`).
+ */
 export function SportPicker({
   options,
   typeKey,
+  selectedKeys,
   onSelect,
   filter,
   onFilterChange,
   onCustomCreated,
+  templates,
+  onTemplate,
 }: {
   options: TypeOption[];
   typeKey: string | null;
+  /** Several marked sports (a tap on a marked one is reported too: the caller takes it out). */
+  selectedKeys?: ReadonlySet<string>;
   onSelect: (key: string) => void;
   filter: string;
   onFilterChange: (filter: string) => void;
   /** A new own sport was created (and should be selected). */
   onCustomCreated: (id: string) => void;
+  templates?: { id: string; name: string; typeName: string; selected: boolean }[];
+  onTemplate?: (id: string) => void;
 }) {
   const [customOpen, setCustomOpen] = useState(false);
   const shown = filter ? options.filter((o) => normalize(o.name).includes(normalize(filter))) : options;
+  const shownTemplates = filter
+    ? (templates ?? []).filter((t) => matchesTraining(filter, [t.name, t.typeName]))
+    : [];
+  const isSelected = (key: string) => (selectedKeys ? selectedKeys.has(key) : typeKey === key);
   return (
     <div className="grid gap-3 px-4 pb-4">
       <div className="relative">
@@ -63,14 +78,32 @@ export function SportPicker({
         role="listbox"
         aria-label="Sportarten"
       >
+        {shownTemplates.map((t) => (
+          <li key={`t:${t.id}`} role="option" aria-selected={t.selected}>
+            <button
+              type="button"
+              onClick={() => onTemplate?.(t.id)}
+              className={cn(
+                'flex min-h-11 w-full items-center justify-between px-3 text-left text-sm transition-colors focus-visible:bg-accent focus-visible:outline-none',
+                t.selected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+              )}
+            >
+              <span>
+                {t.name}
+                <span className="ml-1 text-xs opacity-70">(gespeichert, {t.typeName})</span>
+              </span>
+              <Bookmark className="size-4 shrink-0 opacity-70" aria-hidden />
+            </button>
+          </li>
+        ))}
         {shown.map((o) => (
-          <li key={o.key} role="option" aria-selected={typeKey === o.key}>
+          <li key={o.key} role="option" aria-selected={isSelected(o.key)}>
             <button
               type="button"
               onClick={() => onSelect(o.key)}
               className={cn(
                 'flex min-h-11 w-full items-center justify-between px-3 text-left text-sm transition-colors focus-visible:bg-accent focus-visible:outline-none',
-                typeKey === o.key ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                isSelected(o.key) ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
               )}
             >
               <span>

@@ -9,6 +9,7 @@ import {
   type ExerciseEntry,
   type ExerciseTemplate,
   type FoodEntry,
+  type ISODate,
   type Meal,
   type MealItem,
   photoIdsOf,
@@ -45,6 +46,31 @@ export async function saveExercise(
 ): Promise<void> {
   if (existing) await saveRecord(db, 'exerciseEntries', { ...existing, ...data });
   else await saveRecord(db, 'exerciseEntries', { ...data, id: uuidv7(), loggedAt: Date.now() });
+}
+
+/** A training to log: the fields of an `ExerciseEntry` without ids, date and times. */
+export type TrainingToLog = Omit<ExerciseEntry, 'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date'>;
+
+/**
+ * Logs several trainings of one day at once (strength training and stretching from the same visit),
+ * each as its own entry, in one transaction, in the given order (`loggedAt` ascending). Returns the
+ * new ids (undo deletes them).
+ */
+export async function logTrainings(
+  db: UserDb,
+  date: ISODate,
+  rows: readonly TrainingToLog[],
+): Promise<string[]> {
+  const now = Date.now();
+  return db.transaction('rw', [db.exerciseEntries, db.outbox], async () => {
+    const ids: string[] = [];
+    for (const [i, row] of rows.entries()) {
+      const id = uuidv7();
+      await saveRecord(db, 'exerciseEntries', { ...row, id, date, loggedAt: now + i });
+      ids.push(id);
+    }
+    return ids;
+  });
 }
 
 /**
