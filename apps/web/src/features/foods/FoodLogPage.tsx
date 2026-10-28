@@ -1,12 +1,13 @@
 import {
   computeItem,
+  defaultPortion,
+  type Food,
+  type FoodEntry,
+  type Portion,
   portionsFor,
   targetsForDate,
   today,
   uuidv7,
-  type Food,
-  type FoodEntry,
-  type Portion,
 } from '@ft/shared';
 import { Link, useNavigate, useParams, useRouter, useRouterState, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -185,8 +186,8 @@ function FoodLogForm(props: FormProps) {
             quantity: lastUsed.quantity,
           }
         : {
-            // Never a whole package as the first suggestion (2.480 kcal for a cheese says nothing).
-            portion: portions.find((p) => !/^packung\b/i.test(p.label)) ?? { label: '100 g', grams: 100 },
+            // Own portion, the product's serving or the piece it is counted in; else 100 g.
+            portion: defaultPortion(portions) ?? { label: '100 g', grams: 100 },
             quantity: 1,
           };
   // "1,5 × 100 g" is shown as 150 g: the editor counts grams with a 1 g raster instead.

@@ -7,20 +7,22 @@
  */
 import {
   addDays,
+  type CustomFood,
+  defaultPortion,
+  type Food,
+  type FoodEntry,
   foodIds,
+  type FoodPortion,
   get,
+  type IndexedItem,
   indexItem,
+  type Meal,
   N,
+  type Portion,
+  portionsFor,
   search,
   searchKey,
   suggestQuery,
-  type CustomFood,
-  type Food,
-  type FoodEntry,
-  type FoodPortion,
-  type IndexedItem,
-  type Meal,
-  type Portion,
 } from '@ft/shared';
 import type { CachedFood, UserDb } from '@/db/dexie';
 import { endpoints, OfflineError, ApiError } from '@/lib/api';
@@ -250,8 +252,9 @@ export function rowAmount(food: Food, usage?: FoodUsage, userPortion?: Portion):
         : fmtGrams(last.grams, unit);
     return { label, kcal: (kcalPer100 * last.grams) / 100 };
   }
-  // A whole package ("Packung (1 kg)") is no serving: 2.480 kcal for a cheese says nothing.
-  const portion = userPortion ?? food.portions.find((p) => !/^packung\b/i.test(p.label));
+  // The person's own portion, the product's serving or the piece it is counted in; never a whole
+  // package (2.480 kcal for a cheese says nothing) and never a household measure.
+  const portion = defaultPortion(portionsFor(food, userPortion ? [userPortion] : []));
   if (portion && portion.grams > 0) {
     const label = /\d\s*(k?g|m?l)\b/i.test(portion.label)
       ? portion.label

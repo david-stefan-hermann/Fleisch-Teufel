@@ -48,7 +48,7 @@ describe('OFF normalization', () => {
       NA: 100,
     });
     expect(f.portions).toEqual([
-      { label: 'Portion (1 Stück (6,5 g))', grams: 6.5 },
+      { label: 'Stück (6,5 g)', grams: 6.5 },
       { label: 'Packung (100 g)', grams: 100 },
     ]);
   });

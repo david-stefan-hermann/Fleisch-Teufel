@@ -8,6 +8,7 @@ import {
   N,
   parseServingGrams,
   round,
+  servingLabel,
   type Food,
   type NutrientMap,
   type Portion,
@@ -93,10 +94,8 @@ export function normalizeOffProduct(p: OffProduct): Food | null {
   const portions: Portion[] = [];
   const serving = num(p.serving_quantity) ?? parseServingGrams(p.serving_size);
   if (serving && serving > 0 && serving < 5000) {
-    const label = p.serving_size?.trim()
-      ? `Portion (${p.serving_size.trim()})`
-      : `Portion (${round(serving, 1)} ${unit})`;
-    portions.push({ label: label.slice(0, 80), grams: round(serving, 2) });
+    // "1 Riegel (45g)" → "Riegel (45 g)"; a bare weight stays "Portion (30 g)".
+    portions.push({ label: servingLabel(p.serving_size, round(serving, 1), unit), grams: round(serving, 2) });
   }
   const pkg = num(p.product_quantity) ?? parseServingGrams(p.quantity);
   if (pkg && pkg > 0 && pkg < 20_000 && pkg !== serving) {

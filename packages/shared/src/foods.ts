@@ -1,4 +1,5 @@
 import { COMPACT_NUTRIENTS, completeNutrients, type NutrientMap } from './nutrients.js';
+import { piecePortionsFor } from './portions.js';
 import type { CompactBlsRow, Food, Portion } from './schemas.js';
 
 /**
@@ -138,7 +139,9 @@ export function householdPortionsFor(
 
 /**
  * Portions to offer for a food, de-duplicated by label, most specific first: user portions, the
- * food's own (OFF serving size), the base units, then the fitting household measures.
+ * food's own (OFF serving size), the pieces a BLS food is counted in (`piecePortionsFor`), the base
+ * units, then the fitting household measures. The first one before the base units is the default
+ * (`defaultPortion`): a banana opens as "Stück (120 g)", oats as 100 g.
  */
 export function portionsFor(
   food: Pick<Food, 'portions' | 'unit'> & Partial<Pick<Food, 'name' | 'source' | 'sourceId'>>,
@@ -151,7 +154,10 @@ export function portionsFor(
           { label: '1 ml', grams: 1 },
         ]
       : [...STANDARD_PORTIONS];
-  const all = [...userPortions, ...food.portions, ...base, ...householdPortionsFor(food)];
+  // A piece the person or the product already has (an own "Scheibe" of 25 g) is not offered twice.
+  const own = [...userPortions, ...food.portions];
+  const pieces = piecePortionsFor(food).filter((p) => !own.some((o) => o.grams === p.grams));
+  const all = [...own, ...pieces, ...base, ...householdPortionsFor(food)];
   const seen = new Set<string>();
   return all.filter((p) => {
     const key = p.label.toLowerCase();
