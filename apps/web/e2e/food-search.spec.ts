@@ -242,6 +242,22 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   await expect(page.getByRole('option', { name: 'Portion (45 g)' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('= 45 g')).toBeVisible();
   await expect(page.getByRole('button', { name: /^175 kcal, Anteil/ })).toBeVisible();
+  // 2 portions, then the unit "Gramm": the grams stay (90 g), whatever the browser scrolls after the
+  // rows of the amount wheel were swapped (this once logged the row the old position landed on).
+  const amount = page.getByRole('slider', { name: 'Menge Proteinriegel' });
+  await amount.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('2');
+  await page.getByRole('option', { name: 'Gramm' }).click();
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('90');
+  await page.waitForTimeout(500);
+  await expect(page.getByLabel('Menge', { exact: true })).toHaveValue('90');
+  await expect(amount).toHaveAttribute('aria-valuenow', '90');
+  await expect(page.getByRole('button', { name: /^350 kcal, Anteil/ })).toBeVisible();
+  await page.getByRole('button', { name: /eintragen$/ }).click();
+  await expect(page.getByText('Proteinriegel eingetragen')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Proteinriegel/ })).toContainText('90 g');
 });
 
 test('own food from a label photo: two photos, one call, form filled and highlighted', async ({ page }) => {

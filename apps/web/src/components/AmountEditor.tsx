@@ -121,7 +121,10 @@ export function AmountEditor({
       <div className="relative grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-1">
         {/* The band that marks the choice of both wheels. */}
         <div className="pointer-events-none absolute inset-x-0 top-11 h-11 rounded-lg bg-muted" aria-hidden />
+        {/* Grams and portions are different wheels: a unit switch builds the amount wheel anew instead
+            of swapping 200 gram rows against 20 portion rows under the old scroll position. */}
         <Wheel
+          key={kind}
           label={`Menge ${name}`}
           items={values.map(amountText)}
           index={nearestIndex(values, quantity)}

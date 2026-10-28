@@ -16,6 +16,7 @@ import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
+import { Wheel } from '@/components/Wheel';
 import { UserDb } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
@@ -1243,6 +1244,137 @@ describe('ingredient amount wheel', () => {
     render(<Card onCommit={() => {}} />);
     fireEvent.click(screen.getByText('scale'));
     expect(wheel().getAttribute('aria-valuenow')).toBe('300');
+  });
+
+  // The wheels of the two units differ (200 gram rows, 20 half portions). A scroll event the browser
+  // fires after the switch (re-snapping, the old scroll position) must not count as a turn: it once
+  // logged the row the old position landed on in the new list (2 portions became 20 g).
+  describe('a unit switch keeps the grams, whatever the browser scrolls afterwards', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    const bar: MealItem = {
+      ...oats,
+      name: 'Riegel',
+      grams: 100,
+      portionLabel: 'Portion (50 g)',
+      portionGrams: 50,
+      quantity: 2,
+      nutrients: { kcal: 368 },
+    };
+    const portions = () => screen.getByRole('listbox', { name: 'Einheit für Riegel' });
+    const field = () => screen.getByLabelText('Menge') as HTMLInputElement;
+    function Bar({ onCommit }: { onCommit: (q: number, label: string | null) => void }) {
+      const [item, setItem] = useState(bar);
+      return (
+        <IngredientCard
+          item={item}
+          removable
+          targets={targetsForDate([], '2026-10-09')}
+          onChange={setItem}
+          onCommit={(next) => {
+            setItem(next);
+            onCommit(next.quantity, next.portionLabel);
+          }}
+          onRemove={() => {}}
+        />
+      );
+    }
+    const strayScroll = (el: HTMLElement, row: number) => {
+      act(() => {
+        el.scrollTop = row * 44;
+        fireEvent.scroll(el);
+      });
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+    };
+
+    it('2 × Portion (50 g) → Gramm stays 100 g', () => {
+      const onCommit = vi.fn();
+      render(<Bar onCommit={onCommit} />);
+      fireEvent.click(within(portions()).getByRole('option', { name: 'Gramm' }));
+      expect(onCommit).toHaveBeenLastCalledWith(100, '1 g');
+      expect(field().value).toBe('100');
+      const amount = screen.getByRole('slider', { name: 'Menge Riegel' });
+      // The old position (row 3, "2") in the new list is "20 g": not a turn.
+      strayScroll(amount, 3);
+      strayScroll(amount, 19);
+      expect(field().value).toBe('100');
+      expect(onCommit).toHaveBeenCalledTimes(1);
+      // Turning by hand still works: a finger, then scroll events, then it stops.
+      fireEvent.pointerDown(amount);
+      strayScroll(amount, 20);
+      expect(onCommit).toHaveBeenLastCalledWith(105, '1 g');
+    });
+
+    it('300 g → Esslöffel (15 g) is 20 spoons', () => {
+      const onCommit = vi.fn();
+      render(<Card onCommit={onCommit} />);
+      fireEvent.change(field(), { target: { value: '300' } });
+      const units = screen.getByRole('listbox', { name: 'Einheit für Haferflocken' });
+      fireEvent.click(within(units).getByRole('option', { name: /Esslöffel/ }));
+      expect(onCommit).toHaveBeenLastCalledWith(20);
+      // The old position (row 59, "300 g") does not exist in the list of half portions: clamped.
+      strayScroll(wheel(), 19);
+      expect(field().value).toBe('20');
+      expect(screen.getByText('= 300 g')).toBeTruthy();
+      expect(onCommit).toHaveBeenCalledTimes(2);
+    });
+  });
+});
+
+describe('Wheel', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('reports turns by hand, not scrolls from outside', () => {
+    const onSettle = vi.fn();
+    const onChange = vi.fn();
+    const items = ['5', '10', '15', '20', '25'];
+    const { rerender } = render(
+      <Wheel label="Menge" items={items} index={1} onChange={onChange} onSettle={onSettle} />,
+    );
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    // Mounting scrolled to row 1; the browser reports it: no turn.
+    expect(el.scrollTop).toBe(44);
+    fireEvent.scroll(el);
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onSettle).not.toHaveBeenCalled();
+    // The list changes under the old position: the scroll the browser fires is no turn either.
+    rerender(
+      <Wheel
+        label="Menge"
+        items={[...items, '30', '35']}
+        index={5}
+        onChange={onChange}
+        onSettle={onSettle}
+      />,
+    );
+    expect(el.scrollTop).toBe(5 * 44);
+    act(() => {
+      el.scrollTop = 44;
+      fireEvent.scroll(el);
+    });
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onSettle).not.toHaveBeenCalled();
+    // A finger on the wheel, then scrolling: a turn, reported live and when it stops.
+    fireEvent.touchStart(el);
+    act(() => {
+      el.scrollTop = 2 * 44;
+      fireEvent.scroll(el);
+    });
+    expect(onChange).toHaveBeenLastCalledWith(2);
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onSettle).toHaveBeenLastCalledWith(2);
+    // After the stop the next scroll from outside is no turn again.
+    act(() => {
+      el.scrollTop = 3 * 44;
+      fireEvent.scroll(el);
+    });
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onSettle).toHaveBeenCalledTimes(1);
   });
 });
 
