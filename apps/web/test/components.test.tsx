@@ -448,14 +448,19 @@ describe('NutrientBreakdown', () => {
     render(<NutrientBreakdown nutrients={{ ENERCC: 100, CHO: 25 }} targets={targets} />);
     expect(meters().map((m) => m.getAttribute('aria-valuenow'))).toEqual(['0', '100', '0']);
     const bar = screen.getByRole('img', { name: /Energieverteilung/ });
-    expect([...bar.children].map((c) => (c as HTMLElement).style.width)).toEqual(['0%', '100%', '0%']);
+    expect((bar.querySelector('[data-part=fill]') as HTMLElement).style.width).toBe('100%');
+    expect(
+      [...bar.querySelector('[data-part=fill]')!.children].map((c) => (c as HTMLElement).style.width),
+    ).toEqual(['0%', '100%', '0%']);
   });
 
   it('shows zeros and placeholders for an empty map, never NaN', async () => {
     render(<NutrientBreakdown nutrients={{}} targets={targets} />);
     expect(document.body.textContent).not.toContain('NaN');
     expect(
-      screen.getByRole('img', { name: 'Energieverteilung: keine Makronährstoffe' }).children,
+      screen
+        .getByRole('img', { name: 'Energieverteilung: keine Makronährstoffe' })
+        .querySelector('[data-part=fill]')!.children,
     ).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Weitere Nährstoffe' }));
     const fiber = await screen.findByRole('meter', { name: 'Ballaststoffe' });
@@ -485,11 +490,40 @@ describe('NutrientBreakdown', () => {
     const protein = screen.getByRole('meter', { name: 'Protein' });
     expect(protein.getAttribute('aria-valuemax')).toBe('130');
     expect(protein.getAttribute('aria-valuenow')).toBe('35');
-    // The energy split bar stays.
-    expect(screen.getByRole('img', { name: /Energieverteilung: Protein 23/ })).toBeTruthy();
+    // The energy split bar fills only the share of the daily target (620 of 1.700 kcal), split as before.
+    const split = screen.getByRole('img', { name: /^Energieverteilung, 36\s% des Tagesziels: Protein 23/ });
+    const fill = split.querySelector('[data-part=fill]') as HTMLElement;
+    expect(parseFloat(fill.style.width)).toBeCloseTo((620 / 1700) * 100, 5);
+    const widths = [...fill.children].map((c) => parseFloat((c as HTMLElement).style.width));
+    expect(widths[0]).toBeCloseTo((140 / 605) * 100, 5);
+    expect(widths[1]).toBeCloseTo((240 / 605) * 100, 5);
+    expect(widths[2]).toBeCloseTo((225 / 605) * 100, 5);
     fireEvent.click(kcal);
     expect(kcal.getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByText('Anteil am Tagesziel')).toBeNull();
+    const full = screen.getByRole('img', { name: /^Energieverteilung: Protein 23/ });
+    expect((full.querySelector('[data-part=fill]') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('day mode above the daily target: full bar, the label names the real share', () => {
+    render(
+      <NutrientBreakdown nutrients={{ ENERCC: 2000, PROT625: 100, CHO: 200, FAT: 80 }} targets={targets} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Anteil am Tagesziel/ }));
+    const split = screen.getByRole('img', { name: /^Energieverteilung, 118\s% des Tagesziels/ });
+    expect((split.querySelector('[data-part=fill]') as HTMLElement).style.width).toBe('100%');
+  });
+
+  it('day variant never scales the split bar', () => {
+    render(
+      <NutrientBreakdown
+        variant="day"
+        nutrients={{ ENERCC: 620, PROT625: 35, CHO: 60, FAT: 25 }}
+        targets={targets}
+      />,
+    );
+    const split = screen.getByRole('img', { name: /^Energieverteilung: Protein/ });
+    expect((split.querySelector('[data-part=fill]') as HTMLElement).style.width).toBe('100%');
   });
 
   it('day variant: no switch, target in the head, bars against the target with excess', () => {
@@ -676,7 +710,7 @@ describe('NutrientEditor', () => {
     expect(macroLine('protein')).toContain('· 6 % · 16 kcal');
     expect(macroLine('fat')).toContain('· 41 % · 117 kcal');
     const bar = screen.getByRole('img', { name: /^Energieverteilung: Protein 6/ });
-    expect(bar.children).toHaveLength(3);
+    expect(bar.querySelector('[data-part=fill]')!.children).toHaveLength(3);
   });
 
   it('typed kcal win; kJ follow the kcal, "aus Makros berechnen" resets', async () => {

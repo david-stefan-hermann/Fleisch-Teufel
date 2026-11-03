@@ -1,0 +1,2067 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Feedback-Runde 10: Mockup</title>
+    <style>
+      /* Layout: sticky control row, then one block per topic (A to D) with phone frames side by side.
+         App tokens copied from apps/web/src/index.css (oklch). The phones are drawn by the script at the
+         end of the file from the same few render functions, so every variant shows the same data. */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.45 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+        --ask-bg: oklch(0.97 0.035 85);
+        --ask-border: oklch(0.85 0.08 85);
+        --frame: oklch(0.25 0.005 40);
+        --logo-t1: #fefdfc;
+        --logo-t2: #ebe3de;
+        --logo-g1: #c0262e;
+        --logo-g2: #7d151b;
+        --logo-ring: #e9e2dd;
+
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --popover: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --secondary: oklch(0.955 0.008 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --ring: oklch(0.6 0.15 25);
+        --protein: oklch(0.58 0.14 250);
+        --carbs: oklch(0.75 0.15 75);
+        --fat: oklch(0.6 0.16 320);
+        --good-text: oklch(0.48 0.13 155);
+        --over: oklch(0.58 0.19 27);
+        --over-2: oklch(0.4 0.17 27);
+        --over-good: oklch(0.53 0.13 155);
+        --exercise: oklch(0.5 0.12 230);
+        --bar-neutral: oklch(0.64 0.01 50);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+          --ask-bg: oklch(0.26 0.04 85);
+          --ask-border: oklch(0.42 0.07 85);
+          --frame: oklch(0.3 0.005 40);
+          --logo-t1: #241f1d;
+          --logo-t2: #0f0d0c;
+          --logo-g1: #e5524f;
+          --logo-g2: #a3222b;
+          --logo-ring: #2e2826;
+
+          --background: oklch(0.18 0.006 40);
+          --foreground: oklch(0.95 0.006 60);
+          --card: oklch(0.225 0.008 40);
+          --popover: oklch(0.24 0.008 40);
+          --primary: oklch(0.64 0.17 25);
+          --primary-foreground: oklch(0.15 0.01 40);
+          --secondary: oklch(0.27 0.008 40);
+          --muted: oklch(0.27 0.008 40);
+          --muted-foreground: oklch(0.7 0.012 50);
+          --accent: oklch(0.3 0.01 40);
+          --border: oklch(0.32 0.008 40);
+          --input: oklch(0.36 0.01 40);
+          --ring: oklch(0.6 0.15 25);
+          --protein: oklch(0.66 0.13 250);
+          --carbs: oklch(0.66 0.14 70);
+          --fat: oklch(0.62 0.15 320);
+          --good-text: oklch(0.78 0.12 155);
+          --over: oklch(0.68 0.17 27);
+          --over-2: oklch(0.48 0.16 27);
+          --over-good: oklch(0.6 0.13 155);
+          --exercise: oklch(0.67 0.12 230);
+          --bar-neutral: oklch(0.53 0.008 50);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+        --ask-bg: oklch(0.26 0.04 85);
+        --ask-border: oklch(0.42 0.07 85);
+        --frame: oklch(0.3 0.005 40);
+        --logo-t1: #241f1d;
+        --logo-t2: #0f0d0c;
+        --logo-g1: #e5524f;
+        --logo-g2: #a3222b;
+        --logo-ring: #2e2826;
+
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --popover: oklch(0.24 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --secondary: oklch(0.27 0.008 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --ring: oklch(0.6 0.15 25);
+        --protein: oklch(0.66 0.13 250);
+        --carbs: oklch(0.66 0.14 70);
+        --fat: oklch(0.62 0.15 320);
+        --good-text: oklch(0.78 0.12 155);
+        --over: oklch(0.68 0.17 27);
+        --over-2: oklch(0.48 0.16 27);
+        --over-good: oklch(0.6 0.13 155);
+        --exercise: oklch(0.67 0.12 230);
+        --bar-neutral: oklch(0.53 0.008 50);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding-block: 24px 64px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 48px 0 6px;
+        text-wrap: balance;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 28px 0 4px;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 80ch;
+        text-wrap: pretty;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        max-width: 92ch;
+      }
+      .note.new {
+        background: var(--new-bg);
+        border-color: var(--new-border);
+      }
+      .note.ask {
+        background: var(--ask-bg);
+        border-color: var(--ask-border);
+      }
+      .note ul,
+      .note ol {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+      .note p {
+        margin: 0;
+      }
+      code {
+        font-size: 13px;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 22px;
+        margin: 16px 0 24px;
+        padding: 12px 14px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+      }
+      @media (min-width: 900px) {
+        .controls {
+          position: sticky;
+          top: 8px;
+          z-index: 20;
+        }
+      }
+      .ctl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ctl > span {
+        font-weight: 600;
+      }
+      .seg {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .seg button {
+        font: inherit;
+        min-height: 32px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+        border-color: var(--page-ink);
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+        outline-offset: 2px;
+      }
+
+      /* Phones */
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px 24px;
+        justify-content: center;
+        align-items: flex-start;
+        margin-top: 16px;
+      }
+      .phones > figure {
+        margin: 0;
+        max-width: 100%;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: var(--frame);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        position: relative;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .screen.fixed {
+        height: 640px;
+      }
+      .screen.short {
+        height: 560px;
+      }
+      figcaption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin: 10px auto 0;
+        max-width: 375px;
+        text-wrap: pretty;
+      }
+      figcaption b {
+        display: block;
+        color: var(--page-ink);
+        font-size: 15px;
+      }
+      .tag-new {
+        display: inline-block;
+        margin-left: 6px;
+        padding: 0 7px;
+        border-radius: 99px;
+        background: var(--new-bg);
+        border: 1px solid var(--new-border);
+        color: var(--page-ink);
+        font-size: 12px;
+        font-weight: 600;
+        vertical-align: 2px;
+      }
+
+      /* App: header, cards, rows */
+      .tabular {
+        font-variant-numeric: tabular-nums;
+      }
+      .muted {
+        color: var(--muted-foreground);
+      }
+      .hdr {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+        background: color-mix(in oklch, var(--background) 85%, transparent);
+      }
+      .hdr h1 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        white-space: nowrap;
+      }
+      .hdr .acts {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .ibtn {
+        width: 40px;
+        height: 40px;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+      }
+      .ibtn.sm {
+        width: 32px;
+        height: 32px;
+      }
+      .ibtn.mf {
+        color: var(--muted-foreground);
+      }
+      .ibtn.hl {
+        position: relative;
+      }
+      .ibtn.hl::after {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        border-radius: 12px;
+        border: 2px dashed var(--new-border);
+        pointer-events: none;
+      }
+      .ibtn:hover {
+        background: var(--accent);
+      }
+      svg.i {
+        display: block;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .main {
+        padding: 12px 16px 16px;
+      }
+      .card {
+        margin-bottom: 16px;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .card.pad {
+        padding: 16px;
+      }
+      .sec-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+      .sec-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+      }
+      .sec-head h2 .k {
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .sec-head .acts {
+        display: flex;
+        align-items: center;
+      }
+      .rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .rows > li + li {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .row {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+      }
+      .row .txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .row .name {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .row .name span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .photo {
+        position: relative;
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 38% 40%, oklch(0.93 0.03 90) 0 22%, transparent 23%),
+          radial-gradient(circle at 62% 58%, oklch(0.55 0.15 280) 0 9%, transparent 10%),
+          radial-gradient(circle at 45% 64%, oklch(0.5 0.16 285) 0 8%, transparent 9%),
+          radial-gradient(
+            circle at 50% 50%,
+            oklch(0.97 0.01 90) 0 44%,
+            oklch(0.62 0.05 60) 45% 50%,
+            transparent 51%
+          ),
+          linear-gradient(135deg, oklch(0.55 0.06 60), oklch(0.4 0.05 50));
+      }
+      .photo.curry {
+        background:
+          radial-gradient(circle at 40% 45%, oklch(0.72 0.15 70) 0 26%, transparent 27%),
+          radial-gradient(circle at 60% 55%, oklch(0.95 0.01 90) 0 20%, transparent 21%),
+          radial-gradient(
+            circle at 50% 50%,
+            oklch(0.9 0.02 80) 0 44%,
+            oklch(0.45 0.04 50) 45% 50%,
+            transparent 51%
+          ),
+          linear-gradient(135deg, oklch(0.35 0.03 50), oklch(0.25 0.02 40));
+      }
+      .sum {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        flex: none;
+      }
+      .sum .kc {
+        font-weight: 600;
+      }
+      .sum .mx {
+        font-size: 11px;
+        line-height: 16px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      /* Shrink-to-fit block: the bar under the macro line is exactly as wide as the text. */
+      .sum .mxw {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .mx .dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 99px;
+        margin-right: 3px;
+        vertical-align: 1px;
+      }
+      .mx .g + .g {
+        margin-left: 6px;
+      }
+      .mx.sep .g + .g {
+        margin-left: 0;
+      }
+      .t-p {
+        color: var(--protein);
+      }
+      .t-c {
+        color: var(--carbs);
+      }
+      .t-f {
+        color: var(--fat);
+      }
+      .bg-p {
+        background: var(--protein);
+      }
+      .bg-c {
+        background: var(--carbs);
+      }
+      .bg-f {
+        background: var(--fat);
+      }
+      .split {
+        margin-top: 2px;
+        height: 4px;
+        width: 100%;
+        display: flex;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--muted);
+      }
+      .split i {
+        display: block;
+        height: 100%;
+      }
+      .dashed {
+        margin: 0 16px 16px;
+        height: 44px;
+        border-radius: 12px;
+        border: 1px dashed var(--input);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .sugg {
+        display: flex;
+        gap: 8px;
+        padding: 4px 16px 14px;
+        overflow: hidden;
+      }
+      .chip {
+        flex: none;
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 99px;
+        border: 1px solid var(--border);
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--foreground);
+        white-space: nowrap;
+      }
+      .sugg-lbl {
+        padding: 6px 16px 0;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+
+      /* Week strip */
+      .week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        padding: 0 16px 12px;
+        background: color-mix(in oklch, var(--background) 85%, transparent);
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .day {
+        height: 54px;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+      }
+      .day .wd {
+        opacity: 0.8;
+      }
+      .day .n {
+        font-size: 16px;
+        line-height: 1.25;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .day.sel {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .dots {
+        height: 6px;
+        margin-top: 2px;
+        display: flex;
+        gap: 3px;
+      }
+      .dots i {
+        width: 4px;
+        height: 4px;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .dots i.tr {
+        background: var(--exercise);
+      }
+      .day.sel .dots i:not(.tr) {
+        background: var(--primary-foreground);
+      }
+      .hdr + .week {
+        border-top: 0;
+      }
+      .hdr.joined {
+        border-bottom: 0;
+      }
+
+      /* Calorie card */
+      .ctop {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .ring {
+        position: relative;
+        width: 148px;
+        height: 148px;
+        flex: none;
+      }
+      .ring svg {
+        display: block;
+        transform: rotate(-90deg);
+      }
+      .ring .mid {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .ring .num {
+        font-size: 30px;
+        line-height: 1.2;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        font-variant-numeric: tabular-nums;
+      }
+      .ring .cap {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .kv {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        display: grid;
+        gap: 8px;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .kv div {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .kv dt {
+        color: var(--muted-foreground);
+      }
+      .kv dd {
+        margin: 0;
+        font-weight: 500;
+      }
+      .kv .tot {
+        border-top: 1px solid var(--border);
+        padding-top: 8px;
+      }
+      .kv .tot dt {
+        color: inherit;
+        font-weight: 600;
+      }
+      .kv .tot dd {
+        font-size: 18px;
+        font-weight: 700;
+      }
+      .mbars {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+      }
+      .mbars .l {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .mbars .v {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .mbars .v b {
+        color: var(--foreground);
+      }
+      .mbars .v.over,
+      .mbars .v.over b {
+        color: var(--over);
+      }
+      .tbar {
+        position: relative;
+        height: 6px;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--muted);
+      }
+      .tbar.h2 {
+        height: 8px;
+        margin-top: 4px;
+      }
+      .tbar > i {
+        position: absolute;
+        inset-block: 0;
+        left: 0;
+        border-radius: 99px;
+      }
+      .tbar > i.ex {
+        background: var(--over);
+      }
+      .tbar > i.ex.good {
+        background: var(--over-good);
+      }
+      .tbar > i.ex2 {
+        background: var(--over-2);
+      }
+      .morebtn {
+        margin: 8px 0 -8px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+
+      /* Nutrient breakdown (item variant, day mode) */
+      .nb-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .nb-head .t {
+        font-weight: 600;
+      }
+      .nb-kcal {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 4px;
+        margin: -2px -6px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        background: color-mix(in oklch, var(--foreground) 6%, transparent);
+        font-size: 28px;
+        line-height: 1.25;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .nb-kcal .of {
+        font-size: 18px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .nb-kcal .u {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .nb-mode {
+        margin-top: 2px;
+        text-align: right;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .esplit {
+        margin: 10px 0 14px;
+        height: 8px;
+        width: 100%;
+        display: flex;
+        overflow: hidden;
+        border-radius: 99px;
+        background: var(--muted);
+      }
+      .esplit .fill {
+        display: flex;
+        height: 100%;
+        overflow: hidden;
+        border-radius: 99px;
+      }
+      .esplit i {
+        display: block;
+        height: 100%;
+      }
+      .nb-rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 12px;
+      }
+      .nb-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .nb-row .lbl {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .nb-row .lbl i {
+        width: 8px;
+        height: 8px;
+        border-radius: 99px;
+      }
+      .nb-row .val {
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      .nb-row .val b {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .nb-row .val b.over {
+        color: var(--over);
+      }
+      .nb-row .val b.good {
+        color: var(--over-good);
+      }
+      .nb-more {
+        margin-top: 8px;
+        padding-top: 6px;
+        min-height: 44px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted-foreground);
+      }
+      .aria {
+        margin: 10px 0 0;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: var(--muted);
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .aria code {
+        font-size: 11.5px;
+        color: var(--foreground);
+      }
+      .fieldbox {
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 14px;
+      }
+
+      /* Toggle group (appearance) */
+      .tg {
+        display: flex;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .tg button {
+        flex: 1;
+        height: 48px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--input);
+        background: transparent;
+        color: var(--foreground);
+        cursor: pointer;
+      }
+      .tg button + button {
+        border-left: 0;
+      }
+      .tg button:first-child {
+        border-radius: 10px 0 0 10px;
+      }
+      .tg button:last-child {
+        border-radius: 0 10px 10px 0;
+      }
+      .tg button[aria-pressed='true'] {
+        background: var(--accent);
+      }
+      .hint {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .previewbox {
+        border-radius: 14px;
+        background: var(--muted);
+        padding: 0;
+      }
+      .previewbox .row {
+        min-height: 52px;
+      }
+      .icons {
+        display: flex;
+        gap: 0;
+      }
+      .icons > div {
+        flex: 1;
+        height: 92px;
+        border: 1px solid var(--input);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+      .icons > div + div {
+        border-left: 0;
+      }
+      .icons > div:first-child {
+        border-radius: 10px 0 0 10px;
+        background: var(--accent);
+      }
+      .icons > div:last-child {
+        border-radius: 0 10px 10px 0;
+      }
+
+      /* Note card, buttons, toast */
+      .textarea {
+        min-height: 80px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        padding: 8px 12px;
+        font-size: 16px;
+        white-space: pre-wrap;
+        background: transparent;
+      }
+      .textarea.ph {
+        color: var(--muted-foreground);
+      }
+      .btn {
+        height: 40px;
+        border-radius: 10px;
+        border: 0;
+        padding: 0 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .btn.sec {
+        background: var(--secondary);
+        color: var(--foreground);
+      }
+      .btn.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.out {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--input);
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .done {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--good-text);
+      }
+      .tlink {
+        justify-self: start;
+        margin: -8px 0;
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      .grid3 {
+        display: grid;
+        gap: 12px;
+        padding: 0 16px 16px;
+      }
+      .tabbar {
+        position: absolute;
+        inset-inline: 0;
+        bottom: 0;
+        height: 60px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 90%, transparent);
+        backdrop-filter: blur(12px);
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        align-items: center;
+        z-index: 3;
+      }
+      .tabbar a {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+        text-decoration: none;
+      }
+      .tabbar a.on {
+        color: var(--primary);
+      }
+      .tabbar .plus {
+        justify-self: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 99px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgb(0 0 0 / 0.15);
+      }
+      .scroll {
+        position: absolute;
+        inset: 0 0 60px;
+        overflow: hidden;
+      }
+      .toast {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 72px;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .toast button {
+        flex: none;
+        height: 26px;
+        padding: 0 10px;
+        border: 0;
+        border-radius: 6px;
+        background: var(--foreground);
+        color: var(--background);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .toast[hidden] {
+        display: none;
+      }
+
+      /* Dialog */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: rgb(0 0 0 / 0.5);
+      }
+      .dialog {
+        position: absolute;
+        z-index: 6;
+        top: 56px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        box-shadow: 0 10px 25px rgb(0 0 0 / 0.2);
+      }
+      .dialog .x {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        opacity: 0.7;
+      }
+      .dialog h3 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1;
+        font-weight: 600;
+        text-align: center;
+      }
+      .dialog .desc {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .checks {
+        display: grid;
+        gap: 4px;
+      }
+      .check {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border-radius: 8px;
+      }
+      .check.off {
+        cursor: default;
+      }
+      .check.off .lbl {
+        opacity: 0.5;
+      }
+      .check .box {
+        width: 20px;
+        height: 20px;
+        flex: none;
+        border-radius: 5px;
+        border: 1px solid var(--input);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--primary-foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .check.on .box {
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+      .check.off .box {
+        opacity: 0.5;
+      }
+      .check .lbl small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .dfoot {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .dfoot .btn {
+        width: 100%;
+      }
+
+      /* iOS share sheet (only to show the file name) */
+      .sheet {
+        position: absolute;
+        inset-inline: 0;
+        bottom: 0;
+        z-index: 8;
+        padding: 14px 16px 22px;
+        border-radius: 14px 14px 0 0;
+        background: color-mix(in oklch, var(--popover) 96%, var(--foreground));
+        box-shadow: 0 -6px 24px rgb(0 0 0 / 0.25);
+        font-size: 14px;
+      }
+      .sheet[hidden],
+      .sheet-dim[hidden] {
+        display: none;
+      }
+      .sheet-dim {
+        position: absolute;
+        inset: 0;
+        z-index: 7;
+        background: rgb(0 0 0 / 0.25);
+      }
+      .sheet .file {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+      }
+      .sheet .thumb {
+        width: 44px;
+        height: 72px;
+        flex: none;
+        overflow: hidden;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        position: relative;
+      }
+      .sheet .thumb > div {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform: scale(0.1128);
+        transform-origin: 0 0;
+        pointer-events: none;
+      }
+      .sheet .fn {
+        font-weight: 600;
+        word-break: break-all;
+        font-size: 13px;
+      }
+      .sheet .apps {
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 4px;
+        border-bottom: 1px solid var(--border);
+        font-size: 11px;
+        text-align: center;
+        color: var(--muted-foreground);
+      }
+      .sheet .apps i {
+        display: block;
+        width: 52px;
+        height: 52px;
+        margin: 0 auto 4px;
+        border-radius: 12px;
+        background: var(--muted);
+      }
+      .sheet .acts {
+        margin-top: 12px;
+        border-radius: 12px;
+        background: var(--background);
+      }
+      .sheet .acts div {
+        padding: 12px 14px;
+      }
+      .sheet .acts div + div {
+        border-top: 1px solid var(--border);
+      }
+
+      /* The generated image */
+      .shot-wrap {
+        margin: 0;
+      }
+      .shot {
+        width: 390px;
+        max-width: 100%;
+        padding: 16px;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 16px;
+        line-height: 1.5;
+        box-shadow:
+          0 0 0 1px var(--note-border),
+          0 10px 30px oklch(0 0 0 / 0.18);
+      }
+      .shot h1 {
+        margin: 4px 0 14px;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .shot .notetext {
+        padding: 0 16px 16px;
+        white-space: pre-wrap;
+        font-size: 15px;
+      }
+      .shot .foot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 0 2px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .shot .card:last-of-type {
+        margin-bottom: 14px;
+      }
+      .px {
+        color: var(--page-muted);
+        font-size: 12px;
+        text-align: center;
+        margin-top: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <linearGradient id="lt" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" style="stop-color: var(--logo-t1)" />
+          <stop offset="1" style="stop-color: var(--logo-t2)" />
+        </linearGradient>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" style="stop-color: var(--logo-g1)" />
+          <stop offset="1" style="stop-color: var(--logo-g2)" />
+        </linearGradient>
+        <mask id="lm" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+          <g fill="#fff">
+            <path
+              transform="translate(178.41 165.21) rotate(-42) scale(0.86)"
+              d="M-44 14 C-38 -38 -10 -88 44 -108 C30 -72 34 -34 46 14 Z"
+            />
+            <path
+              transform="translate(333.59 165.21) rotate(42) scale(-0.86 0.86)"
+              d="M-44 14 C-38 -38 -10 -88 44 -108 C30 -72 34 -34 46 14 Z"
+            />
+          </g>
+          <circle cx="256" cy="272" r="159.0" fill="#000" />
+          <path
+            d="M256.00 140.00 A132 132 0 1 1 141.68 206.00"
+            fill="none"
+            stroke="#fff"
+            stroke-width="58"
+            stroke-linecap="round"
+          />
+        </mask>
+        <symbol id="logo" viewBox="0 0 512 512">
+          <rect width="512" height="512" rx="112" fill="url(#lt)" />
+          <circle cx="256" cy="272" r="132" fill="none" style="stroke: var(--logo-ring)" stroke-width="58" />
+          <rect width="512" height="512" fill="url(#lg)" mask="url(#lm)" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="wrap">
+      <h1>Feedback-Runde 10: Mockup v1</h1>
+      <p class="lead">
+        Vier Themen aus deinem Feedback vom 3. November: <b>A</b> Tagesanteil-Balken, <b>B</b> Makros farbig
+        im Tagebuch, <b>C</b> alle vergangenen Tage abschließen, <b>D</b> Tag teilen. Daten aus deinen
+        Screenshots (Abendessen 967 kcal, Tagesziel 1.500 kcal, P 131 / K 150 / F 42 g). Knöpfe, Kästchen und
+        Links in den Telefonen sind anklickbar, wo es etwas zu sehen gibt.
+      </p>
+
+      <div class="note">
+        <b>Entschieden (mit dir, 3. November)</b>
+        <ul>
+          <li>
+            Der kürzere Balken gilt <b>nur im Modus „Anteil am Tagesziel“</b> (Tipp auf die kcal-Zahl).
+            Kalorienkarte im Tagebuch und Berichte behalten den vollen Balken.
+          </li>
+          <li>
+            <b>Offen</b> heißt: ein Tag vor dem angezeigten Tag mit mindestens einem Essens-Eintrag und ohne
+            „Tag abgeschlossen“, egal wie viele Mahlzeiten. Tage ohne Einträge werden nie abgeschlossen.
+          </li>
+          <li>Sammel-Abschließen <b>sofort, mit Rückgängig</b> im Toast, kein Dialog.</li>
+          <li>Der Link steht <b>nur im Tagebuch unter der Notiz</b>, nicht auf der Abschluss-Seite.</li>
+          <li>
+            Erst Mockup, dann Code. Die Makro-Darstellung aus B wird nur bei Gefallen eine Einstellung unter
+            Mehr → Aussehen; Standard bleibt die heutige Textzeile.
+          </li>
+        </ul>
+      </div>
+
+      <div class="note ask">
+        <b>Bitte entscheiden</b>
+        <ol>
+          <li>
+            B: Variante <b>B1</b> (Punkte, Empfehlung), <b>B2</b> (farbige Zahlen) oder <b>B3</b> (nur
+            Balken)? Bei B1: mit oder ohne Buchstaben P/K/F (Schalter oben)?
+          </li>
+          <li>
+            D: Platz des Teilen-Knopfs im Tagebuch-Header (links neben Zwischenablage und Wolke) so in
+            Ordnung?
+          </li>
+          <li>D: Abspann mit Logo und „Fleisch-Teufel“ unten im Bild behalten oder streichen?</li>
+          <li>
+            D: Die Zeilen im Bild zeigen die Makros so, wie du es unter Aussehen eingestellt hast (Zahlen oder
+            mit Balken). Passt das, oder im Bild immer nur Zahlen?
+          </li>
+        </ol>
+      </div>
+
+      <div class="controls" role="group" aria-label="Mockup-Einstellungen">
+        <div class="ctl">
+          <span>Thema</span>
+          <div class="seg" id="theme">
+            <button type="button" data-v="system" aria-pressed="true">System</button>
+            <button type="button" data-v="light" aria-pressed="false">Hell</button>
+            <button type="button" data-v="dark" aria-pressed="false">Dunkel</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span>B1</span>
+          <div class="seg" id="letters">
+            <button type="button" data-v="1" aria-pressed="true">Punkt + Buchstabe</button>
+            <button type="button" data-v="0" aria-pressed="false">Nur Punkt</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span>„Mit Balken“ ist</span>
+          <div class="seg" id="variant">
+            <button type="button" data-v="b1" aria-pressed="true">B1</button>
+            <button type="button" data-v="b2" aria-pressed="false">B2</button>
+            <button type="button" data-v="b3" aria-pressed="false">B3</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- A -->
+      <h2>A. Tagesanteil-Balken</h2>
+      <p class="lead">
+        „Eintrag bearbeiten“ → „Nährwerte dieser Menge“, Tipp auf die kcal-Zahl (Modus „Anteil am Tagesziel“).
+        Heute füllt der Energie-Balken immer die ganze Breite. Neu füllt er nur den Anteil der Mahlzeit am
+        Tagesziel (695 von 1.500 kcal = 46 %); P/K/F teilen sich den gefüllten Teil wie bisher, der Rest
+        bleibt grau. Die drei Makro-Zeilen darunter bleiben unverändert.
+      </p>
+      <div class="phones" id="a-phones"></div>
+
+      <!-- B -->
+      <h2>B. Makros farbig im Tagebuch</h2>
+      <p class="lead">
+        Die Zeile „P 47 · K 0 · F 3“ unter der kcal-Zahl jeder Tagebuchzeile, darunter ein 4 px hoher Balken
+        genau so breit wie der Text, Segmente nach Energieanteil (4/4/9 kcal pro g, wie überall). Gilt für
+        Einzelzeilen, zugeklappte Gruppen, aufgeklappte Zutaten und die Mahlzeit-Seite.
+      </p>
+      <div class="phones" id="b-phones"></div>
+      <div class="note">
+        <b>Warum B1 die Empfehlung ist</b>
+        <ul>
+          <li>
+            Das Gelb-Orange der Kohlenhydrate hat auf der hellen Karte bei 11 px nur etwa 2:1 Kontrast (B2: „K
+            38“ ist schwer lesbar). In der App gilt bisher: Makrofarben nur in Punkten und Balken, Text in
+            Grau/Schwarz.
+          </li>
+          <li>
+            B1 bringt die Farbe trotzdem an jede Zahl; B3 ist die ruhigste Lösung, die Zuordnung Farbe zu Zahl
+            fehlt dort aber.
+          </li>
+          <li>Der Balken ist für Screenreader ausgeblendet, der Text nennt P/K/F schon.</li>
+        </ul>
+      </div>
+      <h3>Mehr → Aussehen, neuer Abschnitt „Tagebuch“</h3>
+      <p class="lead">
+        Pro Gerät wie Thema und Icon. Standard „Zahlen“. Die Vorschau folgt dem Umschalter; „Mit Balken“ zeigt
+        die Variante, die oben unter „„Mit Balken“ ist“ gewählt ist. Auf der Seite „Mehr“ steht dann in der
+        Zeile Aussehen „Wie das System · Icon wie die App · Tagebuch mit Balken“ (der Zusatz nur, wenn nicht
+        Standard).
+      </p>
+      <div class="phones" id="b2-phones"></div>
+
+      <!-- C -->
+      <h2>C. Alle vergangenen Tage abschließen</h2>
+      <p class="lead">
+        Textlink unter „Tag abschließen“ bzw. unter „Tag abgeschlossen um …“ in der Notiz-Karte. Er erscheint
+        nur, wenn vor dem angezeigten Tag mindestens ein Tag mit Einträgen offen ist, und zeigt keine Zahl.
+        Ein Tipp schließt alle diese Tage sofort ab; der Toast nennt die Zahl und kann es rückgängig machen.
+        Danach verschwindet der Link. Probier es in den ersten zwei Telefonen.
+      </p>
+      <div class="phones" id="c-phones"></div>
+
+      <!-- D -->
+      <h2>D. Tag teilen</h2>
+      <p class="lead">
+        Teilen-Knopf (das iOS-Symbol Kästchen mit Pfeil) im Tagebuch-Header, gestrichelt markiert. Er öffnet
+        den Dialog; „Teilen“ erzeugt ein langes Bild wie ein Screenshot des Tages und öffnet den
+        iOS-Teilen-Dialog (Dateiname mit Datum). Ohne Teilen-Funktion (Computer) wird die Datei
+        heruntergeladen. Im zweiten Telefon die Kästchen umschalten und „Teilen“ tippen.
+      </p>
+      <div class="phones" id="d-phones"></div>
+      <h3>Das erzeugte Bild</h3>
+      <p class="lead">
+        390 px breit (iPhone), mit 3-facher Auflösung gerastert, im aktuellen Thema des Geräts. Statt Header
+        und Kalender das Datum mit Wochentag; Kalorienkarte immer zugeklappt ohne „Nährstoffe“; nur Mahlzeiten
+        mit Einträgen (hier fehlen Mittagessen und Snacks), Gruppen zugeklappt; keine Vorschläge, keine
+        Knöpfe, keine wartenden Analysen. Links nur Essen (Vorgabe), rechts Essen, Training und Notiz.
+      </p>
+      <div class="phones" id="d-shots"></div>
+    </div>
+
+    <script>
+      // ---------- helpers ----------
+      const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+      const fmt0 = (n) => nf0.format(Math.round(n));
+      const pct = (x) => `${fmt0(x * 100)} %`;
+      const g = (n) => `${fmt0(n)} g`;
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+      const ICONS = {
+        chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+        chevronRight: '<path d="m9 18 6-6-6-6"/>',
+        chevronDown: '<path d="m6 9 6 6 6-6"/>',
+        share:
+          '<path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
+        clipboard:
+          '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+        cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+        plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+        ellipsis:
+          '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+        checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        listPlus:
+          '<path d="M11 12H3"/><path d="M16 6H3"/><path d="M16 18H3"/><path d="M18 9v6"/><path d="M21 12h-6"/>',
+        camera:
+          '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+        book: '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
+        trend: '<path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/>',
+        chart:
+          '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+        menu: '<path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/>',
+        monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+        sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+        moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+      };
+      const ic = (name, size = 20, style = '') =>
+        `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" style="${style}" aria-hidden="true">${ICONS[name]}</svg>`;
+      const logo = (size) =>
+        `<svg width="${size}" height="${size}" aria-hidden="true" style="display:block;flex:none"><use href="#logo"/></svg>`;
+
+      // ---------- data (from the user's screenshots, rest made up to fit) ----------
+      const TARGET = { kcal: 1500, p: 131, c: 150, f: 42 };
+      const food = (name, sub, kcal, p, c, f) => ({ name, sub, kcal, p, c, f });
+      const DINNER = [
+        food('White Tiger Garnelen', 'Golden Seafood · 235 g', 211, 47, 0, 3),
+        food('Hühner Frikassee', '500 g', 695, 52, 38, 36),
+        food('Oatly Hafer Barista', 'Oatly · 100 ml', 61, 1, 7, 3),
+      ];
+      const BREAKFAST_GROUP = {
+        group: true,
+        name: 'Skyr mit Beeren',
+        count: 3,
+        photo: 'photo',
+        kcal: 318,
+        p: 30,
+        c: 40,
+        f: 4,
+      };
+      const TRAININGS = [
+        { name: 'Radfahren', sub: '45 Min. · Mittel · zur Arbeit', kcal: 312 },
+        { name: 'Krafttraining', sub: '30 Min. · Intensiv', kcal: 168 },
+      ];
+      const NOTE = 'Abends viel Hunger nach dem Radfahren.\nSchlecht geschlafen, etwa 6 Stunden.';
+      const sumOf = (rows) =>
+        rows.reduce((s, r) => ({ kcal: s.kcal + r.kcal, p: s.p + r.p, c: s.c + r.c, f: s.f + r.f }), {
+          kcal: 0,
+          p: 0,
+          c: 0,
+          f: 0,
+        });
+      const DAY_FOOD = sumOf([BREAKFAST_GROUP, ...DINNER]);
+      const DAY_TRAINING = TRAININGS.reduce((s, t) => s + t.kcal, 0);
+
+      // ---------- state of the controls ----------
+      const state = { letters: true, variant: 'b1', pref: 'numbers' };
+
+      // ---------- diary pieces ----------
+      function shares(n) {
+        const k = n.p * 4 + n.c * 4 + n.f * 9;
+        return k > 0 ? [(n.p * 4) / k, (n.c * 4) / k, (n.f * 9) / k] : [0, 0, 0];
+      }
+      function splitBar(n) {
+        const [p, c, f] = shares(n);
+        return `<div class="split" aria-hidden="true"><i class="bg-p" style="width:${p * 100}%"></i><i class="bg-c" style="width:${c * 100}%"></i><i class="bg-f" style="width:${f * 100}%"></i></div>`;
+      }
+      /** Right column of a diary row: kcal and the macro line in one of the variants. */
+      function summary(n, variant) {
+        const kc = `<div class="kc">${fmt0(n.kcal)}</div>`;
+        const plain = `P ${fmt0(n.p)} · K ${fmt0(n.c)} · F ${fmt0(n.f)}`;
+        if (variant === 'numbers') return `<div class="sum">${kc}<div class="mx">${plain}</div></div>`;
+        let line;
+        if (variant === 'b1') {
+          const part = (cls, l, v) =>
+            `<span class="g"><span class="dot ${cls}"></span>${state.letters ? l + ' ' : ''}${fmt0(v)}</span>`;
+          line = `<div class="mx">${part('bg-p', 'P', n.p)}${part('bg-c', 'K', n.c)}${part('bg-f', 'F', n.f)}</div>`;
+        } else if (variant === 'b2') {
+          line = `<div class="mx"><span class="t-p">P ${fmt0(n.p)}</span> · <span class="t-c">K ${fmt0(n.c)}</span> · <span class="t-f">F ${fmt0(n.f)}</span></div>`;
+        } else {
+          line = `<div class="mx">${plain}</div>`;
+        }
+        return `<div class="sum">${kc}<div class="mxw">${line}${splitBar(n)}</div></div>`;
+      }
+      function entryRow(e, variant) {
+        return `<div class="row"><div class="txt"><div class="name"><span>${esc(e.name)}</span></div><div class="sub">${esc(e.sub)}</div></div>${summary(e, variant)}</div>`;
+      }
+      function groupRow(gr, variant, { chevron = true } = {}) {
+        const pic = gr.photo ? `<div class="photo ${gr.photo === 'curry' ? 'curry' : ''}"></div>` : '';
+        const icon = gr.photo ? '' : ic('listPlus', 16, 'color:var(--muted-foreground)');
+        return `<div class="row">${pic}<div class="txt"><div class="name">${icon}<span>${esc(gr.name)}</span></div><div class="sub">${gr.count} Zutaten${chevron ? ic('chevronDown', 14) : ''}</div></div>${summary(gr, variant)}</div>`;
+      }
+      function rowsOf(list, variant, opts) {
+        return `<ul class="rows">${list.map((r) => `<li>${r.group ? groupRow(r, variant, opts) : entryRow(r, variant)}</li>`).join('')}</ul>`;
+      }
+      function mealCard(
+        name,
+        list,
+        variant,
+        { actions = true, suggestions = false, static: st = false } = {},
+      ) {
+        const s = sumOf(list);
+        const head = `<div class="sec-head"><h2><span>${name}</span>${s.kcal > 0 ? `<span class="k tabular">${fmt0(s.kcal)} kcal</span>` : ''}${st ? '' : ic('chevronRight', 16, 'color:var(--muted-foreground);align-self:center')}</h2>${
+          actions
+            ? `<div class="acts"><span class="ibtn">${ic('ellipsis', 20, 'color:var(--muted-foreground)')}</span><span class="ibtn">${ic('plus', 20, 'color:var(--primary)')}</span></div>`
+            : ''
+        }</div>`;
+        const body = list.length
+          ? rowsOf(list, variant, { chevron: !st })
+          : `<div class="dashed">Essen eintragen</div>`;
+        const sugg = suggestions
+          ? `<div class="sugg-lbl">Zuletzt hier</div><div class="sugg"><span class="chip">${ic('plus', 14)}Skyr mit Beeren</span><span class="chip">${ic('plus', 14)}Banane</span></div>`
+          : '';
+        return `<section class="card">${head}${body}${sugg}</section>`;
+      }
+      function exerciseCard({ static: st = false } = {}) {
+        return `<section class="card"><div class="sec-head"><h2><span>Training</span><span class="k tabular">${fmt0(DAY_TRAINING)} kcal</span></h2>${
+          st
+            ? ''
+            : `<div class="acts"><span class="ibtn">${ic('plus', 20, 'color:var(--primary)')}</span></div>`
+        }</div><ul class="rows">${TRAININGS.map(
+          (t) =>
+            `<li><div class="row"><div class="txt"><div class="name"><span>${t.name}</span></div><div class="sub">${t.sub}</div></div><div class="sum" style="color:var(--exercise);font-weight:600">+${fmt0(t.kcal)}</div></div></li>`,
+        ).join('')}</ul></section>`;
+      }
+      function ring(eaten, budget) {
+        const size = 148,
+          stroke = 12,
+          r = (size - stroke) / 2,
+          c = 2 * Math.PI * r;
+        const used = Math.min(eaten / budget, 1);
+        const rem = Math.round(budget - eaten);
+        return `<div class="ring"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="74" cy="74" r="${r}" fill="none" stroke="var(--muted)" stroke-width="${stroke}"/><circle cx="74" cy="74" r="${r}" fill="none" stroke="var(--primary)" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${used * c} ${c}"/></svg><div class="mid"><span class="num">${fmt0(Math.abs(rem))}</span><span class="cap">kcal übrig</span></div></div>`;
+      }
+      function targetBar(value, target, color, { h2 = false, tone = 'bad' } = {}) {
+        const fill = Math.min(100, (value / target) * 100);
+        const over = Math.round(value) > Math.round(target);
+        const ex = over ? Math.min(100, ((value - target) / target) * 100) : 0;
+        const ex2 =
+          over && tone === 'bad' ? Math.min(100, Math.max(0, ((value - 2 * target) / target) * 100)) : 0;
+        return `<div class="tbar ${h2 ? 'h2' : ''}" style="${h2 ? '' : 'margin-top:4px'}"><i class="${color}" style="width:${fill}%"></i>${
+          ex > 0 ? `<i class="ex ${tone === 'good' ? 'good' : ''}" style="width:${ex}%"></i>` : ''
+        }${ex2 > 0 ? `<i class="ex2" style="width:${ex2}%"></i>` : ''}</div>`;
+      }
+      function calorieCard({ button = true } = {}) {
+        const budget = TARGET.kcal + DAY_TRAINING;
+        const mb = (label, v, t, color, tone) => {
+          const over = tone === 'bad' && Math.round(v) > Math.round(t);
+          return `<div><div class="l">${label}</div>${targetBar(v, t, color, { h2: true, tone })}<div class="v ${over ? 'over' : ''}"><b>${fmt0(v)}</b> / ${fmt0(t)} g</div></div>`;
+        };
+        return `<section class="card pad"><div class="ctop">${ring(DAY_FOOD.kcal, budget)}<dl class="kv"><div><dt>Ziel</dt><dd>${fmt0(TARGET.kcal)}</dd></div><div><dt>Essen</dt><dd>− ${fmt0(DAY_FOOD.kcal)}</dd></div><div><dt>Training</dt><dd>+ ${fmt0(DAY_TRAINING)}</dd></div><div class="tot"><dt>Übrig</dt><dd>${fmt0(budget - DAY_FOOD.kcal)}</dd></div></dl></div><div class="mbars">${mb('Protein', DAY_FOOD.p, TARGET.p, 'bg-p', 'good')}${mb('Kohlenhydrate', DAY_FOOD.c, TARGET.c, 'bg-c', 'bad')}${mb('Fett', DAY_FOOD.f, TARGET.f, 'bg-f', 'bad')}</div>${
+          button ? `<div class="morebtn">Nährstoffe${ic('chevronDown', 16)}</div>` : ''
+        }</section>`;
+      }
+      function diaryHeader({ share = true, highlight = false, label = 'Gestern' } = {}) {
+        return `<div class="hdr joined"><h1><span class="ibtn sm">${ic('chevronLeft', 22)}</span><span style="padding:0 4px">${label}</span><span class="ibtn sm">${ic('chevronRight', 22)}</span></h1><div class="acts">${
+          share
+            ? `<button type="button" class="ibtn mf ${highlight ? 'hl' : ''}" aria-label="Tag teilen">${ic('share', 22)}</button>`
+            : ''
+        }<span class="ibtn mf">${ic('clipboard', 22)}</span><span class="ibtn mf">${ic('cloud', 22)}</span></div></div>`;
+      }
+      function weekStrip() {
+        // The strip in the app runs Monday to Sunday; 2 November is a Monday, so show that week.
+        const wk = [
+          ['Mo', 2, 1, 1, true],
+          ['Di', 3, 0, 0],
+          ['Mi', 4, 0, 0],
+          ['Do', 5, 0, 0],
+          ['Fr', 6, 0, 0],
+          ['Sa', 7, 0, 0],
+          ['So', 8, 0, 0],
+        ];
+        return `<div class="week">${wk
+          .map(
+            ([wd, n, f, t, sel]) =>
+              `<div class="day ${sel ? 'sel' : ''}"><span class="wd">${wd}</span><span class="n">${n}</span><span class="dots">${f ? '<i></i>' : ''}${t ? '<i class="tr"></i>' : ''}</span></div>`,
+          )
+          .join('')}</div>`;
+      }
+      function tabBar() {
+        return `<nav class="tabbar"><a class="on">${ic('book', 22)}Tagebuch</a><a>${ic('trend', 22)}Fortschritt</a><span class="plus">${ic('plus', 24)}</span><a>${ic('chart', 22)}Berichte</a><a>${ic('menu', 22)}Mehr</a></nav>`;
+      }
+      const phone = (inner, cls = '') => `<div class="phone"><div class="screen ${cls}">${inner}</div></div>`;
+      const fig = (inner, title, text, isNew = false) =>
+        `<figure>${inner}<figcaption><b>${title}${isNew ? '<span class="tag-new">Neu</span>' : ''}</b>${text}</figcaption></figure>`;
+
+      // ---------- A ----------
+      function breakdown(n, { fill, over = false }) {
+        const [sp, sc, sf] = shares(n);
+        const segs = `<i class="bg-p" style="width:${sp * 100}%"></i><i class="bg-c" style="width:${sc * 100}%"></i><i class="bg-f" style="width:${sf * 100}%"></i>`;
+        const share = n.kcal / TARGET.kcal;
+        const bar =
+          fill === null
+            ? `<div class="esplit">${segs}</div>`
+            : `<div class="esplit"><div class="fill" style="width:${Math.min(1, fill) * 100}%">${segs}</div></div>`;
+        const row = (label, cls, v, t, tone) => {
+          const o = Math.round(v) > Math.round(t);
+          const bcls = o ? (tone === 'good' ? 'good' : 'over') : '';
+          return `<li><div class="nb-row"><span class="lbl"><i class="${cls}"></i>${label}</span><span class="val"><b class="${bcls}">${g(v)}</b> / ${g(t)} · ${pct(v / t)}</span></div>${targetBar(v, t, cls, { tone })}</li>`;
+        };
+        const label =
+          fill === null
+            ? `Energieverteilung: Protein ${pct(sp)}, Kohlenhydrate ${pct(sc)}, Fett ${pct(sf)}`
+            : `Energieverteilung, ${pct(share)} des Tagesziels: Protein ${pct(sp)}, Kohlenhydrate ${pct(sc)}, Fett ${pct(sf)}`;
+        return `<section class="card pad"><div class="nb-head"><span class="t">Nährwerte dieser Menge</span><div style="text-align:right"><span class="nb-kcal"><span>${fmt0(n.kcal)}</span><span class="of"> / ${fmt0(TARGET.kcal)}</span><span class="u"> kcal</span></span><div class="nb-mode">Anteil am Tagesziel</div></div></div>${bar}<ul class="nb-rows">${row('Protein', 'bg-p', n.p, TARGET.p, 'good')}${row('Kohlenhydrate', 'bg-c', n.c, TARGET.c, 'bad')}${row('Fett', 'bg-f', n.f, TARGET.f, 'bad')}</ul><div class="nb-more">Weitere Nährstoffe${ic('chevronDown', 16)}</div><p class="aria">Screenreader: <code>${label}</code></p></section>`;
+      }
+      function entryPage(n, amount) {
+        return `<div class="hdr"><span class="ibtn">${ic('chevronLeft', 24)}</span><h1>Eintrag bearbeiten</h1></div><div class="main"><div style="font-weight:600;font-size:18px;margin:0 0 2px">Hühner Frikassee</div><div class="muted" style="font-size:14px;margin-bottom:14px">Abendessen · Montag, 2. November</div><div class="fieldbox"><span class="muted">Menge</span><b class="tabular">${amount}</b></div>${breakdown(n.data, n.opts)}</div>`;
+      }
+      function renderA() {
+        const fr = DINNER[1];
+        const big = { kcal: 1807, p: 135, c: 99, f: 94 };
+        document.getElementById('a-phones').innerHTML = [
+          fig(
+            phone(entryPage({ data: fr, opts: { fill: null } }, '500 g')),
+            'Heute',
+            'Der Balken ist immer voll, egal ob 70 oder 1.500 kcal.',
+          ),
+          fig(
+            phone(entryPage({ data: fr, opts: { fill: fr.kcal / TARGET.kcal } }, '500 g')),
+            'Neu: 46 % des Tagesziels',
+            'Der Balken füllt 46 % der Breite, runder rechter Rand, Rest grau. Innen dieselbe Aufteilung wie links.',
+            true,
+          ),
+          fig(
+            phone(entryPage({ data: big, opts: { fill: big.kcal / TARGET.kcal } }, '1.300 g')),
+            'Neu: über dem Tagesziel',
+            '1.807 von 1.500 kcal: der Balken ist voll wie heute; nur der Screenreader nennt „120 % des Tagesziels“. Ohne kcal-Ziel bleibt er ebenfalls voll.',
+            true,
+          ),
+        ].join('');
+      }
+
+      // ---------- B ----------
+      function diaryPart(variant) {
+        return `${mealCard('Frühstück', [BREAKFAST_GROUP], variant)}${mealCard('Abendessen', DINNER, variant)}`;
+      }
+      const B_TEXT = {
+        numbers: [
+          'Heute (Standard „Zahlen“)',
+          'Bleibt der Standard. Nichts ändert sich, wer die Einstellung nicht anfasst.',
+        ],
+        b1: [
+          'B1: Punkte vor den Zahlen (Empfehlung)',
+          'Zahlen bleiben grau und gut lesbar, je ein Punkt in Makrofarbe, darunter der Balken. Schalter oben: mit oder ohne Buchstaben.',
+        ],
+        b2: [
+          'B2: Buchstaben und Zahlen farbig',
+          'Am auffälligsten, aber Gelb auf Weiß ist bei 11 px kaum lesbar (siehe Abendessen „K 38“ im hellen Thema).',
+        ],
+        b3: [
+          'B3: nur der Balken',
+          'Textzeile unverändert, nur der Balken darunter. Ruhig, aber Farbe und Zahl hängen nicht zusammen.',
+        ],
+      };
+      function renderB() {
+        document.getElementById('b-phones').innerHTML = ['numbers', 'b1', 'b2', 'b3']
+          .map((v) =>
+            fig(
+              phone(
+                `${diaryHeader({ share: false, label: 'Gestern' })}<div class="main">${diaryPart(v)}</div>`,
+              ),
+              B_TEXT[v][0],
+              B_TEXT[v][1],
+              v !== 'numbers',
+            ),
+          )
+          .join('');
+      }
+      function appearancePage() {
+        const pref = state.pref;
+        const previewVariant = pref === 'numbers' ? 'numbers' : state.variant;
+        const prev = DINNER[1];
+        return `<div class="hdr"><span class="ibtn">${ic('chevronLeft', 24)}</span><h1>Aussehen</h1></div><div class="main">
+          <section class="card"><div class="sec-head"><h2>Darstellung</h2></div><div class="grid3" style="gap:8px"><div class="tg"><button type="button" aria-pressed="true">${ic('monitor', 18)}System</button><button type="button" aria-pressed="false">${ic('sun', 18)}Hell</button><button type="button" aria-pressed="false">${ic('moon', 18)}Dunkel</button></div><p class="hint">Folgt der Einstellung des Geräts, gerade hell.</p></div></section>
+          <section class="card" style="outline:2px dashed var(--new-border);outline-offset:-2px"><div class="sec-head"><h2>Tagebuch</h2></div><div class="grid3" style="gap:10px"><div class="tg" role="group" aria-label="Makros in den Tagebuchzeilen"><button type="button" data-pref="numbers" aria-pressed="${pref === 'numbers'}">Zahlen</button><button type="button" data-pref="bar" aria-pressed="${pref === 'bar'}">Mit Balken</button></div><div class="previewbox">${entryRow(prev, previewVariant)}</div><p class="hint">Protein, Kohlenhydrate und Fett jeder Zeile als Zahlen oder farbig mit einem Balken der Energieverteilung.</p></div></section>
+          <section class="card"><div class="sec-head"><h2>App-Icon</h2></div><div class="grid3"><div class="icons"><div><span style="display:flex">${logo(40)}</span>Wie die App</div><div>${logo(40)}Hell</div><div>${logo(40)}Dunkel</div></div><p class="hint">Gilt für das Logo in der App und im Browser-Tab.</p></div></section>
+        </div>`;
+      }
+      function renderB2() {
+        const el = document.getElementById('b2-phones');
+        el.innerHTML = fig(
+          phone(appearancePage(), 'short'),
+          'Mehr → Aussehen',
+          'Neuer Abschnitt zwischen „Darstellung“ und „App-Icon“ (die lange iOS-Notiz des Icons steht weiter unten). Umschalter antippen.',
+          true,
+        );
+        el.querySelectorAll('[data-pref]').forEach((b) =>
+          b.addEventListener('click', () => {
+            state.pref = b.dataset.pref;
+            renderB2();
+          }),
+        );
+      }
+
+      // ---------- C ----------
+      function noteCard(done, linkShown) {
+        const action = done
+          ? `<div class="done">${ic('checkCircle', 16)}<span>Tag abgeschlossen um 21:14. Prognose ansehen</span></div>`
+          : `<span class="btn sec">${ic('checkCircle', 16)}Tag abschließen</span>`;
+        const link = linkShown
+          ? `<button type="button" class="tlink" data-close-all>Alle vergangenen Tage abschließen</button>`
+          : '';
+        return `<section class="card"><div class="sec-head"><h2>Notiz</h2></div><div class="grid3"><div class="textarea">${esc(NOTE)}</div>${action}${link}</div></section>`;
+      }
+      function cScreen(done, linkShown, toastShown) {
+        return `<div class="scroll">${diaryHeader({ share: true, label: done ? 'Gestern' : 'Heute' })}<div class="main" style="padding-top:12px">${exerciseCard()}${noteCard(done, linkShown)}</div></div><div class="toast" ${toastShown ? '' : 'hidden'}><span>3 Tage abgeschlossen</span><button type="button" data-undo>Rückgängig</button></div>${tabBar()}`;
+      }
+      function mountC(slot, done) {
+        let open = true;
+        const draw = () => {
+          slot.innerHTML = phone(cScreen(done, open, !open), 'fixed');
+          slot.querySelector('[data-close-all]')?.addEventListener('click', () => {
+            open = false;
+            draw();
+          });
+          slot.querySelector('[data-undo]')?.addEventListener('click', () => {
+            open = true;
+            draw();
+          });
+        };
+        draw();
+      }
+      function renderC() {
+        const el = document.getElementById('c-phones');
+        el.innerHTML = [
+          fig(
+            '<div data-c="open"></div>',
+            'Tag offen',
+            'Unter dem Knopf „Tag abschließen“. Antippen: der Link verschwindet, der Toast erscheint.',
+            true,
+          ),
+          fig(
+            '<div data-c="done"></div>',
+            'Tag schon abgeschlossen',
+            'Unter der grünen Zeile. Erscheint auch hier, solange frühere Tage offen sind.',
+            true,
+          ),
+          fig(
+            phone(cScreen(false, false, true), 'fixed'),
+            'Nach dem Tippen',
+            'Toast „3 Tage abgeschlossen · Rückgängig“ (bei einem Tag „1 Tag abgeschlossen“). Rückgängig öffnet genau diese Tage wieder. Kein Tag offen: kein Link.',
+            true,
+          ),
+        ].join('');
+        mountC(el.querySelector('[data-c="open"]'), false);
+        mountC(el.querySelector('[data-c="done"]'), true);
+      }
+
+      // ---------- D ----------
+      const DIARY_VARIANT = () => (state.pref === 'numbers' ? 'numbers' : state.variant);
+      function shareImage(parts) {
+        const v = DIARY_VARIANT();
+        const opts = { actions: false, static: true };
+        return `<div class="shot"><h1>Montag, 2. November 2026</h1>${calorieCard({ button: false })}${mealCard('Frühstück', [BREAKFAST_GROUP], v, opts)}${mealCard('Abendessen', DINNER, v, opts)}${
+          parts.training ? exerciseCard({ static: true }) : ''
+        }${
+          parts.note
+            ? `<section class="card"><div class="sec-head"><h2>Notiz</h2></div><div class="notetext">${esc(NOTE)}</div></section>`
+            : ''
+        }<div class="foot">${logo(20)}<span>Fleisch-Teufel</span></div></div>`;
+      }
+      function diaryTop() {
+        return `${diaryHeader({ share: true, highlight: true })}${weekStrip()}<div class="main">${calorieCard()}${mealCard('Frühstück', [BREAKFAST_GROUP], 'numbers')}${mealCard('Mittagessen', [], 'numbers', { suggestions: true })}</div>`;
+      }
+      function checkRow(key, label, on, disabledHint) {
+        const off = Boolean(disabledHint);
+        return `<div class="check ${on && !off ? 'on' : ''} ${off ? 'off' : ''}" ${off ? '' : `role="checkbox" tabindex="0" aria-checked="${on}" data-part="${key}"`}><span class="box">${on && !off ? ic('check', 14, 'stroke-width:3') : ''}</span><span class="lbl">${label}${off ? `<small>${disabledHint}</small>` : ''}</span></div>`;
+      }
+      function dialog(parts, { noTraining = false, noNote = false, busy = false } = {}) {
+        const none = !parts.food && !parts.training && !parts.note;
+        return `<div class="overlay"></div><div class="dialog" role="dialog" aria-label="Tag teilen"><span class="x">${ic('x', 16)}</span><div><h3>Tag teilen</h3><p class="desc">Als Bild, wie ein Screenshot des Tages.</p></div><div class="checks">${checkRow('food', 'Essen', parts.food)}${checkRow('training', 'Training', parts.training, noTraining ? 'Kein Training eingetragen' : '')}${checkRow('note', 'Notiz', parts.note, noNote ? 'Keine Notiz' : '')}</div><div class="dfoot"><button type="button" class="btn out">Abbrechen</button><button type="button" class="btn pri" data-share ${none || busy ? 'disabled' : ''}>${busy ? 'Bild wird erstellt …' : `${ic('share', 16)}Teilen`}</button></div></div>`;
+      }
+      function sheet(parts) {
+        return `<div class="sheet-dim" data-close-sheet></div><div class="sheet"><div class="file"><div class="thumb"><div>${shareImage(parts)}</div></div><div><div class="fn">fleisch-teufel_tagebuch_2026-11-02.png</div><div class="muted" style="font-size:12px">PNG-Bild · Optionen ›</div></div></div><div class="apps"><span><i></i>AirDrop</span><span><i></i>Nachrichten</span><span><i></i>WhatsApp</span><span><i></i>Mail</span></div><div class="acts"><div>Bild sichern</div><div>In Dateien sichern</div></div></div>`;
+      }
+      function mountDialog(slot) {
+        const parts = { food: true, training: false, note: false };
+        let busy = false,
+          sheetOpen = false;
+        const draw = () => {
+          slot.innerHTML = phone(
+            `<div class="scroll">${diaryTop()}</div>${tabBar()}${dialog(parts, { busy })}${sheetOpen ? sheet(parts) : ''}`,
+            'fixed',
+          );
+          slot.querySelectorAll('[data-part]').forEach((el) => {
+            const toggle = () => {
+              parts[el.dataset.part] = !parts[el.dataset.part];
+              draw();
+            };
+            el.addEventListener('click', toggle);
+            el.addEventListener('keydown', (e) => {
+              if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                toggle();
+              }
+            });
+          });
+          slot.querySelector('[data-share]')?.addEventListener('click', () => {
+            busy = true;
+            draw();
+            setTimeout(() => {
+              busy = false;
+              sheetOpen = true;
+              draw();
+            }, 900);
+          });
+          slot.querySelector('[data-close-sheet]')?.addEventListener('click', () => {
+            sheetOpen = false;
+            draw();
+          });
+        };
+        draw();
+      }
+      function renderD() {
+        const el = document.getElementById('d-phones');
+        el.innerHTML = [
+          fig(
+            phone(`<div class="scroll">${diaryTop()}</div>${tabBar()}`, 'fixed'),
+            'Tagebuch-Header',
+            'Teilen links neben Zwischenablage (nur wenn etwas kopiert ist) und Sync-Wolke, grau wie die beiden. Teilt immer den angezeigten Tag.',
+            true,
+          ),
+          fig(
+            '<div data-d="dialog"></div>',
+            'Dialog „Tag teilen“',
+            'Vorgabe: nur Essen angehakt (wird nicht gemerkt). Ohne Haken ist „Teilen“ aus. „Teilen“ zeigt kurz „Bild wird erstellt …“, dann das iOS-Teilen-Blatt mit dem Bild; daneben tippen schließt es.',
+            true,
+          ),
+          fig(
+            phone(
+              `<div class="scroll">${diaryTop()}</div>${tabBar()}${dialog({ food: true, training: false, note: false }, { noTraining: true, noNote: true })}`,
+              'fixed',
+            ),
+            'Tag ohne Training und Notiz',
+            'Die Kästchen sind grau und nicht wählbar, der Grund steht darunter.',
+            true,
+          ),
+        ].join('');
+        mountDialog(el.querySelector('[data-d="dialog"]'));
+
+        document.getElementById('d-shots').innerHTML = [
+          `<figure class="shot-wrap">${shareImage({ food: true, training: false, note: false })}<figcaption><b>Nur Essen (Vorgabe)</b>Datum, Kalorienkarte, Frühstück, Abendessen, Abspann.</figcaption></figure>`,
+          `<figure class="shot-wrap">${shareImage({ food: true, training: true, note: true })}<figcaption><b>Essen, Training und Notiz</b>Training nur mit den Zeilen und der Summe, Notiz mit ihren Zeilenumbrüchen.</figcaption></figure>`,
+        ].join('');
+      }
+
+      // ---------- controls ----------
+      function renderAll() {
+        renderA();
+        renderB();
+        renderB2();
+        renderC();
+        renderD();
+      }
+      function seg(id, onPick) {
+        const box = document.getElementById(id);
+        box.addEventListener('click', (e) => {
+          const b = e.target.closest('button');
+          if (!b) return;
+          box.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+          onPick(b.dataset.v);
+        });
+      }
+      seg('theme', (v) => {
+        if (v === 'system') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.dataset.theme = v;
+      });
+      seg('letters', (v) => {
+        state.letters = v === '1';
+        renderAll();
+      });
+      seg('variant', (v) => {
+        state.variant = v;
+        renderAll();
+      });
+      renderAll();
+    </script>
+  </body>
+</html>

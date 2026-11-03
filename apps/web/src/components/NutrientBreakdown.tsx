@@ -60,9 +60,10 @@ export interface NutrientBreakdownProps {
 
 /**
  * The one nutrient overview of the app (food page, saved meal, AI review, diary meal page, day
- * overview, reports): energy, the macro energy split as one full bar, the three macros, and the
- * micros with their daily targets behind "Weitere Nährstoffe". Text uses ink tokens; macro colors
- * only appear in dots and bars.
+ * overview, reports): energy, the macro energy split as one bar, the three macros, and the micros
+ * with their daily targets behind "Weitere Nährstoffe". The split bar is full, except in the day
+ * mode of the item variant: there it fills only the share of the daily kcal target (capped at
+ * full). Text uses ink tokens; macro colors only appear in dots and bars.
  */
 export function NutrientBreakdown({
   nutrients,
@@ -123,7 +124,7 @@ export function NutrientBreakdown({
         </div>
       </div>
 
-      <EnergySplitBar breakdown={b} />
+      <EnergySplitBar breakdown={b} fill={dayMode && targets.kcal > 0 ? b.kcal / targets.kcal : undefined} />
 
       <ul className="grid gap-3">
         {MACRO_KEYS.map((k) => {
@@ -259,32 +260,48 @@ export function MacroShareBar({
   );
 }
 
-/** Full stacked bar of the macro energy split (always 100 % when there are macros). */
+/**
+ * Stacked bar of the macro energy split. Without `fill` it is full when there are macros; `fill`
+ * (share of the daily kcal target, day mode) fills only that part of the width, capped at full,
+ * while the label names the real share.
+ */
 export function EnergySplitBar({
   breakdown: b,
+  fill,
   className,
 }: {
   breakdown: ReturnType<typeof energyBreakdown>;
+  fill?: number;
   className?: string;
 }) {
   const has = MACRO_KEYS.some((k) => b.macros[k].share > 0);
-  const label = has
-    ? `Energieverteilung: ${MACRO_KEYS.map((k) => `${LABEL.get(MACRO_CODE[k])} ${fmtPercent(b.macros[k].percent / 100)}`).join(', ')}`
-    : 'Energieverteilung: keine Makronährstoffe';
+  const split = MACRO_KEYS.map(
+    (k) => `${LABEL.get(MACRO_CODE[k])} ${fmtPercent(b.macros[k].percent / 100)}`,
+  ).join(', ');
+  const head =
+    fill === undefined ? 'Energieverteilung' : `Energieverteilung, ${fmtPercent(fill)} des Tagesziels`;
+  const label = has ? `${head}: ${split}` : `${head}: keine Makronährstoffe`;
+  const part = fill === undefined ? 1 : Math.min(1, Math.max(0, fill));
   return (
     <div
       role="img"
       aria-label={label}
       className={cn('mt-2.5 mb-3.5 flex h-2 w-full overflow-hidden rounded-full bg-muted', className)}
     >
-      {has &&
-        MACRO_KEYS.map((k) => (
-          <div
-            key={k}
-            className={cn('h-full', MACRO_BG[k])}
-            style={{ width: `${b.macros[k].share * 100}%` }}
-          />
-        ))}
+      <div
+        data-part="fill"
+        className="flex h-full overflow-hidden rounded-full"
+        style={{ width: `${part * 100}%` }}
+      >
+        {has &&
+          MACRO_KEYS.map((k) => (
+            <div
+              key={k}
+              className={cn('h-full', MACRO_BG[k])}
+              style={{ width: `${b.macros[k].share * 100}%` }}
+            />
+          ))}
+      </div>
     </div>
   );
 }
