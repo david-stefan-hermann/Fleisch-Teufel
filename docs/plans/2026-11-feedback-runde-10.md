@@ -5,13 +5,29 @@ Code-Commit mit). Mockup: `docs/plans/2026-11-feedback-runde-10-mockup.html` (Sc
 
 ## Status (2026-11-03)
 
-Geplant von Fable. Noch nichts umgesetzt. **Schritt 0 (Mockup) zuerst; kein App-Code vor dem OK des Nutzers.**
+Geplant von Fable. Mockup bestätigt, alle Blöcke umgesetzt (siehe unten).
 
 Mockup v1 gebaut (2026-11-03, Opus): A bis D, hell/dunkel, B1/B2/B3 umschaltbar, Teilen-Dialog klickbar.
 Entschieden in der Mockup-Runde (2026-11-03): **B1** (Punkt + Buchstabe, wie die Vorgabe im Mockup), Teilen-Knopf links
 neben Zwischenablage und Wolke, Abspann bleibt, die Zeilen im Bild zeigen die Makros wie unter Aussehen eingestellt.
 Änderung zu C: der Link „Alle vergangenen Tage abschließen“ ist **grau** (`text-muted-foreground`, unterstrichen) und
 **zentriert** statt rot und linksbündig. Danach „los“ für alle Blöcke ohne weitere Absprache.
+
+**Umgesetzt (2026-11-03, Opus 5.5)**, ein Commit je Block (1, 3, 2, 4, 5), nicht gepusht. Lint, Typecheck, alle
+Vitest-Suiten und Chromium-E2E grün. Abweichungen und Hinweise:
+
+- WebKit-E2E (`ios-layout.spec.ts`) lief nicht: der Playwright-WebKit-Browser ist im Container nicht installiert.
+- Block 1: zusätzlich der Test des eigenen Lebensmittel-Editors (`bar.children`) auf `[data-part=fill]` umgestellt.
+- Block 3: kein Komponententest (optional im Plan); die Logik ist in `test/write.test.ts` abgedeckt.
+- Block 4: `collectShareData` bekommt Einträge, Summary, Trainings, Notiz und Einstellungen von der Tagebuchseite
+  (die hat sie schon) und lädt nur Meal-Namen und Fotos selbst. Fotos als Data-URLs statt Objekt-URLs (nichts
+  freizugeben, der Rasterer liest sie sicher). Zusätzlich: antwortet iOS nach dem Rastern mit `NotAllowedError`
+  (Teilen braucht einen frischen Tipp), zeigt der Dialog „Bild teilen“; Teilen über `shareImage`
+  (`share/shareDay.tsx`), `shareOrDownloadFile` bleibt für CSV und JSON. Ist „Essen“ abgewählt, enthält das Bild
+  nur Datum, gewählte Teile und Abspann. `modern-screenshot` hat in Chromium funktioniert (Inter-Schrift und Logo
+  im PNG); der Test auf dem iPhone (Teilen-Blatt, Fotos im Bild, dunkles Thema) ist offen.
+- Ein Durchlauf von `pnpm test` hatte einmal einen Timeout in `week-strip.test.tsx` (paralleler API-Lauf), einzeln
+  und im zweiten Lauf grün.
 
 ## Context
 

@@ -230,7 +230,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (`bg-exercise`, right) for a training (`useTrainedDates`); no ring on the selected day. `--exercise` (blue) is
   the training color everywhere, lighter and more cyan than `--protein`.
 - Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
-  for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). `MacroBars` /
+  for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). In the day mode the
+  energy split bar fills only the share of the kcal target (`EnergySplitBar fill`, capped at full, the label names
+  the real share); everywhere else it is full. `MacroBars` /
   `TargetBar` (`components/MacroBars.tsx`) only for progress towards a target (excess as red overlay).
   Ingredients (meal editor, AI review) get `NutrientsDisclosure` ("Nährwerte", collapsed); "Meal eintragen" opens
   one ingredient row at a time.
@@ -253,7 +255,10 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
   `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.
   Dark tokens live under `:root.dark`; never use `prefers-color-scheme` directly (use `useAppearance().mode`).
-  Logo sources and the icon script: `docs/logo/README.md`; show the logo with `AppLogo`.
+  Logo sources and the icon script: `docs/logo/README.md`; show the logo with `AppLogo`. Section "Tagebuch":
+  `DiaryMacrosPref` (`ft.diaryMacros`, `numbers` default or `bar`) decides how diary rows show P/K/F
+  (`features/diary/MacroSummary.tsx`: plain line, or a dot in the macro color before each grey number and a 4 px
+  energy split bar under the line); `/more` names it only when not the default.
 - No pinch or double-tap zoom (viewport `user-scalable=no`, `touch-action: pan-x pan-y` on `html`, iOS
   `gesturestart` cancelled in `main.tsx`). Every input needs at least 16 px text (`Input`/`NumberField` have it),
   or iOS zooms in on focus.
@@ -295,7 +300,19 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Complete days (`isCompleteDay`, shared `reports.ts`): closed with "Tag abschließen" or at least
   `MIN_MEALS_COMPLETE` (2) meals logged. Report averages and "im Ziel" count complete days (fallback: logged
   days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig".
-  `dailyRows` takes `notes` for the closed flag.
+  `dailyRows` takes `notes` for the closed flag. Under the diary note "Alle vergangenen Tage abschließen" (grey,
+  centred text link in `NoteCard`) shows while a day before the shown one has live entries and no `completedAt`
+  (`openPastDays` in `db/notes.ts`, `useOpenPastDays`); `completeDays` closes them in one transaction (skips days
+  closed elsewhere, keeps the note), the toast's "Rückgängig" runs `reopenDays` on exactly those days.
+- Share a day (`features/diary/share`): share icon in the diary header, `ShareDayDialog` (Essen on, Training and
+  Notiz off, disabled when the day has none, not remembered). `DayShareImage` is a static tree from the same
+  building blocks as the diary (`CalorieOverview`, `EntryRowBody`, `GroupRowBody`, `ExerciseRowBody`; change them
+  there, not in a copy): date, calorie overview closed, meals with entries (groups closed), trainings, note,
+  footer with logo. `renderDayImage` renders it off screen in its own root and rasterizes it with
+  `modern-screenshot` (`domToBlob`, 2 to 3×, WebKit rasterizes twice); group photos go in as data URLs
+  (`collectShareData`). `shareImage` hands `fleisch-teufel_tagebuch_<date>.png` to Web Share (download without
+  it); when iOS answers `NotAllowedError` after the long await, the dialog offers "Bild teilen" for a fresh tap.
+  Generic file sharing for CSV/JSON: `shareOrDownloadFile` in `features/reports/export.ts`.
 - Expenditure from own data (shared `expenditure.ts`): `estimateExpenditure` = average intake of complete
   days minus training minus the linear weight trend × 7 700 over the last 21 days (needs 14 complete days
   and 4 weigh-ins spanning 10 days; implausible results give null). `ExpenditureCard` on `/progress` shows
