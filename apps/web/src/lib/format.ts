@@ -34,11 +34,19 @@ export function parseDecimal(input: string): number {
 }
 
 const dayLong = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+const dayLongYear = new Intl.DateTimeFormat('de-DE', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
 const dateNumeric = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const monthYear = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' });
 const timeShort = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
 
 export const fmtDayLong = (d: ISODate) => dayLong.format(parseISODate(d));
+/** "Montag, 2. November 2026" (heading of the shared day image). */
+export const fmtDayLongYear = (d: ISODate) => dayLongYear.format(parseISODate(d));
 export const fmtDate = (d: ISODate) => dateNumeric.format(parseISODate(d));
 /** Calendar date of a timestamp (e.g. when a record was deleted). */
 export const fmtDateOf = (ms: number) => dateNumeric.format(new Date(ms));

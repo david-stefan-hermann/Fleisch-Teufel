@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validGtin } from '@/components/BarcodeScanner';
 import {
+  fmtDayLongYear,
   fmtFixed,
   fmtGrams,
   fmtIngredients,
@@ -15,6 +16,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
+import { shareDayFileName } from '@/features/diary/share/shareDay';
 import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
@@ -412,5 +414,12 @@ describe('amount editor units', () => {
     expect(itemPortion(quick)).toEqual({ label: 'Portion', grams: 0 });
     const twice = itemWithAmount(quick, { portion: itemPortion(quick), quantity: 2 });
     expect(twice).toMatchObject({ quantity: 2, portionLabel: null, nutrients: { ENERCC: 300 } });
+  });
+});
+
+describe('sharing a day', () => {
+  it('names the day with weekday and year, the file with the ISO date', () => {
+    expect(fmtDayLongYear('2026-11-02')).toBe('Montag, 2. November 2026');
+    expect(shareDayFileName('2026-11-02')).toBe('fleisch-teufel_tagebuch_2026-11-02.png');
   });
 });

@@ -356,15 +356,61 @@ function EntryRow({
         )}
         draggable={false}
       >
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{e.name}</div>
-          <div className="truncate text-xs text-muted-foreground">
-            {[e.brand, entryAmountLabel(e)].filter(Boolean).join(' · ')}
-          </div>
-        </div>
-        <NutrientSummary nutrients={e.nutrients} />
+        <EntryRowBody entry={e} />
       </Link>
     </SwipeToDelete>
+  );
+}
+
+/** Content of a single diary row (also in the shared day image): name, brand and amount, nutrients. */
+export function EntryRowBody({ entry: e }: { entry: FoodEntry }) {
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{e.name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {[e.brand, entryAmountLabel(e)].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+      <NutrientSummary nutrients={e.nutrients} />
+    </>
+  );
+}
+
+/**
+ * Content of a group row (also in the shared day image): photo or icon, name, the line below it
+ * ("N Zutaten", a toggle in the diary), nutrients.
+ */
+export function GroupRowBody({
+  photo,
+  fromPhoto,
+  name,
+  detail,
+  nutrients,
+}: {
+  /** The photo element, or nothing for the icon. */
+  photo?: ReactNode;
+  fromPhoto: boolean;
+  name: ReactNode;
+  detail: ReactNode;
+  nutrients: NutrientMap;
+}) {
+  return (
+    <>
+      {photo}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 font-medium">
+          {photo ? null : fromPhoto ? (
+            <Camera className="size-4 shrink-0 text-muted-foreground" role="img" aria-label="aus Foto" />
+          ) : (
+            <ListPlus className="size-4 shrink-0 text-muted-foreground" role="img" aria-label="Meal" />
+          )}
+          {name}
+        </div>
+        {detail}
+      </div>
+      <NutrientSummary nutrients={nutrients} />
+    </>
   );
 }
 
@@ -432,23 +478,18 @@ function GroupRow({
           disabled={dragging}
         >
           <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
-            {photoId && (
-              <div className="relative size-10 shrink-0">
-                <MealPhoto photoId={photoId} alt="" className="size-10 rounded-lg" placeholder />
-                <PhotoCount count={entries[0] ? photoIdsOf(entries[0]).length : 0} />
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 font-medium">
-                {photoId ? null : fromPhoto ? (
-                  <Camera
-                    className="size-4 shrink-0 text-muted-foreground"
-                    role="img"
-                    aria-label="aus Foto"
-                  />
-                ) : (
-                  <ListPlus className="size-4 shrink-0 text-muted-foreground" role="img" aria-label="Meal" />
-                )}
+            <GroupRowBody
+              photo={
+                photoId && (
+                  <div className="relative size-10 shrink-0">
+                    <MealPhoto photoId={photoId} alt="" className="size-10 rounded-lg" placeholder />
+                    <PhotoCount count={entries[0] ? photoIdsOf(entries[0]).length : 0} />
+                  </div>
+                )
+              }
+              fromPhoto={fromPhoto}
+              nutrients={nutrients}
+              name={
                 <Link
                   to="/diary-group/$groupId"
                   params={{ groupId }}
@@ -458,33 +499,34 @@ function GroupRow({
                 >
                   {name}
                 </Link>
-              </div>
-              {/* The tap area is the button's ::before, placed on the row (the nearest positioned ancestor):
+              }
+              detail={
+                /* The tap area is the button's ::before, placed on the row (the nearest positioned ancestor):
                   left half of the row from below the name line (top-8 = padding + one line) to the bottom,
-                  above the stretched link. Wider instead of higher: the name stays free, the row its height. */}
-              <button
-                type="button"
-                aria-expanded={expanded}
-                aria-controls={listId}
-                aria-label={`${fmtIngredients(entries.length)} von ${name}`}
-                draggable={false}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggle();
-                }}
-                className="flex items-center gap-1 rounded-md text-xs text-muted-foreground before:absolute before:top-8 before:bottom-0 before:left-0 before:z-10 before:w-1/2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                {fmtIngredients(entries.length)}
-                <ChevronDown
-                  className={cn(
-                    'size-3.5 transition-transform motion-reduce:transition-none',
-                    expanded && 'rotate-180',
-                  )}
-                  aria-hidden
-                />
-              </button>
-            </div>
-            <NutrientSummary nutrients={nutrients} />
+                  above the stretched link. Wider instead of higher: the name stays free, the row its height. */
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  aria-controls={listId}
+                  aria-label={`${fmtIngredients(entries.length)} von ${name}`}
+                  draggable={false}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle();
+                  }}
+                  className="flex items-center gap-1 rounded-md text-xs text-muted-foreground before:absolute before:top-8 before:bottom-0 before:left-0 before:z-10 before:w-1/2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  {fmtIngredients(entries.length)}
+                  <ChevronDown
+                    className={cn(
+                      'size-3.5 transition-transform motion-reduce:transition-none',
+                      expanded && 'rotate-180',
+                    )}
+                    aria-hidden
+                  />
+                </button>
+              }
+            />
           </div>
         </SwipeToDelete>
       </MaybeDraggable>

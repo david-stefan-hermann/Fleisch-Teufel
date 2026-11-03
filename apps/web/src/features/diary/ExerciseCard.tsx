@@ -73,15 +73,7 @@ export function ExerciseCard({
                   draggable={false}
                   className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{e.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {[`${fmt0(e.minutes)} Min.`, INTENSITY_LABELS_DE[e.intensity], e.note]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </div>
-                  </div>
-                  <div className="tabular font-semibold text-exercise">+{fmt0(e.kcal)}</div>
+                  <ExerciseRowBody entry={e} />
                 </Link>
               </SwipeToDelete>
             </li>
@@ -95,5 +87,20 @@ export function ExerciseCard({
       )}
       {exercises.length > 0 && <TrainingSuggestions date={date} className="border-t border-border/70 pt-3" />}
     </Section>
+  );
+}
+
+/** Content of a training row (also in the shared day image): name, minutes · intensity · note, kcal. */
+export function ExerciseRowBody({ entry: e }: { entry: ExerciseEntry }) {
+  return (
+    <>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{e.name}</div>
+        <div className="truncate text-xs text-muted-foreground">
+          {[`${fmt0(e.minutes)} Min.`, INTENSITY_LABELS_DE[e.intensity], e.note].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+      <div className="tabular font-semibold text-exercise">+{fmt0(e.kcal)}</div>
+    </>
   );
 }

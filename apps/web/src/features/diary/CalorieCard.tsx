@@ -14,9 +14,7 @@ export function CalorieCard({
   summary: DaySummary;
   exerciseCredited: boolean;
 }) {
-  const eaten = get(summary.food, N.kcal);
   const t = summary.targets;
-  const over = summary.remainingKcal < 0;
   const [open, setOpenState] = useState(readOpen);
   const [sources, setSources] = useState(false);
   const setOpen = (o: boolean) => {
@@ -34,37 +32,8 @@ export function CalorieCard({
         setOpen(!open);
       }}
     >
-      <div className="flex items-center gap-4">
-        <CalorieRing eaten={eaten} budget={summary.budgetKcal} />
-        <dl className="tabular grid min-w-0 flex-1 gap-2 text-sm">
-          <Row label="Ziel" value={fmt0(t.kcal)} />
-          <Row label="Essen" value={`− ${fmt0(eaten)}`} />
-          <Row
-            label={exerciseCredited ? 'Training' : 'Training (nicht angerechnet)'}
-            value={`+ ${fmt0(exerciseCredited ? summary.exerciseKcal : 0)}`}
-            muted={!exerciseCredited}
-          />
-          <div className="border-t border-border pt-2">
-            <Row
-              label={over ? 'Zu viel' : 'Übrig'}
-              value={fmt0(Math.abs(summary.remainingKcal))}
-              strong
-              over={over}
-            />
-          </div>
-        </dl>
-      </div>
       {/* Closed: the three target bars. Open: the nutrient overview replaces them. */}
-      {!open && (
-        <MacroBars
-          className="mt-4"
-          macros={[
-            { key: 'protein', label: 'Protein', value: get(summary.food, N.protein), target: t.proteinG },
-            { key: 'carbs', label: 'Kohlenhydrate', value: get(summary.food, N.carbs), target: t.carbsG },
-            { key: 'fat', label: 'Fett', value: get(summary.food, N.fat), target: t.fatG },
-          ]}
-        />
-      )}
+      <CalorieOverview summary={summary} exerciseCredited={exerciseCredited} bars={!open} />
       {open && (
         <div id="day-details" className="mt-4 cursor-auto border-t border-border/70 pt-3.5">
           <NutrientBreakdown
@@ -98,6 +67,58 @@ export function CalorieCard({
         />
       </button>
     </section>
+  );
+}
+
+/**
+ * Ring, the rows Ziel/Essen/Training/Übrig and (with `bars`) the three macro target bars. Static
+ * markup, also used by the shared day image.
+ */
+export function CalorieOverview({
+  summary,
+  exerciseCredited,
+  bars = true,
+}: {
+  summary: DaySummary;
+  exerciseCredited: boolean;
+  bars?: boolean;
+}) {
+  const eaten = get(summary.food, N.kcal);
+  const t = summary.targets;
+  const over = summary.remainingKcal < 0;
+  return (
+    <>
+      <div className="flex items-center gap-4">
+        <CalorieRing eaten={eaten} budget={summary.budgetKcal} />
+        <dl className="tabular grid min-w-0 flex-1 gap-2 text-sm">
+          <Row label="Ziel" value={fmt0(t.kcal)} />
+          <Row label="Essen" value={`− ${fmt0(eaten)}`} />
+          <Row
+            label={exerciseCredited ? 'Training' : 'Training (nicht angerechnet)'}
+            value={`+ ${fmt0(exerciseCredited ? summary.exerciseKcal : 0)}`}
+            muted={!exerciseCredited}
+          />
+          <div className="border-t border-border pt-2">
+            <Row
+              label={over ? 'Zu viel' : 'Übrig'}
+              value={fmt0(Math.abs(summary.remainingKcal))}
+              strong
+              over={over}
+            />
+          </div>
+        </dl>
+      </div>
+      {bars && (
+        <MacroBars
+          className="mt-4"
+          macros={[
+            { key: 'protein', label: 'Protein', value: get(summary.food, N.protein), target: t.proteinG },
+            { key: 'carbs', label: 'Kohlenhydrate', value: get(summary.food, N.carbs), target: t.carbsG },
+            { key: 'fat', label: 'Fett', value: get(summary.food, N.fat), target: t.fatG },
+          ]}
+        />
+      )}
+    </>
   );
 }
 

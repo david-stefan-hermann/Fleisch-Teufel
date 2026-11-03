@@ -12,41 +12,48 @@ import {
   type WeightEntry,
 } from '@ft/shared';
 
-/** True when the browser can hand a file to the share sheet (iOS: "In Dateien sichern", AirDrop). */
-export function canShareFiles(): boolean {
+/** True when the browser can hand this file to the share sheet (iOS: "In Dateien sichern", AirDrop). */
+export function canShareFiles(file = new File(['x'], 'x.csv', { type: 'text/csv' })): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.canShare !== 'function') return false;
   try {
-    return navigator.canShare({ files: [new File(['x'], 'x.csv', { type: 'text/csv' })] });
+    return navigator.canShare({ files: [file] });
   } catch {
     return false;
   }
 }
 
 /**
- * Hands the text to the share sheet where possible (a download link does nothing useful in a
+ * Hands the file to the share sheet where possible (a download link does nothing useful in a
  * home-screen app on iOS), else downloads it. Returns false when the person closed the sheet.
  */
-export async function shareOrDownloadText(
-  filename: string,
-  text: string,
-  type = 'text/csv;charset=utf-8',
-): Promise<boolean> {
-  if (canShareFiles()) {
-    const file = new File([text], filename, { type: type.split(';')[0] });
+export async function shareOrDownloadFile(file: File): Promise<boolean> {
+  if (canShareFiles(file)) {
     try {
-      await navigator.share({ files: [file], title: filename });
+      await navigator.share({ files: [file], title: file.name });
       return true;
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return false;
       // Sharing failed for another reason: the download is the fallback.
     }
   }
-  downloadText(filename, text, type);
+  downloadBlob(file.name, file);
   return true;
 }
 
+/** `shareOrDownloadFile` for text (CSV, JSON backup). */
+export function shareOrDownloadText(
+  filename: string,
+  text: string,
+  type = 'text/csv;charset=utf-8',
+): Promise<boolean> {
+  return shareOrDownloadFile(new File([text], filename, { type: type.split(';')[0] }));
+}
+
 export function downloadText(filename: string, text: string, type = 'text/csv;charset=utf-8') {
-  const blob = new Blob([text], { type });
+  downloadBlob(filename, new Blob([text], { type }));
+}
+
+export function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

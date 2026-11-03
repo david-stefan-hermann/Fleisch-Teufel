@@ -1,6 +1,7 @@
 import { addDays, MEAL_COUNT } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronLeft, ChevronRight, Target } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Share, Target } from 'lucide-react';
+import { useState } from 'react';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import {
   useDaySuggestions,
   useDayEntries,
   useDayExercises,
+  useDayNote,
   useDaySummary,
   useGoals,
   usePendingAnalyses,
@@ -23,6 +25,7 @@ import { DiaryDnd } from './DiaryDnd';
 import { ExerciseCard } from './ExerciseCard';
 import { MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
+import { ShareDayDialog } from './share/ShareDayDialog';
 import { showsWeekReview, WeekReviewCard } from './WeekReviewCard';
 import { WeekStrip } from './WeekStrip';
 
@@ -38,6 +41,9 @@ export function DiaryPage() {
   const suggestions = useDaySuggestions(date);
   const settings = useSettings();
   const goals = useGoals();
+  const note = useDayNote(date);
+  const [sharing, setSharing] = useState(false);
+  const canShare = !!summary && !!entries && !!exercises && !!settings && note !== undefined;
   const navigate = useNavigate();
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
 
@@ -86,6 +92,16 @@ export function DiaryPage() {
       }
       actions={
         <>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground"
+            onClick={() => setSharing(true)}
+            disabled={!canShare}
+            aria-label="Tag teilen"
+          >
+            <Share aria-hidden />
+          </Button>
           {clipboard && <ClipboardMenu clipboard={clipboard} />}
           <SyncIndicator />
         </>
@@ -135,6 +151,20 @@ export function DiaryPage() {
           </DiaryDnd>
           <ExerciseCard date={date} exercises={exercises} credited={settings.addExerciseCalories} />
           <NoteCard key={date} date={date} />
+          {note !== undefined && (
+            <ShareDayDialog
+              key={date}
+              open={sharing}
+              onOpenChange={setSharing}
+              date={date}
+              summary={summary}
+              exerciseCredited={settings.addExerciseCalories}
+              mealNames={settings.mealNames}
+              entries={entries}
+              exercises={exercises}
+              note={note?.note ?? ''}
+            />
+          )}
         </>
       )}
     </Page>

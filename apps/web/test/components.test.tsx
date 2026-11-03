@@ -1,4 +1,4 @@
-import { targetsForDate, uuidv7 } from '@ft/shared';
+import { summarizeDay, targetsForDate, uuidv7 } from '@ft/shared';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,7 @@ import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MacroSummary } from '@/features/diary/MacroSummary';
+import { DayShareImage, type DayShareData } from '@/features/diary/share/DayShareImage';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { initFromFood, resetKcal, setField } from '@/features/foods/customFoodForm';
@@ -22,7 +23,7 @@ import { UserDb } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
 import { IngredientCard } from '@/features/meals/IngredientCard';
-import type { MealItem } from '@ft/shared';
+import type { ExerciseEntry, FoodEntry, MealItem } from '@ft/shared';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
@@ -1547,5 +1548,99 @@ describe('MacroSummary', () => {
     render(<MacroSummary nutrients={{ ENERCC: 120 }} variant="bar" />);
     expect(widths()).toEqual([0, 0, 0]);
     expect(document.body.innerHTML).not.toContain('NaN');
+  });
+});
+
+describe('DayShareImage', () => {
+  const entry = (
+    id: string,
+    meal: number,
+    name: string,
+    kcal: number,
+    extra: Partial<FoodEntry> = {},
+  ): FoodEntry => ({
+    id,
+    date: '2026-11-02',
+    meal,
+    loggedAt: Number(id.replace(/\D/g, '')) || 1,
+    foodId: null,
+    name,
+    source: 'quick',
+    brand: null,
+    grams: null,
+    portionLabel: null,
+    portionGrams: null,
+    quantity: 1,
+    per100: null,
+    nutrients: { ENERCC: kcal, PROT625: 10 },
+    mealId: null,
+    aiAnalysisId: null,
+    groupId: null,
+    groupName: null,
+    photoId: null,
+    photoIds: null,
+    updatedAt: 1,
+    deleted: false,
+    ...extra,
+  });
+  const entries = [
+    entry('e1', 0, 'Skyr', 200, { groupId: 'g1', groupName: 'Skyr mit Beeren' }),
+    entry('e2', 0, 'Beeren', 60, { groupId: 'g1', groupName: 'Skyr mit Beeren' }),
+    entry('e3', 2, 'Hühner Frikassee', 695),
+  ];
+  const exercises: ExerciseEntry[] = [
+    {
+      id: 'x1',
+      date: '2026-11-02',
+      loggedAt: 1,
+      typeKey: 'cycling',
+      name: 'Radfahren',
+      minutes: 45,
+      intensity: 'moderate',
+      met: 6.8,
+      weightKg: 80,
+      kcal: 312,
+      note: null,
+      updatedAt: 1,
+      deleted: false,
+    },
+  ];
+  const data = (parts: DayShareData['parts']): DayShareData => ({
+    date: '2026-11-02',
+    summary: summarizeDay({ date: '2026-11-02', entries, exercises, goals: [], settings: undefined }),
+    exerciseCredited: true,
+    mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+    entries,
+    exercises,
+    note: 'Viel Hunger.\nWenig Schlaf.',
+    savedMeals: new Map(),
+    photos: new Map(),
+    parts,
+  });
+
+  it('shows the date, the calorie overview and only meals with entries, without buttons or links', () => {
+    render(<DayShareImage data={data({ food: true, training: false, note: false })} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Montag, 2. November 2026' })).toBeTruthy();
+    expect(screen.getByText('Ziel')).toBeTruthy();
+    const meals = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(meals).toEqual(['Frühstück260 kcal', 'Abendessen695 kcal']);
+    // The group is closed: its name and the count, not its items.
+    expect(screen.getByText('Skyr mit Beeren')).toBeTruthy();
+    expect(screen.getByText('2 Zutaten')).toBeTruthy();
+    expect(screen.queryByText('Beeren')).toBeNull();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    expect(screen.queryByText('Radfahren')).toBeNull();
+    expect(screen.queryByText('Notiz')).toBeNull();
+    expect(screen.getByText('Fleisch-Teufel')).toBeTruthy();
+  });
+
+  it('adds training and note only when chosen; without food only those', () => {
+    render(<DayShareImage data={data({ food: false, training: true, note: true })} />);
+    expect(screen.getByText('Radfahren')).toBeTruthy();
+    expect(screen.getByText('Notiz')).toBeTruthy();
+    expect(screen.getByText(/Viel Hunger\.\s+Wenig Schlaf\./)).toBeTruthy();
+    expect(screen.queryByText('Ziel')).toBeNull();
+    expect(screen.queryByText('Abendessen')).toBeNull();
   });
 });
