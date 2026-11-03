@@ -59,6 +59,20 @@ test('Mehr → Aussehen: app theme and icon variant, kept per device', async ({ 
   await page.goto('/more');
   await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText('Dunkel · Icon hell');
 
+  // Diary macros with the bar: named on /more only when not the default, kept after a reload.
+  await page.getByRole('link', { name: /Aussehen/ }).click();
+  await page
+    .getByRole('radiogroup', { name: 'Makros in den Tagebuchzeilen' })
+    .getByRole('radio', { name: 'Mit Balken' })
+    .click();
+  await expect(page.locator('[data-part=split]')).toBeVisible();
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText(
+    'Dunkel · Icon hell · Tagebuch mit Balken',
+  );
+  await page.reload();
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText('Tagebuch mit Balken');
+
   // Back to the system: follows a change of the system theme live.
   await page.getByRole('link', { name: /Aussehen/ }).click();
   await page

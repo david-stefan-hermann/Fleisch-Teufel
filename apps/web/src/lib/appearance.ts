@@ -8,13 +8,17 @@ import { useSyncExternalStore } from 'react';
  * - Icon: follows the app theme ('auto') or is fixed light or dark. It decides the in-app logo,
  *   the favicon and the apple-touch-icon. iOS reads the latter once, when the app is added to the
  *   home screen; it cannot be swapped on an installed web app.
+ * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
+ *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
  */
 export type ThemePref = 'system' | 'light' | 'dark';
 export type IconPref = 'auto' | 'light' | 'dark';
 export type Mode = 'light' | 'dark';
+export type DiaryMacrosPref = 'numbers' | 'bar';
 
 const THEME_KEY = 'ft.theme';
 const ICON_KEY = 'ft.icon';
+const DIARY_MACROS_KEY = 'ft.diaryMacros';
 /** Status bar / browser chrome color per theme (`--background`). */
 const THEME_COLOR: Record<Mode, string> = { light: '#faf8f6', dark: '#151312' };
 
@@ -50,20 +54,28 @@ export interface Appearance {
   mode: Mode;
   /** The logo variant shown now. */
   iconMode: Mode;
+  /** How diary rows show their macros. */
+  diaryMacros: DiaryMacrosPref;
 }
 
-export function resolveAppearance(theme: ThemePref, icon: IconPref, systemDark: boolean): Appearance {
+export function resolveAppearance(
+  theme: ThemePref,
+  icon: IconPref,
+  systemDark: boolean,
+  diaryMacros: DiaryMacrosPref = 'numbers',
+): Appearance {
   const mode: Mode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
-  return { theme, icon, mode, iconMode: icon === 'auto' ? mode : icon };
+  return { theme, icon, mode, iconMode: icon === 'auto' ? mode : icon, diaryMacros };
 }
 
 let theme: ThemePref = 'system';
 let icon: IconPref = 'auto';
+let diaryMacros: DiaryMacrosPref = 'numbers';
 let current: Appearance = resolveAppearance('system', 'auto', false);
 const listeners = new Set<() => void>();
 
 function update() {
-  current = resolveAppearance(theme, icon, media()?.matches ?? false);
+  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros);
   apply(current);
   listeners.forEach((l) => l());
 }
@@ -89,6 +101,7 @@ function apply(a: Appearance) {
 export function startAppearance(): void {
   theme = read(THEME_KEY, ['system', 'light', 'dark'], 'system');
   icon = read(ICON_KEY, ['auto', 'light', 'dark'], 'auto');
+  diaryMacros = read(DIARY_MACROS_KEY, ['numbers', 'bar'], 'numbers');
   media()?.addEventListener('change', update);
   update();
 }
@@ -102,6 +115,12 @@ export function setThemePref(next: ThemePref): void {
 export function setIconPref(next: IconPref): void {
   icon = next;
   write(ICON_KEY, next, next === 'auto');
+  update();
+}
+
+export function setDiaryMacrosPref(next: DiaryMacrosPref): void {
+  diaryMacros = next;
+  write(DIARY_MACROS_KEY, next, next === 'numbers');
   update();
 }
 

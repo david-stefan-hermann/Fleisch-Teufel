@@ -113,7 +113,7 @@ export function MorePage() {
             to="/settings/appearance"
             icon={<Palette aria-hidden />}
             label="Aussehen"
-            hint={`${THEME_LABEL[look.theme]} · Icon ${ICON_LABEL[look.icon]}`}
+            hint={`${THEME_LABEL[look.theme]} · Icon ${ICON_LABEL[look.icon]}${look.diaryMacros === 'bar' ? ' · Tagebuch mit Balken' : ''}`}
           />
           <Row
             to="/settings/data"

@@ -6,6 +6,7 @@ import { BarcodeScanner, TorchButton, type TorchState } from '@/components/Barco
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
+import { MacroSummary } from '@/features/diary/MacroSummary';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { initFromFood, resetKcal, setField } from '@/features/foods/customFoodForm';
@@ -1515,5 +1516,36 @@ describe('SaveMealDialog', () => {
     expect(dialog.textContent).toContain('Bereits eingetragene Tage bleiben');
     fireEvent.click(screen.getByRole('button', { name: 'Meal speichern' }));
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('Curry', 'update'));
+  });
+});
+
+describe('MacroSummary', () => {
+  const widths = () =>
+    [...document.querySelectorAll('[data-part=split] > div')].map((d) =>
+      parseFloat((d as HTMLElement).style.width),
+    );
+
+  it('numbers: the plain line, no bar', () => {
+    render(<MacroSummary nutrients={{ ENERCC: 165, PROT625: 10, CHO: 20, FAT: 5 }} variant="numbers" />);
+    expect(screen.getByText('P 10 · K 20 · F 5')).toBeTruthy();
+    expect(document.querySelector('[data-part=split]')).toBeNull();
+  });
+
+  it('bar: dots before the numbers and the energy split under them', () => {
+    render(<MacroSummary nutrients={{ ENERCC: 165, PROT625: 10, CHO: 20, FAT: 5 }} variant="bar" />);
+    expect(document.body.textContent).toContain('P 10');
+    const bar = document.querySelector('[data-part=split]')!;
+    expect(bar.getAttribute('aria-hidden')).toBe('true');
+    const w = widths();
+    expect(w[0]).toBeCloseTo((40 / 165) * 100, 5);
+    expect(w[1]).toBeCloseTo((80 / 165) * 100, 5);
+    expect(w[2]).toBeCloseTo((45 / 165) * 100, 5);
+    expect(w.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 5);
+  });
+
+  it('bar without macros: empty segments, never NaN', () => {
+    render(<MacroSummary nutrients={{ ENERCC: 120 }} variant="bar" />);
+    expect(widths()).toEqual([0, 0, 0]);
+    expect(document.body.innerHTML).not.toContain('NaN');
   });
 });

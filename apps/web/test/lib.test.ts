@@ -15,7 +15,7 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
-import { resolveAppearance } from '@/lib/appearance';
+import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining } from '@/features/exercise/training';
 import {
@@ -278,6 +278,22 @@ describe('appearance', () => {
     expect(resolveAppearance('light', 'auto', true)).toMatchObject({ mode: 'light', iconMode: 'light' });
     expect(resolveAppearance('dark', 'light', false)).toMatchObject({ mode: 'dark', iconMode: 'light' });
     expect(resolveAppearance('light', 'dark', false)).toMatchObject({ mode: 'light', iconMode: 'dark' });
+  });
+
+  it('diary macros: plain numbers by default, the bar on request', () => {
+    expect(resolveAppearance('system', 'auto', false).diaryMacros).toBe('numbers');
+    expect(resolveAppearance('dark', 'auto', false, 'bar')).toMatchObject({
+      mode: 'dark',
+      diaryMacros: 'bar',
+    });
+  });
+
+  it('keeps the diary macros per device; the default removes the key', () => {
+    startAppearance();
+    setDiaryMacrosPref('bar');
+    expect(localStorage.getItem('ft.diaryMacros')).toBe('bar');
+    setDiaryMacrosPref('numbers');
+    expect(localStorage.getItem('ft.diaryMacros')).toBeNull();
   });
 });
 

@@ -21,8 +21,10 @@ import type { AiQueueItem, UserDb } from '@/db/dexie';
 import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
+import { useAppearance } from '@/lib/appearance';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { MacroSummary } from './MacroSummary';
 import { DiaryMealMenu } from './DiaryMealMenu';
 import { MealSuggestions } from './MealSuggestions';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
@@ -366,16 +368,10 @@ function EntryRow({
   );
 }
 
+/** kcal and macros of a diary row, in the form chosen under Mehr → Aussehen. */
 function NutrientSummary({ nutrients }: { nutrients: NutrientMap }) {
-  return (
-    <div className="tabular text-right">
-      <div className="font-semibold">{fmt0(get(nutrients, N.kcal))}</div>
-      <div className="text-[11px] text-muted-foreground">
-        P {fmt0(get(nutrients, N.protein))} · K {fmt0(get(nutrients, N.carbs))} · F{' '}
-        {fmt0(get(nutrients, N.fat))}
-      </div>
-    </div>
-  );
+  const { diaryMacros } = useAppearance();
+  return <MacroSummary nutrients={nutrients} variant={diaryMacros} />;
 }
 
 /**

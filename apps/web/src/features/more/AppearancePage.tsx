@@ -2,11 +2,14 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Page, Section } from '@/components/Page';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { MacroSummary } from '@/features/diary/MacroSummary';
 import {
   ICON_FILES,
+  setDiaryMacrosPref,
   setIconPref,
   setThemePref,
   useAppearance,
+  type DiaryMacrosPref,
   type IconPref,
   type ThemePref,
 } from '@/lib/appearance';
@@ -17,7 +20,14 @@ const THEMES: { value: ThemePref; label: string; icon: ReactNode }[] = [
   { value: 'dark', label: 'Dunkel', icon: <Moon aria-hidden /> },
 ];
 
-/** Mehr → Aussehen: app theme and logo variant of this device. */
+const DIARY_MACROS: { value: DiaryMacrosPref; label: string }[] = [
+  { value: 'numbers', label: 'Zahlen' },
+  { value: 'bar', label: 'Mit Balken' },
+];
+/** Fixed row of the preview (a portion of chicken fricassee). */
+const PREVIEW = { ENERCC: 695, PROT625: 52, CHO: 38, FAT: 36 };
+
+/** Mehr → Aussehen: app theme, diary macros and logo variant of this device. */
 export function AppearancePage() {
   const a = useAppearance();
   const icons: { value: IconPref; label: string; files: string[] }[] = [
@@ -48,6 +58,36 @@ export function AppearancePage() {
             {a.theme === 'system'
               ? `Folgt der Einstellung des Geräts, gerade ${a.mode === 'dark' ? 'dunkel' : 'hell'}.`
               : 'Gilt nur auf diesem Gerät.'}
+          </p>
+        </div>
+      </Section>
+
+      <Section title="Tagebuch">
+        <div className="grid gap-3 px-4 pb-4">
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={a.diaryMacros}
+            onValueChange={(v) => v && setDiaryMacrosPref(v as DiaryMacrosPref)}
+            className="w-full"
+            aria-label="Makros in den Tagebuchzeilen"
+          >
+            {DIARY_MACROS.map((m) => (
+              <ToggleGroupItem key={m.value} value={m.value} className="h-12 flex-1">
+                {m.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <div className="flex min-h-13 items-center gap-3 rounded-xl bg-muted px-4 py-2" aria-hidden>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium">Hühner Frikassee</div>
+              <div className="truncate text-xs text-muted-foreground">500 g</div>
+            </div>
+            <MacroSummary nutrients={PREVIEW} variant={a.diaryMacros} />
+          </div>
+          <p className="text-xs text-muted-foreground text-pretty">
+            Protein, Kohlenhydrate und Fett jeder Zeile als Zahlen oder farbig mit einem Balken der
+            Energieverteilung.
           </p>
         </div>
       </Section>
