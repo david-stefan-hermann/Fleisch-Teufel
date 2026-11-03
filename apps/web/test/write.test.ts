@@ -52,7 +52,7 @@ import {
 } from '@/db/clipboard';
 import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
-import { saveDayNote } from '@/db/notes';
+import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@/db/notes';
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 import { saveOnboarding } from '@/features/goals/saveOnboarding';
@@ -1299,5 +1299,94 @@ describe('diary group editor: a saved meal as ingredients', () => {
       ['D', true],
     ]);
     expect(await addItemsToGroupDraft(d, 'gone', '2026-10-09', [item('C')])).toBe(false);
+  });
+});
+
+describe('closing all past days ("Alle vergangenen Tage abschließen")', () => {
+  const entry = (date: string, deleted = false) => ({
+    id: uuidv7(),
+    date,
+    meal: 0,
+    loggedAt: 1,
+    foodId: 'bls:A',
+    name: 'A',
+    source: 'bls' as const,
+    brand: null,
+    grams: 50,
+    portionLabel: '100 g',
+    portionGrams: 100,
+    quantity: 0.5,
+    per100: null,
+    nutrients: { ENERCC: 1 },
+    mealId: null,
+    aiAnalysisId: null,
+    groupId: null,
+    groupName: null,
+    photoId: null,
+    cookedGrams: null,
+    photoIds: null,
+    deleted,
+  });
+  const note = (date: string, completedAt: number | null, text = '') => ({
+    id: dayId.note(date),
+    date,
+    note: text,
+    completedAt,
+  });
+
+  it('openDays: before the shown day, not closed, sorted, without duplicates', () => {
+    expect(
+      openDays(
+        ['2026-11-02', '2026-10-30', '2026-11-02', '2026-11-03', '2026-10-31'],
+        [
+          { date: '2026-10-31', completedAt: 5 },
+          { date: '2026-10-30', completedAt: null },
+        ],
+        '2026-11-03',
+      ),
+    ).toEqual(['2026-10-30', '2026-11-02']);
+  });
+
+  it('openPastDays ignores days with only deleted entries and the shown day itself', async () => {
+    const d = db();
+    for (const e of [
+      entry('2026-10-30'),
+      entry('2026-10-31', true),
+      entry('2026-11-01'),
+      entry('2026-11-03'),
+    ]) {
+      const { deleted, ...rec } = e;
+      const saved = await saveRecord(d, 'foodEntries', rec);
+      if (deleted) await deleteRecord(d, 'foodEntries', saved.id);
+    }
+    await saveRecord(d, 'dayNotes', note('2026-11-01', 7));
+    expect(await openPastDays(d, '2026-11-03')).toEqual(['2026-10-30']);
+  });
+
+  it('completeDays skips closed days and keeps the note; reopenDays undoes only those days', async () => {
+    const d = db();
+    for (const day of ['2026-10-29', '2026-10-30', '2026-10-31']) {
+      const { deleted: _, ...rec } = entry(day);
+      await saveRecord(d, 'foodEntries', rec);
+    }
+    await saveRecord(d, 'dayNotes', note('2026-10-30', null, 'Lauf'));
+    await saveRecord(d, 'dayNotes', note('2026-10-31', 5));
+    await d.outbox.clear();
+
+    const open = await openPastDays(d, '2026-11-01');
+    expect(open).toEqual(['2026-10-29', '2026-10-30']);
+    // Another device closed one more in the meantime: it is skipped and keeps its time.
+    const closed = await completeDays(d, [...open, '2026-10-31'], 1000);
+    expect(closed).toEqual(['2026-10-29', '2026-10-30']);
+    expect(await d.outbox.count()).toBe(2);
+    expect(await d.dayNotes.get(dayId.note('2026-10-30'))).toMatchObject({ note: 'Lauf', completedAt: 1000 });
+    expect(await d.dayNotes.get(dayId.note('2026-10-29'))).toMatchObject({ note: '', completedAt: 1000 });
+    expect(await openPastDays(d, '2026-11-01')).toEqual([]);
+
+    await reopenDays(d, closed);
+    expect(await d.dayNotes.get(dayId.note('2026-10-30'))).toMatchObject({ note: 'Lauf', completedAt: null });
+    expect(await d.dayNotes.get(dayId.note('2026-10-29'))).toMatchObject({ completedAt: null });
+    expect(await d.dayNotes.get(dayId.note('2026-10-31'))).toMatchObject({ completedAt: 5 });
+    expect(await openPastDays(d, '2026-11-01')).toEqual(['2026-10-29', '2026-10-30']);
   });
 });

@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type Clipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
+import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
 import { trainingHistory, type TrainingHistory } from '@/db/trainingSuggestions';
@@ -95,6 +96,12 @@ export function useCurrentWeight(date: ISODate): number | undefined {
 export function useDayNote(date: ISODate) {
   const db = useDb();
   return useLiveQuery(async () => (await db.dayNotes.get(`n:${date}`)) ?? null, [db, date]);
+}
+
+/** Days before `before` with entries and without "Tag abgeschlossen" (`openPastDays`). */
+export function useOpenPastDays(before: ISODate) {
+  const db = useDb();
+  return useLiveQuery(() => openPastDays(db, before), [db, before]);
 }
 
 export function useDaySummary(date: ISODate): DaySummary | undefined {

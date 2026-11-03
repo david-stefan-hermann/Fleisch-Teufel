@@ -8,8 +8,9 @@ import { Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { UserDb } from '@/db/dexie';
-import { saveDayNote } from '@/db/notes';
-import { useDayNote } from '@/hooks/data';
+import { completeDays, reopenDays, saveDayNote } from '@/db/notes';
+import { useDayNote, useOpenPastDays } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { errorMessage } from '@/lib/api';
 import { fmtTime } from '@/lib/format';
 
@@ -84,8 +85,39 @@ function NoteForm({ date, note }: { date: ISODate; note: DayNote | null }) {
             </Link>
           </Button>
         )}
+        <CompletePastDays date={date} />
       </div>
     </Section>
+  );
+}
+
+/**
+ * "Alle vergangenen Tage abschließen": shown only while a day before the shown one has entries and
+ * is not closed. Closes them at once; the toast offers undo (it holds only `db` and the days, the
+ * card may be gone by then).
+ */
+function CompletePastDays({ date }: { date: ISODate }) {
+  const db = useDb();
+  const open = useOpenPastDays(date);
+  const { run, busy } = useSubmitting();
+  if (!open?.length) return null;
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() =>
+        void run(async () => {
+          const closed = await completeDays(db, open);
+          if (closed.length === 0) return;
+          toast(closed.length === 1 ? '1 Tag abgeschlossen' : `${closed.length} Tage abgeschlossen`, {
+            action: { label: 'Rückgängig', onClick: () => void reopenDays(db, closed) },
+          });
+        })
+      }
+      className="-my-1 min-h-11 justify-self-center rounded-md px-2 text-sm font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+    >
+      Alle vergangenen Tage abschließen
+    </button>
   );
 }
 
