@@ -152,8 +152,10 @@ export function DiaryPage() {
           <ExerciseCard date={date} exercises={exercises} credited={settings.addExerciseCalories} />
           <NoteCard key={date} date={date} />
           {note !== undefined && (
+            // Not `key={date}`: that is the note card's key, and siblings sharing a key leave stale
+            // cards of other days in the page.
             <ShareDayDialog
-              key={date}
+              key={`share:${date}`}
               open={sharing}
               onOpenChange={setSharing}
               date={date}
