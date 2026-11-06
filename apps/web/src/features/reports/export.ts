@@ -87,6 +87,8 @@ export function entriesCsv(entries: FoodEntry[], mealNames: string[], dialect: C
       { header: 'Zucker (g)', value: (e) => e.nutrients[N.sugar] },
       { header: 'Ges. Fettsäuren (g)', value: (e) => e.nutrients[N.satFat] },
       { header: 'Salz (g)', value: (e) => e.nutrients[N.salt] },
+      // New columns go to the end, so existing sheets keep their columns. The text of a quick entry.
+      { header: 'Notiz', value: (e) => e.note ?? '' },
     ],
     dialect,
   );

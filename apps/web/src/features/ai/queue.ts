@@ -8,7 +8,7 @@
  * item itself: the item is rewritten on every status change and review edit, which on WebKit made an
  * inline Blob read earlier unreadable (see `AiImage` in `db/dexie.ts`).
  */
-import { MAX_ANALYSIS_PHOTOS, type AiAnalysisResult } from '@ft/shared';
+import { cleanTypedValues, MAX_ANALYSIS_PHOTOS, type AiAnalysisResult, type AiTypedValues } from '@ft/shared';
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
@@ -16,13 +16,22 @@ import { aiMealItems, logItems, readPhotoBytes, storePhotoRows } from '@/db/entr
 import { rememberFood } from '@/foods/foodService';
 import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/api';
 
-/** One meal analysis: all photos in one request (field `image` repeated), with the optional hint. */
-export async function analyzePhotos(images: readonly Blob[], text: string): Promise<AiAnalysisResult> {
+/**
+ * One meal analysis: all photos in one request (field `image` repeated), with the optional hint and
+ * the values the person typed for the whole meal (field `typed`, JSON; a clue for the amounts).
+ */
+export async function analyzePhotos(
+  images: readonly Blob[],
+  text: string,
+  typed?: AiTypedValues | null,
+): Promise<AiAnalysisResult> {
   const form = new FormData();
   images.forEach((image, i) =>
     form.append('image', new File([image], `meal-${i + 1}.jpg`, { type: image.type || 'image/jpeg' })),
   );
   if (text.trim()) form.set('text', text.trim());
+  const values = cleanTypedValues(typed);
+  if (values) form.set('typed', JSON.stringify(values));
   return api<AiAnalysisResult>('/api/ai/analyze', { method: 'POST', body: form, timeoutMs: 120_000 });
 }
 
@@ -225,6 +234,7 @@ async function runQueue(db: UserDb): Promise<void> {
       const result = await analyzePhotos(
         photos.map((p) => p.blob),
         item.text,
+        item.typed,
       );
       await db.transaction('rw', db.aiQueue, async () => {
         const now = await db.aiQueue.get(item.localId!);
@@ -321,14 +331,18 @@ export async function enqueuePhotos(
 
 /**
  * Queues a meal described in words (no photo) for analysis; returns the new item's `localId`. The
- * description is the item's `text`: the review shows and edits it like the hint of a photo.
+ * description is the item's `text`: the review shows and edits it like the hint of a photo. Values
+ * typed next to it (`typed`) go along with every analysis of the item as a clue.
  */
 export async function enqueueDescription(
   db: UserDb,
-  item: Pick<AiQueueItem, 'date' | 'meal' | 'text'>,
+  item: Pick<AiQueueItem, 'date' | 'meal' | 'text' | 'typed'>,
 ): Promise<number> {
+  const typed = cleanTypedValues(item.typed);
   return (await db.aiQueue.add({
-    ...item,
+    date: item.date,
+    meal: item.meal,
+    ...(typed && { typed }),
     text: item.text.trim(),
     textOnly: true,
     status: 'pending',

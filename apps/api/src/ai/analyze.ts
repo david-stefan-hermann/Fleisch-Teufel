@@ -7,7 +7,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat, betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod';
-import { aiItemSchema, type AiItem } from '@ft/shared';
+import { aiItemSchema, type AiItem, type AiTypedValues } from '@ft/shared';
 import { z } from 'zod';
 import { LABEL_SYSTEM_PROMPT, labelSchema, labelUserPrompt, type LabelReading } from './label.js';
 import { costUsd } from './pricing.js';
@@ -25,6 +25,8 @@ export interface AnalyzeInput {
   /** One to `MAX_ANALYSIS_PHOTOS` photos of one meal (plates, courses, a label), in order. */
   images: { base64: string; mediaType: ImageMediaType }[];
   text: string | null;
+  /** Calories and macros the person typed for the whole meal: a clue for the amounts. */
+  typed?: AiTypedValues | null;
 }
 
 export interface AnalyzeOutput {
@@ -150,7 +152,7 @@ export function createClaudeAnalyzer(opts: {
                     source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
                   },
                 ]),
-                { type: 'text', text: userPrompt(input.text, input.images.length) },
+                { type: 'text', text: userPrompt(input.text, input.images.length, input.typed ?? null) },
               ],
             },
           ],

@@ -102,8 +102,8 @@ export function CompleteDayPage() {
             Nichts gegessen, oder nur nicht eingetragen? Eine grobe Schätzung ist besser als eine Lücke: so
             stimmen Durchschnitte und Bedarf.{' '}
             <Link
-              to="/quick-add"
-              search={{ date, meal: maybeMissing[0]! }}
+              to="/photo"
+              search={{ date, meal: maybeMissing[0]!, form: true }}
               className="font-medium text-primary underline underline-offset-2"
             >
               Schnell schätzen

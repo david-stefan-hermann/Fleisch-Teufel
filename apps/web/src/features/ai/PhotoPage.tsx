@@ -16,6 +16,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Camera,
   Check,
+  ChevronDown,
   Images,
   Keyboard,
   LoaderCircle,
@@ -26,12 +27,12 @@ import {
   Trash2,
   TriangleAlert,
   X,
-  Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
+import { DayNote } from '@/components/DayNote';
 import { HintCount, HintField } from '@/components/HintField';
 import {
   BarcodeScanner,
@@ -49,11 +50,13 @@ import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
 import { ScalePresets } from '@/components/ScalePresets';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { PhotoStrip } from '@/components/PhotoStrip';
 import { warmUpCamera } from '@/components/cameraWarmup';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -65,7 +68,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Textarea } from '@/components/ui/textarea';
 import {
   currentDraft,
   draftChanged,
@@ -77,10 +79,18 @@ import {
   type RowGrams,
 } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
-import { createAiMeal, logAiItems, logAiMeal } from '@/db/entries';
+import { createAiMeal, logAiItems, logAiMeal, logQuickEntry } from '@/db/entries';
 import { patchRecord } from '@/db/write';
 import { getFood, recentAndFrequent, rememberFood, userPortions, type FoodUsage } from '@/foods/foodService';
 import { entryAmountLabel } from '@/features/diary/MealCard';
+import {
+  emptyQuickEntry,
+  QuickEntryFields,
+  quickEntryHasText,
+  quickEntryValid,
+  quickEntryValues,
+  type QuickEntryState,
+} from '@/features/foods/QuickEntryFields';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion, SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
@@ -128,16 +138,39 @@ const HINT_CHIPS = [
 
 const addLabel = (n: number) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`);
 
+/** Remembers whether "Offene Analysen" on the food page is open (per device, default closed). */
+const QUEUE_OPEN_KEY = 'ft:photo:queueOpen';
+function readQueueOpen(): boolean {
+  try {
+    return localStorage.getItem(QUEUE_OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function writeQueueOpen(open: boolean) {
+  try {
+    localStorage.setItem(QUEUE_OPEN_KEY, open ? '1' : '0');
+  } catch {
+    /* private mode: just not remembered */
+  }
+}
+
 /**
- * "Essen eintragen": camera for barcodes and plate photos, the magnifier switches to the food search
- * for the same meal. Plate photos first show a preview with the optional hint, where more photos can
- * be added (further plates, courses, a label); only "Analysieren" sends them to Claude, in one call.
+ * "Essen eintragen": camera for barcodes and plate photos; below it "Eingeben" (text and values
+ * instead of a photo, `form` in the URL) and "Suchen" (the food search for the same meal). Plate
+ * photos first show a preview with the optional hint, where more photos can be added (further
+ * plates, courses, a label); only "Analysieren" sends them to Claude, in one call.
+ *
+ * "Eingeben" is one form for two things: values alone are logged as a quick entry ("Eintragen"), a
+ * text alone is analysed ("Analysieren"), with both the person chooses (the values then go to the
+ * AI as a clue).
+ *
  * A finished analysis opens its review (`review` in the URL), but only while the person waits for it
  * here: leaving during the analysis (back arrow, swipe, another page) goes to the diary, and the
  * result is logged there by itself (`leaveAnalysis`).
  */
 export function PhotoPage() {
-  const { date, meal, review } = useSearch({ from: '/authed/photo' });
+  const { date, meal, review, form = false } = useSearch({ from: '/authed/photo' });
   const navigate = useNavigate({ from: '/photo' });
   const router = useRouter();
   const returnToDiary = useReturnToDiary();
@@ -145,7 +178,17 @@ export function PhotoPage() {
   const settings = useSettings();
   const queue = useLiveQuery(() => db.aiQueue.orderBy('createdAt').reverse().toArray(), [db]);
   // The open analysis lives in the URL, so returning from the food search lands in it again.
-  const openReview = (id: number) => void navigate({ search: (s) => ({ ...s, review: id }) });
+  // From "Eingeben" the review takes the place of the finished form in the history.
+  const openReview = (id: number, replace = false) =>
+    void navigate({ search: (s) => ({ ...s, review: id, form: undefined }), replace });
+  const openForm = () => void navigate({ search: (s) => ({ ...s, form: true as const }) });
+  /** Leaves "Eingeben" for the camera it was opened from. */
+  const closeForm = () =>
+    goBackOr(
+      router.history,
+      1,
+      () => void navigate({ search: (s) => ({ ...s, form: undefined }), replace: true }),
+    );
   // Closing goes back to the page that opened the review (the camera with its list), so that one
   // more "back" leaves the food page instead of showing it a second time.
   const closeReview = () =>
@@ -161,8 +204,9 @@ export function PhotoPage() {
   const nextShot = useRef(1);
   const [analyzing, setAnalyzing] = useState(false);
   const [adding, setAdding] = useState(false);
-  // "Beschreiben statt fotografieren": the camera makes way for a text field.
-  const [describing, setDescribing] = useState(false);
+  // "Eingeben": what was typed stays while the person looks at the camera again.
+  const [entry, setEntry] = useState<QuickEntryState>(() => emptyQuickEntry(meal));
+  const [queueOpen, setQueueOpen] = useState(readQueueOpen);
   // The queue item the preview waits for, and whether the page was left meanwhile. Both are read
   // after awaits, where the component may be gone (state would be stale there).
   const waiting = useRef<number | null>(null);
@@ -214,7 +258,7 @@ export function PhotoPage() {
   /** Queues the preview photos with the hint and waits for the result. */
   async function analyze(text: string) {
     if (analyzing || shots.length === 0) return;
-    await follow(() =>
+    await follow(meal, false, () =>
       enqueuePhotos(
         db,
         { date, meal, text },
@@ -223,17 +267,38 @@ export function PhotoPage() {
     );
   }
 
-  /** "Beschreiben": queues the description (no photo) and waits for the result. */
-  async function describeMeal(text: string) {
-    if (analyzing || !text.trim()) return;
-    await follow(() => enqueueDescription(db, { date, meal, text }));
+  /**
+   * "Analysieren" of the form: queues the description (no photo) for the chosen meal and waits for
+   * the result. Typed values go along as a clue; the review shows what the AI found.
+   */
+  async function describeMeal() {
+    if (analyzing || !quickEntryHasText(entry)) return;
+    const typed = {
+      kcal: entry.kcal ?? undefined,
+      proteinG: entry.protein ?? undefined,
+      carbsG: entry.carbs ?? undefined,
+      fatG: entry.fat ?? undefined,
+    };
+    await follow(entry.meal, true, () =>
+      enqueueDescription(db, { date, meal: entry.meal, text: entry.text, typed }),
+    );
+  }
+
+  const { busy: logging, run } = useSubmitting();
+  /** "Eintragen" of the form: a quick entry with the typed values; the text is its note and title. */
+  async function logEntry() {
+    if (!quickEntryValid(entry)) return;
+    const values = quickEntryValues(entry);
+    const id = await logQuickEntry(db, date, values);
+    toast.success(`${fmt0(values.kcal)} kcal eingetragen`);
+    await returnToDiary({ date, focus: { rows: [id], meal: values.meal } });
   }
 
   /**
    * Queues an analysis and waits for it while the person stays here: a finished one opens its review,
    * an offline one goes to the diary as a placeholder, a failed one says so.
    */
-  async function follow(enqueue: () => Promise<number>) {
+  async function follow(toMeal: number, fromForm: boolean, enqueue: () => Promise<number>) {
     setAnalyzing(true);
     let id: number;
     try {
@@ -256,10 +321,10 @@ export function PhotoPage() {
       // Left during the read: the result goes to the diary by itself.
       if (waiting.current !== id || gone.current) return void leaveAnalysis(db, id);
       waiting.current = null;
-      // Stored and analysed: the preview is done, whatever the outcome.
+      // Stored and analysed: the preview (or the form) is done, whatever the outcome.
       setShots([]);
-      setDescribing(false);
-      if (item?.status === 'done' && !item.deferred) return openReview(id);
+      if (fromForm) setEntry(emptyQuickEntry(meal));
+      if (item?.status === 'done' && !item.deferred) return openReview(id, fromForm);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.
         toast(
@@ -267,9 +332,11 @@ export function PhotoPage() {
             ? 'Offline gespeichert. Die Beschreibung steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.'
             : 'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
         );
-        return void returnToDiary({ date, focus: { rows: [`pending:${id}`], meal } });
+        return void returnToDiary({ date, focus: { rows: [`pending:${id}`], meal: toMeal } });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
+      // The description waits under "Offene Analysen" now (to repeat or discard), not in the form.
+      if (fromForm) closeForm();
     } finally {
       setAnalyzing(false);
     }
@@ -289,9 +356,23 @@ export function PhotoPage() {
     );
   }
 
-  const mealName = settings?.mealNames[meal];
   const preview = shots.length > 0;
-  const describe = describing && !preview;
+  const typing = form && !preview;
+  // In the form the header names the meal chosen there.
+  const mealName = settings?.mealNames[typing ? entry.meal : meal];
+  // The AI may be off on the server; unknown (offline) still queues the description for later.
+  const canAnalyze = aiEnabled !== false && quickEntryHasText(entry);
+  const canLog = quickEntryValid(entry);
+  const busy = analyzing || adding || logging;
+  const analyzeLabel = analyzing ? (
+    <>
+      <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden /> Wird analysiert…
+    </>
+  ) : shots.length > 1 ? (
+    `Analysieren (${shots.length} Fotos)`
+  ) : (
+    'Analysieren'
+  );
   return (
     <Page
       title={
@@ -302,66 +383,38 @@ export function PhotoPage() {
       }
       back
       // In the preview, back drops the photos and returns to the camera; during the analysis it
-      // leaves for the diary; the describe form goes back to the camera.
-      onBack={
-        analyzing
-          ? leaveToDiary
-          : preview
-            ? () => setShots([])
-            : describe
-              ? () => setDescribing(false)
-              : undefined
-      }
+      // leaves for the diary. The form is a step of its own in the history: back is the camera.
+      onBack={analyzing ? leaveToDiary : preview ? () => setShots([]) : undefined}
       withTabBar={false}
-      actions={
-        <>
-          {/* A new page on purpose: back from the quick add returns here. */}
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/quick-add" search={{ date, meal }} aria-label="Schnelleingabe">
-              <Zap aria-hidden />
-            </Link>
-          </Button>
-          {!preview && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Beschreiben statt fotografieren"
-              aria-pressed={describe}
-              disabled={analyzing}
-              onClick={() => setDescribing((d) => !d)}
-            >
-              <Keyboard aria-hidden />
-            </Button>
-          )}
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/add" search={{ date, meal }} aria-label="Lebensmittel suchen">
-              <Search aria-hidden />
-            </Link>
-          </Button>
-        </>
-      }
       footer={
-        preview || describe ? (
-          <Button
-            size="lg"
-            form={preview ? 'photo-preview' : 'describe-meal'}
-            type="submit"
-            disabled={analyzing || adding}
-          >
-            {analyzing ? (
-              <>
-                <LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden /> Wird
-                analysiert…
-              </>
-            ) : shots.length > 1 ? (
-              `Analysieren (${shots.length} Fotos)`
-            ) : (
-              'Analysieren'
-            )}
+        preview ? (
+          <Button size="lg" form="photo-preview" type="submit" disabled={busy}>
+            {analyzeLabel}
           </Button>
+        ) : typing ? (
+          // Values alone: "Eintragen". A text alone: "Analysieren". Both: both, logging first.
+          canAnalyze && canLog ? (
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="lg" variant="outline" disabled={busy} onClick={() => void describeMeal()}>
+                {analyzeLabel}
+              </Button>
+              <Button size="lg" disabled={busy} onClick={() => void run(logEntry)}>
+                Eintragen
+              </Button>
+            </div>
+          ) : canAnalyze ? (
+            <Button size="lg" disabled={busy} onClick={() => void describeMeal()}>
+              {analyzeLabel}
+            </Button>
+          ) : (
+            <Button size="lg" disabled={busy || !canLog} onClick={() => void run(logEntry)}>
+              Eintragen
+            </Button>
+          )
         ) : undefined
       }
     >
+      <DayNote date={date} />
       {preview ? (
         <PhotoPreview
           shots={shots}
@@ -371,8 +424,31 @@ export function PhotoPage() {
           onRemove={(id) => setShots((s) => s.filter((x) => x.id !== id))}
           onAnalyze={(text) => void analyze(text)}
         />
-      ) : describe ? (
-        <DescribeForm busy={analyzing} onAnalyze={(text) => void describeMeal(text)} />
+      ) : typing ? (
+        <div className="grid gap-3">
+          <QuickEntryFields
+            value={entry}
+            onChange={setEntry}
+            mealNames={settings?.mealNames ?? []}
+            disabled={analyzing || logging}
+            autoFocus
+            hint={
+              analyzing
+                ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
+                : aiEnabled === false
+                  ? 'Der Text steht als Titel im Tagebuch. Eingetragen werden die Werte, die du angibst.'
+                  : 'Mit Kalorien trägst du direkt ein. Nur mit Text analysiert die KI die Mahlzeit, Mengen helfen ihr („200 g“, „halbe Portion“).'
+            }
+          />
+          {analyzing && (
+            <div className="relative h-28 overflow-hidden rounded-2xl border border-border/70 bg-muted">
+              <AnalyzingOverlay
+                title="Analysiere Beschreibung…"
+                steps={['Lese die Beschreibung', 'Suche die Lebensmittel', 'Schätze die Mengen']}
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <>
           {aiEnabled === false && (
@@ -387,13 +463,41 @@ export function PhotoPage() {
             // A page of its own: back from the product returns to the camera.
             onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
           />
+          {/* The two other ways to log, where the thumb is: typing it in, or the food search. */}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button variant="outline" size="lg" disabled={analyzing} onClick={openForm}>
+              <Keyboard aria-hidden /> Eingeben
+            </Button>
+            <Button variant="outline" size="lg" asChild>
+              <Link to="/add" search={{ date, meal }}>
+                <Search aria-hidden /> Suchen
+              </Link>
+            </Button>
+          </div>
           {queue && queue.length > 0 && (
-            <Section title="Analysen" className="mt-4">
-              <ul className="divide-y divide-border/70">
-                {queue.map((q) => (
-                  <QueueRow key={q.localId} item={q} onOpen={() => openReview(q.localId!)} />
-                ))}
-              </ul>
+            <Section className="mt-4">
+              <Collapsible
+                open={queueOpen}
+                onOpenChange={(open) => {
+                  setQueueOpen(open);
+                  writeQueueOpen(open);
+                }}
+              >
+                <CollapsibleTrigger className="group flex min-h-12 w-full items-center justify-between gap-2 px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none">
+                  <h2 className="text-base font-semibold">Offene Analysen ({queue.length})</h2>
+                  <ChevronDown
+                    className="size-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ul className="divide-y divide-border/70 border-t border-border/70">
+                    {queue.map((q) => (
+                      <QueueRow key={q.localId} item={q} onOpen={() => openReview(q.localId!)} />
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
             </Section>
           )}
           <p className="mt-4 text-xs text-muted-foreground text-pretty">
@@ -506,54 +610,6 @@ function PhotoPreview({
           }}
           onClose={() => setSheet(false)}
         />
-      )}
-    </form>
-  );
-}
-
-/**
- * "Beschreiben statt fotografieren": the meal in words (restaurant, canteen, logging later), analysed
- * with the same call as a photo and reviewed the same way. The camera is off meanwhile.
- */
-function DescribeForm({ busy, onAnalyze }: { busy: boolean; onAnalyze: (text: string) => void }) {
-  const [text, setText] = useState('');
-  return (
-    <form
-      id="describe-meal"
-      className="grid gap-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (text.trim()) onAnalyze(text);
-      }}
-    >
-      <div className="grid gap-1.5">
-        <Label htmlFor="describe-text">Was hast du gegessen?</Label>
-        <Textarea
-          id="describe-text"
-          value={text}
-          disabled={busy}
-          maxLength={MAX_HINT_LENGTH}
-          rows={4}
-          autoFocus
-          enterKeyHint="done"
-          onChange={(e) => setText(e.target.value)}
-          placeholder="z. B. „Döner mit allem, kleine Pommes, Cola 0,33 l“ oder „2 Scheiben Vollkornbrot mit Butter und Gouda, ein Apfel“"
-          aria-describedby="describe-hint"
-        />
-        <p id="describe-hint" className="text-xs text-muted-foreground text-pretty">
-          <HintCount length={text.length} />
-          {busy
-            ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
-            : 'Mengen helfen („200 g“, „halbe Portion“, „Restaurantportion“); ohne Angabe nimmt die KI übliche Portionen. Danach prüfst du die Zutaten wie bei einem Foto.'}
-        </p>
-      </div>
-      {busy && (
-        <div className="relative h-28 overflow-hidden rounded-2xl border border-border/70 bg-muted">
-          <AnalyzingOverlay
-            title="Analysiere Beschreibung…"
-            steps={['Lese die Beschreibung', 'Suche die Lebensmittel', 'Schätze die Mengen']}
-          />
-        </div>
       )}
     </form>
   );
@@ -719,10 +775,17 @@ function CameraCapture({
   );
 }
 
+/**
+ * One open analysis on the food page: waiting, running, failed, or finished and waiting for its
+ * review (a tap opens it). Swipe left discards it with undo, like the rows of the diary; a failed
+ * one has "Wiederholen".
+ */
 function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
   const db = useDb();
   const photos = useAiImages(item);
   const first = photos?.[0];
+  const failed = item.status === 'failed' && !item.result;
+  const name = item.text.trim() || (item.textOnly ? 'Beschreibung' : 'Foto-Analyse');
   const label =
     item.status === 'pending'
       ? 'Wartet auf Verbindung'
@@ -731,60 +794,59 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
         : item.result
           ? `${item.result.items.length} Lebensmittel erkannt, bitte prüfen`
           : (item.error ?? 'Fehlgeschlagen');
+
+  /** A paid result and its photos: gone only once the undo toast has passed. */
+  async function discard() {
+    const taken = await takeQueueItem(db, item.localId!);
+    if (!taken) return;
+    toast(`${name} gelöscht`, {
+      action: { label: 'Rückgängig', onClick: () => void restoreQueueItem(db, taken) },
+    });
+  }
+
   return (
-    <li className="flex items-center gap-3 px-4 py-2">
-      <div className="relative size-12 shrink-0">
-        <MealPhoto
-          blob={first?.blob ?? null}
-          blobKey={`aiPhoto:${item.localId}:${first?.id}`}
-          alt=""
-          className="size-12 rounded-lg"
-        />
-        <PhotoCount count={photos?.length ?? 0} />
-        {item.status === 'analyzing' && (
-          <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
-            <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />
+    <li>
+      <SwipeToDelete label={`${name} löschen`} onDelete={() => void discard()}>
+        <div className="flex min-h-14 items-center gap-3 px-4 py-2 select-none">
+          <div className="relative size-12 shrink-0">
+            <MealPhoto
+              blob={first?.blob ?? null}
+              blobKey={`aiPhoto:${item.localId}:${first?.id}`}
+              alt=""
+              className="size-12 rounded-lg"
+            />
+            <PhotoCount count={photos?.length ?? 0} />
+            {item.status === 'analyzing' && (
+              <div className="absolute inset-0 grid place-items-center rounded-lg bg-black/45 text-white">
+                <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <button
-        type="button"
-        className="min-w-0 flex-1 text-left disabled:cursor-default"
-        disabled={!item.result}
-        onClick={onOpen}
-      >
-        <div className="truncate text-sm font-medium">{label}</div>
-        <div className="truncate text-xs text-muted-foreground">
-          {fmtTime(item.createdAt)}
-          {item.text ? ` · ${item.text}` : ''}
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              className="block w-full min-w-0 rounded-md text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default"
+              disabled={!item.result}
+              onClick={onOpen}
+            >
+              <div className={cn('truncate text-sm font-medium', failed && 'text-over')}>{label}</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {fmtTime(item.createdAt)}
+                {item.text ? ` · ${item.text}` : ''}
+              </div>
+            </button>
+            {failed && (
+              <button
+                type="button"
+                onClick={() => void retryQueueItem(db, item.localId!)}
+                className="-my-1 rounded-md py-2 pr-3 text-sm font-medium text-primary underline underline-offset-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                Wiederholen
+              </button>
+            )}
+          </div>
         </div>
-      </button>
-      {item.status === 'failed' && !item.result && (
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Wiederholen"
-          onClick={() => void retryQueueItem(db, item.localId!)}
-        >
-          <RotateCcw aria-hidden />
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="Verwerfen"
-        onClick={() =>
-          // A paid result and its photos: gone only once the undo toast has passed.
-          void takeQueueItem(db, item.localId!).then((taken) => {
-            if (!taken) return;
-            toast(`${label} verworfen`, {
-              action: { label: 'Rückgängig', onClick: () => void restoreQueueItem(db, taken) },
-            });
-          })
-        }
-      >
-        <Trash2 aria-hidden />
-      </Button>
+      </SwipeToDelete>
     </li>
   );
 }

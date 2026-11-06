@@ -828,6 +828,30 @@ describe('AI review: re-analyze with the hint', () => {
     });
   });
 
+  it('sends the values typed next to a description with every analysis of the item', async () => {
+    const d = db();
+    const { fetchFn } = server(analysis('Nudeln', 250), analysis('Nudeln', 300));
+    const typedOf = (call: number) =>
+      (fetchFn.mock.calls[call]![1]!.body as FormData).get('typed') as string | null;
+    const id = await enqueueDescription(d, {
+      date: '2026-10-07',
+      meal: 1,
+      text: 'Nudeln mit Pesto',
+      // Only what is usable is kept: no zero, nothing implausible.
+      typed: { kcal: 600, proteinG: 25, carbsG: 0, fatG: 99_999 },
+    });
+    expect((await d.aiQueue.get(id))!.typed).toEqual({ kcal: 600, proteinG: 25 });
+    await processQueue(d);
+    expect(JSON.parse(typedOf(0)!)).toEqual({ kcal: 600, proteinG: 25 });
+    // ↻ in the review sends them again.
+    await reanalyze(d, id, 'Nudeln mit Pesto und Parmesan');
+    expect(JSON.parse(typedOf(1)!)).toEqual({ kcal: 600, proteinG: 25 });
+    // Without typed values the field is not sent at all.
+    server(analysis('Brot', 60));
+    const plain = await enqueueDescription(d, { date: '2026-10-07', meal: 1, text: 'Brot' });
+    expect((await d.aiQueue.get(plain))!.typed).toBeUndefined();
+  });
+
   it('treats a timeout as a failure to repeat by hand, not as offline', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     try {

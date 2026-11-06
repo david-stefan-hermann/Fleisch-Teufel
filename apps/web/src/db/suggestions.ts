@@ -16,7 +16,7 @@ import {
   type MealItem,
 } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { diaryParts, entriesToMealItems, logParts } from './entries';
+import { diaryParts, entriesToMealItems, entryToItem, logParts } from './entries';
 
 /** How far back the diary is read. */
 export const SUGGESTION_DAYS = 60;
@@ -153,7 +153,7 @@ async function rank(
           kind: 'food',
           name: e.name,
           brand: e.brand,
-          items: entriesToMealItems([e]),
+          items: [entryToItem(e)],
           mealId: null,
           groupName: null,
           aiAnalysisId: null,

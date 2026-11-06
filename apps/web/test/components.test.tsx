@@ -1703,6 +1703,7 @@ describe('DayShareImage', () => {
     groupName: null,
     photoId: null,
     photoIds: null,
+    note: null,
     updatedAt: 1,
     deleted: false,
     ...extra,

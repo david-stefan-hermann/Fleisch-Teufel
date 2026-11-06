@@ -13,10 +13,11 @@ async function register(page: Page) {
 }
 
 async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
-  await page.goto(`/quick-add?meal=${meal}`);
-  await page.getByLabel('Bezeichnung').fill(name);
+  // "Eingeben" on the food page: a text and calories make a quick entry named after the text.
+  await page.goto(`/photo?form=1&meal=${meal}`);
+  await page.getByLabel('Was hast du gegessen?').fill(name);
   await page.getByLabel('Kalorien').fill(kcal);
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 }
 
@@ -556,8 +557,22 @@ test('AI result logged without saving becomes a named group without a saved meal
     .toBe(192);
   await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('200');
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
-  const thumb = page.locator('section', { hasText: 'Analysen' }).locator('img');
+  // "Offene Analysen" is closed by default, with the number in its title; the state is kept per device.
+  const open = page.getByRole('button', { name: 'Offene Analysen (1)' });
+  await expect(open).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('button', { name: /Lebensmittel erkannt/ })).toHaveCount(0);
+  await open.click();
+  await expect(open).toHaveAttribute('aria-expanded', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('ft:photo:queueOpen'))).toBe('1');
+  const thumb = page.locator('section', { hasText: 'Offene Analysen' }).locator('img');
   await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
+  // No bin and no ↻ icon: a swipe to the left discards the analysis, with undo like in the diary.
+  await expect(page.getByRole('button', { name: 'Verwerfen' })).toHaveCount(0);
+  await swipeLeft(page, '2 Lebensmittel erkannt, bitte prüfen');
+  await page.getByRole('button', { name: 'Foto-Analyse löschen' }).click();
+  await expect(page.getByText('Foto-Analyse gelöscht')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Lebensmittel erkannt/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Rückgängig' }).click();
   await page.getByRole('button', { name: /Lebensmittel erkannt/ }).click();
   await expect(page.getByRole('button', { name: 'Als Meal speichern' })).toBeVisible();
   await page.getByRole('button', { name: 'Meal eintragen' }).click();
@@ -784,6 +799,7 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   );
   // Still one analysis in the list (replaced, not added).
   await page.getByRole('button', { name: 'Zurück zur Liste' }).click();
+  await page.getByRole('button', { name: 'Offene Analysen (1)' }).click();
   await expect(page.getByText(/1 Lebensmittel erkannt, bitte prüfen/)).toHaveCount(1);
 });
 

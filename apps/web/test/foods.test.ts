@@ -161,6 +161,7 @@ describe('food service', () => {
       photoId: null,
       cookedGrams: null,
       photoIds: null,
+      note: null,
     };
     await saveRecord(db, 'foodEntries', {
       ...base,
@@ -229,6 +230,7 @@ describe('food service', () => {
       groupName: null,
       photoId: null,
       photoIds: null,
+      note: null,
     });
     const { usage } = await recentAndFrequent(db, '2026-10-07');
     const ranked = await searchLocal(db, 'brötchen', 40, usage);

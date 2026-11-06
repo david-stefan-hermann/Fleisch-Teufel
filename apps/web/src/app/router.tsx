@@ -146,11 +146,16 @@ export const routes = {
   }),
   photo: createRoute({
     ...r('/photo'),
-    validateSearch: (s: Record<string, unknown>): MealSearch & { review?: number } => {
+    // `review`: the open analysis; `form`: "Eingeben" (text and values instead of the camera).
+    validateSearch: (s: Record<string, unknown>): MealSearch & { review?: number; form?: true } => {
       const review = Number(s.review);
+      const form = s.form === true || s.form === 'true' || s.form === 1 || s.form === '1';
       return {
         ...validateMeal(s),
-        ...clean({ review: Number.isInteger(review) && review > 0 ? review : undefined }),
+        ...clean({
+          review: Number.isInteger(review) && review > 0 ? review : undefined,
+          form: form ? (true as const) : undefined,
+        }),
       };
     },
     component: lazyRouteComponent(() => import('@/features/ai/PhotoPage'), 'PhotoPage'),

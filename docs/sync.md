@@ -38,7 +38,9 @@ ohne gespeichertes Meal, z. B. eine Foto-Analyse, die ohne Speichern mit „Meal
 der Name kommt vom Meal), `foodEntries.photoId` (Foto der Gruppe, an jedem Eintrag der Gruppe gleich: das
 analysierte Foto oder das Meal-Foto beim Eintragen; die Tagebuchzeile zeigt es vor dem aktuellen Foto des Meals),
 `foodEntries.photoIds` (alle Fotos der Gruppe in Reihenfolge, z. B. Teller, Dessert und Nährwerttabelle einer
-Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`), `exerciseEntries.note` und
+Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`), `foodEntries.note` (der volle
+Text eines Schnelleintrags, „Was hast du gegessen?“; `name` ist sein gekürzter Anfang, `quickEntryTitle`; bei
+allen anderen Einträgen `null`), `exerciseEntries.note` und
 `meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
 wie sie sind).
 

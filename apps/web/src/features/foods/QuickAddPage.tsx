@@ -1,24 +1,30 @@
-import { get, kcalFromMacros, N, quickAddNutrients, uuidv7, type FoodEntry } from '@ft/shared';
-import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
+import { get, N, type FoodEntry } from '@ft/shared';
+import { Navigate, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { quickEntryText, saveQuickEntry } from '@/db/entries';
+import { deleteRecord, restoreRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { fmt0 } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
-import { useReturnToDiary } from '@/lib/logFlow';
+import {
+  QuickEntryFields,
+  quickEntryValid,
+  quickEntryValues,
+  type QuickEntryState,
+} from './QuickEntryFields';
 
-/** Quick add (feature #4): kcal plus optional macros, no food. */
+/**
+ * A quick entry of the diary (values without a food, with the text the person wrote): the same
+ * fields as "Eingeben" on the food page, with the full text. Only "Änderungen übernehmen": an entry
+ * is not analysed afterwards. New quick entries are made on the food page (`/photo?form=1`); a link
+ * without an entry goes there.
+ */
 export function QuickAddPage() {
   const { date, meal, entryId } = useSearch({ from: '/authed/quick-add' });
   const db = useDb();
@@ -27,158 +33,74 @@ export function QuickAddPage() {
     [db, entryId],
   );
   if (entry === undefined) return null;
-  return <QuickAddForm key={entry?.id ?? 'new'} date={date} defaultMeal={meal} entry={entry} />;
+  if (!entry) return <Navigate to="/photo" search={{ date, meal, form: true }} replace />;
+  return <QuickEntryEditor key={entry.id} entry={entry} />;
 }
 
-function QuickAddForm({
-  date,
-  defaultMeal,
-  entry,
-}: {
-  date: string;
-  defaultMeal: number;
-  entry: FoodEntry | null;
-}) {
+function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
-  const returnToDiary = useReturnToDiary();
   const settings = useSettings();
+  const [state, setState] = useState<QuickEntryState>(() => ({
+    text: quickEntryText(entry),
+    kcal: get(entry.nutrients, N.kcal),
+    protein: entry.nutrients[N.protein] ?? null,
+    carbs: entry.nutrients[N.carbs] ?? null,
+    fat: entry.nutrients[N.fat] ?? null,
+    meal: entry.meal,
+  }));
+  const valid = quickEntryValid(state);
   /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
-  const leaveEntry = (day: string) =>
-    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date: day }, replace: true }));
-  const [name, setName] = useState(entry?.name ?? 'Schnell hinzugefügt');
-  const [kcal, setKcal] = useState<number | null>(entry ? get(entry.nutrients, N.kcal) : null);
-  const [protein, setProtein] = useState<number | null>(entry?.nutrients[N.protein] ?? null);
-  const [carbs, setCarbs] = useState<number | null>(entry?.nutrients[N.carbs] ?? null);
-  const [fat, setFat] = useState<number | null>(entry?.nutrients[N.fat] ?? null);
-  const [meal, setMeal] = useState(entry?.meal ?? defaultMeal);
-
-  const macroKcal = kcalFromMacros({ proteinG: protein ?? 0, carbsG: carbs ?? 0, fatG: fat ?? 0 });
-  const valid = kcal !== null && kcal >= 0 && kcal < 20_000;
+  const leave = () =>
+    goBackOr(
+      router.history,
+      1,
+      () => void navigate({ to: '/', search: { date: entry.date }, replace: true }),
+    );
 
   const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
-    const nutrients = quickAddNutrients({
-      kcal: kcal!,
-      proteinG: protein ?? undefined,
-      carbsG: carbs ?? undefined,
-      fatG: fat ?? undefined,
-    });
-    const base = {
-      source: 'quick' as const,
-      foodId: null,
-      name: name.trim() || 'Schnell hinzugefügt',
-      brand: null,
-      grams: null,
-      portionLabel: null,
-      portionGrams: null,
-      quantity: 1,
-      per100: null,
-      nutrients,
-      meal,
-      mealId: null,
-      aiAnalysisId: null,
-    };
-    if (entry) {
-      await saveRecord(db, 'foodEntries', { ...entry, ...base });
-      toast.success('Änderungen übernommen');
-      return leaveEntry(entry.date);
-    }
-    const id = uuidv7();
-    await saveRecord(db, 'foodEntries', {
-      ...base,
-      id,
-      date,
-      loggedAt: Date.now(),
-      groupId: null,
-      groupName: null,
-      photoId: null,
-      photoIds: null,
-    });
-    toast.success(`${fmt0(kcal!)} kcal eingetragen`);
-    await returnToDiary({ date, focus: { rows: [id], meal } });
+    await saveQuickEntry(db, entry, quickEntryValues(state));
+    toast.success('Änderungen übernommen');
+    leave();
   }
 
   return (
     <Page
-      title={entry ? 'Schnelleintrag bearbeiten' : 'Schnelleingabe'}
+      title="Schnelleintrag bearbeiten"
       back
       withTabBar={false}
+      footer={
+        <Button size="lg" disabled={!valid || saving} onClick={() => void run(save)}>
+          Änderungen übernehmen
+        </Button>
+      }
       actions={
-        entry ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Eintrag löschen"
-            onClick={async () => {
-              await deleteRecord(db, 'foodEntries', entry.id);
-              toast('Eintrag gelöscht', {
-                action: {
-                  label: 'Rückgängig',
-                  onClick: () => void restoreRecord(db, 'foodEntries', entry.id),
-                },
-              });
-              leaveEntry(entry.date);
-            }}
-          >
-            <Trash2 className="text-destructive" aria-hidden />
-          </Button>
-        ) : undefined
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Eintrag löschen"
+          onClick={async () => {
+            await deleteRecord(db, 'foodEntries', entry.id);
+            toast('Eintrag gelöscht', {
+              action: {
+                label: 'Rückgängig',
+                onClick: () => void restoreRecord(db, 'foodEntries', entry.id),
+              },
+            });
+            leave();
+          }}
+        >
+          <Trash2 className="text-destructive" aria-hidden />
+        </Button>
       }
     >
       <Section>
-        <form
-          className="grid gap-4 p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(save);
-          }}
-        >
-          <div className="grid gap-1.5">
-            <Label htmlFor="qa-name">Bezeichnung</Label>
-            <Input id="qa-name" autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <NumberField label="Kalorien" unit="kcal" value={kcal} onValueChange={setKcal} integer />
-          <div className="grid grid-cols-3 gap-3">
-            <NumberField label="Protein" unit="g" value={protein} onValueChange={setProtein} />
-            <NumberField label="Kohlenh." unit="g" value={carbs} onValueChange={setCarbs} />
-            <NumberField label="Fett" unit="g" value={fat} onValueChange={setFat} />
-          </div>
-          {macroKcal > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Makros ergeben ≈ {fmt0(macroKcal)} kcal.{' '}
-              {kcal === null && (
-                <button
-                  type="button"
-                  className="text-primary underline"
-                  onClick={() => setKcal(Math.round(macroKcal))}
-                >
-                  Übernehmen
-                </button>
-              )}
-            </p>
-          )}
-          <div className="grid gap-1.5">
-            <Label htmlFor="qa-meal">Mahlzeit</Label>
-            <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
-              <SelectTrigger id="qa-meal" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(settings?.mealNames ?? []).map((n, i) => (
-                  <SelectItem key={i} value={String(i)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button type="submit" size="lg" disabled={!valid || saving}>
-            {entry ? 'Änderungen übernehmen' : 'Eintragen'}
-          </Button>
-        </form>
+        <div className="p-4">
+          <QuickEntryFields value={state} onChange={setState} mealNames={settings?.mealNames ?? []} />
+        </div>
       </Section>
     </Page>
   );

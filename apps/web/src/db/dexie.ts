@@ -10,6 +10,7 @@ import Dexie, { type EntityTable, type Table } from 'dexie';
 import type { LocalPhoto } from './photos';
 import type {
   AiAnalysisResult,
+  AiTypedValues,
   AnySyncRecord,
   CustomExerciseType,
   CustomFood,
@@ -70,10 +71,15 @@ export interface AiQueueItem {
    */
   analyzedPhotoIds?: number[];
   /**
-   * "Beschreiben statt fotografieren": the meal was described in `text`, there are no photos (unless
+   * "Eingeben" with a text: the meal was described in `text`, there are no photos (unless
    * some were added in the review later). Analysed with the same call, without images.
    */
   textOnly?: boolean;
+  /**
+   * Calories and macros the person typed next to the description ("Eingeben"): sent with every
+   * analysis of this item as a clue for the amounts. The review shows what the AI found.
+   */
+  typed?: AiTypedValues;
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */

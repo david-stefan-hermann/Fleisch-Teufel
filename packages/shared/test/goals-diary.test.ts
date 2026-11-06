@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { goalForDate, microTarget, targetsForDate, uniformWeek } from '../src/goals.js';
-import { microStatus, summarizeDay } from '../src/diary.js';
+import { microStatus, QUICK_TITLE_MAX, quickEntryTitle, summarizeDay } from '../src/diary.js';
 import { dailyRows, periodStats } from '../src/reports.js';
 import type { ExerciseEntry, FoodEntry, Goal } from '../src/schemas.js';
 
@@ -38,6 +38,7 @@ const entry = (date: string, meal: number, kcal: number, extra: Record<string, n
   groupName: null,
   photoId: null,
   photoIds: null,
+  note: null,
 });
 
 const exercise = (date: string, kcal: number): ExerciseEntry => ({
@@ -168,5 +169,33 @@ describe('day summary & reports', () => {
     );
     expect(st.avgNutrients).toEqual({});
     expect(st.avgTargets).toEqual({ kcal: 0, proteinG: 0, fatG: 0, carbsG: 0 });
+  });
+});
+
+describe('quick entry title', () => {
+  it('is "Schnelleingabe" without a text', () => {
+    expect(quickEntryTitle('')).toBe('Schnelleingabe');
+    expect(quickEntryTitle('  \n ')).toBe('Schnelleingabe');
+    expect(quickEntryTitle(null)).toBe('Schnelleingabe');
+  });
+
+  it('is the text itself while it is short, its first line only', () => {
+    expect(quickEntryTitle('  Döner mit allem ')).toBe('Döner mit allem');
+    expect(quickEntryTitle('\nKantine:  Schnitzel\nmit Pommes und Salat')).toBe('Kantine: Schnitzel');
+    const exact = 'x'.repeat(QUICK_TITLE_MAX);
+    expect(quickEntryTitle(exact)).toBe(exact);
+  });
+
+  it('cuts a long text at a word boundary with an ellipsis', () => {
+    const text =
+      'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner gemischter Salat. Danach noch ein Espresso.';
+    const title = quickEntryTitle(text);
+    expect(title).toBe('Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…');
+    expect(title.length).toBeLessThanOrEqual(QUICK_TITLE_MAX);
+    // A word that ends exactly at the limit stays whole.
+    const fits = `${'a'.repeat(29)} ${'b'.repeat(29)} und mehr`;
+    expect(quickEntryTitle(fits)).toBe(`${'a'.repeat(29)} ${'b'.repeat(29)}…`);
+    // One endless word is cut where it is.
+    expect(quickEntryTitle('y'.repeat(200))).toBe(`${'y'.repeat(QUICK_TITLE_MAX - 1)}…`);
   });
 });

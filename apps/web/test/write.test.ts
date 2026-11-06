@@ -16,12 +16,15 @@ import {
   logAiMeal,
   logFoodEntry,
   logItems,
+  logQuickEntry,
   moveEntriesToMeal,
   logTrainings,
+  quickEntryText,
   saveExercise,
   saveExerciseTemplate,
   saveMealFromEntries,
   saveMealFromItems,
+  saveQuickEntry,
 } from '@/db/entries';
 import {
   addGroupDraftPhotos,
@@ -56,6 +59,7 @@ import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 import { saveOnboarding } from '@/features/goals/saveOnboarding';
+import { entriesCsv } from '@/features/reports/export';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -171,6 +175,151 @@ describe('local writes', () => {
       saveRecord(d, 'weightEntries', { id: 'w:2026-10-09', date: '2026-10-09', kg: 5 }),
     ).rejects.toThrow();
     expect(await d.outbox.count()).toBe(0);
+  });
+
+  it('logs a quick entry: the values, the full text as note, its beginning as the name', async () => {
+    const d = db();
+    const text =
+      'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner gemischter Salat.\nDanach noch ein Espresso.';
+    const id = await logQuickEntry(d, '2026-11-06', {
+      meal: 2,
+      text: `  ${text}  `,
+      kcal: 950,
+      proteinG: 40,
+      carbsG: null,
+      fatG: 0,
+    });
+    const saved = (await d.foodEntries.get(id))!;
+    expect(saved).toMatchObject({
+      date: '2026-11-06',
+      meal: 2,
+      source: 'quick',
+      foodId: null,
+      name: 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…',
+      note: text,
+      nutrients: { ENERCC: 950, PROT625: 40 },
+      grams: null,
+      groupId: null,
+      mealId: null,
+    });
+    expect(quickEntryText(saved)).toBe(text);
+    // Without a text: "Schnelleingabe", no note.
+    const plain = (await d.foodEntries.get(
+      await logQuickEntry(d, '2026-11-06', {
+        meal: 0,
+        text: ' ',
+        kcal: 200,
+        proteinG: null,
+        carbsG: null,
+        fatG: null,
+      }),
+    ))!;
+    expect(plain).toMatchObject({ name: 'Schnelleingabe', note: null });
+    expect(quickEntryText(plain)).toBe('');
+
+    // Editing changes text, values and meal; the day, the time and the id stay.
+    await saveQuickEntry(d, saved, {
+      meal: 1,
+      text: 'Pizza Salami',
+      kcal: 900,
+      proteinG: null,
+      carbsG: 100,
+      fatG: null,
+    });
+    expect(await d.foodEntries.get(id)).toMatchObject({
+      id,
+      date: '2026-11-06',
+      loggedAt: saved.loggedAt,
+      meal: 1,
+      name: 'Pizza Salami',
+      note: 'Pizza Salami',
+      nutrients: { ENERCC: 900, CHO: 100 },
+    });
+    expect(await d.foodEntries.count()).toBe(2);
+  });
+
+  it('a quick entry of an older app version shows its own name as text and keeps a default name', async () => {
+    const d = db();
+    const old = async (name: string) => {
+      const id = await logQuickEntry(d, '2026-11-06', {
+        meal: 0,
+        text: '',
+        kcal: 100,
+        proteinG: null,
+        carbsG: null,
+        fatG: null,
+      });
+      await patchRecord(d, 'foodEntries', id, { name });
+      return (await d.foodEntries.get(id))!;
+    };
+    const croissant = await old('Croissant');
+    expect(quickEntryText(croissant)).toBe('Croissant');
+    const unnamed = await old('Schnell hinzugefügt');
+    expect(quickEntryText(unnamed)).toBe('');
+    // Saved without a text, it is not renamed.
+    await saveQuickEntry(d, unnamed, {
+      meal: 0,
+      text: '',
+      kcal: 150,
+      proteinG: null,
+      carbsG: null,
+      fatG: null,
+    });
+    expect(await d.foodEntries.get(unnamed.id)).toMatchObject({ name: 'Schnell hinzugefügt', note: null });
+  });
+
+  it('copies of a quick entry keep its note; as an ingredient of a meal it has none', async () => {
+    const d = db();
+    const y = '2026-11-05';
+    const id = await logQuickEntry(d, y, {
+      meal: 1,
+      text: 'Kantine: Schnitzel mit Pommes',
+      kcal: 800,
+      proteinG: null,
+      carbsG: null,
+      fatG: null,
+    });
+    const source = (await d.foodEntries.get(id))!;
+    // Swipe right, paste on another day.
+    const clip = await copyToClipboard(d, 'entry', source.name, [source]);
+    const [pasted] = await pasteClipboard(d, clip, { date: '2026-11-06', meal: 1 });
+    expect(await d.foodEntries.get(pasted!)).toMatchObject({
+      name: 'Kantine: Schnitzel mit Pommes',
+      note: 'Kantine: Schnitzel mit Pommes',
+      groupId: null,
+    });
+    // The whole diary meal copied: the same.
+    const mealClip = await copyMealToClipboard(d, 'Mittagessen', [source]);
+    const [again] = await pasteClipboard(d, mealClip, { date: '2026-11-06', meal: 2 });
+    expect((await d.foodEntries.get(again!))!.note).toBe('Kantine: Schnitzel mit Pommes');
+    // Saved as a meal, the entry is an ingredient: only the item fields.
+    const mealId = await saveMealFromEntries(d, 'Kantine', [source]);
+    expect((await d.meals.get(mealId))!.items[0]).not.toHaveProperty('note');
+    expect(entriesToMealItems([source])[0]).not.toHaveProperty('note');
+    // Logged from that meal: a group, no note.
+    const [fromMeal] = await logItems(
+      d,
+      [{ ...entriesToMealItems([source])[0]!, note: 'x' }],
+      { date: '2026-11-06', meal: 0 },
+      { mealId },
+    );
+    expect((await d.foodEntries.get(fromMeal!))!.note).toBeNull();
+  });
+
+  it('exports the note of a quick entry as the last column', async () => {
+    const d = db();
+    await logQuickEntry(d, '2026-11-06', {
+      meal: 0,
+      text: 'Brötchen beim Bäcker',
+      kcal: 300,
+      proteinG: null,
+      carbsG: null,
+      fatG: null,
+    });
+    const csv = entriesCsv(await d.foodEntries.toArray(), ['Frühstück'], 'excel-de');
+    const [header, row] = csv.trim().split(/\r?\n/);
+    expect(header!.split(';').at(-1)).toBe('Notiz');
+    expect(row!.split(';').at(-1)).toBe('Brötchen beim Bäcker');
   });
 
   it('logs one food on one day', async () => {
@@ -1325,6 +1474,7 @@ describe('closing all past days ("Alle vergangenen Tage abschließen")', () => {
     photoId: null,
     cookedGrams: null,
     photoIds: null,
+    note: null,
     deleted,
   });
   const note = (date: string, completedAt: number | null, text = '') => ({

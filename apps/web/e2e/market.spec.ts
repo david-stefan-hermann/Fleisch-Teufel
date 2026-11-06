@@ -39,10 +39,12 @@ test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" co
   await first.click();
   await page.getByRole('button', { name: 'Zu Frühstück eintragen' }).click();
   await expect(page.getByText(`${picked} eingetragen`)).toBeVisible();
-  await page.goto(`/quick-add?date=${y}&meal=1`);
-  await page.getByLabel('Bezeichnung').fill('Kantine');
+  await page.goto(`/photo?form=1&date=${y}&meal=1`);
+  // The form names the day it logs for when that is not today.
+  await expect(page.getByText(/^Gestern, /)).toBeVisible();
+  await page.getByLabel('Was hast du gegessen?').fill('Kantine');
   await page.getByLabel('Kalorien').fill('650');
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('Kantine', { exact: true })).toBeVisible();
 
   // Today: breakfast offers the food (last amount) and yesterday's breakfast; lunch only "Wie gestern"
@@ -71,17 +73,21 @@ test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" co
   await expect(page.getByText('Mittagessen von gestern eingetragen')).toBeVisible();
 });
 
-test('describe a meal instead of photographing it: text-only analysis, same review', async ({ page }) => {
+test('"Eingeben" with a text: analysed without a photo, typed values go along as a clue, same review', async ({
+  page,
+}) => {
   await register(page);
   await page.route('**/api/ai/status', (r) =>
     r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
   );
   let images = -1;
   let text = '';
+  let typed = '';
   await page.route('**/api/ai/analyze', async (r) => {
     const body = r.request().postDataBuffer()!.toString('utf8');
     images = (body.match(/name="image"/g) ?? []).length;
     text = /name="text"\r\n\r\n([^\r]*)/.exec(body)?.[1] ?? '';
+    typed = /name="typed"\r\n\r\n([^\r]*)/.exec(body)?.[1] ?? '';
     await r.fulfill({
       json: {
         analysisId: '11111111-2222-4333-8444-555555555555',
@@ -120,12 +126,33 @@ test('describe a meal instead of photographing it: text-only analysis, same revi
     });
   });
   await page.goto('/photo?meal=1');
-  await page.getByRole('button', { name: 'Beschreiben statt fotografieren' }).click();
+  await page.getByRole('button', { name: 'Eingeben' }).click();
+  await expect(page).toHaveURL(/form=true/);
+  const log = page.getByRole('button', { name: 'Eintragen', exact: true });
+  const analyze = page.getByRole('button', { name: 'Analysieren', exact: true });
+  // Nothing typed: nothing to do yet.
+  await expect(log).toBeDisabled();
+  await expect(analyze).toHaveCount(0);
+  // Only a text: it can only be analysed.
   await page.getByLabel('Was hast du gegessen?').fill('Döner mit allem');
-  await page.getByRole('button', { name: 'Analysieren', exact: true }).click();
+  await expect(analyze).toBeEnabled();
+  await expect(log).toHaveCount(0);
+  // Text and values: both, "Eintragen" (right) is the main button.
+  await page.getByLabel('Kalorien').fill('700');
+  await page.getByLabel('Protein').fill('35');
+  await expect(log).toBeEnabled();
+  const [a, l] = [(await analyze.boundingBox())!, (await log.boundingBox())!];
+  expect(a.x).toBeLessThan(l.x);
+  expect(Math.abs(a.y - l.y)).toBeLessThan(2);
+  expect(Math.abs(a.width - l.width)).toBeLessThan(2);
+  await analyze.click();
   await expect(page.getByRole('heading', { level: 1, name: 'Ergebnis prüfen' })).toBeVisible();
   expect(images).toBe(0);
   expect(text).toContain('Döner mit allem');
+  // The typed values are a clue for the AI; the review shows what it found.
+  expect(JSON.parse(typed)).toEqual({ kcal: 700, proteinG: 35 });
+  // The review took the place of the form: closing it shows the camera, not the filled form.
+  await expect(page).not.toHaveURL(/form=/);
   // The description is the review's hint; no photo, but "+" to add one.
   await expect(page.getByLabel('Beschreibung der Mahlzeit')).toHaveValue('Döner mit allem');
   await expect(page.getByRole('button', { name: 'Fotos hinzufügen' })).toBeVisible();
@@ -135,4 +162,63 @@ test('describe a meal instead of photographing it: text-only analysis, same revi
   await page.getByRole('button', { name: 'Meal eintragen' }).click();
   await expect(page.getByText('„Döner“ eingetragen')).toBeVisible();
   await expect(mealCard(page, 'Mittagessen').getByRole('link', { name: 'Döner' })).toBeVisible();
+});
+
+test('"Eingeben" with values: a quick entry titled with the beginning of the text, edited with the full text', async ({
+  page,
+}) => {
+  await register(page);
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=1/);
+  // No header icons any more; two buttons of the same width under the camera.
+  for (const name of ['Schnelleingabe', 'Lebensmittel suchen'])
+    await expect(page.getByRole('link', { name })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Beschreiben statt fotografieren' })).toHaveCount(0);
+  const type = page.getByRole('button', { name: 'Eingeben' });
+  const find = page.getByRole('link', { name: 'Suchen' });
+  const [t, f] = [(await type.boundingBox())!, (await find.boundingBox())!];
+  expect(t.x).toBeLessThan(f.x);
+  expect(Math.abs(t.y - f.y)).toBeLessThan(2);
+  expect(Math.abs(t.width - f.width)).toBeLessThan(2);
+  await type.click();
+
+  const text =
+    'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner gemischter Salat. Danach noch ein Espresso.';
+  await page.getByLabel('Was hast du gegessen?').fill(text);
+  await page.getByLabel('Kalorien').fill('950');
+  // The meal of the "+" is preselected and can be changed.
+  await expect(page.getByRole('combobox', { name: 'Mahlzeit' })).toHaveText('Mittagessen');
+  // The AI is off on this server: the values are logged, nothing is analysed.
+  await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await expect(page.getByText('950 kcal eingetragen')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  const title = 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…';
+  const row = mealCard(page, 'Mittagessen').getByRole('link', { name: new RegExp(`^${title}`) });
+  await expect(row).toContainText('Schnell eingetragen');
+  await expect(row).toContainText('950');
+  // Camera and form are gone from the history.
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/photo/);
+  await page.goForward();
+
+  // A tap opens the same fields with the full text; an entry is only changed, not analysed.
+  await row.click();
+  await expect(page).toHaveURL(/\/quick-add\?/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Schnelleintrag bearbeiten' })).toBeVisible();
+  await expect(page.getByLabel('Was hast du gegessen?')).toHaveValue(text);
+  await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toHaveCount(0);
+  await page.getByLabel('Kalorien').fill('900');
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page.getByText('Änderungen übernommen')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(row).toContainText('900');
+
+  // Without a text the entry is called "Schnelleingabe"; an old link to the quick add lands in the form.
+  await page.goto('/quick-add?meal=0');
+  await expect(page).toHaveURL(/\/photo\?.*form=true/);
+  await page.getByLabel('Kalorien').fill('120');
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await expect(mealCard(page, 'Frühstück').getByText('Schnelleingabe', { exact: true })).toBeVisible();
 });

@@ -2,6 +2,11 @@
 import {
   foodFromMeal,
   groupDiaryEntries,
+  MAX_HINT_LENGTH,
+  QUICK_ENTRY_DEFAULT_NAMES,
+  QUICK_ENTRY_NAME,
+  quickAddNutrients,
+  quickEntryTitle,
   rescaleItem,
   scaleNutrients,
   uuidv7,
@@ -22,8 +27,20 @@ import { patchRecord, restoreRecord, saveRecord } from './write';
 
 export type NewFoodEntry = Omit<
   FoodEntry,
-  'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId' | 'photoIds'
+  | 'id'
+  | 'updatedAt'
+  | 'deleted'
+  | 'date'
+  | 'loggedAt'
+  | 'groupId'
+  | 'groupName'
+  | 'photoId'
+  | 'photoIds'
+  | 'note'
 >;
+
+/** A logged item that may carry the note of the quick entry it was copied from (`entryToItem`). */
+export type DiaryItem = MealItem & { note?: string | null };
 
 /** Logs one food on a day (the food page). Returns the id of the new entry. */
 export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string): Promise<string> {
@@ -37,8 +54,77 @@ export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string)
     groupName: null,
     photoId: null,
     photoIds: null,
+    note: null,
   });
   return id;
+}
+
+/** What the quick entry form holds: the text and the typed values. */
+export interface QuickEntryValues {
+  meal: number;
+  /** "Was hast du gegessen?", in full; may be empty. */
+  text: string;
+  kcal: number;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+}
+
+/** The fields of a quick entry from the form: values without a food, the text as note and title. */
+function quickEntryFields(v: QuickEntryValues, keepName?: string) {
+  const text = v.text.trim().slice(0, MAX_HINT_LENGTH);
+  return {
+    source: 'quick' as const,
+    foodId: null,
+    // Without a text an entry of an older app version keeps the name it has.
+    name: text ? quickEntryTitle(text) : (keepName ?? QUICK_ENTRY_NAME),
+    brand: null,
+    grams: null,
+    portionLabel: null,
+    portionGrams: null,
+    quantity: 1,
+    per100: null,
+    nutrients: quickAddNutrients({
+      kcal: v.kcal,
+      proteinG: v.proteinG ?? undefined,
+      carbsG: v.carbsG ?? undefined,
+      fatG: v.fatG ?? undefined,
+    }),
+    meal: v.meal,
+    mealId: null,
+    aiAnalysisId: null,
+    note: text || null,
+  };
+}
+
+/**
+ * "Eintragen" of the quick entry form: a plain entry with the typed values (no food, no group). The
+ * full text goes into `note`, its shortened first line is the name. Returns the id of the new entry.
+ */
+export async function logQuickEntry(db: UserDb, date: ISODate, values: QuickEntryValues): Promise<string> {
+  const id = uuidv7();
+  await saveRecord(db, 'foodEntries', {
+    ...quickEntryFields(values),
+    id,
+    date,
+    loggedAt: Date.now(),
+    groupId: null,
+    groupName: null,
+    photoId: null,
+    photoIds: null,
+  });
+  return id;
+}
+
+/** "Änderungen übernehmen" of a quick entry: text, values and meal; day, time and group stay. */
+export async function saveQuickEntry(db: UserDb, entry: FoodEntry, values: QuickEntryValues): Promise<void> {
+  const keep = QUICK_ENTRY_DEFAULT_NAMES.includes(entry.name) ? entry.name : undefined;
+  await saveRecord(db, 'foodEntries', { ...entry, ...quickEntryFields(values, keep) });
+}
+
+/** The text a quick entry shows in its form: the note, else the name the person gave it. */
+export function quickEntryText(entry: Pick<FoodEntry, 'name' | 'note'>): string {
+  return entry.note ?? (QUICK_ENTRY_DEFAULT_NAMES.includes(entry.name) ? '' : entry.name);
 }
 
 export async function saveExercise(
@@ -103,11 +189,12 @@ export async function saveExerciseTemplate(
  * saved meal, e.g. an AI analysis logged with "Meal eintragen") all entries share one `groupId`,
  * so the diary shows them as one expandable row; `factor` scales every item (0.5 = half).
  * `photoIds` go on every entry of the group, the first also as `photoId` (the diary row shows it before
- * the meal's photo). Returns the ids of the new entries, in order.
+ * the meal's photo). A plain entry (no group) keeps the note of the quick entry it was copied from.
+ * Returns the ids of the new entries, in order.
  */
 export async function logItems(
   db: UserDb,
-  items: MealItem[],
+  items: DiaryItem[],
   target: { date: string; meal: number },
   opts: {
     factor?: number;
@@ -155,6 +242,7 @@ export async function logItems(
         groupName,
         photoId: photoIds?.[0] ?? null,
         photoIds,
+        note: groupId ? null : (item.note ?? null),
       });
     }
   });
@@ -304,6 +392,16 @@ async function storePhotos(db: UserDb, photos: readonly Blob[]): Promise<string[
   return storePhotoRows(db, await readPhotoBytes(photos));
 }
 
+/**
+ * One diary entry as something to log again on its own (clipboard, "Wie gestern", suggestions): the
+ * item fields plus the note of a quick entry. Ingredients of a meal or a group never carry a note
+ * (`entriesToMealItems`).
+ */
+export function entryToItem(entry: DiaryItem): DiaryItem {
+  const [item] = entriesToMealItems([entry]);
+  return entry.note ? { ...item!, note: entry.note } : item!;
+}
+
 /** Diary entries (or items) as ingredients of a saved meal (only the item fields). */
 export function entriesToMealItems(entries: readonly MealItem[]): MealItem[] {
   return entries.map(
@@ -329,7 +427,8 @@ export function entriesToMealItems(entries: readonly MealItem[]): MealItem[] {
  */
 export interface DiaryPart {
   kind: 'entry' | 'group';
-  items: MealItem[];
+  /** `entry`: one item, with the note of a quick entry. */
+  items: DiaryItem[];
   mealId: string | null;
   groupName: string | null;
   aiAnalysisId: string | null;
@@ -342,7 +441,7 @@ export function diaryParts(entries: readonly FoodEntry[]): DiaryPart[] {
     if (row.kind === 'entry')
       return {
         kind: 'entry',
-        items: entriesToMealItems([row.entry]),
+        items: [entryToItem(row.entry)],
         mealId: null,
         groupName: null,
         aiAnalysisId: null,
@@ -390,7 +489,7 @@ export async function logParts(
 
 /** All ingredients of the parts, groups taken apart (saving a meal, kcal). */
 export function partsItems(parts: readonly DiaryPart[]): MealItem[] {
-  return parts.flatMap((p) => p.items);
+  return entriesToMealItems(parts.flatMap((p) => p.items));
 }
 
 /** The first photo of any group (the analysed or the meal photo it was logged with), or null. */

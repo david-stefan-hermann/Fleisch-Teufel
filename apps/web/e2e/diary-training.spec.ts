@@ -178,10 +178,10 @@ test('saved trainings: manage under "Mehr", edit with explicit save, trash', asy
 
 test('swipe to delete a diary entry with undo, date picker on the title', async ({ page }) => {
   await register(page);
-  await page.goto('/quick-add?meal=0');
-  await page.getByLabel('Bezeichnung').fill('Croissant');
+  await page.goto('/photo?form=1&meal=0');
+  await page.getByLabel('Was hast du gegessen?').fill('Croissant');
   await page.getByLabel('Kalorien').fill('230');
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('Croissant')).toBeVisible();
 
   // A plain tap still opens the entry; a swipe reveals the delete button instead.
@@ -204,7 +204,7 @@ test('swipe to delete a diary entry with undo, date picker on the title', async 
   await expect(page.getByRole('heading', { level: 1 })).toContainText('15');
 });
 
-test('add menu: weight, food (highlighted, middle), training; the food page leads to the search', async ({
+test('add menu: weight, food (highlighted, middle), training; the food page leads to form and search', async ({
   page,
 }) => {
   await register(page);
@@ -229,17 +229,21 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
   await sheet.getByRole('button', { name: 'Essen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Essen eintragen');
-  // Quick add sits left of the magnifier and opens as a new page: back returns to the food page.
-  const quick = page.getByRole('link', { name: 'Schnelleingabe' });
-  expect((await quick.boundingBox())!.x).toBeLessThan(
-    (await page.getByRole('link', { name: 'Lebensmittel suchen' }).boundingBox())!.x,
+  // No header icons; under the camera "Eingeben" (left) and "Suchen" (right).
+  await expect(page.getByRole('banner').getByRole('link')).toHaveCount(0);
+  const type = page.getByRole('button', { name: 'Eingeben' });
+  expect((await type.boundingBox())!.x).toBeLessThan(
+    (await page.getByRole('link', { name: 'Suchen' }).boundingBox())!.x,
   );
-  await quick.click();
-  await expect(page).toHaveURL(/\/quick-add\?/);
-  await page.goBack();
-  await expect(page).toHaveURL(/\/photo\?/);
+  // The form is a step of its own: back returns to the camera.
+  await type.click();
+  await expect(page).toHaveURL(/\/photo\?.*form=true/);
+  await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible();
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  await expect(page).toHaveURL(/\/photo\?(?!.*form=)/);
+  await expect(type).toBeVisible();
   // The search is a page of its own: back returns to the food page, once more to the diary.
-  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await page.getByRole('link', { name: 'Suchen' }).click();
   await expect(page).toHaveURL(/\/add\?/);
   await expect(page.getByRole('link', { name: 'Foto oder Barcode' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Zurück' }).click();
@@ -269,10 +273,11 @@ test('add menu stays compact on a desktop screen', async ({ browser }) => {
 });
 
 async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
-  await page.goto(`/quick-add?meal=${meal}`);
-  await page.getByLabel('Bezeichnung').fill(name);
+  // "Eingeben" on the food page: a text and calories make a quick entry named after the text.
+  await page.goto(`/photo?form=1&meal=${meal}`);
+  await page.getByLabel('Was hast du gegessen?').fill(name);
   await page.getByLabel('Kalorien').fill(kcal);
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 }
 
@@ -329,7 +334,7 @@ test('back means the page before: the diary keeps its place, shows the new entry
   // (b) "+", search, then back twice: every step is the page before, the diary stands where it stood.
   await plus.click();
   await expect(page).toHaveURL(/\/photo\?.*meal=2/);
-  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await page.getByRole('link', { name: 'Suchen' }).click();
   await expect(page).toHaveURL(/\/add\?/);
   await page.goBack();
   await expect(page).toHaveURL(/\/photo\?/);
@@ -342,7 +347,7 @@ test('back means the page before: the diary keeps its place, shows the new entry
   // (a) "+", search, food page, log: the diary is back at the old place with the new entry on the
   // screen (it was there already, so nothing moved).
   await plus.click();
-  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await page.getByRole('link', { name: 'Suchen' }).click();
   await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
   await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
   await expect(page).toHaveURL(/\/food\//);
@@ -375,7 +380,7 @@ test('back means the page before: the diary keeps its place, shows the new entry
   await page.getByText('Happen 15', { exact: true }).click();
   await expect(page).toHaveURL(/quick-add/);
   await page.getByLabel('Kalorien').fill('120');
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
   await expect(page.getByText('Änderungen übernommen')).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   await expect.poll(scrollY).toBeGreaterThan(y2 - 3);

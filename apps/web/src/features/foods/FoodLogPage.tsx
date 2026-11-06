@@ -436,7 +436,7 @@ function FoodLogEditor({
         </div>
       </Section>
 
-      <Section title="Nährwerte dieser Menge">
+      <Section title="Nährwerte">
         <NutrientBreakdown className="px-4 pb-3" nutrients={nutrients} targets={targets} />
       </Section>
 

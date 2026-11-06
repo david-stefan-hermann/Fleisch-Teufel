@@ -9,14 +9,16 @@
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { get, N, photoIdsOf, type FoodEntry, type MealItem } from '@ft/shared';
+import { get, N, photoIdsOf, type FoodEntry } from '@ft/shared';
 import type { UserDb } from './dexie';
 import {
   diaryParts,
   entriesToMealItems,
+  entryToItem,
   firstPhotoId,
   logParts,
   partsItems,
+  type DiaryItem,
   type DiaryPart,
 } from './entries';
 
@@ -28,7 +30,8 @@ export interface Clipboard {
   kind: 'entry' | 'group' | 'meal';
   /** What the row showed: name for toasts, the menu and the default name when saving. */
   name: string;
-  items: MealItem[];
+  /** A single plain entry keeps the note of a quick entry. */
+  items: DiaryItem[];
   mealId: string | null;
   groupName: string | null;
   aiAnalysisId: string | null;
@@ -61,7 +64,7 @@ export async function copyToClipboard(
   const clip: Clipboard = {
     kind,
     name: name.trim().slice(0, 120),
-    items: entriesToMealItems(entries),
+    items: kind === 'entry' && first ? [entryToItem(first)] : entriesToMealItems(entries),
     mealId: group ? first.mealId : null,
     groupName: group ? first.groupName : null,
     aiAnalysisId: group ? first.aiAnalysisId : null,

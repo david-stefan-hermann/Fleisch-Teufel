@@ -36,6 +36,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   groupName: null,
   photoId: null,
   photoIds: null,
+  note: null,
   ...over,
 });
 
@@ -139,6 +140,16 @@ describe('sync', () => {
           ...((ids) => ({ photoId: ids[0]!, photoIds: ids }))([uuidv7(), uuidv7()]),
         }),
       },
+      // A quick entry: values without a food, the full text in `note`, its beginning as the name.
+      {
+        table: 'foodEntries',
+        data: entry({
+          source: 'quick',
+          foodId: null,
+          name: 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…',
+          note: 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner gemischter Salat.\nDanach Espresso.',
+        }),
+      },
       { table: 'settings', data: settings },
       { table: 'goals', data: goal },
       { table: 'meals', data: meal },
@@ -228,7 +239,14 @@ describe('sync', () => {
   });
 
   it('accepts records from older app versions without the newer optional fields', async () => {
-    const { groupId: _g, groupName: _n, photoId: _p, photoIds: _ps, ...oldEntry } = entry({ groupId: null });
+    const {
+      groupId: _g,
+      groupName: _n,
+      photoId: _p,
+      photoIds: _ps,
+      note: _note,
+      ...oldEntry
+    } = entry({ groupId: null });
     const oldExercise = {
       id: uuidv7(),
       updatedAt: 7,
@@ -258,6 +276,7 @@ describe('sync', () => {
       groupName: null,
       photoId: null,
       photoIds: null,
+      note: null,
     });
     expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({ ...oldExercise, note: null });
   });

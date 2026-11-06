@@ -1,6 +1,7 @@
 import {
   aiChoicesSchema,
   cleanGtin,
+  cleanTypedValues,
   ESTIMATED_BRAND,
   ESTIMATED_ID_PREFIX,
   kcalFromMacrosEu,
@@ -32,6 +33,16 @@ import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
 import type { AppEnv, Deps } from '../types.js';
 import { parseJson } from './util.js';
+
+/** The form field `typed` of an analysis: the typed values that are usable, or null. */
+function typedValues(field: unknown) {
+  if (typeof field !== 'string' || field.length > 500) return null;
+  try {
+    return cleanTypedValues(JSON.parse(field));
+  } catch {
+    return null;
+  }
+}
 
 const MEDIA_TYPES: ImageMediaType[] = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Claude API limit per image
@@ -182,10 +193,13 @@ export function aiRoutes(deps: Deps) {
         return c.json({ error: 'expected_multipart' }, 400);
       }
       // One meal, one to MAX_ANALYSIS_PHOTOS photos (field `image` repeated, like the label reading), or
-      // none and a description in `text` ("Beschreiben statt fotografieren").
+      // none and a description in `text` ("Eingeben" on the food page).
       const images = form.getAll('image');
       const text =
         typeof form.get('text') === 'string' ? (form.get('text') as string).slice(0, MAX_HINT_LENGTH) : null;
+      // Values typed next to a description (field `typed`, JSON): a clue for the model. Anything
+      // unreadable or implausible in it is ignored, never a reason to refuse the analysis.
+      const typed = typedValues(form.get('typed'));
       if (!images.every((i) => i instanceof File)) return c.json({ error: 'image_missing' }, 400);
       if (images.length === 0 && !text?.trim()) return c.json({ error: 'image_missing' }, 400);
       if (images.length > MAX_ANALYSIS_PHOTOS) return c.json({ error: 'too_many_images' }, 400);
@@ -200,7 +214,7 @@ export function aiRoutes(deps: Deps) {
       try {
         const foodSearch = await createFoodSearch(deps, user.id);
         const out = await analyzer.analyze(
-          { images: read, text: text?.trim() || null },
+          { images: read, text: text?.trim() || null, ...(typed && { typed }) },
           foodSearch.search,
           AbortSignal.timeout(ANALYSIS_BUDGET_MS),
         );

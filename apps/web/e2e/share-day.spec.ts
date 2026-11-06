@@ -21,10 +21,10 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
   await page.getByRole('button', { name: 'Konto erstellen' }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
 
-  await page.goto('/quick-add?meal=0');
-  await page.getByLabel('Bezeichnung').fill('Croissant');
+  await page.goto('/photo?form=1&meal=0');
+  await page.getByLabel('Was hast du gegessen?').fill('Croissant');
   await page.getByLabel('Kalorien').fill('230');
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('Croissant', { exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Tag teilen' }).click();

@@ -137,6 +137,12 @@ export const foodPortionSchema = z.object({
 });
 export type FoodPortion = z.infer<typeof foodPortionSchema>;
 
+/**
+ * Longest hint or description of a meal analysis (characters); the server cuts off the rest. Also
+ * the longest text of a quick entry (`foodEntries.note`): both come from the same field.
+ */
+export const MAX_HINT_LENGTH = 1000;
+
 /** One logged item, shared by diary entries and saved meals. Nutrients are copied at log time. */
 export const loggedItemShape = {
   foodId: idSchema.nullable(),
@@ -209,6 +215,12 @@ export const foodEntrySchema = z.object({
    * Defaults to null for records from older app versions (then `photoId` alone, see `photoIdsOf`).
    */
   photoIds: z.array(idSchema).max(10).nullable().default(null),
+  /**
+   * What the person wrote about a quick entry ("Was hast du gegessen?"), in full; `name` is its
+   * shortened first line (`quickEntryTitle`). Null for every other entry and for records from older
+   * app versions.
+   */
+  note: z.string().trim().max(MAX_HINT_LENGTH).nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
 
@@ -435,8 +447,27 @@ export type AiItem = z.infer<typeof aiItemSchema>;
 
 /** Most photos one meal analysis takes (plates, courses, a label or ingredient list). */
 export const MAX_ANALYSIS_PHOTOS = 5;
-/** Longest hint or description of a meal analysis (characters); the server cuts off the rest. */
-export const MAX_HINT_LENGTH = 1000;
+
+/**
+ * Values the person typed next to the description of a meal ("Eingeben": calories and macros of
+ * the whole meal). They go to the analysis as a clue for the amounts, never as its result. A value
+ * that is missing, zero or implausible is dropped on its own.
+ */
+export const aiTypedValuesSchema = z.object({
+  kcal: z.number().positive().max(20_000).optional().catch(undefined),
+  proteinG: z.number().positive().max(2_000).optional().catch(undefined),
+  carbsG: z.number().positive().max(2_000).optional().catch(undefined),
+  fatG: z.number().positive().max(2_000).optional().catch(undefined),
+});
+export type AiTypedValues = z.infer<typeof aiTypedValuesSchema>;
+
+/** The typed values as sent and stored: only the ones that are there; null when none is. */
+export function cleanTypedValues(input: unknown): AiTypedValues | null {
+  const parsed = aiTypedValuesSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const out = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+  return Object.keys(out).length > 0 ? (out as AiTypedValues) : null;
+}
 
 /** Id prefix of an estimated food (`est:<analysisId>:<index>`); such a food exists only in its analysis. */
 export const ESTIMATED_ID_PREFIX = 'est:';

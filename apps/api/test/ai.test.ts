@@ -7,6 +7,7 @@ import { customFoods } from '../src/db/schema.js';
 import { candidatesFor, estimatedFood } from '../src/routes/ai.js';
 import { blsToFood, loadBls } from '../src/foods/catalog.js';
 import { costUsd } from '../src/ai/pricing.js';
+import { userPrompt } from '../src/ai/prompt.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
 const item = (over: Partial<AiItem>): AiItem => ({
@@ -441,6 +442,39 @@ describe('POST /api/ai/analyze', () => {
     const blank = new FormData();
     blank.set('text', '   ');
     expect((await c.req('POST', '/api/ai/analyze', blank)).status).toBe(400);
+  });
+
+  it('passes typed calories and macros on as a clue and ignores what is unusable', async () => {
+    const send = async (typed: string) => {
+      const form = new FormData();
+      form.set('text', 'Nudeln mit Pesto');
+      form.set('typed', typed);
+      const r = await c.req('POST', '/api/ai/analyze', form);
+      expect(r.status).toBe(200);
+      return received.at(-1);
+    };
+    expect(await send(JSON.stringify({ kcal: 600, proteinG: 40, carbsG: 0, fatG: -3 }))).toEqual({
+      images: [],
+      text: 'Nudeln mit Pesto',
+      typed: { kcal: 600, proteinG: 40 },
+    });
+    // Nothing usable: analysed like a plain description.
+    for (const junk of ['{"kcal":"viel"}', 'kein json', '{}', JSON.stringify({ kcal: 999_999 })])
+      expect(await send(junk)).toEqual({ images: [], text: 'Nudeln mit Pesto' });
+  });
+
+  it('puts the typed values into the prompt as a clue for the amounts', () => {
+    expect(userPrompt('Nudeln mit Pesto', 0, { kcal: 600, proteinG: 40.25 })).toBe(
+      'Kein Foto. Beschreibung der Mahlzeit durch die Person: """Nudeln mit Pesto"""\n\n' +
+        'Angabe der Person zur ganzen Mahlzeit: etwa 600 kcal, 40,3 g Protein. ' +
+        'Nimm sie als Anhaltspunkt für die Mengen.\n\nAnalysiere die beschriebene Mahlzeit.',
+    );
+    expect(userPrompt('halbe Portion', 1, { fatG: 20 })).toContain(
+      'Angabe der Person zur ganzen Mahlzeit: etwa 20 g Fett.',
+    );
+    // Without values the prompt is what it was.
+    expect(userPrompt('Nudeln', 0, null)).toBe(userPrompt('Nudeln', 0));
+    expect(userPrompt(null, 2, {})).toBe('Analysiere die 2 Fotos zusammen als eine Mahlzeit.');
   });
 
   it('refuses more photos than one analysis takes, and an oversized one among them', async () => {

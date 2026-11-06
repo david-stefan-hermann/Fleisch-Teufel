@@ -1,3 +1,5 @@
+import type { AiTypedValues } from '@ft/shared';
+
 /**
  * Prompt for the photo analysis. The model identifies foods, estimates grams and picks each food
  * from the database with `search_foods`; nutrient values come from the chosen database food. Only
@@ -34,11 +36,29 @@ So gehst du vor:
 - notes: ein bis zwei kurze Sätze auf Deutsch zu Unsicherheiten oder Hinweisen (z. B. "Soßenmenge schwer einzuschätzen, Teller von der Seite fotografieren hilft."). null, wenn nichts zu sagen ist.
 - Wenn auf keinem Foto Essen zu sehen ist: items leer lassen und in notes erklären, warum.`;
 
-export function userPrompt(text: string | null, photos = 1): string {
+export function userPrompt(text: string | null, photos = 1, typed: AiTypedValues | null = null): string {
   const note = text?.trim();
+  const clue = typedClue(typed);
   if (photos === 0)
-    return `Kein Foto. Beschreibung der Mahlzeit durch die Person: """${(note ?? '').slice(0, 1000)}"""\n\nAnalysiere die beschriebene Mahlzeit.`;
+    return `Kein Foto. Beschreibung der Mahlzeit durch die Person: """${(note ?? '').slice(0, 1000)}"""\n\n${clue}Analysiere die beschriebene Mahlzeit.`;
   const task =
     photos > 1 ? `Analysiere die ${photos} Fotos zusammen als eine Mahlzeit.` : 'Analysiere das Foto.';
-  return note ? `Notiz der Person: """${note.slice(0, 1000)}"""\n\n${task}` : task;
+  return note ? `Notiz der Person: """${note.slice(0, 1000)}"""\n\n${clue}${task}` : `${clue}${task}`;
+}
+
+/**
+ * What the person typed about the whole meal (calories, macros) as one line for the model: a clue
+ * for the amounts. The nutrients of the result still come from the database foods.
+ */
+function typedClue(typed: AiTypedValues | null): string {
+  if (!typed) return '';
+  const n = (v: number) => String(Math.round(v * 10) / 10).replace('.', ',');
+  const parts = [
+    typed.kcal ? `${n(typed.kcal)} kcal` : null,
+    typed.proteinG ? `${n(typed.proteinG)} g Protein` : null,
+    typed.carbsG ? `${n(typed.carbsG)} g Kohlenhydrate` : null,
+    typed.fatG ? `${n(typed.fatG)} g Fett` : null,
+  ].filter(Boolean);
+  if (parts.length === 0) return '';
+  return `Angabe der Person zur ganzen Mahlzeit: etwa ${parts.join(', ')}. Nimm sie als Anhaltspunkt für die Mengen.\n\n`;
 }

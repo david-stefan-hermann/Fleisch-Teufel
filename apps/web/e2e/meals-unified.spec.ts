@@ -13,10 +13,11 @@ async function register(page: Page) {
 }
 
 async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
-  await page.goto(`/quick-add?meal=${meal}`);
-  await page.getByLabel('Bezeichnung').fill(name);
+  // "Eingeben" on the food page: a text and calories make a quick entry named after the text.
+  await page.goto(`/photo?form=1&meal=${meal}`);
+  await page.getByLabel('Was hast du gegessen?').fill(name);
   await page.getByLabel('Kalorien').fill(kcal);
-  await page.locator('button[type=submit]').click();
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 }
 

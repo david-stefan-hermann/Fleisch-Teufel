@@ -55,6 +55,7 @@ const food = (date: string) => ({
   groupName: null,
   photoId: null,
   photoIds: null,
+  note: null,
 });
 
 const training = (date: string) => ({

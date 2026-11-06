@@ -350,6 +350,7 @@ async function writeGroup(db: UserDb, draft: GroupDraft, asMeal: GroupAsMeal | n
         groupId: first.groupId,
         groupName: groupNameValue,
         ...photos,
+        note: null,
       });
     }
     for (const e of entries) if (!kept.has(e.id)) await deleteRecord(db, 'foodEntries', e.id);

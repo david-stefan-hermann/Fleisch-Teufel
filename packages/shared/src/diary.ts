@@ -37,6 +37,34 @@ export function quickAddNutrients(v: {
   return out;
 }
 
+/** Name of a quick entry without a text. */
+export const QUICK_ENTRY_NAME = 'Schnelleingabe';
+/** Names a quick entry got by default (the older one too): such a name is no text of the person. */
+export const QUICK_ENTRY_DEFAULT_NAMES: readonly string[] = [QUICK_ENTRY_NAME, 'Schnell hinzugefügt'];
+/** Longest title of a quick entry in the diary (characters, the ellipsis included). */
+export const QUICK_TITLE_MAX = 60;
+
+/**
+ * Title of a quick entry in the diary: the beginning of what the person wrote (its first line),
+ * cut at a word boundary with "…" when it is longer than `QUICK_TITLE_MAX`; "Schnelleingabe"
+ * without a text. The full text stays in the entry's `note`.
+ */
+export function quickEntryTitle(text: string | null | undefined): string {
+  const line =
+    (text ?? '')
+      .split('\n')
+      .map((l) => l.trim().replace(/\s+/g, ' '))
+      .find((l) => l.length > 0) ?? '';
+  if (!line) return QUICK_ENTRY_NAME;
+  if (line.length <= QUICK_TITLE_MAX) return line;
+  const cut = line.slice(0, QUICK_TITLE_MAX - 1);
+  // A word that ends exactly at the cut is whole; otherwise back to the last space (unless that
+  // would leave less than half: one very long word is cut where it is).
+  const space = line[QUICK_TITLE_MAX - 1] === ' ' ? cut.length : cut.lastIndexOf(' ');
+  const head = space >= QUICK_TITLE_MAX / 2 ? cut.slice(0, space) : cut;
+  return `${head.replace(/[\s,;:.!?(-]+$/, '')}…`;
+}
+
 /** Re-scales an item to a new quantity (used when editing entries / logging meals at a factor). */
 export function rescaleItem<
   T extends Pick<MealItem, 'grams' | 'portionGrams' | 'quantity' | 'per100' | 'nutrients'>,

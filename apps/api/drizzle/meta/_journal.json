@@ -71,6 +71,13 @@
       "when": 1793222055824,
       "tag": "0009_weight-tape-settings",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793925350797,
+      "tag": "0010_food-entry-note",
+      "breakpoints": true
     }
   ]
 }
