@@ -1445,6 +1445,7 @@ describe('Wheel', () => {
       fireEvent.scroll(el);
     });
     expect(onChange).toHaveBeenLastCalledWith(2);
+    fireEvent.touchEnd(el);
     act(() => void vi.advanceTimersByTime(200));
     expect(onSettle).toHaveBeenLastCalledWith(2);
     // After the stop the next scroll from outside is no turn again.
@@ -1454,6 +1455,129 @@ describe('Wheel', () => {
     });
     act(() => void vi.advanceTimersByTime(400));
     expect(onSettle).toHaveBeenCalledTimes(1);
+  });
+
+  const items = ['5', '10', '15', '20', '25', '30'];
+  /** The wheel as its users hold it: the row it reports becomes its `index`. */
+  function Held({ onSettle, onChange }: { onSettle: (i: number) => void; onChange: (i: number) => void }) {
+    const [index, setIndex] = useState(1);
+    return (
+      <Wheel
+        label="Menge"
+        items={items}
+        index={index}
+        onChange={(i) => {
+          setIndex(i);
+          onChange(i);
+        }}
+        onSettle={(i) => {
+          setIndex(i);
+          onSettle(i);
+        }}
+      />
+    );
+  }
+  const scrollTo = (el: HTMLElement, row: number) =>
+    act(() => {
+      el.scrollTop = row * 44;
+      fireEvent.scroll(el);
+    });
+
+  it('a finger that rests and turns on reports the row it ends on', () => {
+    const onSettle = vi.fn();
+    const onChange = vi.fn();
+    render(<Held onSettle={onSettle} onChange={onChange} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    fireEvent.touchStart(el);
+    scrollTo(el, 3);
+    // The finger still lies on the wheel: no stop yet, whatever the pause.
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onSettle).not.toHaveBeenCalled();
+    scrollTo(el, 4);
+    fireEvent.touchEnd(el);
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onChange).toHaveBeenLastCalledWith(4);
+    expect(onSettle).toHaveBeenLastCalledWith(4);
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(el.scrollTop).toBe(4 * 44);
+  });
+
+  it('letting go without another scroll reports the row', () => {
+    const onSettle = vi.fn();
+    render(<Held onSettle={onSettle} onChange={() => {}} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    fireEvent.touchStart(el);
+    scrollTo(el, 3);
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(onSettle).not.toHaveBeenCalled();
+    fireEvent.touchEnd(el);
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(onSettle).toHaveBeenLastCalledWith(3);
+  });
+
+  it('a tap that turns nothing reports nothing', () => {
+    const onSettle = vi.fn();
+    render(<Held onSettle={onSettle} onChange={() => {}} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    fireEvent.touchStart(el);
+    fireEvent.touchEnd(el);
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onSettle).not.toHaveBeenCalled();
+  });
+
+  it('waits for the snap: a stop between two rows is reported once the wheel sits on one', () => {
+    const onSettle = vi.fn();
+    render(<Held onSettle={onSettle} onChange={() => {}} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    fireEvent.touchStart(el);
+    act(() => {
+      el.scrollTop = 3 * 44 + 15;
+      fireEvent.scroll(el);
+    });
+    fireEvent.touchEnd(el);
+    // Still between the rows after the pause: the snap is running.
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onSettle).not.toHaveBeenCalled();
+    scrollTo(el, 4);
+    act(() => void vi.advanceTimersByTime(200));
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(onSettle).toHaveBeenLastCalledWith(4);
+  });
+
+  it('a wheel that never snaps still reports after a second', () => {
+    const onSettle = vi.fn();
+    render(<Held onSettle={onSettle} onChange={() => {}} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    fireEvent.touchStart(el);
+    act(() => {
+      el.scrollTop = 3 * 44 + 15;
+      fireEvent.scroll(el);
+    });
+    fireEvent.touchEnd(el);
+    act(() => void vi.advanceTimersByTime(1500));
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(onSettle).toHaveBeenLastCalledWith(3);
+  });
+
+  it('a scroll from outside reports nothing and the wheel returns to its value', () => {
+    const onSettle = vi.fn();
+    const onChange = vi.fn();
+    render(<Held onSettle={onSettle} onChange={onChange} />);
+    const el = screen.getByRole('listbox', { name: 'Menge' });
+    // The mount scroll is reported and done.
+    fireEvent.scroll(el);
+    act(() => void vi.advanceTimersByTime(400));
+    scrollTo(el, 4);
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(el.scrollTop).toBe(44);
+    // The scroll back is no turn either.
+    fireEvent.scroll(el);
+    act(() => void vi.advanceTimersByTime(400));
+    expect(onSettle).not.toHaveBeenCalled();
+    expect(el.scrollTop).toBe(44);
   });
 });
 
