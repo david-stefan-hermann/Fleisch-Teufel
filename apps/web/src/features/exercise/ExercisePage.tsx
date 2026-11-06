@@ -8,7 +8,7 @@ import {
   type ExerciseTemplate,
   type Intensity,
 } from '@ft/shared';
-import { Link, useNavigate, useSearch } from '@tanstack/react-router';
+import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronDown, Dumbbell, Save, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
@@ -22,6 +22,8 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight, useSettings, useTrainingHistory } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDayLong } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
+import { useReturnToDiary } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
 import { describe, useTypeOptions, type TypeOption } from './training';
 import { ChipRow, TrainingChip } from './TrainingChips';
@@ -59,6 +61,8 @@ interface Row {
 function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | null }) {
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   const settings = useSettings();
   const weight = useCurrentWeight(date);
   const templates = useLiveQuery(() => db.exerciseTemplates.filter((t) => !t.deleted).sortBy('name'), [db]);
@@ -162,16 +166,20 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
     if (entry) {
       await saveExercise(db, { ...toLog[0]!, date }, entry);
       toast.success(`${toLog[0]!.name}: ${fmt0(toLog[0]!.kcal)} kcal`);
-    } else {
-      await logTrainings(db, date, toLog);
-      toast.success(
-        toLog.length === 1
-          ? `${toLog[0]!.name}: ${fmt0(toLog[0]!.kcal)} kcal`
-          : `${fmt0(toLog.length)} Trainings: ${fmt0(total)} kcal`,
-      );
+      return leaveEntry();
     }
-    await navigate({ to: '/', search: { date } });
+    const ids = await logTrainings(db, date, toLog);
+    toast.success(
+      toLog.length === 1
+        ? `${toLog[0]!.name}: ${fmt0(toLog[0]!.kcal)} kcal`
+        : `${fmt0(toLog.length)} Trainings: ${fmt0(total)} kcal`,
+    );
+    await returnToDiary({ date, focus: { rows: ids } });
   }
+
+  /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
+  const leaveEntry = () =>
+    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date }, replace: true }));
 
   const saveRow = saveKey ? rows.find((r) => r.key === saveKey) : undefined;
   const saveType = saveRow ? typeOf(saveRow.typeKey) : null;
@@ -208,7 +216,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             aria-label="Training löschen"
             onClick={async () => {
               await deleteEntry(db, entry);
-              await navigate({ to: '/', search: { date } });
+              leaveEntry();
             }}
           >
             <Trash2 className="text-destructive" aria-hidden />

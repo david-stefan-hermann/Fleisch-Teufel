@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useClipboard, useDaySuggestions, useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
+import { useRememberLogStart } from '@/lib/logFlow';
 import { DiaryRows, PasteButton } from './MealCard';
 import { DiaryMealMenu } from './DiaryMealMenu';
 import { MealSuggestions } from './MealSuggestions';
@@ -38,6 +39,12 @@ export function DiaryMealPage() {
     [db, date, meal],
   );
   const name = settings?.mealNames[meal] ?? `Mahlzeit ${meal + 1}`;
+  const rememberStart = useRememberLogStart();
+  /** Not the diary: logging from here ends on the diary as a new page (no way back into the forms). */
+  const startLogging = () => {
+    warmUpCamera();
+    rememberStart(date);
+  };
   const totals = sumNutrients((entries ?? []).map((e) => e.nutrients));
 
   return (
@@ -74,7 +81,7 @@ export function DiaryMealPage() {
             <Link
               to="/photo"
               preload="intent"
-              onClick={warmUpCamera}
+              onClick={startLogging}
               search={{ date, meal }}
               aria-label={`Essen zu ${name} eintragen`}
             >
@@ -103,7 +110,7 @@ export function DiaryMealPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<UtensilsCrossed />} title="Noch nichts eingetragen">
                 <Button variant="outline" className="mt-2" asChild>
-                  <Link to="/photo" preload="intent" onClick={warmUpCamera} search={{ date, meal }}>
+                  <Link to="/photo" preload="intent" onClick={startLogging} search={{ date, meal }}>
                     <Plus aria-hidden /> Essen eintragen
                   </Link>
                 </Button>

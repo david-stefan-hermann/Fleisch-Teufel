@@ -8,6 +8,7 @@ import type { AiQueueItem } from '@/db/dexie';
 import { restoreQueueItem, retryQueueItem, takeQueueItem } from '@/features/ai/queue';
 import { useAiImages } from '@/features/ai/useAiImage';
 import { NO_VALUE } from '@/lib/format';
+import { useRememberLogStart } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
 import { useDiaryDrag } from './DiaryDnd';
 
@@ -24,6 +25,7 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
   const photos = useAiImages(item);
   const first = photos?.[0];
   const { dragging } = useDiaryDrag();
+  const rememberStart = useRememberLogStart();
   const failed = item.status === 'failed';
   const name = item.text.trim() || 'Foto-Analyse';
   const state =
@@ -62,6 +64,7 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
           <Link
             to="/photo"
             search={{ date: item.date, meal: item.meal }}
+            onClick={() => rememberStart(item.date)}
             draggable={false}
             className="block truncate font-medium after:absolute after:inset-0 focus-visible:outline-none"
           >

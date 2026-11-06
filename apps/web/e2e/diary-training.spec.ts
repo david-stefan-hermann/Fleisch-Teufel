@@ -310,6 +310,93 @@ test('the "+" of a meal opens the food page for that meal, ⋯ of an empty meal 
   await expect(page).toHaveURL(/\/photo\?.*meal=3/);
 });
 
+test('back means the page before: the diary keeps its place, shows the new entry, never reopens a form', async ({
+  page,
+}) => {
+  await register(page);
+  for (const meal of [0, 1])
+    for (const n of [1, 2, 3, 4, 5]) await quickAdd(page, meal, `Happen ${meal}${n}`, '100');
+  // A clean history inside the app: "Mehr", then the diary.
+  await page.goto('/more');
+  await page.getByRole('link', { name: 'Tagebuch' }).click();
+  await expect(page.getByText('Happen 15', { exact: true })).toBeVisible();
+  const scrollY = () => page.evaluate(() => window.scrollY);
+  const plus = page.getByRole('link', { name: 'Essen zu Abendessen eintragen' });
+  await plus.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const y = await scrollY();
+  expect(y).toBeGreaterThan(300);
+
+  // (b) "+", search, then back twice: every step is the page before, the diary stands where it stood.
+  await plus.click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=2/);
+  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await expect(page).toHaveURL(/\/add\?/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/photo\?/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText('Happen 15', { exact: true })).toBeVisible();
+  await expect.poll(scrollY).toBeGreaterThan(y - 3);
+  expect(await scrollY()).toBeLessThan(y + 3);
+
+  // (a) "+", search, food page, log: the diary is back at the old place with the new entry on the
+  // screen (it was there already, so nothing moved).
+  await plus.click();
+  await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
+  await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
+  await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
+  await expect(page).toHaveURL(/\/food\//);
+  await page.getByRole('button', { name: 'Zu Abendessen eintragen' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const oats = mealCard(page, 'Abendessen').getByText('Hafer Flocken', { exact: true });
+  await expect(oats).toBeInViewport({ ratio: 1 });
+  await expect.poll(scrollY).toBeGreaterThan(y - 3);
+  expect(await scrollY()).toBeLessThan(y + 3);
+  // Search, food page and camera are gone from the history: back leaves the diary.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/more$/);
+  await page.goForward();
+  await expect(page).toHaveURL(/\/$/);
+
+  // (c) Open the entry and delete it: back to the diary, and "back" does not show the deleted entry.
+  await mealCard(page, 'Abendessen').getByText('Hafer Flocken', { exact: true }).click();
+  await expect(page).toHaveURL(/\/entry\//);
+  await page.getByRole('button', { name: 'Eintrag löschen' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText('Hafer Flocken gelöscht')).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/more$/);
+
+  // Changing an entry returns to the diary it was opened from as well, at the same place.
+  await page.goForward();
+  await expect(page.getByText('Happen 15', { exact: true })).toBeVisible();
+  await page.getByText('Happen 15', { exact: true }).evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const y2 = await scrollY();
+  await page.getByText('Happen 15', { exact: true }).click();
+  await expect(page).toHaveURL(/quick-add/);
+  await page.getByLabel('Kalorien').fill('120');
+  await page.locator('button[type=submit]').click();
+  await expect(page.getByText('Änderungen übernommen')).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(scrollY).toBeGreaterThan(y2 - 3);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/more$/);
+
+  // A flow that did not start on the diary (deep link): the diary replaces the form and scrolls to
+  // the new entry, which is far below the top.
+  await page.goto('/add?meal=3');
+  await page.getByLabel('Lebensmittel suchen').fill('haferflocken');
+  await page.getByRole('link', { name: /^Hafer Flocken BLS/ }).click();
+  await page.getByRole('button', { name: 'Zu Snacks eintragen' }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await expect(mealCard(page, 'Snacks').getByText('Hafer Flocken', { exact: true })).toBeInViewport({
+    ratio: 1,
+  });
+  expect(await scrollY()).toBeGreaterThan(300);
+  await page.goBack();
+  await expect(page).not.toHaveURL(/\/food\//);
+});
+
 test('an expanded meal group stays open after visiting one of its entries', async ({ page }) => {
   await register(page);
   await quickAdd(page, 0, 'Joghurt', '150');

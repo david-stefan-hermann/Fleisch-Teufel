@@ -1,5 +1,5 @@
 import { get, kcalFromMacros, N, quickAddNutrients, uuidv7, type FoodEntry } from '@ft/shared';
-import { useNavigate, useSearch } from '@tanstack/react-router';
+import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -15,6 +15,8 @@ import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
+import { useReturnToDiary } from '@/lib/logFlow';
 
 /** Quick add (feature #4): kcal plus optional macros, no food. */
 export function QuickAddPage() {
@@ -39,7 +41,12 @@ function QuickAddForm({
 }) {
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   const settings = useSettings();
+  /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
+  const leaveEntry = (day: string) =>
+    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date: day }, replace: true }));
   const [name, setName] = useState(entry?.name ?? 'Schnell hinzugefügt');
   const [kcal, setKcal] = useState<number | null>(entry ? get(entry.nutrients, N.kcal) : null);
   const [protein, setProtein] = useState<number | null>(entry?.nutrients[N.protein] ?? null);
@@ -74,20 +81,24 @@ function QuickAddForm({
       mealId: null,
       aiAnalysisId: null,
     };
-    if (entry) await saveRecord(db, 'foodEntries', { ...entry, ...base });
-    else
-      await saveRecord(db, 'foodEntries', {
-        ...base,
-        id: uuidv7(),
-        date,
-        loggedAt: Date.now(),
-        groupId: null,
-        groupName: null,
-        photoId: null,
-        photoIds: null,
-      });
-    toast.success(entry ? 'Änderungen übernommen' : `${fmt0(kcal!)} kcal eingetragen`);
-    await navigate({ to: '/', search: { date: entry?.date ?? date } });
+    if (entry) {
+      await saveRecord(db, 'foodEntries', { ...entry, ...base });
+      toast.success('Änderungen übernommen');
+      return leaveEntry(entry.date);
+    }
+    const id = uuidv7();
+    await saveRecord(db, 'foodEntries', {
+      ...base,
+      id,
+      date,
+      loggedAt: Date.now(),
+      groupId: null,
+      groupName: null,
+      photoId: null,
+      photoIds: null,
+    });
+    toast.success(`${fmt0(kcal!)} kcal eingetragen`);
+    await returnToDiary({ date, focus: { rows: [id], meal } });
   }
 
   return (
@@ -109,7 +120,7 @@ function QuickAddForm({
                   onClick: () => void restoreRecord(db, 'foodEntries', entry.id),
                 },
               });
-              await navigate({ to: '/', search: { date: entry.date } });
+              leaveEntry(entry.date);
             }}
           >
             <Trash2 className="text-destructive" aria-hidden />

@@ -1,7 +1,7 @@
 import { addDays, MEAL_COUNT } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, Share, Target } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
@@ -19,9 +19,11 @@ import {
   useToday,
 } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
+import { clearLogStart } from '@/lib/logFlow';
 import { CalorieCard } from './CalorieCard';
 import { ClipboardMenu } from './ClipboardMenu';
 import { DiaryDnd } from './DiaryDnd';
+import { useDiaryScroll } from './diaryScroll';
 import { ExerciseCard } from './ExerciseCard';
 import { MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
@@ -45,6 +47,13 @@ export function DiaryPage() {
   const [sharing, setSharing] = useState(false);
   const canShare = !!summary && !!entries && !!exercises && !!settings && note !== undefined;
   const navigate = useNavigate();
+  // The diary is reached: a logging flow remembered earlier must not trigger anything later.
+  useEffect(clearLogStart, []);
+  // Position and new rows are set once nothing changes the height of the meal cards any more.
+  useDiaryScroll(
+    date,
+    !!summary && !!entries && !!exercises && !!settings && pending !== undefined && suggestions !== undefined,
+  );
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
 
   return (

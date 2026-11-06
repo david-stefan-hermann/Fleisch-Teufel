@@ -89,16 +89,20 @@ export function Section({
   children,
   className,
   ref,
+  ...rest
 }: {
   title?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
   className?: string;
   ref?: Ref<HTMLElement>;
+  /** Anchor of a diary meal card (`diaryScroll`). */
+  'data-meal'?: number;
 }) {
   return (
     <section
       ref={ref}
+      {...rest}
       className={cn(
         // overflow-hidden: full-bleed rows (swipe actions, hover backgrounds) follow the rounded corners.
         'mb-4 overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04)]',

@@ -242,7 +242,7 @@ describe('local writes', () => {
       { date: '2026-10-07', meal: 2 },
       { analysisId: 'a1' },
     );
-    expect(n).toBe(1);
+    expect(n).toHaveLength(1);
     const updated = await d.meals.get(mealId);
     expect(updated).toMatchObject({ name: 'Pommes rot-weiß', photoId: meal!.photoId });
     expect(updated!.items.map((i) => [i.name, i.grams])).toEqual([['Pommes', 200]]);
@@ -375,7 +375,7 @@ describe('local writes', () => {
       { date: '2026-10-07', meal: 1 },
       { analysisId: 'a2' },
     );
-    expect(n).toBe(2);
+    expect(n).toHaveLength(2);
     expect(await d.meals.count()).toBe(0);
     expect(await d.photos.count()).toBe(0);
     const entries = await d.foodEntries.orderBy('loggedAt').toArray();

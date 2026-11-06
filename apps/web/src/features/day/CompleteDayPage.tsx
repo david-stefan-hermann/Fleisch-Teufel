@@ -8,7 +8,7 @@ import {
   round,
   tdee,
 } from '@ft/shared';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { Link, useNavigate, useParams, useRouter } from '@tanstack/react-router';
 import { CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -18,12 +18,14 @@ import { saveRecord } from '@/db/write';
 import { useCurrentWeight, useDayNote, useDaySummary, useSettings } from '@/hooks/data';
 import { useExpenditure } from '@/hooks/useExpenditure';
 import { fmt0, fmt1, fmtDayLong } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
 
 /** "Tag abschließen" (feature #10): 5-week forecast if every day were like this one. */
 export function CompleteDayPage() {
   const { date } = useParams({ from: '/authed/day/$date/complete' });
   const db = useDb();
   const navigate = useNavigate();
+  const router = useRouter();
   const summary = useDaySummary(date);
   const settings = useSettings();
   const note = useDayNote(date);
@@ -67,7 +69,8 @@ export function CompleteDayPage() {
       completedAt: done ? Date.now() : null,
     });
     if (done) toast.success('Tag abgeschlossen');
-    await navigate({ to: '/', search: { date } });
+    // Back to the diary the page was opened from, not a second diary on top of it.
+    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date }, replace: true }));
   }
 
   return (

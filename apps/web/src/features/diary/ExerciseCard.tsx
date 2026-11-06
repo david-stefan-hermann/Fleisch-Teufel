@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
 import { fmt0 } from '@/lib/format';
+import { useRememberLogStart } from '@/lib/logFlow';
 
 export function ExerciseCard({
   date,
@@ -21,6 +22,7 @@ export function ExerciseCard({
   credited: boolean;
 }) {
   const db = useDb();
+  const rememberStart = useRememberLogStart();
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
   return (
     <Section
@@ -34,7 +36,12 @@ export function ExerciseCard({
       }
       action={
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/exercise" search={{ date }} aria-label="Training eintragen">
+          <Link
+            to="/exercise"
+            search={{ date }}
+            onClick={() => rememberStart(date)}
+            aria-label="Training eintragen"
+          >
             <Plus className="size-5 text-primary" aria-hidden />
           </Link>
         </Button>
@@ -45,6 +52,7 @@ export function ExerciseCard({
           <Link
             to="/exercise"
             search={{ date }}
+            onClick={() => rememberStart(date)}
             className="mx-4 mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <Dumbbell className="size-4" aria-hidden /> Training eintragen
@@ -54,7 +62,7 @@ export function ExerciseCard({
       ) : (
         <ul className="divide-y divide-border/70">
           {exercises.map((e) => (
-            <li key={e.id}>
+            <li key={e.id} data-row={e.id}>
               <SwipeToDelete
                 label={`${e.name} löschen`}
                 onDelete={async () => {

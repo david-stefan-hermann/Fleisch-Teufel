@@ -86,7 +86,9 @@ import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion, SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
 import { endpoints, errorMessage } from '@/lib/api';
 import { fmt0, fmtIngredients, fmtPercent, fmtTime } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
 import { rememberIntoStart } from '@/lib/into';
+import { useReturnToDiary } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
 import { FAT_OPTIONS, isFatFood, type FatOption } from './fatSuggestion';
 import { compressImage, IMAGE_PRESETS } from './image';
@@ -137,12 +139,21 @@ const addLabel = (n: number) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${
 export function PhotoPage() {
   const { date, meal, review } = useSearch({ from: '/authed/photo' });
   const navigate = useNavigate({ from: '/photo' });
+  const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   const db = useDb();
   const settings = useSettings();
   const queue = useLiveQuery(() => db.aiQueue.orderBy('createdAt').reverse().toArray(), [db]);
   // The open analysis lives in the URL, so returning from the food search lands in it again.
-  const setActiveId = (id: number | null) =>
-    void navigate({ search: (s) => ({ ...s, review: id ?? undefined }), replace: id === null });
+  const openReview = (id: number) => void navigate({ search: (s) => ({ ...s, review: id }) });
+  // Closing goes back to the page that opened the review (the camera with its list), so that one
+  // more "back" leaves the food page instead of showing it a second time.
+  const closeReview = () =>
+    goBackOr(
+      router.history,
+      1,
+      () => void navigate({ search: (s) => ({ ...s, review: undefined }), replace: true }),
+    );
   const activeId = review ?? null;
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   // Photos waiting for "Analysieren" (preview), already compressed. Leaving the page drops them.
@@ -182,7 +193,7 @@ export function PhotoPage() {
     const id = waiting.current;
     waiting.current = null;
     if (id !== null) void leaveAnalysis(db, id);
-    void navigate({ to: '/', search: { date }, replace: true });
+    void returnToDiary({ date, focus: { rows: id === null ? [] : [`pending:${id}`], meal } });
   }
 
   /** Compresses taken or picked photos and adds them to the preview. */
@@ -248,7 +259,7 @@ export function PhotoPage() {
       // Stored and analysed: the preview is done, whatever the outcome.
       setShots([]);
       setDescribing(false);
-      if (item?.status === 'done' && !item.deferred) return setActiveId(id);
+      if (item?.status === 'done' && !item.deferred) return openReview(id);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.
         toast(
@@ -256,7 +267,7 @@ export function PhotoPage() {
             ? 'Offline gespeichert. Die Beschreibung steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.'
             : 'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
         );
-        return void navigate({ to: '/', search: { date }, replace: true });
+        return void returnToDiary({ date, focus: { rows: [`pending:${id}`], meal } });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
     } finally {
@@ -273,7 +284,7 @@ export function PhotoPage() {
         key={`${active.localId}:${busy ? 'busy' : 'idle'}`}
         item={active}
         busy={busy}
-        onClose={() => setActiveId(null)}
+        onClose={closeReview}
       />
     );
   }
@@ -373,13 +384,14 @@ export function PhotoPage() {
           <CameraCapture
             busy={adding}
             onShots={(blobs) => void addShots(blobs)}
-            onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code }, replace: true })}
+            // A page of its own: back from the product returns to the camera.
+            onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
           />
           {queue && queue.length > 0 && (
             <Section title="Analysen" className="mt-4">
               <ul className="divide-y divide-border/70">
                 {queue.map((q) => (
-                  <QueueRow key={q.localId} item={q} onOpen={() => setActiveId(q.localId!)} />
+                  <QueueRow key={q.localId} item={q} onOpen={() => openReview(q.localId!)} />
                 ))}
               </ul>
             </Section>
@@ -793,6 +805,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   const settings = useSettings();
   const goals = useGoals();
   const result = item.result as AiAnalysisResult;
@@ -906,8 +919,9 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     const target = { date: item.date, meal };
     // Read before `discardQueueItem` drops the queue photos.
     const images = await loadQueueImages(db, item);
-    if (savedMealId) await logAiMeal(db, savedMealId, name, items, target, result, images);
-    else await logAiItems(db, name, items, target, result, images);
+    const ids = savedMealId
+      ? await logAiMeal(db, savedMealId, name, items, target, result, images)
+      : await logAiItems(db, name, items, target, result, images);
     for (const r of resolved) await rememberFood(db, r.food);
     // Not awaited and allowed to fail (offline): the next analysis just does not know the choice.
     const choices = draftChoices(item, draft);
@@ -918,8 +932,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder eintragen und bearbeiten.',
       });
     else toast.success(`„${name}“ eingetragen`);
-    // Replace: "back" from the diary must not reopen the review of a logged analysis.
-    await navigate({ to: '/', search: { date: item.date }, replace: true });
+    // "Back" from the diary must not reopen the review of a logged analysis.
+    await returnToDiary({ date: item.date, focus: { rows: ids, meal } });
   }
 
   return (

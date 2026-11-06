@@ -36,6 +36,7 @@ import { addItemsToMealDraft } from '@/db/mealDraft';
 import { getFood } from '@/foods/foodService';
 import { isBasePortion } from '@/lib/amounts';
 import { openTarget, returnFromInto, type Into } from '@/lib/into';
+import { useReturnToDiary } from '@/lib/logFlow';
 import { logItems } from './logMeal';
 
 const FACTOR_MIN = 0.5;
@@ -63,6 +64,7 @@ export function MealLogView({
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   const settings = useSettings();
   const goals = useGoals();
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => new Set());
@@ -111,14 +113,14 @@ export function MealLogView({
 
   const { busy, run } = useSubmitting();
   async function log() {
-    const { length: n } = await logItems(
+    const ids = await logItems(
       db,
       kept,
       { date, meal: target },
       { factor, mealId: meal.id, photoIds: meal.photoId ? [meal.photoId] : null },
     );
-    toast.success(`${meal.name}: ${fmtIngredients(n)} eingetragen`);
-    await navigate({ to: '/', search: { date } });
+    toast.success(`${meal.name}: ${fmtIngredients(ids.length)} eingetragen`);
+    await returnToDiary({ date, focus: { rows: ids, meal: target } });
   }
 
   async function add(target: Into) {

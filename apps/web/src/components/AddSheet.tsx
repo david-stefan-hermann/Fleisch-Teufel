@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { rememberLogStart } from '@/lib/logFlow';
 import { defaultMealForNow } from '@/lib/meals';
 import { cn } from '@/lib/utils';
 import { warmUpCamera } from './cameraWarmup';
@@ -65,6 +66,12 @@ function AddSheet({
   const todayNow = useToday();
   const date = target.date ?? search.date ?? todayNow;
   const meal = target.meal ?? defaultMealForNow();
+  /** Logging returns to the page the sheet was opened on, when that is the diary of the day. */
+  const rememberStart = () =>
+    rememberLogStart(router.history, {
+      path: router.state.location.pathname,
+      date: search.date ?? todayNow,
+    });
   // Loads the code of the food page while the sheet is open, so the tap only waits for the camera.
   useEffect(() => {
     const photo = router.routesByPath['/photo'];
@@ -93,6 +100,7 @@ function AddSheet({
       run: () => {
         // The camera starts while the sheet closes and the page changes.
         warmUpCamera();
+        rememberStart();
         return navigate({ to: '/photo', search: { date, meal } });
       },
       primary: true,
@@ -100,7 +108,10 @@ function AddSheet({
     {
       label: 'Training eintragen',
       icon: Dumbbell,
-      run: () => navigate({ to: '/exercise', search: { date } }),
+      run: () => {
+        rememberStart();
+        return navigate({ to: '/exercise', search: { date } });
+      },
     },
   ];
   return (

@@ -22,6 +22,7 @@ import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { useAppearance } from '@/lib/appearance';
+import { useRememberLogStart } from '@/lib/logFlow';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MacroSummary } from './MacroSummary';
@@ -68,10 +69,17 @@ export function MealCard({
   const db = useDb();
   const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
   const kcal = get(totals, N.kcal);
+  const rememberStart = useRememberLogStart();
+  /** The taps that open the food page: the camera starts, and logging returns to this diary. */
+  const startLogging = () => {
+    warmUpCamera();
+    rememberStart(date);
+  };
 
   return (
     <Section
       ref={setDropRef}
+      data-meal={meal}
       className={cn(
         'transition-[box-shadow,background-color] motion-reduce:transition-none',
         dropOver && 'bg-primary/5 ring-2 ring-primary/60',
@@ -109,7 +117,7 @@ export function MealCard({
             <Link
               to="/photo"
               preload="intent"
-              onClick={warmUpCamera}
+              onClick={startLogging}
               search={{ date, meal }}
               aria-label={`Essen zu ${name} eintragen`}
             >
@@ -124,7 +132,7 @@ export function MealCard({
           <Link
             to="/photo"
             preload="intent"
-            onClick={warmUpCamera}
+            onClick={startLogging}
             search={{ date, meal }}
             className={cn(
               'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
@@ -144,7 +152,7 @@ export function MealCard({
               className={cn('divide-y divide-border/70', entries.length > 0 && 'border-t border-border/70')}
             >
               {pending.map((item) => (
-                <li key={item.localId}>
+                <li key={item.localId} data-row={`pending:${item.localId}`}>
                   <PendingAnalysisRow item={item} />
                 </li>
               ))}
@@ -264,7 +272,7 @@ export function DiaryRows({
     <ul className="divide-y divide-border/70">
       {rows.map((row) =>
         row.kind === 'entry' ? (
-          <li key={row.entry.id}>
+          <li key={row.entry.id} data-row={row.entry.id}>
             <MaybeDraggable
               enabled={draggable}
               id={row.entry.id}
@@ -286,7 +294,11 @@ export function DiaryRows({
             </MaybeDraggable>
           </li>
         ) : (
-          <li key={row.groupId}>
+          <li
+            key={row.groupId}
+            data-row={`group:${row.groupId}`}
+            data-rows={row.entries.map((e) => e.id).join(' ')}
+          >
             <GroupRow
               groupId={row.groupId}
               // Own name first: a group renamed in its editor keeps that name, else it follows the saved meal.

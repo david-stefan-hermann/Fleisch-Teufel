@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { validGtin } from '@/components/BarcodeScanner';
 import {
   fmtDayLongYear,
@@ -16,6 +16,8 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
+import { clearLogStart, rememberLogStart, returnToDiary, type LogFlowRouter } from '@/lib/logFlow';
+import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
 import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
@@ -31,7 +33,7 @@ import {
   wheelValues,
 } from '@/lib/amounts';
 import { itemPortion, itemWithAmount } from '@/features/meals/IngredientCard';
-import type { MealItem } from '@ft/shared';
+import { today, type MealItem } from '@ft/shared';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -159,6 +161,132 @@ describe('goBackOr', () => {
     expect(first.calls).toEqual([]);
     goBackOr(history(undefined), 1, () => fell++);
     expect(fell).toBe(2);
+  });
+});
+
+describe('logging flow: back to the diary', () => {
+  /** A router whose history is at `index`; `go` lands on `landing` and reports it like the router does. */
+  const fakeRouter = (index: number, landing = { pathname: '/', search: {} as { date?: string } }) => {
+    const went: number[] = [];
+    const navigated: { to: string; search: { date: string }; replace: boolean }[] = [];
+    const listeners = new Set<(e: { toLocation: typeof landing }) => void>();
+    const router: LogFlowRouter = {
+      history: {
+        location: { state: { __TSR_index: index } },
+        go: (d) => {
+          went.push(d);
+          queueMicrotask(() => [...listeners].forEach((fn) => fn({ toLocation: landing })));
+        },
+      },
+      subscribe: (_event, fn) => {
+        listeners.add(fn as never);
+        return () => listeners.delete(fn as never);
+      },
+      navigate: async (opts) => void navigated.push(opts),
+    };
+    return { router, went, navigated, listeners };
+  };
+  const startAt = (index: number, path: string, date: string) =>
+    rememberLogStart({ location: { state: { __TSR_index: index } }, go: () => {} }, { path, date });
+  const TODAY = today();
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    resetDiaryScroll();
+  });
+
+  it('goes back to the diary the flow started on and drops the forms from the history', async () => {
+    startAt(2, '/', TODAY);
+    const { router, went, navigated, listeners } = fakeRouter(5);
+    await returnToDiary(router, { date: TODAY, focus: { rows: ['e1'], meal: 2 } });
+    expect(went).toEqual([-3]);
+    expect(navigated).toEqual([]);
+    expect(listeners.size).toBe(0);
+    // The start is used up: a second return has nothing to go back to.
+    await returnToDiary(router, { date: TODAY });
+    expect(went).toEqual([-3]);
+    expect(navigated).toEqual([{ to: '/', search: { date: TODAY }, replace: true }]);
+  });
+
+  it('replaces the form with the diary when the flow started elsewhere', async () => {
+    const replaced = [{ to: '/', search: { date: '2026-11-05' }, replace: true }];
+    // Another day than the diary showed (logged for yesterday after midnight).
+    startAt(2, '/', '2026-11-06');
+    let r = fakeRouter(5);
+    await returnToDiary(r.router, { date: '2026-11-05' });
+    expect(r.went).toEqual([]);
+    expect(r.navigated).toEqual(replaced);
+    // Another page (the meal page, another tab).
+    startAt(2, '/diary-meal', '2026-11-05');
+    r = fakeRouter(5);
+    await returnToDiary(r.router, { date: '2026-11-05' });
+    expect(r.navigated).toEqual(replaced);
+    // No start at all (reload, deep link), or one that is not behind the current page.
+    r = fakeRouter(5);
+    await returnToDiary(r.router, { date: '2026-11-05' });
+    expect(r.navigated).toEqual(replaced);
+    startAt(5, '/', '2026-11-05');
+    r = fakeRouter(5);
+    await returnToDiary(r.router, { date: '2026-11-05' });
+    expect(r.went).toEqual([]);
+    expect(r.navigated).toEqual(replaced);
+  });
+
+  it('falls back when the history entry is not the diary of that day after all', async () => {
+    startAt(1, '/', '2026-11-05');
+    const other = fakeRouter(3, { pathname: '/', search: { date: '2026-11-04' } });
+    await returnToDiary(other.router, { date: '2026-11-05' });
+    expect(other.went).toEqual([-2]);
+    expect(other.navigated).toEqual([{ to: '/', search: { date: '2026-11-05' }, replace: true }]);
+    startAt(1, '/', '2026-11-05');
+    const same = fakeRouter(3, { pathname: '/', search: { date: '2026-11-05' } });
+    await returnToDiary(same.router, { date: '2026-11-05' });
+    expect(same.navigated).toEqual([]);
+  });
+
+  it('a diary that is reached forgets the start', async () => {
+    startAt(2, '/', TODAY);
+    clearLogStart();
+    const { router, went, navigated } = fakeRouter(5);
+    await returnToDiary(router, { date: TODAY });
+    expect(went).toEqual([]);
+    expect(navigated).toHaveLength(1);
+  });
+});
+
+describe('diary position and new rows', () => {
+  beforeEach(() => resetDiaryScroll());
+
+  it('scrolls a row into the space between header and tab bar only when it is outside', () => {
+    document.body.innerHTML =
+      '<header></header><ul><li data-row="a"></li><li data-row="group:g" data-rows="b c"></li></ul>' +
+      '<section data-meal="2"></section><nav aria-label="Hauptnavigation"></nav>';
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, height }) as DOMRect;
+    const boxes = new Map<Element, DOMRect>([
+      [document.querySelector('header')!, rect(0, 100)],
+      [document.querySelector('nav')!, rect(700, 80)],
+      [document.querySelector('[data-row="a"]')!, rect(300, 56)],
+      [document.querySelector('[data-row="group:g"]')!, rect(900, 56)],
+      [document.querySelector('[data-meal="2"]')!, rect(-50, 800)],
+    ]);
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: Element,
+    ) {
+      return boxes.get(this) ?? rect(0, 0);
+    });
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    // On the screen: nothing moves.
+    showInDiary(document.querySelector('[data-row="a"]')!);
+    expect(scrollTo).not.toHaveBeenCalled();
+    // Below the tab bar: centred between header (100) and tab bar (700).
+    showInDiary(document.querySelector('[data-row="group:g"]')!);
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 900 + 28 - 400);
+    // Higher than the space: its upper edge under the header.
+    showInDiary(document.querySelector('[data-meal="2"]')!);
+    expect(scrollTo).toHaveBeenLastCalledWith(0, 0);
+    spy.mockRestore();
+    scrollTo.mockRestore();
+    document.body.innerHTML = '';
   });
 });
 

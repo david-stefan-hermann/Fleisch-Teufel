@@ -25,11 +25,12 @@ export type NewFoodEntry = Omit<
   'id' | 'updatedAt' | 'deleted' | 'date' | 'loggedAt' | 'groupId' | 'groupName' | 'photoId' | 'photoIds'
 >;
 
-/** Logs one food on a day (the food page). */
-export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string): Promise<void> {
+/** Logs one food on a day (the food page). Returns the id of the new entry. */
+export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string): Promise<string> {
+  const id = uuidv7();
   await saveRecord(db, 'foodEntries', {
     ...item,
-    id: uuidv7(),
+    id,
     date,
     loggedAt: Date.now(),
     groupId: null,
@@ -37,6 +38,7 @@ export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string)
     photoId: null,
     photoIds: null,
   });
+  return id;
 }
 
 export async function saveExercise(
@@ -222,7 +224,7 @@ export async function createAiMeal(
  * "Meal eintragen" of an AI analysis that was saved as a meal: the meal first takes over the current
  * ingredients and name (it always matches what gets logged; a meal deleted meanwhile comes back),
  * then the items are logged as a group attached to it. The entries keep the analysed photos (stored
- * and uploaded); without any, the meal's photo of this moment. Returns the number of logged entries.
+ * and uploaded); without any, the meal's photo of this moment. Returns the ids of the logged entries.
  */
 export async function logAiMeal(
   db: UserDb,
@@ -233,7 +235,7 @@ export async function logAiMeal(
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photos (already compressed by the AI queue), in order. */
   photos: readonly Blob[] = [],
-): Promise<number> {
+): Promise<string[]> {
   const mealItems = aiMealItems(items);
   const existing = await db.meals.get(mealId);
   if (existing?.deleted) await restoreRecord(db, 'meals', mealId);
@@ -247,18 +249,17 @@ export async function logAiMeal(
       cookedGrams: null,
     });
   const photoIds = await storePhotos(db, photos);
-  const ids = await logItems(db, mealItems, target, {
+  return logItems(db, mealItems, target, {
     mealId,
     aiAnalysisId: analysis.analysisId,
     photoIds: photoIds.length ? photoIds : existing?.photoId ? [existing.photoId] : null,
   });
-  return ids.length;
 }
 
 /**
  * "Meal eintragen" of an AI analysis that was not saved: logs the confirmed items as one named group in the diary,
  * without a saved meal. The analysed photos are stored (and uploaded) and kept on every entry; the
- * diary row shows the first. Returns the number of logged entries.
+ * diary row shows the first. Returns the ids of the logged entries.
  */
 export async function logAiItems(
   db: UserDb,
@@ -268,18 +269,17 @@ export async function logAiItems(
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photos (already compressed by the AI queue), in order; none keeps the row without photo. */
   photos: readonly Blob[] = [],
-): Promise<number> {
+): Promise<string[]> {
   // Bytes first (not an IndexedDB promise), then photos and entries in one transaction: the app
   // being killed in between can neither leave orphaned photos nor a group without its photos.
   const bytes = await readPhotoBytes(photos);
-  const ids = await db.transaction('rw', [db.foodEntries, db.outbox, db.photos], async () =>
+  return db.transaction('rw', [db.foodEntries, db.outbox, db.photos], async () =>
     logItems(db, aiMealItems(items), target, {
       groupName: name.trim() || 'Meal vom Foto',
       aiAnalysisId: analysis.analysisId,
       photoIds: await storePhotoRows(db, bytes),
     }),
   );
-  return ids.length;
 }
 
 /** The images as bytes, read outside any IndexedDB transaction. */

@@ -42,7 +42,9 @@ import { getFood, rememberFood, userPortions } from '@/foods/foodService';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
+import { goBackOr } from '@/lib/history';
 import { formatInto, openTarget, parseInto, returnFromInto, type Into } from '@/lib/into';
+import { useReturnToDiary } from '@/lib/logFlow';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
@@ -207,6 +209,7 @@ function FoodLogEditor({
   const todayNow = useToday();
   const navigate = useNavigate();
   const router = useRouter();
+  const returnToDiary = useReturnToDiary();
   // Name of the target in the title: the saved meal, or the diary group being edited.
   const targetName = useLiveQuery(async () => {
     if (into?.kind === 'meal') return (await db.meals.get(into.mealId))?.name ?? null;
@@ -295,14 +298,20 @@ function FoodLogEditor({
     if (entry) {
       await saveRecord(db, 'foodEntries', { ...entry, ...base });
       toast.success('Änderungen übernommen');
-    } else {
-      await logFoodEntry(db, base, date);
-      toast.success(`${food.name} eingetragen`);
+      if (food.id) await rememberFood(db, food);
+      // Back to where the entry was opened (diary, meal page, expanded group).
+      return leaveEntry(entry.date);
     }
+    const id = await logFoodEntry(db, base, date);
+    toast.success(`${food.name} eingetragen`);
     if (food.id) await rememberFood(db, food);
-    // Replace: "back" from the diary must not reopen the filled food page (an invitation to log twice).
-    await navigate({ to: '/', search: { date: entry?.date ?? date }, replace: true });
+    // "Back" from the diary must not reopen the search or the filled food page (an invitation to log twice).
+    await returnToDiary({ date, focus: { rows: [id], meal } });
   }
+
+  /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
+  const leaveEntry = (day: string) =>
+    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date: day }, replace: true }));
 
   async function remove() {
     if (!entry) return;
@@ -310,7 +319,7 @@ function FoodLogEditor({
     toast(`${entry.name} gelöscht`, {
       action: { label: 'Rückgängig', onClick: () => void restoreRecord(db, 'foodEntries', entry.id) },
     });
-    await navigate({ to: '/', search: { date: entry.date } });
+    leaveEntry(entry.date);
   }
 
   return (

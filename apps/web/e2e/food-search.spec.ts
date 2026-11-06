@@ -158,11 +158,13 @@ test('food search: tabs as filters, used foods first, own foods with collapsible
   // The main search finds saved meals too, marked as a meal, and typos get a suggestion.
   await page.goto('/add?meal=0');
   await page.getByLabel('Lebensmittel suchen').fill('sonntagsfrühstück');
+  // (Open Food Facts may know products of that name too: the meal is the row that links to a meal.)
   const mealRow = page
     .locator('main ul')
     .first()
-    .getByRole('link', { name: /Sonntagsfrühstück/ });
-  await expect(mealRow).toHaveAttribute('href', /\/meals\//);
+    .locator('a[href^="/meals/"]')
+    .filter({ hasText: 'Sonntagsfrühstück' });
+  await expect(mealRow).toHaveCount(1);
   await expect(mealRow.getByText('Meal', { exact: true })).toBeVisible();
   await page.getByLabel('Lebensmittel suchen').fill('jogurt');
   await page.getByRole('button', { name: '„Joghurt“' }).click();
