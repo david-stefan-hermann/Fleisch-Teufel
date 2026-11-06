@@ -37,9 +37,7 @@ async function resultNames(page: Page): Promise<string[]> {
   return names.allTextContents();
 }
 
-test('food search: tabs, used foods first, own foods with collapsible meals, header icons', async ({
-  page,
-}) => {
+test('food search: tabs as filters, used foods first, own foods with collapsible meals', async ({ page }) => {
   await register(page);
   await page.goto('/add?meal=0');
 
@@ -48,11 +46,10 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByText('Was du mindestens zweimal einträgst')).toBeVisible();
 
-  // Header: only the food page (camera, 24 px icon); quick add and barcode live on the food page.
+  // No header icons: the search is reached from the food page (camera) and back leads there.
   await expect(page.getByRole('link', { name: 'Barcode scannen' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Schnelleingabe' })).toHaveCount(0);
-  const icon = (await page.getByRole('link', { name: 'Foto oder Barcode' }).locator('svg').boundingBox())!;
-  expect(icon.width).toBe(24);
+  await expect(page.getByRole('link', { name: 'Foto oder Barcode' })).toHaveCount(0);
 
   // Typing in "Häufig" or "Kürzlich" shows search results; no tab is active meanwhile.
   await page.getByLabel('Lebensmittel suchen').fill('brötchen');
@@ -76,10 +73,44 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
   await expect(first.getByText('1× gegessen')).toBeVisible();
   await expect(first).not.toContainText('kcal/100');
 
-  // Tapping a tab leaves the search and shows the tab.
+  // Tapping a tab keeps the text and searches only in that tab: it is active and carries an x.
+  const field = page.getByLabel('Lebensmittel suchen');
+  const word = picked.split(' ')[0]!;
+  await field.fill(word);
+  await expect.poll(async () => (await resultNames(page)).length).toBeGreaterThan(1);
   await page.getByRole('tab', { name: 'Kürzlich' }).click();
-  await expect(page.getByLabel('Lebensmittel suchen')).toHaveValue('');
-  await expect(page.getByRole('tab', { name: 'Kürzlich' })).toHaveAttribute('aria-selected', 'true');
+  await expect(field).toHaveValue(word);
+  const filter = page.getByRole('tab', { name: 'Kürzlich, Filter aufheben' });
+  await expect(filter).toHaveAttribute('aria-selected', 'true');
+  await expect(filter.locator('svg')).toBeVisible();
+  await expect(page).toHaveURL(/scope=recent/);
+  // Only what was logged, with the quick "+" of the tab; no catalog, no online search.
+  await expect(page.locator('main ul li')).toHaveCount(1);
+  await expect(page.getByRole('link', { name: new RegExp(picked) })).toBeVisible();
+  await expect(page.getByRole('button', { name: `${picked} mit gleicher Menge eintragen` })).toBeVisible();
+  await expect(page.getByText(/Markenprodukte/)).toHaveCount(0);
+  // Nothing in the tab: the way out searches everywhere.
+  await field.fill('pizza');
+  await expect(page.getByText('Nichts in „Kürzlich“ für „pizza“')).toBeVisible();
+  await page.getByRole('button', { name: 'Überall suchen' }).click();
+  await expect(page.getByRole('tab', { selected: true })).toHaveCount(0);
+  expect((await resultNames(page)).length).toBeGreaterThan(1);
+  // A tap on the active tab lifts the filter as well; the text stays.
+  await field.fill(word);
+  await page.getByRole('tab', { name: 'Kürzlich' }).click();
+  await expect(page.locator('main ul li')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Kürzlich, Filter aufheben' }).click();
+  await expect(page.getByRole('tab', { selected: true })).toHaveCount(0);
+  await expect(field).toHaveValue(word);
+  await expect.poll(async () => (await resultNames(page)).length).toBeGreaterThan(1);
+  // Without a text the tab shows its list and the filter is gone from the URL.
+  await page.getByRole('tab', { name: 'Kürzlich' }).click();
+  await field.fill('');
+  await expect(page.getByRole('tab', { name: 'Kürzlich', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page).not.toHaveURL(/scope=/);
   await expect(page.getByRole('link', { name: new RegExp(picked) })).toBeVisible();
 
   // "Eigene": saved meals as a collapsible section (open by default, remembered), then own foods.
@@ -118,6 +149,11 @@ test('food search: tabs, used foods first, own foods with collapsible meals, hea
     /custom-food\/new\?.*name=pizza/,
   );
   await expect(page.getByText(/Markenprodukte/)).toHaveCount(0);
+  // A tap on the active "Eigene" searches everything with the same text.
+  await page.getByRole('tab', { name: 'Eigene, Filter aufheben' }).click();
+  await expect(page.getByRole('tab', { selected: true })).toHaveCount(0);
+  await expect(search).toHaveValue('pizza');
+  expect((await resultNames(page)).length).toBeGreaterThan(1);
 
   // The main search finds saved meals too, marked as a meal, and typos get a suggestion.
   await page.goto('/add?meal=0');

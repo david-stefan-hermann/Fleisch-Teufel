@@ -1,8 +1,8 @@
 import { get, N, uuidv7, type Food, type Meal, type Portion } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Camera, ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
@@ -20,6 +20,7 @@ import { mealItem } from '@/db/mealDraft';
 import { deleteRecord, saveRecord } from '@/db/write';
 import {
   filterOwn,
+  filterRecent,
   getFood,
   mergeOnline,
   ownBarcodes,
@@ -38,7 +39,6 @@ import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { parseInto, type Into } from '@/lib/into';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { warmUpCamera } from '@/components/cameraWarmup';
 
 type Tab = 'frequent' | 'recent' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
@@ -89,14 +89,26 @@ export function AddFoodPage() {
   const q = useDebounced(query.trim(), 150);
   const qOnline = useDebounced(query.trim(), 600);
   // The typed text lives in the URL too (debounced, replace): opening a result and coming back keeps it.
+  // A filter belongs to the text: below two characters it is gone.
   useEffect(() => {
     if ((search.q ?? '') === q) return;
-    void navigate({ search: (s) => ({ ...s, q: q || undefined }), replace: true, resetScroll: false });
+    void navigate({
+      search: (s) => ({ ...s, q: q || undefined, ...(q.length < 2 && { scope: undefined }) }),
+      replace: true,
+      resetScroll: false,
+    });
   }, [q, search.q, navigate]);
-  // From 2 characters on, the search results replace the tab content of "Häufig" and "Kürzlich".
-  // "Eigene" stays selected and only filters the user's own foods and meals (no BLS, no online).
-  const searching = q.length >= 2 && tab !== 'mine';
-  const filteringOwn = q.length >= 2 && tab === 'mine';
+  // From 2 characters on the text searches everything and no tab is active. A tap on a tab keeps the
+  // text and searches only there (`scope`); a tap on that active tab searches everything again
+  // (`scope: 'all'`). Typing on "Eigene" filters the own foods and meals right away (no BLS, no online).
+  const typing = q.length >= 2;
+  const filter: Tab | null = !typing
+    ? null
+    : search.scope === 'all'
+      ? null
+      : (search.scope ?? (tab === 'mine' ? 'mine' : null));
+  const searching = typing && filter === null;
+  const filteringOwn = filter === 'mine';
 
   const history = useLiveQuery(() => recentAndFrequent(db, today), [db, today]);
   // A saved meal goes into a meal, an AI review or a diary group as its ingredients; only not into itself.
@@ -116,29 +128,40 @@ export function AddFoodPage() {
     q: string;
     foods: Food[];
     state: 'done' | 'offline' | 'limited' | 'error';
+    /** How many rows were on the screen when the answer came: they keep their place. */
+    pinned: number;
   } | null>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const wantsOnline = searching && qOnline.length >= 3;
   // Results belong to the query they were fetched for; anything else is still loading.
   const online: {
     q: string;
     foods: Food[];
     state: 'loading' | 'done' | 'offline' | 'limited' | 'error';
+    pinned: number;
   } | null = !wantsOnline
     ? null
     : result?.q === qOnline
       ? result
-      : { q: qOnline, foods: [], state: 'loading' };
+      : { q: qOnline, foods: [], state: 'loading', pinned: 0 };
   useEffect(() => {
     if (!wantsOnline) return;
     const ctrl = new AbortController();
     searchOnline(qOnline, ctrl.signal).then(
-      (r) => setResult({ q: qOnline, foods: r.foods, state: r.limited ? 'limited' : 'done' }),
+      (r) =>
+        setResult({
+          q: qOnline,
+          foods: r.foods,
+          state: r.limited ? 'limited' : 'done',
+          pinned: rowsOnScreen(listRef.current, qOnline),
+        }),
       (e) => {
         if (ctrl.signal.aborted) return;
         setResult({
           q: qOnline,
           foods: [],
           state: e instanceof OfflineError ? 'offline' : e instanceof ApiError ? 'error' : 'offline',
+          pinned: 0,
         });
       },
     );
@@ -158,16 +181,27 @@ export function AddFoodPage() {
 
   // Online products join the list once they belong to the query the local results are for.
   const onlineFoods = online && online.q === q ? online.foods : null;
+  const pinned = online && online.q === q ? online.pinned : 0;
   // Until the answer for the current query is there (debounce included), the online search loads.
   const onlineState = q.length < 3 ? null : online?.q === q ? online.state : 'loading';
   const rows = useMemo(
     () =>
       local
-        ? mergeOnline(local.rows, onlineFoods ?? [], q, history?.usage, ownBarcodes(custom ?? [])).filter(
-            (r) => r.kind !== 'meal' || r.meal.id !== ownMealId,
+        ? mergeOnline(
+            local.rows.filter((r) => r.kind !== 'meal' || r.meal.id !== ownMealId),
+            onlineFoods ?? [],
+            q,
+            history?.usage,
+            ownBarcodes(custom ?? []),
+            pinned,
           )
         : null,
-    [local, onlineFoods, q, history, custom, ownMealId],
+    [local, onlineFoods, pinned, q, history, custom, ownMealId],
+  );
+  const filtered = useMemo(
+    () =>
+      (filter === 'recent' || filter === 'frequent') && history ? filterRecent(q, history[filter]) : null,
+    [filter, history, q],
   );
   const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
 
@@ -177,14 +211,19 @@ export function AddFoodPage() {
     writeMealsOpen(open);
   };
 
-  const setTab = (t: Tab) => {
-    // Picking a tab while search results are shown leaves the search.
-    setQuery('');
+  /** A tap on a tab. The typed text always stays. */
+  const pickTab = (t: Tab) => {
+    const tabParam = t === DEFAULT_TAB ? undefined : t;
+    // Not the debounced text: a tap right after typing already means the search.
+    const scope = query.trim().length < 2 ? undefined : t === filter ? ('all' as const) : t;
     void navigate({
-      search: (s) => ({ ...s, q: undefined, tab: t === DEFAULT_TAB ? undefined : t }),
+      search: (s) => ({ ...s, scope, ...(scope !== 'all' && { tab: tabParam }) }),
       replace: true,
+      resetScroll: false,
     });
   };
+  const searchEverywhere = () =>
+    void navigate({ search: (s) => ({ ...s, scope: 'all' as const }), replace: true, resetScroll: false });
 
   const { run } = useSubmitting();
   /** "+" on a recent food: logs the last amount again, with undo like every diary action. */
@@ -222,23 +261,6 @@ export function AddFoodPage() {
       title={into ? 'Zutat hinzufügen' : `Zu ${mealName}`}
       back
       withTabBar={false}
-      actions={
-        into ? undefined : (
-          <Button variant="ghost" size="icon" asChild>
-            {/* Replaces the page: switching between search and food page never piles up history. */}
-            <Link
-              to="/photo"
-              preload="intent"
-              onClick={warmUpCamera}
-              search={{ date, meal }}
-              replace
-              aria-label="Foto oder Barcode"
-            >
-              <Camera className="size-6" aria-hidden />
-            </Link>
-          </Button>
-        )
-      }
       headerExtra={
         <div className="grid gap-3">
           <div className="relative">
@@ -265,19 +287,23 @@ export function AddFoodPage() {
               className="pl-9"
             />
           </div>
-          {/* No tab is active while search results are shown; tapping one returns to it. "Eigene" stays
-              active and filters its own list. */}
-          <Tabs value={searching ? '' : tab} onValueChange={(v) => setTab(v as Tab)}>
+          {/* No tab is active while the text searches everything; the tab that filters it is active and
+              carries a small x. Everything runs on the click: Radix reports no tap on the active tab,
+              and its own change (on mouse down) followed by the click would switch the filter twice. */}
+          <Tabs value={filter ?? (typing ? '' : tab)}>
             <TabsList className="grid w-full grid-cols-3">
               {TABS.map((t) => (
                 <TabsTrigger
                   key={t.id}
                   value={t.id}
-                  // Radix ignores a click on the active tab; while searching none is active.
-                  onClick={() => searching && t.id === tab && setTab(t.id)}
-                  className="px-1 text-xs"
+                  onClick={() => pickTab(t.id)}
+                  aria-label={t.id === filter ? `${t.label}, Filter aufheben` : undefined}
+                  className="relative px-1 text-xs"
                 >
                   {t.label}
+                  {t.id === filter && (
+                    <X className="absolute top-1 right-1 size-3 text-muted-foreground" aria-hidden />
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -301,7 +327,7 @@ export function AddFoodPage() {
             </p>
           )}
           {rows && rows.length > 0 && (
-            <ul className="-mx-4 divide-y divide-border/70">
+            <ul ref={listRef} data-q={q} className="-mx-4 divide-y divide-border/70">
               {rows.map((r) => (
                 <SearchResultRow
                   key={r.id}
@@ -331,14 +357,14 @@ export function AddFoodPage() {
         </>
       )}
 
-      {!searching && tab === 'recent' && (
+      {!typing && tab === 'recent' && (
         <RecentList
           items={history?.recent}
           search={linkSearch}
           onQuick={(r) => void run(() => quickRelog(r))}
         />
       )}
-      {!searching && tab === 'frequent' && (
+      {!typing && tab === 'frequent' && (
         <RecentList
           items={history?.frequent}
           search={linkSearch}
@@ -348,7 +374,30 @@ export function AddFoodPage() {
         />
       )}
 
-      {tab === 'mine' && own && filteringOwn && (
+      {filtered &&
+        (filtered.length > 0 ? (
+          <RecentList
+            items={filtered}
+            search={linkSearch}
+            onQuick={(r) => void run(() => quickRelog(r))}
+            showCount={filter === 'frequent'}
+          />
+        ) : (
+          <EmptyState
+            icon={<Search />}
+            title={`Nichts in „${TABS.find((t) => t.id === filter)?.label}“ für „${q}“`}
+          >
+            <button
+              type="button"
+              className="min-h-10 font-medium text-primary underline underline-offset-2"
+              onClick={searchEverywhere}
+            >
+              Überall suchen
+            </button>
+          </EmptyState>
+        ))}
+
+      {own && filteringOwn && (
         <>
           {own.meals.length > 0 && (
             <>
@@ -384,7 +433,7 @@ export function AddFoodPage() {
         </>
       )}
 
-      {tab === 'mine' && !filteringOwn && (
+      {!typing && tab === 'mine' && (
         <>
           <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
             <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
@@ -421,6 +470,19 @@ export function AddFoodPage() {
 }
 
 type FoodLinkSearch = { date: string; meal: number; into?: string };
+
+/**
+ * How many result rows of the query `q` have their upper edge on the screen (above the keyboard):
+ * the rows the person may be about to tap when the online products arrive.
+ */
+function rowsOnScreen(list: HTMLUListElement | null, q: string): number {
+  if (!list || list.dataset.q !== q) return 0;
+  const vv = window.visualViewport;
+  const bottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  let n = 0;
+  for (const row of list.children) if (row.getBoundingClientRect().top < bottom) n++;
+  return n;
+}
 
 /**
  * "+" on a recent food in `into` mode: same amount as last time, into the meal / analysis / diary

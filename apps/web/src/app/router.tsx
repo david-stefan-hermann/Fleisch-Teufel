@@ -35,6 +35,9 @@ const mealParam = (v: unknown) => {
   return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 0;
 };
 const strParam = (v: unknown) => (typeof v === 'string' && v.length > 0 && v.length < 100 ? v : undefined);
+/** `/add`: the tab a typed search is limited to; 'all' searches everything (also from "Eigene"). */
+const SEARCH_SCOPES = ['frequent', 'recent', 'mine', 'all'] as const;
+export type SearchScope = (typeof SEARCH_SCOPES)[number];
 /** A barcode: the router parses `?code=4006040123453` (typed or shared link) as a number. */
 const digitsParam = (v: unknown) =>
   (typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? String(v) : strParam(v))?.replace(/\D/g, '') ||
@@ -99,9 +102,16 @@ export const routes = {
   diary: createRoute({ ...r('/'), validateSearch: validateDate, component: DiaryPage }),
   add: createRoute({
     ...r('/add'),
-    validateSearch: (s: Record<string, unknown>): MealSearch & IntoSearch & { tab?: string; q?: string } => ({
+    validateSearch: (
+      s: Record<string, unknown>,
+    ): MealSearch & IntoSearch & { tab?: string; q?: string; scope?: SearchScope } => ({
       ...validateMeal(s),
-      ...clean({ tab: strParam(s.tab), q: strParam(s.q), into: intoParam(s.into) }),
+      ...clean({
+        tab: strParam(s.tab),
+        q: strParam(s.q),
+        scope: SEARCH_SCOPES.find((v) => v === s.scope),
+        into: intoParam(s.into),
+      }),
     }),
     component: AddFoodPage,
   }),

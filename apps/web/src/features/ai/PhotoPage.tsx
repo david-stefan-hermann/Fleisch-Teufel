@@ -323,8 +323,7 @@ export function PhotoPage() {
             </Button>
           )}
           <Button variant="ghost" size="icon" asChild>
-            {/* Replaces the page: switching between food page and search never piles up history. */}
-            <Link to="/add" search={{ date, meal }} replace aria-label="Lebensmittel suchen">
+            <Link to="/add" search={{ date, meal }} aria-label="Lebensmittel suchen">
               <Search aria-hidden />
             </Link>
           </Button>

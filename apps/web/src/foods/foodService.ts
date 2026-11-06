@@ -204,8 +204,9 @@ export async function searchLocal(
 
 /**
  * Online products (Open Food Facts) sorted into the local results by the same ranking: a product
- * that is a better match than a database food stands above it. Products already in the list stay
- * where they are; products OFF found by other fields (ingredients) follow at the end.
+ * that is a better match than a database food stands above it (below the `pinned` rows). Products
+ * already in the list stay where they are; products OFF found by other fields (ingredients) follow
+ * at the end.
  */
 export function mergeOnline(
   rows: SearchRow[],
@@ -214,20 +215,26 @@ export function mergeOnline(
   usage?: FoodUsage,
   /** Barcodes of the person's own foods: products with one of them stay out (the own copy is in `rows`). */
   corrected: ReadonlySet<string> = new Set(),
+  /**
+   * How many of the first rows keep their place: the rows the person already sees when the online
+   * answer arrives must not jump away under the finger. Only what follows is mixed by rank.
+   */
+  pinned = 0,
 ): SearchRow[] {
   const ids = new Set(rows.map((r) => r.id));
   const fresh = online.filter((f) => !ids.has(f.id) && !shadowedByOwn(f, corrected));
   if (fresh.length === 0) return rows;
   const ranked = search(fresh.map(indexItem), query, fresh.length, (f) => usageBoost(usage, f.id));
   const matched = new Set(ranked.map((h) => h.item.id));
+  const keep = Math.max(0, Math.min(rows.length, pinned));
   const merged: SearchRow[] = [
-    ...rows,
+    ...rows.slice(keep),
     ...ranked.map((h) => ({ kind: 'food' as const, id: h.item.id, food: h.item, score: h.score })),
   ].sort((a, b) => b.score - a.score);
   const rest = fresh
     .filter((f) => !matched.has(f.id))
     .map((f) => ({ kind: 'food' as const, id: f.id, food: f, score: 0 }));
-  return [...merged, ...rest];
+  return [...rows.slice(0, keep), ...merged, ...rest];
 }
 
 /** An amount to show with a search result, with its energy. */
@@ -345,6 +352,17 @@ export interface RecentFood {
   brand: string | null;
   last: FoodEntry;
   count: number;
+}
+
+/**
+ * Filter for "Häufig" and "Kürzlich" while a text is typed: the foods of the tab whose name or brand
+ * contains it (folded like `filterOwn`); an empty query keeps everything.
+ */
+export function filterRecent(query: string, items: readonly RecentFood[]): RecentFood[] {
+  const q = searchKey(query);
+  if (!q) return [...items];
+  const hit = (text: string | null | undefined) => !!text && searchKey(text).includes(q);
+  return items.filter((r) => hit(r.name) || hit(r.brand));
 }
 
 /**

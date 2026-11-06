@@ -238,10 +238,11 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
   await expect(page).toHaveURL(/\/quick-add\?/);
   await page.goBack();
   await expect(page).toHaveURL(/\/photo\?/);
-  // Magnifier and camera icon replace each other: back leaves to the diary, no ping-pong.
+  // The search is a page of its own: back returns to the food page, once more to the diary.
   await page.getByRole('link', { name: 'Lebensmittel suchen' }).click();
   await expect(page).toHaveURL(/\/add\?/);
-  await page.getByRole('link', { name: 'Foto oder Barcode' }).click();
+  await expect(page.getByRole('link', { name: 'Foto oder Barcode' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Zurück' }).click();
   await expect(page).toHaveURL(/\/photo\?/);
   await page.getByRole('button', { name: 'Zurück' }).click();
   await expect(page).toHaveURL(/\/(\?.*)?$/);

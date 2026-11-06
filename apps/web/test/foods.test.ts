@@ -22,6 +22,7 @@ import {
 import { saveRecord } from '@/db/write';
 import {
   filterOwn,
+  filterRecent,
   getFood,
   lookupBarcode,
   mergeOnline,
@@ -30,6 +31,7 @@ import {
   searchLocal,
   usageBoost,
   type LocalSearchResult,
+  type RecentFood,
 } from '@/foods/foodService';
 
 const compact = {
@@ -301,6 +303,50 @@ describe('food service', () => {
     // A product OFF found by other fields comes last.
     expect(ids.at(-1)).toBe('off:2');
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('keeps the rows already on the screen in place when the online products arrive', async () => {
+    const product = (id: string, name: string): Food => ({
+      id,
+      source: 'off',
+      sourceId: id.slice(4),
+      name,
+      nameEn: null,
+      brand: 'Goldähren',
+      group: null,
+      unit: 'g',
+      nutrients: { ENERCC: 250 },
+      portions: [],
+    });
+    const local = await searchLocal(db, 'brötchen');
+    const before = local.rows.map((r) => r.id);
+    expect(before).toHaveLength(2);
+    const online = [product('off:1', 'Brötchen'), product('off:2', 'Laugengebäck')];
+    // By rank alone the product with the exact name stands above "Brötchen Weizen hell".
+    const free = mergeOnline(local.rows, online, 'brötchen').map((r) => r.id);
+    expect(free.indexOf('off:1')).toBeLessThan(free.indexOf(before[1]!));
+    // Both local rows were on the screen: they stay, the product follows.
+    const pinned = mergeOnline(local.rows, online, 'brötchen', undefined, new Set(), 2).map((r) => r.id);
+    expect(pinned).toEqual([...before, 'off:1', 'off:2']);
+    // Only the first was on the screen: below it the order is by rank again.
+    const one = mergeOnline(local.rows, online, 'brötchen', undefined, new Set(), 1).map((r) => r.id);
+    expect(one).toEqual([before[0], 'off:1', before[1], 'off:2']);
+    // More pinned rows than there are.
+    const all = mergeOnline(local.rows, online, 'brötchen', undefined, new Set(), 99).map((r) => r.id);
+    expect(all).toEqual(pinned);
+  });
+
+  it('filters the recent foods of a tab by name and brand, folded', () => {
+    const entry = { loggedAt: 1 } as RecentFood['last'];
+    const items: RecentFood[] = [
+      { foodId: 'a', name: 'Käsebrötchen', brand: null, last: entry, count: 2 },
+      { foodId: 'b', name: 'Skyr', brand: 'Käserei Müller', last: entry, count: 1 },
+      { foodId: 'c', name: 'Apfel', brand: null, last: entry, count: 5 },
+    ];
+    expect(filterRecent('kase', items).map((r) => r.foodId)).toEqual(['a', 'b']);
+    expect(filterRecent('BRÖT', items).map((r) => r.foodId)).toEqual(['a']);
+    expect(filterRecent('', items)).toHaveLength(3);
+    expect(filterRecent('pizza', items)).toEqual([]);
   });
 
   it('shows the last logged amount, else a portion, else nothing (per 100 g)', () => {
