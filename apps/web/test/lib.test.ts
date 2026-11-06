@@ -10,7 +10,7 @@ import {
   NO_VALUE,
   parseDecimal,
 } from '@/lib/format';
-import { defaultMealForNow } from '@/lib/meals';
+import { defaultMealForNow, logTargetFor, STICKY_MEAL_MS } from '@/lib/meals';
 import { errorMessage, ApiError, OfflineError } from '@/lib/api';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
@@ -83,6 +83,74 @@ describe('meal slot by time', () => {
   it('picks the meal for the time of day', () => {
     const at = (h: number, m = 0) => defaultMealForNow(new Date(2026, 9, 7, h, m));
     expect([at(7), at(10, 29), at(10, 30), at(14, 59), at(18), at(22)]).toEqual([0, 0, 1, 1, 2, 3]);
+  });
+});
+
+describe('meal for the next entry (20 minute rule)', () => {
+  const at = (day: number, h: number, m = 0) => new Date(2026, 10, day, h, m).getTime();
+  const TODAY = '2026-11-06';
+  const YESTERDAY = '2026-11-05';
+  const logged = (date: string, meal: number, loggedAt: number) => ({ date, meal, loggedAt });
+  const target = (now: number, entries: ReturnType<typeof logged>[], shownDate = TODAY) =>
+    logTargetFor({ shownDate, today: TODAY, now, entries });
+
+  it('stays in the meal of the last entry for 20 minutes, then follows the clock', () => {
+    // Breakfast logged at 10:25; at 10:40 the clock says lunch.
+    const entries = [logged(TODAY, 0, at(6, 8)), logged(TODAY, 0, at(6, 10, 25))];
+    expect(target(at(6, 10, 40), entries)).toEqual({ date: TODAY, meal: 0 });
+    expect(target(at(6, 10, 44), entries)).toEqual({ date: TODAY, meal: 0 });
+    expect(target(at(6, 10, 46), entries)).toEqual({ date: TODAY, meal: 1 });
+    // Nothing logged: the clock.
+    expect(target(at(6, 18), [])).toEqual({ date: TODAY, meal: 2 });
+    expect(STICKY_MEAL_MS).toBe(20 * 60_000);
+  });
+
+  it('follows an entry that was moved to another meal (its time stays)', () => {
+    // Logged into lunch at 12:00, dragged to snacks: the next one goes to snacks.
+    expect(target(at(6, 12, 10), [logged(TODAY, 3, at(6, 12))])).toEqual({ date: TODAY, meal: 3 });
+  });
+
+  it('counts only the youngest entry, deleted ones not at all', () => {
+    const entries = [logged(TODAY, 1, at(6, 12)), logged(TODAY, 2, at(6, 12, 5))];
+    expect(target(at(6, 12, 10), entries)).toEqual({ date: TODAY, meal: 2 });
+    expect(
+      logTargetFor({
+        shownDate: TODAY,
+        today: TODAY,
+        now: at(6, 12, 10),
+        entries: [...entries.slice(0, 1), { ...entries[1]!, deleted: true }],
+      }),
+    ).toEqual({ date: TODAY, meal: 1 });
+  });
+
+  it('over midnight the late entry still belongs to yesterday, for 20 minutes', () => {
+    const late = [logged(YESTERDAY, 3, at(5, 23, 55))];
+    expect(target(at(6, 0, 10), late)).toEqual({ date: YESTERDAY, meal: 3 });
+    // 00:20: 25 minutes later, a new day begins with breakfast.
+    expect(target(at(6, 0, 20), late)).toEqual({ date: TODAY, meal: 0 });
+  });
+
+  it('an entry added to yesterday today triggers nothing', () => {
+    // At 14:00 something was added to yesterday's dinner; at 14:05 the "+" means today, by the clock.
+    expect(target(at(6, 14, 5), [logged(YESTERDAY, 2, at(6, 14))])).toEqual({ date: TODAY, meal: 1 });
+  });
+
+  it('on a past day the shown day and the clock decide', () => {
+    const entries = [logged(TODAY, 0, at(6, 12))];
+    expect(target(at(6, 12, 5), entries, '2026-11-04')).toEqual({ date: '2026-11-04', meal: 1 });
+    expect(target(at(6, 12, 5), entries, YESTERDAY)).toEqual({ date: YESTERDAY, meal: 1 });
+  });
+
+  it('a photo that waits for its analysis counts like an entry', () => {
+    expect(
+      logTargetFor({
+        shownDate: TODAY,
+        today: TODAY,
+        now: at(6, 15, 10),
+        entries: [logged(TODAY, 0, at(6, 9))],
+        pending: [{ date: TODAY, meal: 1, createdAt: at(6, 14, 58) }],
+      }),
+    ).toEqual({ date: TODAY, meal: 1 });
   });
 });
 

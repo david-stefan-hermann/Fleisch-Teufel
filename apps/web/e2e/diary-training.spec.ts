@@ -250,6 +250,24 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
   await expect(page).toHaveURL(/\/photo\?/);
   await page.getByRole('button', { name: 'Zurück' }).click();
   await expect(page).toHaveURL(/\/(\?.*)?$/);
+
+  // Without a chosen meal the next entry goes where the last one went (for 20 minutes), whatever the
+  // clock says: two different meals, so at least one of them is not the meal of this hour.
+  for (const [meal, name] of [
+    [3, 'Nüsse'],
+    [0, 'Kaffee'],
+  ] as const) {
+    await quickAdd(page, meal, name, '100');
+    await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+    await sheet.getByRole('button', { name: 'Essen eintragen' }).click();
+    await expect(page).toHaveURL(new RegExp(`/photo\\?.*meal=${meal}`));
+    // Today: the form names no day.
+    await expect(page.getByText(/^(Gestern|Morgen), /)).toHaveCount(0);
+  }
+  // The "+" of a meal always wins.
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=1/);
 });
 
 test('add menu stays compact on a desktop screen', async ({ browser }) => {

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AmountEditor, type Amount } from '@/components/AmountEditor';
+import { DayNote } from '@/components/DayNote';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
@@ -394,6 +395,8 @@ function FoodLogEditor({
         ) : undefined
       }
     >
+      {/* The day this goes to (or the entry is on) when it is not today; an ingredient has no day. */}
+      {!into && <DayNote date={entry?.date ?? date} />}
       <div className="mb-4">
         <h2 className="text-xl font-semibold text-balance break-words">{food.name}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

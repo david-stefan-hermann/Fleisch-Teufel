@@ -1051,6 +1051,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         </>
       }
     >
+      <DayNote date={item.date} />
       <div className="mb-4 grid gap-1.5">
         <PhotoStrip
           photos={(photos ?? []).map((p) => ({

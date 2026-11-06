@@ -37,6 +37,7 @@ import { getFood } from '@/foods/foodService';
 import { isBasePortion } from '@/lib/amounts';
 import { openTarget, returnFromInto, type Into } from '@/lib/into';
 import { useReturnToDiary } from '@/lib/logFlow';
+import { DayNote } from '@/components/DayNote';
 import { logItems } from './logMeal';
 
 const FACTOR_MIN = 0.5;
@@ -173,6 +174,7 @@ export function MealLogView({
         )
       }
     >
+      {!into && <DayNote date={date} />}
       {meal.photoId && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
           <MealPhoto photoId={meal.photoId} alt={`Foto von ${meal.name}`} className="aspect-[4/3] w-full" />

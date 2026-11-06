@@ -1,5 +1,6 @@
-import {} from '@ft/shared';
+import { addDays, today as todayOf } from '@ft/shared';
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { Dumbbell, Scale } from 'lucide-react';
 import {
   createContext,
@@ -12,14 +13,18 @@ import {
   type ReactNode,
 } from 'react';
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { useDb } from '@/app/session';
 import { rememberLogStart } from '@/lib/logFlow';
-import { defaultMealForNow } from '@/lib/meals';
+import { logTargetFor } from '@/lib/meals';
 import { cn } from '@/lib/utils';
 import { warmUpCamera } from './cameraWarmup';
 import { ScanFoodIcon } from './ScanFoodIcon';
 import { useToday } from '@/hooks/data';
 
-/** Target of the sheet: day and meal for "Essen eintragen" (default: the shown day, the meal of the hour). */
+/**
+ * Target of the sheet: day and meal for "Essen eintragen". Without a meal `logTargetFor` decides:
+ * the meal of the last entry while it is younger than 20 minutes, else the meal of the hour.
+ */
 export interface AddSheetTarget {
   date?: string;
   meal?: number;
@@ -64,8 +69,37 @@ function AddSheet({
   const router = useRouter();
   const search = useSearch({ strict: false }) as { date?: string };
   const todayNow = useToday();
-  const date = target.date ?? search.date ?? todayNow;
-  const meal = target.meal ?? defaultMealForNow();
+  const db = useDb();
+  // What was logged last (today, and yesterday for the minutes after midnight) and which photos
+  // still wait in a meal: read while the sheet is open, used when a tile is tapped.
+  const recent = useLiveQuery(
+    async () =>
+      open
+        ? {
+            entries: await db.foodEntries
+              .where('date')
+              .between(addDays(todayNow, -1), todayNow, true, true)
+              .filter((e) => !e.deleted)
+              .toArray(),
+            pending: await db.aiQueue.filter((i) => !i.result).toArray(),
+          }
+        : null,
+    [db, open, todayNow],
+  );
+  /** Day and meal of the tap (the clock is read then, not while rendering). */
+  const targetNow = () => {
+    const now = Date.now();
+    const today = todayOf(new Date(now));
+    const shownDate = target.date ?? search.date ?? today;
+    if (target.meal !== undefined) return { date: shownDate, meal: target.meal };
+    return logTargetFor({
+      shownDate,
+      today,
+      now,
+      entries: recent?.entries ?? [],
+      pending: recent?.pending ?? [],
+    });
+  };
   /** Logging returns to the page the sheet was opened on, when that is the diary of the day. */
   const rememberStart = () =>
     rememberLogStart(router.history, {
@@ -101,7 +135,7 @@ function AddSheet({
         // The camera starts while the sheet closes and the page changes.
         warmUpCamera();
         rememberStart();
-        return navigate({ to: '/photo', search: { date, meal } });
+        return navigate({ to: '/photo', search: targetNow() });
       },
       primary: true,
     },
@@ -110,7 +144,8 @@ function AddSheet({
       icon: Dumbbell,
       run: () => {
         rememberStart();
-        return navigate({ to: '/exercise', search: { date } });
+        // Only the day: a training right after the late snack belongs to the same evening.
+        return navigate({ to: '/exercise', search: { date: targetNow().date } });
       },
     },
   ];
