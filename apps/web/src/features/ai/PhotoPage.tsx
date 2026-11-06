@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DayNote } from '@/components/DayNote';
+import { HeaderMealPicker } from '@/components/HeaderMealPicker';
 import { HintCount, HintField } from '@/components/HintField';
 import {
   BarcodeScanner,
@@ -170,8 +171,18 @@ function writeQueueOpen(open: boolean) {
  * result is logged there by itself (`leaveAnalysis`).
  */
 export function PhotoPage() {
-  const { date, meal, review, form = false } = useSearch({ from: '/authed/photo' });
+  const search = useSearch({ from: '/authed/photo' });
+  const { date, review, form = false } = search;
   const navigate = useNavigate({ from: '/photo' });
+  // The meal picked in the header wins over the one of the link. It is written into the URL of
+  // whichever step of this page shows (camera, form), so the search, the scanner and the way back
+  // from them know it too.
+  const [picked, setPicked] = useState<number | null>(null);
+  const meal = picked ?? search.meal;
+  useEffect(() => {
+    if (picked !== null && picked !== search.meal)
+      void navigate({ search: (s) => ({ ...s, meal: picked }), replace: true });
+  }, [picked, search.meal, navigate]);
   const router = useRouter();
   const returnToDiary = useReturnToDiary();
   const db = useDb();
@@ -205,7 +216,7 @@ export function PhotoPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [adding, setAdding] = useState(false);
   // "Eingeben": what was typed stays while the person looks at the camera again.
-  const [entry, setEntry] = useState<QuickEntryState>(() => emptyQuickEntry(meal));
+  const [entry, setEntry] = useState<QuickEntryState>(emptyQuickEntry);
   const [queueOpen, setQueueOpen] = useState(readQueueOpen);
   // The queue item the preview waits for, and whether the page was left meanwhile. Both are read
   // after awaits, where the component may be gone (state would be stale there).
@@ -268,7 +279,7 @@ export function PhotoPage() {
   }
 
   /**
-   * "Analysieren" of the form: queues the description (no photo) for the chosen meal and waits for
+   * "Analysieren" of the form: queues the description (no photo) for the meal and waits for
    * the result. Typed values go along as a clue; the review shows what the AI found.
    */
   async function describeMeal() {
@@ -279,16 +290,14 @@ export function PhotoPage() {
       carbsG: entry.carbs ?? undefined,
       fatG: entry.fat ?? undefined,
     };
-    await follow(entry.meal, true, () =>
-      enqueueDescription(db, { date, meal: entry.meal, text: entry.text, typed }),
-    );
+    await follow(meal, true, () => enqueueDescription(db, { date, meal, text: entry.text, typed }));
   }
 
   const { busy: logging, run } = useSubmitting();
   /** "Eintragen" of the form: a quick entry with the typed values; the text is its note and title. */
   async function logEntry() {
     if (!quickEntryValid(entry)) return;
-    const values = quickEntryValues(entry);
+    const values = quickEntryValues(entry, meal);
     const id = await logQuickEntry(db, date, values);
     toast.success(`${fmt0(values.kcal)} kcal eingetragen`);
     await returnToDiary({ date, focus: { rows: [id], meal: values.meal } });
@@ -323,7 +332,7 @@ export function PhotoPage() {
       waiting.current = null;
       // Stored and analysed: the preview (or the form) is done, whatever the outcome.
       setShots([]);
-      if (fromForm) setEntry(emptyQuickEntry(meal));
+      if (fromForm) setEntry(emptyQuickEntry());
       if (item?.status === 'done' && !item.deferred) return openReview(id, fromForm);
       if (item?.status === 'pending') {
         // Offline: the photos are safe and already show in the diary; logged once analysed.
@@ -358,8 +367,6 @@ export function PhotoPage() {
 
   const preview = shots.length > 0;
   const typing = form && !preview;
-  // In the form the header names the meal chosen there.
-  const mealName = settings?.mealNames[typing ? entry.meal : meal];
   // The AI may be off on the server; unknown (offline) still queues the description for later.
   const canAnalyze = aiEnabled !== false && quickEntryHasText(entry);
   const canLog = quickEntryValid(entry);
@@ -375,13 +382,17 @@ export function PhotoPage() {
   );
   return (
     <Page
-      title={
-        <>
-          Essen eintragen{' '}
-          {mealName && <span className="text-sm font-normal text-muted-foreground">{mealName}</span>}
-        </>
-      }
+      title="Essen eintragen"
       back
+      // The meal everything on this page logs into (photo, form, search, barcode), changed right here.
+      actions={
+        <HeaderMealPicker
+          meal={meal}
+          names={settings?.mealNames ?? []}
+          onChange={setPicked}
+          disabled={busy}
+        />
+      }
       // In the preview, back drops the photos and returns to the camera; during the analysis it
       // leaves for the diary. The form is a step of its own in the history: back is the camera.
       onBack={analyzing ? leaveToDiary : preview ? () => setShots([]) : undefined}
@@ -429,7 +440,6 @@ export function PhotoPage() {
           <QuickEntryFields
             value={entry}
             onChange={setEntry}
-            mealNames={settings?.mealNames ?? []}
             disabled={analyzing || logging}
             autoFocus
             hint={

@@ -417,7 +417,8 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
           .match(/name="text"\r\n\r\n([^\r]*)/)?.[1] ?? '';
   });
   await page.goto('/photo?meal=1');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Essen eintragen\s*Mittagessen/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Essen eintragen');
+  await expect(page.getByRole('button', { name: 'Mahlzeit: Mittagessen' })).toBeVisible();
   // A picked gallery photo (no barcode in it) shows a preview first; nothing goes to the AI yet.
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toBeVisible();

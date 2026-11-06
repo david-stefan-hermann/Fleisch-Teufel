@@ -187,15 +187,38 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
     'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner gemischter Salat. Danach noch ein Espresso.';
   await page.getByLabel('Was hast du gegessen?').fill(text);
   await page.getByLabel('Kalorien').fill('950');
-  // The meal of the "+" is preselected and can be changed.
-  await expect(page.getByRole('combobox', { name: 'Mahlzeit' })).toHaveText('Mittagessen');
+  // The meal of the "+" stands at the right end of the header, not in the form; a tap changes it.
+  await expect(page.getByLabel('Mahlzeit', { exact: true })).toHaveCount(0);
+  const picker = page.getByRole('button', { name: /^Mahlzeit: / });
+  await expect(picker).toHaveText('Mittagessen');
+  const [h, m] = [
+    (await page.getByRole('heading', { level: 1 }).boundingBox())!,
+    (await picker.boundingBox())!,
+  ];
+  expect(m.x).toBeGreaterThan(h.x + h.width - 1);
+  expect(m.x + m.width).toBeGreaterThan(page.viewportSize()!.width - 20);
+  await picker.click();
+  await expect(page.getByRole('menuitemradio', { name: 'Mittagessen' })).toBeChecked();
+  await page.getByRole('menuitemradio', { name: 'Abendessen' }).click();
+  await expect(picker).toHaveText('Abendessen');
+  await expect(page).toHaveURL(/meal=2/);
+  // The camera before the form, the search and the scanner follow; what was typed stays.
+  await page.goBack();
+  await expect(picker).toHaveText('Abendessen');
+  await expect(page).toHaveURL(/\/photo\?(?!.*form=).*meal=2/);
+  await expect(page.getByRole('link', { name: 'Suchen' })).toHaveAttribute('href', /meal=2/);
+  await page.goForward();
+  await expect(page.getByLabel('Kalorien')).toHaveValue('950');
   // The AI is off on this server: the values are logged, nothing is analysed.
   await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('950 kcal eingetragen')).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   const title = 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…';
-  const row = mealCard(page, 'Mittagessen').getByRole('link', { name: new RegExp(`^${title}`) });
+  const row = mealCard(page, 'Abendessen').getByRole('link', { name: new RegExp(`^${title}`) });
+  await expect(
+    mealCard(page, 'Mittagessen').getByRole('link', { name: new RegExp(`^${title}`) }),
+  ).toHaveCount(0);
   await expect(row).toContainText('Schnell eingetragen');
   await expect(row).toContainText('950');
   // Camera and form are gone from the history.
@@ -208,6 +231,8 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   await expect(page).toHaveURL(/\/quick-add\?/);
   await expect(page.getByRole('heading', { level: 1, name: 'Schnelleintrag bearbeiten' })).toBeVisible();
   await expect(page.getByLabel('Was hast du gegessen?')).toHaveValue(text);
+  // The editor of an entry keeps the meal as a field (it has no header meal).
+  await expect(page.getByRole('combobox', { name: 'Mahlzeit' })).toHaveText('Abendessen');
   await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toHaveCount(0);
   await page.getByLabel('Kalorien').fill('900');
   await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();

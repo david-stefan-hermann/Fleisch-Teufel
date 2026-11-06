@@ -149,9 +149,13 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   the entry made before midnight for that day (then the forms say the day with `DayNote` and the diary of
   yesterday opens afterwards), else the meal of the hour; waiting analyses count like entries, a past day shown
   in the diary and entries added to a past day trigger nothing. The "+" of a meal always wins. `/photo` is the
-  food page "Essen eintragen" (camera, barcode; no header icons). Under the camera sit two buttons, "Eingeben"
+  food page "Essen eintragen" (camera, barcode; no header icons). The right end of its header names the meal
+  (`components/HeaderMealPicker.tsx`): a tap opens a dropdown to pick another one, for everything the page
+  does (photo, form, search, barcode); the choice is written into the URL of the step that shows (`replace`).
+  Under the camera sit two buttons, "Eingeben"
   and "Suchen" (`/add`, pushed). "Eingeben" opens one form (search param `form`, a history step of its own;
-  `features/foods/QuickEntryFields.tsx`: "Was hast du gegessen?", calories, macros, meal): values alone give
+  `features/foods/QuickEntryFields.tsx`: "Was hast du gegessen?", calories, macros; no meal field, the header
+  has it): values alone give
   "Eintragen" (`logQuickEntry`: a plain entry with source `quick`, the full text in the synced `foodEntries.note`,
   the diary title its first line cut at a word boundary, `quickEntryTitle` in shared, "Schnelleingabe" without a
   text), a text alone gives "Analysieren" (`enqueueDescription`, `textOnly`, same review; its hint field is
@@ -159,7 +163,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   values go to the AI as a clue (`AiQueueItem.typed`, form field `typed` of `/api/ai/analyze`, one line in
   `userPrompt`; the review shows what the AI found). "Analysieren" is missing only when the AI is off on the
   server; offline the description is queued. The review replaces the form step in the history. `/quick-add` only
-  edits a quick entry (same fields, full text, "Änderungen übernehmen", no analysis); without `entryId` it
+  edits a quick entry (same fields plus the "Mahlzeit" select, full text, "Änderungen übernehmen", no analysis); without `entryId` it
   redirects to `/photo?form=1`. Copies of a quick entry keep the note (`entryToItem`: clipboard, "Wie gestern",
   suggestions), ingredients of a meal or group never carry one. "Offene Analysen (N)" below the buttons is
   collapsible (closed by default, `ft:photo:queueOpen`): rows are discarded by swipe with undo, a failed one has

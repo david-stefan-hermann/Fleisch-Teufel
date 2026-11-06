@@ -6,23 +6,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { QuickEntryValues } from '@/db/entries';
 import { fmt0 } from '@/lib/format';
 
-/** The quick entry form as typed: a text, optional values, the diary meal. */
+/** The quick entry form as typed: a text and optional values. */
 export interface QuickEntryState {
   text: string;
   kcal: number | null;
   protein: number | null;
   carbs: number | null;
   fat: number | null;
-  meal: number;
 }
 
-export const emptyQuickEntry = (meal: number): QuickEntryState => ({
+export const emptyQuickEntry = (): QuickEntryState => ({
   text: '',
   kcal: null,
   protein: null,
   carbs: null,
   fat: null,
-  meal,
 });
 
 /** Something was written into the text field. */
@@ -33,9 +31,9 @@ export const quickEntryValid = (s: QuickEntryState) => s.kcal !== null && s.kcal
 export const quickEntryHasValues = (s: QuickEntryState) =>
   [s.kcal, s.protein, s.carbs, s.fat].some((v) => v !== null && v > 0);
 
-/** The state as what gets written; only for a valid form. */
-export const quickEntryValues = (s: QuickEntryState): QuickEntryValues => ({
-  meal: s.meal,
+/** The state as what gets written into a diary meal; only for a valid form. */
+export const quickEntryValues = (s: QuickEntryState, meal: number): QuickEntryValues => ({
+  meal,
   text: s.text,
   kcal: s.kcal ?? 0,
   proteinG: s.protein,
@@ -45,20 +43,22 @@ export const quickEntryValues = (s: QuickEntryState): QuickEntryValues => ({
 
 /**
  * Fields of "Eingeben" (food page) and of editing a quick entry: "Was hast du gegessen?", calories
- * and macros (all optional as fields: the page decides what its buttons need), and the diary meal.
- * Values alone are logged as they are, a text alone is analysed, both can do either.
+ * and macros (all optional as fields: the page decides what its buttons need). Values alone are
+ * logged as they are, a text alone is analysed, both can do either. The food page picks the diary
+ * meal in its header; only the editor of an entry passes `meal` and gets the select.
  */
 export function QuickEntryFields({
   value,
   onChange,
-  mealNames,
+  meal,
   disabled,
   autoFocus,
   hint,
 }: {
   value: QuickEntryState;
   onChange: (next: QuickEntryState) => void;
-  mealNames: readonly string[];
+  /** The diary meal as a field of the form (moving an existing entry). */
+  meal?: { value: number; names: readonly string[]; onChange: (meal: number) => void };
   disabled?: boolean;
   autoFocus?: boolean;
   /** Line under the text field (what the buttons will do with it). */
@@ -133,25 +133,27 @@ export function QuickEntryFields({
           )}
         </p>
       )}
-      <div className="grid gap-1.5">
-        <Label htmlFor="qe-meal">Mahlzeit</Label>
-        <Select
-          value={String(value.meal)}
-          onValueChange={(v) => set({ meal: Number(v) })}
-          disabled={disabled}
-        >
-          <SelectTrigger id="qe-meal" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {mealNames.map((n, i) => (
-              <SelectItem key={i} value={String(i)}>
-                {n}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {meal && (
+        <div className="grid gap-1.5">
+          <Label htmlFor="qe-meal">Mahlzeit</Label>
+          <Select
+            value={String(meal.value)}
+            onValueChange={(v) => meal.onChange(Number(v))}
+            disabled={disabled}
+          >
+            <SelectTrigger id="qe-meal" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {meal.names.map((n, i) => (
+                <SelectItem key={i} value={String(i)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }

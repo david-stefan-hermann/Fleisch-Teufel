@@ -21,7 +21,7 @@ import {
 
 /**
  * A quick entry of the diary (values without a food, with the text the person wrote): the same
- * fields as "Eingeben" on the food page, with the full text. Only "Änderungen übernehmen": an entry
+ * fields as "Eingeben" on the food page, with the full text and the diary meal. Only "Änderungen übernehmen": an entry
  * is not analysed afterwards. New quick entries are made on the food page (`/photo?form=1`); a link
  * without an entry goes there.
  */
@@ -48,8 +48,8 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
     protein: entry.nutrients[N.protein] ?? null,
     carbs: entry.nutrients[N.carbs] ?? null,
     fat: entry.nutrients[N.fat] ?? null,
-    meal: entry.meal,
   }));
+  const [meal, setMeal] = useState(entry.meal);
   const valid = quickEntryValid(state);
   /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
   const leave = () =>
@@ -62,7 +62,7 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
   const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
-    await saveQuickEntry(db, entry, quickEntryValues(state));
+    await saveQuickEntry(db, entry, quickEntryValues(state, meal));
     toast.success('Änderungen übernommen');
     leave();
   }
@@ -99,7 +99,11 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
     >
       <Section>
         <div className="p-4">
-          <QuickEntryFields value={state} onChange={setState} mealNames={settings?.mealNames ?? []} />
+          <QuickEntryFields
+            value={state}
+            onChange={setState}
+            meal={{ value: meal, names: settings?.mealNames ?? [], onChange: setMeal }}
+          />
         </div>
       </Section>
     </Page>

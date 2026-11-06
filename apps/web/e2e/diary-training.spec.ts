@@ -336,7 +336,7 @@ test('the "+" of a meal opens the food page for that meal, ⋯ of an empty meal 
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Mittagessen');
+  await expect(page.getByRole('button', { name: 'Mahlzeit: Mittagessen' })).toBeVisible();
 
   // The empty state of a meal goes there as well.
   await page.goto('/');
