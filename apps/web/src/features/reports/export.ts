@@ -131,7 +131,12 @@ export function weightsCsv(weights: WeightEntry[], dialect: CsvDialect): string 
   );
 }
 
-export function exerciseCsv(list: ExerciseEntry[], dialect: CsvDialect): string {
+export function exerciseCsv(
+  list: ExerciseEntry[],
+  dialect: CsvDialect,
+  /** Names of the saved trainings by id (column "Training"). */
+  trainingNames: ReadonlyMap<string, string> = new Map(),
+): string {
   return toCsv(
     [...list].sort((a, b) => a.date.localeCompare(b.date) || a.loggedAt - b.loggedAt),
     [
@@ -143,6 +148,8 @@ export function exerciseCsv(list: ExerciseEntry[], dialect: CsvDialect): string 
       { header: 'Gewicht (kg)', value: (e) => e.weightKg },
       { header: 'kcal', value: (e) => e.kcal },
       { header: 'Notiz', value: (e) => e.note ?? '' },
+      // At the end, so existing sheets keep their columns: the saved training the entry was logged from.
+      { header: 'Training', value: (e) => (e.templateId && trainingNames.get(e.templateId)) || '' },
     ],
     dialect,
   );

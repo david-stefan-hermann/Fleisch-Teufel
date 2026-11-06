@@ -19,7 +19,7 @@ const sameOriginFetch = (path: string, init?: RequestInit) =>
  */
 export async function collectShareData(
   db: UserDb,
-  base: Omit<DayShareData, 'savedMeals' | 'photos'>,
+  base: Omit<DayShareData, 'savedMeals' | 'photos' | 'savedTrainings'>,
 ): Promise<DayShareData> {
   const groups = base.parts.food ? groupDiaryEntries(base.entries).filter((r) => r.kind === 'group') : [];
   const mealIds = [...new Set(groups.map((g) => g.mealId).filter((id): id is string => !!id))];
@@ -43,7 +43,12 @@ export async function collectShareData(
       }
     }),
   );
-  return { ...base, savedMeals, photos };
+  const trainingIds = base.parts.training
+    ? [...new Set(base.exercises.map((e) => e.templateId).filter((id): id is string => !!id))]
+    : [];
+  const trainings = trainingIds.length ? await db.exerciseTemplates.bulkGet(trainingIds) : [];
+  const savedTrainings = new Map(trainings.filter((t) => !!t).map((t) => [t.id, t.name]));
+  return { ...base, savedMeals, photos, savedTrainings };
 }
 
 function dataUrl(blob: Blob): Promise<string> {

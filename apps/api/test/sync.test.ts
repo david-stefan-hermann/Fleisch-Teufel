@@ -185,6 +185,8 @@ describe('sync', () => {
           kcal: 362.9,
           loggedAt: 5,
           note: 'Intervalle 6 × 400 m',
+          // Logged from a saved training: the diary shows that training's name.
+          templateId: uuidv7(),
         },
       },
       {
@@ -278,7 +280,11 @@ describe('sync', () => {
       photoIds: null,
       note: null,
     });
-    expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({ ...oldExercise, note: null });
+    expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({
+      ...oldExercise,
+      note: null,
+      templateId: null,
+    });
   });
 
   it('keeps users isolated even with identical ids', async () => {

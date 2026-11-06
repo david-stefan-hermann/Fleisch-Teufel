@@ -21,7 +21,7 @@ import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
 import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
 import { buildChart } from '@/features/reports/chartData';
-import { matchesTraining } from '@/features/exercise/training';
+import { matchesTraining, trainingTitle } from '@/features/exercise/training';
 import {
   clampAmount,
   convertAmount,
@@ -402,6 +402,32 @@ describe('training quick search', () => {
     expect(matchesTraining('bahn yoga', fields)).toBe(false);
     expect(matchesTraining('rücken', ['Rückentraining', null, undefined])).toBe(true);
     expect(matchesTraining('ruecken', ['Rückentraining'])).toBe(true);
+  });
+});
+
+describe('training title', () => {
+  const names = new Map([
+    ['t1', 'Push Day'],
+    ['t2', 'Laufen'],
+  ]);
+  it('is the name of the saved training with the sport below, else the sport', () => {
+    expect(trainingTitle({ name: 'Krafttraining', templateId: 't1' }, names)).toEqual({
+      title: 'Push Day',
+      sport: 'Krafttraining',
+    });
+    expect(trainingTitle({ name: 'Krafttraining', templateId: null }, names)).toEqual({
+      title: 'Krafttraining',
+      sport: null,
+    });
+    // Older records have no field; an unknown id (not synced yet) and names still loading: the sport.
+    expect(trainingTitle({ name: 'Yoga' }, names).title).toBe('Yoga');
+    expect(trainingTitle({ name: 'Yoga', templateId: 'gone' }, names).title).toBe('Yoga');
+    expect(trainingTitle({ name: 'Yoga', templateId: 't1' }, undefined).title).toBe('Yoga');
+    // A saved training called like its sport says it once.
+    expect(trainingTitle({ name: 'Laufen', templateId: 't2' }, names)).toEqual({
+      title: 'Laufen',
+      sport: null,
+    });
   });
 });
 

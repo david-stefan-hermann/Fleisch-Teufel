@@ -191,6 +191,7 @@ export const exerciseEntries = pgTable(
     kcal: doublePrecision().notNull(),
     loggedAt: bigint({ mode: 'number' }).notNull(),
     note: text(),
+    templateId: text(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );

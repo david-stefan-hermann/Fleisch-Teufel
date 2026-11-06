@@ -1,4 +1,11 @@
-import { EXERCISE_TYPES, INTENSITY_LABELS_DE, normalize, tokenize, type Intensity } from '@ft/shared';
+import {
+  EXERCISE_TYPES,
+  INTENSITY_LABELS_DE,
+  normalize,
+  tokenize,
+  type ExerciseEntry,
+  type Intensity,
+} from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { useDb } from '@/app/session';
@@ -28,6 +35,29 @@ export function useTypeOptions(): TypeOption[] {
     ],
     [customTypes],
   );
+}
+
+/** Names of the saved trainings by id, deleted ones included (an entry keeps showing its name). */
+export function useTrainingNames(): ReadonlyMap<string, string> | undefined {
+  const db = useDb();
+  return useLiveQuery(
+    async () => new Map((await db.exerciseTemplates.toArray()).map((t) => [t.id, t.name])),
+    [db],
+  );
+}
+
+/**
+ * What a training entry is called: the name of the saved training it was logged from (its current
+ * name, also when that training was deleted, like the name of a saved meal), else the sport. `sport`
+ * is the sport for the line below, only when the title is not the sport itself.
+ */
+export function trainingTitle(
+  entry: Pick<ExerciseEntry, 'name'> & { templateId?: string | null },
+  names: ReadonlyMap<string, string> | undefined,
+): { title: string; sport: string | null } {
+  const saved = entry.templateId ? names?.get(entry.templateId) : undefined;
+  if (!saved || saved === entry.name) return { title: entry.name, sport: null };
+  return { title: saved, sport: entry.name };
 }
 
 /** "Joggen · 60 Min. · mittel · 6.10. · Notiz" (parts left out when missing). */

@@ -78,6 +78,13 @@
       "when": 1793925350797,
       "tag": "0010_food-entry-note",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793926696361,
+      "tag": "0011_exercise-entry-template",
+      "breakpoints": true
     }
   ]
 }

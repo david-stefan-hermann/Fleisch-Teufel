@@ -246,6 +246,12 @@ export const exerciseEntrySchema = z.object({
   loggedAt: z.number().int().nonnegative(),
   /** Free text, e.g. exercises and sets. Defaults to null for records from older app versions. */
   note: z.string().trim().max(2000).nullable().default(null),
+  /**
+   * The saved training (`exerciseTemplates` id) the entry was logged from: the diary shows its
+   * name (also after it was renamed, like the name of a saved meal) with the sport below it. Null
+   * for a training logged by its sport and for records from older app versions.
+   */
+  templateId: idSchema.nullable().default(null),
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
 

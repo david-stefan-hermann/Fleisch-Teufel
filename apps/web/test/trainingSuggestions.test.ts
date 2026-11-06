@@ -1,7 +1,8 @@
 import { addDays, uuidv7, type Intensity } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
-import { logTrainings } from '@/db/entries';
+import { logTrainings, saveExerciseTemplate } from '@/db/entries';
+import { deleteRecord, patchRecord } from '@/db/write';
 import { trainingHistory } from '@/db/trainingSuggestions';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -21,6 +22,7 @@ const row = (
   weightKg: 80,
   kcal: 200,
   note,
+  templateId: null as string | null,
 });
 
 describe('trainingHistory ("Zuletzt & häufig")', () => {
@@ -79,5 +81,67 @@ describe('trainingHistory ("Zuletzt & häufig")', () => {
     const [id] = await logTrainings(d, addDays(TODAY, -1), [row('running', 30)]);
     await d.exerciseEntries.update(id!, { deleted: true });
     expect((await trainingHistory(d, TODAY)).suggestions).toEqual([]);
+  });
+
+  it('a saved training is a suggestion of its own, named like it, with the values of the last time', async () => {
+    const d = db();
+    const saved = async (name: string, minutes: number) =>
+      saveExerciseTemplate(d, {
+        name,
+        typeKey: 'strength',
+        typeName: 'Krafttraining',
+        minutes,
+        intensity: 'moderate',
+        note: null,
+      });
+    const push = await saved('Push Day', 60);
+    const pull = await saved('Pull Day', 60);
+    const from = (templateId: string | null, minutes: number, note: string | null = null) => ({
+      ...row('strength', minutes, 'vigorous', note),
+      name: 'Krafttraining',
+      templateId,
+    });
+    await logTrainings(d, addDays(TODAY, -8), [from(push, 60)]);
+    await logTrainings(d, addDays(TODAY, -1), [from(push, 75, 'Bank 5 × 5')]);
+    await logTrainings(d, addDays(TODAY, -3), [from(pull, 50)]);
+    await logTrainings(d, addDays(TODAY, -5), [from(null, 30)]);
+    const h = await trainingHistory(d, TODAY);
+    // Two saved trainings of one sport and the sport itself: three suggestions.
+    expect(h.suggestions.map((s) => [s.key, s.templateName, s.count])).toEqual([
+      [`t:${push}`, 'Push Day', 2],
+      [`t:${pull}`, 'Pull Day', 1],
+      ['strength', null, 1],
+    ]);
+    // What was logged last time, not what the saved training says (60 min, no note).
+    expect(h.suggestions[0]).toMatchObject({
+      templateId: push,
+      typeKey: 'strength',
+      name: 'Krafttraining',
+      minutes: 75,
+      intensity: 'vigorous',
+      note: 'Bank 5 × 5',
+    });
+    // The values per sport (sport picker) are the ones of the sport's last entry, whatever it came from.
+    expect(h.last.get('strength')).toMatchObject({ minutes: 75 });
+
+    // Renamed: the suggestion follows the name.
+    await patchRecord(d, 'exerciseTemplates', push, { name: 'Brust und Trizeps' });
+    expect((await trainingHistory(d, TODAY)).suggestions[0]!.templateName).toBe('Brust und Trizeps');
+
+    // Logged today from "Pull Day": only that one is taken out, the sport and "Push" stay.
+    await logTrainings(d, TODAY, [from(pull, 50)]);
+    expect((await trainingHistory(d, TODAY)).suggestions.map((s) => s.key)).toEqual([
+      `t:${push}`,
+      'strength',
+    ]);
+
+    // A deleted saved training falls back to its sport: its entries count there.
+    await deleteRecord(d, 'exerciseTemplates', push);
+    const after = await trainingHistory(d, TODAY, { withLogged: true });
+    expect(after.suggestions.map((s) => [s.key, s.count, s.templateId])).toEqual([
+      ['strength', 3, null],
+      [`t:${pull}`, 2, pull],
+    ]);
+    expect(after.suggestions[0]).toMatchObject({ minutes: 75, templateName: null });
   });
 });

@@ -40,7 +40,9 @@ analysierte Foto oder das Meal-Foto beim Eintragen; die Tagebuchzeile zeigt es v
 `foodEntries.photoIds` (alle Fotos der Gruppe in Reihenfolge, z. B. Teller, Dessert und Nährwerttabelle einer
 Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`), `foodEntries.note` (der volle
 Text eines Schnelleintrags, „Was hast du gegessen?“; `name` ist sein gekürzter Anfang, `quickEntryTitle`; bei
-allen anderen Einträgen `null`), `exerciseEntries.note` und
+allen anderen Einträgen `null`), `exerciseEntries.note`, `exerciseEntries.templateId` (das gespeicherte
+Training, aus dem der Eintrag stammt; das Tagebuch zeigt dessen aktuellen Namen, auch wenn es umbenannt oder
+gelöscht wurde; `null` bei einem Training, das über die Sportart eingetragen wurde) und
 `meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
 wie sie sind).
 

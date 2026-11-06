@@ -1726,6 +1726,24 @@ describe('DayShareImage', () => {
       weightKg: 80,
       kcal: 312,
       note: null,
+      templateId: null,
+      updatedAt: 1,
+      deleted: false,
+    },
+    // Logged from a saved training: its name is the title, the sport stands below.
+    {
+      id: 'x2',
+      date: '2026-11-02',
+      loggedAt: 2,
+      typeKey: 'strength',
+      name: 'Krafttraining',
+      minutes: 60,
+      intensity: 'vigorous',
+      met: 6,
+      weightKg: 80,
+      kcal: 400,
+      note: 'Beine',
+      templateId: 't1',
       updatedAt: 1,
       deleted: false,
     },
@@ -1739,6 +1757,7 @@ describe('DayShareImage', () => {
     exercises,
     note: 'Viel Hunger.\nWenig Schlaf.',
     savedMeals: new Map(),
+    savedTrainings: new Map([['t1', 'Push Day']]),
     photos: new Map(),
     parts,
   });
@@ -1763,6 +1782,9 @@ describe('DayShareImage', () => {
   it('adds training and note only when chosen; without food only those', () => {
     render(<DayShareImage data={data({ food: false, training: true, note: true })} />);
     expect(screen.getByText('Radfahren')).toBeTruthy();
+    expect(screen.getByText('45 Min. · Mittel')).toBeTruthy();
+    expect(screen.getByText('Push Day')).toBeTruthy();
+    expect(screen.getByText('Krafttraining · 60 Min. · Intensiv · Beine')).toBeTruthy();
     expect(screen.getByText('Notiz')).toBeTruthy();
     expect(screen.getByText(/Viel Hunger\.\s+Wenig Schlaf\./)).toBeTruthy();
     expect(screen.queryByText('Ziel')).toBeNull();

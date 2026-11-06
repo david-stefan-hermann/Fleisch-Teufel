@@ -25,7 +25,8 @@ import { fmt0, fmtDayLong } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 import { useReturnToDiary } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
-import { describe, useTypeOptions, type TypeOption } from './training';
+import type { TrainingSuggestion } from '@/db/trainingSuggestions';
+import { describe, trainingTitle, useTrainingNames, useTypeOptions, type TypeOption } from './training';
 import { ChipRow, TrainingChip } from './TrainingChips';
 import { SportPicker, TrainingFields, TrainingKcal } from './TrainingFields';
 
@@ -79,11 +80,13 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             minutes: entry.minutes,
             intensity: entry.intensity,
             note: entry.note ?? '',
-            templateId: null,
+            templateId: entry.templateId ?? null,
           },
         ]
       : [],
   );
+  // Names of the saved trainings (deleted ones too): a row taken from one is called like it.
+  const names = useTrainingNames();
   const [openKey, setOpenKey] = useState<string | null>(entry?.id ?? null);
   const [filter, setFilter] = useState('');
   const [saveKey, setSaveKey] = useState<string | null>(null);
@@ -119,7 +122,12 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
     const type = typeOf(typeKey);
     if (!type) return;
     if (entry) {
-      update(entry.id, { typeKey, ...(type.custom ? { intensity: 'moderate' as const } : {}) });
+      // Another sport: no longer the saved training it was logged from.
+      update(entry.id, {
+        typeKey,
+        ...(typeKey !== rows[0]?.typeKey && { templateId: null }),
+        ...(type.custom ? { intensity: 'moderate' as const } : {}),
+      });
       return;
     }
     const have = rowOfType(typeKey);
@@ -135,16 +143,33 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   }
   /** Saved training: selects it with its values (replacing a row of the same sport), or deselects it. */
   function toggleTemplate(t: ExerciseTemplate) {
-    const have = rowOfType(t.typeKey);
-    if (have?.templateId === t.id) return remove(have.key);
-    if (!typeOf(t.typeKey)) return toast.error('Diese Sportart gibt es nicht mehr.');
-    const values = { minutes: t.minutes, intensity: t.intensity, note: t.note ?? '', templateId: t.id };
+    selectSaved(t.typeKey, {
+      minutes: t.minutes,
+      intensity: t.intensity,
+      note: t.note ?? '',
+      templateId: t.id,
+    });
+  }
+  /** Suggestion of a saved training: like its badge, but with the values of the last time. */
+  function toggleSuggestion(s: TrainingSuggestion) {
+    if (!s.templateId) return toggleSport(s.typeKey);
+    selectSaved(s.typeKey, {
+      minutes: s.minutes,
+      intensity: s.intensity,
+      note: s.note ?? '',
+      templateId: s.templateId,
+    });
+  }
+  function selectSaved(typeKey: string, values: Omit<Row, 'key' | 'typeKey'>) {
+    const have = rowOfType(typeKey);
+    if (have?.templateId === values.templateId) return remove(have.key);
+    if (!typeOf(typeKey)) return toast.error('Diese Sportart gibt es nicht mehr.');
     if (have) {
       update(have.key, values);
       setOpenKey(have.key);
       return;
     }
-    add({ typeKey: t.typeKey, ...values });
+    add({ typeKey, ...values });
   }
 
   const { busy: saving, run } = useSubmitting();
@@ -161,6 +186,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         weightKg: usedWeight,
         kcal: kcalOf(r),
         note: r.note.trim() || null,
+        templateId: r.templateId,
       };
     });
     if (entry) {
@@ -184,7 +210,13 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   const saveRow = saveKey ? rows.find((r) => r.key === saveKey) : undefined;
   const saveType = saveRow ? typeOf(saveRow.typeKey) : null;
   const suggestions = (history?.suggestions ?? []).filter((s) => typeOf(s.typeKey));
-  const shownTemplates = (templates ?? []).slice(0, 6);
+  // A saved training that is suggested (with the values of last time) has its badge there already.
+  const shownTemplates = (templates ?? [])
+    .filter((t) => !suggestions.some((s) => s.templateId === t.id))
+    .slice(0, 6);
+  /** What a row is called: the saved training it was taken from, else its sport. */
+  const rowTitle = (r: Row) =>
+    trainingTitle({ name: typeOf(r.typeKey)?.name ?? 'Sportart', templateId: r.templateId }, names);
   const weightNote =
     [
       weight === undefined && !entry ? ' · Standardgewicht. Trage dein Gewicht ein für genauere Werte.' : '',
@@ -215,7 +247,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             size="icon"
             aria-label="Training löschen"
             onClick={async () => {
-              await deleteEntry(db, entry);
+              await deleteEntry(db, entry, trainingTitle(entry, names).title);
               leaveEntry();
             }}
           >
@@ -236,7 +268,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
             {rows.map((r) => {
               const type = typeOf(r.typeKey);
               const open = openKey === r.key || !!entry;
-              const name = type?.name ?? 'Sportart';
+              const { title: name, sport } = rowTitle(r);
               return (
                 <li key={r.key}>
                   <div className="flex items-center">
@@ -250,8 +282,8 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
                         <div className="truncate font-medium">{name}</div>
                         <div className="truncate text-xs text-muted-foreground">
                           {r.minutes
-                            ? describe(null, r.minutes, r.intensity, r.note.trim() || null)
-                            : 'Dauer fehlt'}
+                            ? describe(sport, r.minutes, r.intensity, r.note.trim() || null)
+                            : [sport, 'Dauer fehlt'].filter(Boolean).join(' · ')}
                         </div>
                       </div>
                       <span className="tabular font-semibold text-exercise">+{fmt0(kcalOf(r))}</span>
@@ -322,15 +354,19 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
               label="Zuletzt und häufig eingetragene und gespeicherte Trainings"
             >
               {suggestions.map((s) => {
-                const detail = describe(null, s.minutes, s.intensity, null);
+                // A saved training: its name, the sport below, the values of the last time.
+                const title = s.templateName ?? s.name;
+                const detail = describe(s.templateName ? s.name : null, s.minutes, s.intensity, null);
+                const row = rowOfType(s.typeKey);
                 return (
-                  <li key={`s:${s.typeKey}`} className="shrink-0">
+                  <li key={`s:${s.key}`} className="shrink-0">
                     <TrainingChip
-                      title={s.name}
+                      title={title}
                       detail={detail}
-                      pressed={!!rowOfType(s.typeKey)}
-                      ariaLabel={`${s.name}, ${detail}`}
-                      onClick={() => toggleSport(s.typeKey)}
+                      saved={!!s.templateId}
+                      pressed={s.templateId ? row?.templateId === s.templateId : !!row}
+                      ariaLabel={`${title}, ${detail}`}
+                      onClick={() => toggleSuggestion(s)}
                     />
                   </li>
                 );
@@ -425,9 +461,9 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   );
 }
 
-async function deleteEntry(db: ReturnType<typeof useDb>, entry: ExerciseEntry) {
+async function deleteEntry(db: ReturnType<typeof useDb>, entry: ExerciseEntry, title: string) {
   await deleteRecord(db, 'exerciseEntries', entry.id);
-  toast(`${entry.name} gelöscht`, {
+  toast(`${title} gelöscht`, {
     action: { label: 'Rückgängig', onClick: () => void restoreRecord(db, 'exerciseEntries', entry.id) },
   });
 }

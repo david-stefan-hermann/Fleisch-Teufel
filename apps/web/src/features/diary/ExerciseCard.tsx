@@ -8,6 +8,7 @@ import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { deleteRecord, restoreRecord } from '@/db/write';
+import { trainingTitle, useTrainingNames } from '@/features/exercise/training';
 import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
 import { fmt0 } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
@@ -23,6 +24,7 @@ export function ExerciseCard({
 }) {
   const db = useDb();
   const rememberStart = useRememberLogStart();
+  const names = useTrainingNames();
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
   return (
     <Section
@@ -61,31 +63,34 @@ export function ExerciseCard({
         </>
       ) : (
         <ul className="divide-y divide-border/70">
-          {exercises.map((e) => (
-            <li key={e.id} data-row={e.id}>
-              <SwipeToDelete
-                label={`${e.name} löschen`}
-                onDelete={async () => {
-                  await deleteRecord(db, 'exerciseEntries', e.id);
-                  toast(`${e.name} gelöscht`, {
-                    action: {
-                      label: 'Rückgängig',
-                      onClick: () => void restoreRecord(db, 'exerciseEntries', e.id),
-                    },
-                  });
-                }}
-              >
-                <Link
-                  to="/exercise"
-                  search={{ date, entryId: e.id }}
-                  draggable={false}
-                  className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+          {exercises.map((e) => {
+            const { title, sport } = trainingTitle(e, names);
+            return (
+              <li key={e.id} data-row={e.id}>
+                <SwipeToDelete
+                  label={`${title} löschen`}
+                  onDelete={async () => {
+                    await deleteRecord(db, 'exerciseEntries', e.id);
+                    toast(`${title} gelöscht`, {
+                      action: {
+                        label: 'Rückgängig',
+                        onClick: () => void restoreRecord(db, 'exerciseEntries', e.id),
+                      },
+                    });
+                  }}
                 >
-                  <ExerciseRowBody entry={e} />
-                </Link>
-              </SwipeToDelete>
-            </li>
-          ))}
+                  <Link
+                    to="/exercise"
+                    search={{ date, entryId: e.id }}
+                    draggable={false}
+                    className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+                  >
+                    <ExerciseRowBody entry={e} title={title} sport={sport} />
+                  </Link>
+                </SwipeToDelete>
+              </li>
+            );
+          })}
           {!credited && (
             <li className="px-4 py-2 text-xs text-muted-foreground">
               Trainingskalorien werden laut Einstellung nicht aufs Ziel angerechnet.
@@ -98,14 +103,28 @@ export function ExerciseCard({
   );
 }
 
-/** Content of a training row (also in the shared day image): name, minutes · intensity · note, kcal. */
-export function ExerciseRowBody({ entry: e }: { entry: ExerciseEntry }) {
+/**
+ * Content of a training row (also in the shared day image): the title (`trainingTitle`: the saved
+ * training's name, else the sport), then sport (only under a saved training's name) · minutes ·
+ * intensity · note, and the kcal.
+ */
+export function ExerciseRowBody({
+  entry: e,
+  title,
+  sport,
+}: {
+  entry: ExerciseEntry;
+  title: string;
+  sport: string | null;
+}) {
   return (
     <>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{e.name}</div>
+        <div className="truncate font-medium">{title}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {[`${fmt0(e.minutes)} Min.`, INTENSITY_LABELS_DE[e.intensity], e.note].filter(Boolean).join(' · ')}
+          {[sport, `${fmt0(e.minutes)} Min.`, INTENSITY_LABELS_DE[e.intensity], e.note]
+            .filter(Boolean)
+            .join(' · ')}
         </div>
       </div>
       <div className="tabular font-semibold text-exercise">+{fmt0(e.kcal)}</div>

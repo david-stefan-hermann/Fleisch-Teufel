@@ -13,6 +13,7 @@ import { AppLogo } from '@/components/AppLogo';
 import { Section } from '@/components/Page';
 import { fmt0, fmtDayLongYear, fmtIngredients } from '@/lib/format';
 import { CalorieOverview } from '../CalorieCard';
+import { trainingTitle } from '@/features/exercise/training';
 import { ExerciseRowBody } from '../ExerciseCard';
 import { EntryRowBody, GroupRowBody } from '../MealCard';
 
@@ -32,6 +33,8 @@ export interface DayShareData {
   note: string;
   /** Name and photo of the saved meals the groups come from. */
   savedMeals: Map<string, { name: string; photoId: string | null }>;
+  /** Names of the saved trainings the trainings were logged from. */
+  savedTrainings: Map<string, string>;
   /** Image sources (data URLs) by photo id; a missing one shows the placeholder. */
   photos: Map<string, string>;
   parts: ShareParts;
@@ -76,7 +79,7 @@ export function DayShareImage({ data }: { data: DayShareData }) {
           <ul className="divide-y divide-border/70">
             {exercises.map((e) => (
               <li key={e.id} className={ROW}>
-                <ExerciseRowBody entry={e} />
+                <ExerciseRowBody entry={e} {...trainingTitle(e, data.savedTrainings)} />
               </li>
             ))}
           </ul>

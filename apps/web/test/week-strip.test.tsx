@@ -70,6 +70,7 @@ const training = (date: string) => ({
   kcal: 380,
   loggedAt: 1,
   note: null,
+  templateId: null,
 });
 
 describe('WeekStrip', () => {

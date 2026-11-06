@@ -59,7 +59,7 @@ import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 import { saveOnboarding } from '@/features/goals/saveOnboarding';
-import { entriesCsv } from '@/features/reports/export';
+import { entriesCsv, exerciseCsv } from '@/features/reports/export';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -746,12 +746,46 @@ describe('local writes', () => {
       weightKg: 80,
       kcal: 352,
       note: null,
+      templateId: null,
     };
     await saveExercise(d, data, null);
     const [x] = await d.exerciseEntries.toArray();
     await saveExercise(d, { ...data, minutes: 45, note: 'Intervalle' }, x!);
     expect(await d.exerciseEntries.count()).toBe(1);
     expect(await d.exerciseEntries.get(x!.id)).toMatchObject({ minutes: 45, note: 'Intervalle' });
+  });
+
+  it('exports the saved training of a training entry as the last column', async () => {
+    const d = db();
+    const template = await saveExerciseTemplate(d, {
+      name: 'Push Day',
+      typeKey: 'strength',
+      typeName: 'Krafttraining',
+      minutes: 60,
+      intensity: 'moderate',
+      note: null,
+    });
+    const training = (templateId: string | null) => ({
+      typeKey: 'strength',
+      name: 'Krafttraining',
+      minutes: 60,
+      intensity: 'moderate' as const,
+      met: 6,
+      weightKg: 80,
+      kcal: 400,
+      note: null,
+      templateId,
+    });
+    await logTrainings(d, '2026-11-06', [training(template), training(null)]);
+    const csv = exerciseCsv(await d.exerciseEntries.toArray(), 'excel-de', new Map([[template, 'Push Day']]));
+    const [header, first, second] = csv.trim().split(/\r?\n/);
+    expect(header!.split(';').at(-1)).toBe('Training');
+    expect(first!.split(';').at(-1)).toBe('Push Day');
+    expect(second!.split(';').at(-1)).toBe('');
+    expect(await d.exerciseEntries.where('date').equals('2026-11-06').sortBy('loggedAt')).toMatchObject([
+      { templateId: template },
+      { templateId: null },
+    ]);
   });
 
   it('logs several trainings at once, in order, each queued for the server', async () => {
@@ -765,6 +799,7 @@ describe('local writes', () => {
       weightKg: 80,
       kcal: 200,
       note: null,
+      templateId: null,
     });
     const ids = await logTrainings(d, '2026-10-07', [
       row('strength', 'Krafttraining', 60),

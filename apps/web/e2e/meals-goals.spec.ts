@@ -205,12 +205,16 @@ test('edit a saved meal: add an ingredient via search, change an amount, add a p
   await page.keyboard.press('ArrowDown');
   await expect(grams).toHaveValue('105');
   await expect(page.getByRole('button', { name: /^365 kcal, Anteil/ })).toBeVisible();
-  // Turned by scrolling (a trackpad: wheel events, then scroll events): two rows further is 115 g,
-  // saved once it stops. A scroll without any input (`scrollBy` from a script) is not a turn.
+  // A scroll without any input (`scrollBy` from a script) is not a turn: the value stays, and the
+  // wheel returns to it (what the wheel shows is the value).
+  const top = await wheel.evaluate((el) => el.scrollTop);
   await wheel.evaluate((el) => el.scrollBy(0, 44));
   await expect(grams).toHaveValue('105');
+  await expect.poll(() => wheel.evaluate((el) => el.scrollTop)).toBe(top);
+  // Turned by scrolling (a trackpad: wheel events, then scroll events): two rows further is 115 g,
+  // saved once it stops.
   await wheel.hover();
-  await page.mouse.wheel(0, 44);
+  await page.mouse.wheel(0, 88);
   await expect(grams).toHaveValue('115');
   await expect(wheel).toHaveAttribute('aria-valuenow', '115');
 

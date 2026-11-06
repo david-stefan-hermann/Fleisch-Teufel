@@ -19,9 +19,10 @@ import { useTypeOptions } from './training';
 import { ChipRow, TrainingChip } from './TrainingChips';
 
 /**
- * "Zuletzt & häufig" under the diary's training card: the sports this person logs, with the values
- * of the last time, without what the day already has. One tap logs it (kcal from the weight of the
- * day), with undo. Nothing while there is no training in the last weeks.
+ * "Zuletzt & häufig" under the diary's training card: the sports and saved trainings this person
+ * logs, with the values of the last time, without what the day already has. A saved training shows
+ * its name with the sport below. One tap logs it (kcal from the weight of the day), with undo.
+ * Nothing while there is no training in the last weeks.
  */
 export function TrainingSuggestions({ date, className }: { date: ISODate; className?: string }) {
   const db = useDb();
@@ -49,9 +50,10 @@ export function TrainingSuggestions({ date, className }: { date: ISODate; classN
           weightKg,
           kcal,
           note: s.note,
+          templateId: s.templateId,
         },
       ]);
-      toast(`${type.name} eingetragen: ${fmt0(kcal)} kcal`, {
+      toast(`${s.templateName ?? type.name} eingetragen: ${fmt0(kcal)} kcal`, {
         action: { label: 'Rückgängig', onClick: () => void deleteRecord(db, 'exerciseEntries', id!) },
       });
     });
@@ -60,14 +62,22 @@ export function TrainingSuggestions({ date, className }: { date: ISODate; classN
     <div className={cn('px-4 pb-4', className)}>
       <ChipRow caption="Zuletzt & häufig" label="Zuletzt und häufig eingetragene Trainings">
         {suggestions.map((s) => {
-          const detail = `${fmt0(s.minutes)} Min. · ${INTENSITY_LABELS_DE[s.intensity]}`;
+          const title = s.templateName ?? s.name;
+          const detail = [
+            s.templateName && s.name,
+            `${fmt0(s.minutes)} Min.`,
+            INTENSITY_LABELS_DE[s.intensity],
+          ]
+            .filter(Boolean)
+            .join(' · ');
           return (
-            <li key={s.typeKey} className="shrink-0">
+            <li key={s.key} className="shrink-0">
               <TrainingChip
-                title={s.name}
+                title={title}
                 detail={detail}
+                saved={!!s.templateId}
                 disabled={busy}
-                ariaLabel={`${s.name}, ${detail}, eintragen`}
+                ariaLabel={`${title}, ${detail}, eintragen`}
                 onClick={() => void logOne(s)}
               />
             </li>

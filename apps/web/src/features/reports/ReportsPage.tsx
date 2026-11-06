@@ -291,7 +291,12 @@ function ExportSection({
     let csv: string;
     if (kind === 'entries') csv = entriesCsv(inRange(await db.foodEntries.toArray()), mealNames, dialect);
     else if (kind === 'weights') csv = weightsCsv(inRange(await db.weightEntries.toArray()), dialect);
-    else if (kind === 'exercise') csv = exerciseCsv(inRange(await db.exerciseEntries.toArray()), dialect);
+    else if (kind === 'exercise')
+      csv = exerciseCsv(
+        inRange(await db.exerciseEntries.toArray()),
+        dialect,
+        new Map((await db.exerciseTemplates.toArray()).map((t) => [t.id, t.name])),
+      );
     else {
       let r = rows ?? [];
       if (scope === 'all') {
