@@ -9,7 +9,6 @@ import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { quickEntryText, saveQuickEntry } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
-import { useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { goBackOr } from '@/lib/history';
 import {
@@ -21,7 +20,7 @@ import {
 
 /**
  * A quick entry of the diary (values without a food, with the text the person wrote): the same
- * fields as "Eingeben" on the food page, with the full text and the diary meal. Only "Änderungen übernehmen": an entry
+ * fields as "Eingeben" on the food page, with the full text. Only "Änderungen übernehmen": an entry
  * is not analysed afterwards. New quick entries are made on the food page (`/photo?form=1`); a link
  * without an entry goes there.
  */
@@ -41,7 +40,6 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
-  const settings = useSettings();
   const [state, setState] = useState<QuickEntryState>(() => ({
     text: quickEntryText(entry),
     kcal: get(entry.nutrients, N.kcal),
@@ -49,7 +47,6 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
     carbs: entry.nutrients[N.carbs] ?? null,
     fat: entry.nutrients[N.fat] ?? null,
   }));
-  const [meal, setMeal] = useState(entry.meal);
   const valid = quickEntryValid(state);
   /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
   const leave = () =>
@@ -62,7 +59,7 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
   const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
-    await saveQuickEntry(db, entry, quickEntryValues(state, meal));
+    await saveQuickEntry(db, entry, quickEntryValues(state, entry.meal));
     toast.success('Änderungen übernommen');
     leave();
   }
@@ -99,11 +96,7 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
     >
       <Section>
         <div className="p-4">
-          <QuickEntryFields
-            value={state}
-            onChange={setState}
-            meal={{ value: meal, names: settings?.mealNames ?? [], onChange: setMeal }}
-          />
+          <QuickEntryFields value={state} onChange={setState} />
         </div>
       </Section>
     </Page>

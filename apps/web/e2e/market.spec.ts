@@ -231,8 +231,8 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   await expect(page).toHaveURL(/\/quick-add\?/);
   await expect(page.getByRole('heading', { level: 1, name: 'Schnelleintrag bearbeiten' })).toBeVisible();
   await expect(page.getByLabel('Was hast du gegessen?')).toHaveValue(text);
-  // The editor of an entry keeps the meal as a field (it has no header meal).
-  await expect(page.getByRole('combobox', { name: 'Mahlzeit' })).toHaveText('Abendessen');
+  // No meal field here either: the entry stays in its meal.
+  await expect(page.getByLabel('Mahlzeit', { exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toHaveCount(0);
   await page.getByLabel('Kalorien').fill('900');
   await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();

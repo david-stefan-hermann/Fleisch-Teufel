@@ -2,7 +2,6 @@ import { kcalFromMacros } from '@ft/shared';
 import { HintCount, HintField } from '@/components/HintField';
 import { NumberField } from '@/components/NumberField';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { QuickEntryValues } from '@/db/entries';
 import { fmt0 } from '@/lib/format';
 
@@ -44,21 +43,19 @@ export const quickEntryValues = (s: QuickEntryState, meal: number): QuickEntryVa
 /**
  * Fields of "Eingeben" (food page) and of editing a quick entry: "Was hast du gegessen?", calories
  * and macros (all optional as fields: the page decides what its buttons need). Values alone are
- * logged as they are, a text alone is analysed, both can do either. The food page picks the diary
- * meal in its header; only the editor of an entry passes `meal` and gets the select.
+ * logged as they are, a text alone is analysed, both can do either. There is no meal field: the
+ * food page picks the diary meal in its header, an existing entry stays in its meal (it moves by
+ * drag and drop in the diary).
  */
 export function QuickEntryFields({
   value,
   onChange,
-  meal,
   disabled,
   autoFocus,
   hint,
 }: {
   value: QuickEntryState;
   onChange: (next: QuickEntryState) => void;
-  /** The diary meal as a field of the form (moving an existing entry). */
-  meal?: { value: number; names: readonly string[]; onChange: (meal: number) => void };
   disabled?: boolean;
   autoFocus?: boolean;
   /** Line under the text field (what the buttons will do with it). */
@@ -132,27 +129,6 @@ export function QuickEntryFields({
             </button>
           )}
         </p>
-      )}
-      {meal && (
-        <div className="grid gap-1.5">
-          <Label htmlFor="qe-meal">Mahlzeit</Label>
-          <Select
-            value={String(meal.value)}
-            onValueChange={(v) => meal.onChange(Number(v))}
-            disabled={disabled}
-          >
-            <SelectTrigger id="qe-meal" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {meal.names.map((n, i) => (
-                <SelectItem key={i} value={String(i)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       )}
     </div>
   );

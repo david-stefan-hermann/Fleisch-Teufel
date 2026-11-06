@@ -163,7 +163,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   values go to the AI as a clue (`AiQueueItem.typed`, form field `typed` of `/api/ai/analyze`, one line in
   `userPrompt`; the review shows what the AI found). "Analysieren" is missing only when the AI is off on the
   server; offline the description is queued. The review replaces the form step in the history. `/quick-add` only
-  edits a quick entry (same fields plus the "Mahlzeit" select, full text, "Änderungen übernehmen", no analysis); without `entryId` it
+  edits a quick entry (same fields, full text, "Änderungen übernehmen", no analysis; the entry stays in its meal); without `entryId` it
   redirects to `/photo?form=1`. Copies of a quick entry keep the note (`entryToItem`: clipboard, "Wie gestern",
   suggestions), ingredients of a meal or group never carry one. "Offene Analysen (N)" below the buttons is
   collapsible (closed by default, `ft:photo:queueOpen`): rows are discarded by swipe with undo, a failed one has
