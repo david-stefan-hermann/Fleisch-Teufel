@@ -1,5 +1,6 @@
 import {
   EXERCISE_TYPES,
+  formatDuration,
   INTENSITY_LABELS_DE,
   metFor,
   normalize,
@@ -12,7 +13,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { useDb } from '@/app/session';
 import type { TrainingToLog } from '@/db/entries';
-import { fmt0, fmtDate } from '@/lib/format';
+import { fmtDate } from '@/lib/format';
 
 /** A sport to pick: one of the built-in types or an own one (`custom`, single MET value). */
 export interface TypeOption {
@@ -46,6 +47,41 @@ export function toLog(type: TypeOption, values: TrainingInput, weightKg: number)
     templateId: values.templateId ?? null,
   };
 }
+
+/**
+ * The activities of a suggestion or saved training as trainings to log, with the given weight. A
+ * saved training's activities share a group mark and carry its id. Activities whose sport no longer
+ * exists are left out and named in `missing`.
+ */
+export function rowsToLog(
+  options: readonly TypeOption[],
+  items: readonly {
+    typeKey: string;
+    name: string;
+    minutes: number;
+    intensity: Intensity;
+    note: string | null;
+  }[],
+  weightKg: number,
+  templateId: string | null,
+): { rows: TrainingToLog[]; missing: string[] } {
+  const rows: TrainingToLog[] = [];
+  const missing: string[] = [];
+  for (const item of items) {
+    const type = options.find((o) => o.key === item.typeKey);
+    if (!type) {
+      missing.push(item.name);
+      continue;
+    }
+    const row = toLog(type, { ...item, templateId }, weightKg);
+    rows.push(templateId ? { ...row, group: templateId } : row);
+  }
+  return { rows, missing };
+}
+
+/** Toast text for activities whose sport was deleted. */
+export const missingSportsText = (missing: readonly string[]) =>
+  missing.length === 1 ? `${missing[0]} gibt es nicht mehr.` : `${missing.join(', ')} gibt es nicht mehr.`;
 
 /** Own sports first, then the built-in ones. */
 export function useTypeOptions(): TypeOption[] {
@@ -88,7 +124,7 @@ export function trainingTitle(
   return { title: saved, sport: entry.name };
 }
 
-/** "Joggen · 60 Min. · mittel · 6.10. · Notiz" (parts left out when missing). */
+/** "Joggen · 1 Std. · Mittel · 6.10. · Notiz" (parts left out when missing). */
 export function describe(
   typeName: string | null,
   minutes: number,
@@ -96,10 +132,14 @@ export function describe(
   note: string | null,
   date?: string,
 ): string {
-  return [typeName, `${fmt0(minutes)} Min.`, INTENSITY_LABELS_DE[intensity], date && fmtDate(date), note]
+  return [typeName, formatDuration(minutes), INTENSITY_LABELS_DE[intensity], date && fmtDate(date), note]
     .filter(Boolean)
     .join(' · ');
 }
+
+/** "45 Min. · Mittel": duration and intensity of an activity. */
+export const describeValues = (v: { minutes: number; intensity: Intensity }) =>
+  describe(null, v.minutes, v.intensity, null);
 
 /**
  * Training search: every word of the query occurs in one of the fields (name, sport, note),

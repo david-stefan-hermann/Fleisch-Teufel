@@ -151,11 +151,12 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   }
   /** Suggestion of a saved training: like its badge, but with the values of the last time. */
   function toggleSuggestion(s: TrainingSuggestion) {
-    if (!s.templateId) return toggleSport(s.typeKey);
-    selectSaved(s.typeKey, {
-      minutes: s.minutes,
-      intensity: s.intensity,
-      note: s.note ?? '',
+    const item = s.items[0]!;
+    if (!s.templateId) return toggleSport(item.typeKey);
+    selectSaved(item.typeKey, {
+      minutes: item.minutes,
+      intensity: item.intensity,
+      note: item.note ?? '',
       templateId: s.templateId,
     });
   }
@@ -208,7 +209,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
 
   const saveRow = saveKey ? rows.find((r) => r.key === saveKey) : undefined;
   const saveType = saveRow ? typeOf(saveRow.typeKey) : null;
-  const suggestions = (history?.suggestions ?? []).filter((s) => typeOf(s.typeKey));
+  const suggestions = (history?.suggestions ?? []).filter((s) => typeOf(s.items[0]!.typeKey));
   // A saved training that is suggested (with the values of last time) has its badge there already.
   const shownTemplates = (templates ?? [])
     .filter((t) => !suggestions.some((s) => s.templateId === t.id))
@@ -353,10 +354,10 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
               label="Zuletzt und häufig eingetragene und gespeicherte Trainings"
             >
               {suggestions.map((s) => {
-                // A saved training: its name, the sport below, the values of the last time.
-                const title = s.templateName ?? s.name;
-                const detail = describe(s.templateName ? s.name : null, s.minutes, s.intensity, null);
-                const row = rowOfType(s.typeKey);
+                const item = s.items[0]!;
+                const title = s.title;
+                const detail = describe(s.templateId ? item.name : null, item.minutes, item.intensity, null);
+                const row = rowOfType(item.typeKey);
                 return (
                   <li key={`s:${s.key}`} className="shrink-0">
                     <TrainingChip

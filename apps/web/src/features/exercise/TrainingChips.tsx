@@ -1,4 +1,4 @@
-import { Bookmark, Check } from 'lucide-react';
+import { Bookmark, Check, Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -11,6 +11,7 @@ export function TrainingChip({
   title,
   detail,
   saved,
+  pinned,
   pressed,
   disabled,
   ariaLabel,
@@ -20,6 +21,8 @@ export function TrainingChip({
   detail: string;
   /** A saved training (bookmark icon) rather than one from the diary. */
   saved?: boolean;
+  /** A pinned saved training (pin icon). */
+  pinned?: boolean;
   /** Toggle chips: whether the training is selected (shows a check). */
   pressed?: boolean;
   disabled?: boolean;
@@ -28,6 +31,8 @@ export function TrainingChip({
 }) {
   const icon: ReactNode = pressed ? (
     <Check className="size-3.5 shrink-0 text-exercise" aria-hidden />
+  ) : pinned ? (
+    <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
   ) : saved ? (
     <Bookmark className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
   ) : null;
