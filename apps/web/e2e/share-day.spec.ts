@@ -27,6 +27,21 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
   await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('Croissant', { exact: true })).toBeVisible();
 
+  // Header: the cloud first, sharing last (the clipboard menu sits between them while something is copied).
+  const headerButtons = page.getByRole('banner').getByRole('button');
+  await expect(headerButtons.last()).toHaveAccessibleName('Tag teilen');
+  const cloud = page.getByRole('banner').getByRole('button', { name: /synchronisiert/i });
+  expect((await cloud.boundingBox())!.x).toBeLessThan(
+    (await page.getByRole('button', { name: 'Tag teilen' }).boundingBox())!.x,
+  );
+  // A tap on the cloud shows the loading animation for at least a second, then the state again.
+  await cloud.click();
+  const spinning = page.getByRole('banner').getByRole('button', { name: 'Synchronisiere…' });
+  await expect(spinning).toBeVisible();
+  await page.waitForTimeout(700);
+  await expect(spinning).toBeVisible();
+  await expect(page.getByRole('banner').getByRole('button', { name: /^Synchronisiert/ })).toBeVisible();
+
   await page.getByRole('button', { name: 'Tag teilen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Tag teilen' });
   await expect(dialog.getByRole('checkbox', { name: 'Essen' })).toBeChecked();

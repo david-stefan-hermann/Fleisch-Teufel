@@ -1144,6 +1144,16 @@ test('clipboard: swipe right copies a diary row, paste into other meals and days
   for (const meal of ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'])
     await expect(page.getByRole('button', { name: `„Bowl“ in ${meal} eintragen` })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Zwischenablage' })).toBeVisible();
+  // Header order: cloud, clipboard, share.
+  const xOf = async (name: string | RegExp) =>
+    (await page.getByRole('banner').getByRole('button', { name }).boundingBox())!.x;
+  const [cloudX, clipX, shareX] = [
+    await xOf(/synchronisier|Änderung/i),
+    await xOf('Zwischenablage'),
+    await xOf('Tag teilen'),
+  ];
+  expect(cloudX).toBeLessThan(clipX);
+  expect(clipX).toBeLessThan(shareX);
 
   // Paste into Abendessen, undo, paste again.
   await page.getByRole('button', { name: '„Bowl“ in Abendessen eintragen' }).click();

@@ -100,7 +100,10 @@ export function DiaryPage() {
         </span>
       }
       actions={
+        // Cloud, clipboard (while something is copied), share.
         <>
+          <SyncIndicator />
+          {clipboard && <ClipboardMenu clipboard={clipboard} />}
           <Button
             variant="ghost"
             size="icon"
@@ -111,8 +114,6 @@ export function DiaryPage() {
           >
             <Share aria-hidden />
           </Button>
-          {clipboard && <ClipboardMenu clipboard={clipboard} />}
-          <SyncIndicator />
         </>
       }
       headerExtra={<WeekStrip date={date} today={today} />}
