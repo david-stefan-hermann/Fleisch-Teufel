@@ -11,6 +11,8 @@
  * double counting; that is what gets added to the day's budget.
  */
 
+import type { ExerciseEntry, ExerciseTemplate, TrainingItem } from './schemas.js';
+
 export type Intensity = 'light' | 'moderate' | 'vigorous';
 
 export interface ExerciseType {
@@ -348,4 +350,79 @@ export function durationWheelValues(extra: number | null = null): number[] {
     out.sort((a, b) => a - b);
   }
   return out;
+}
+
+/** The activities of a saved training in order: the flat fields (activity 1), then `extraItems`. */
+export function trainingItemsOf(
+  t: Pick<ExerciseTemplate, 'typeKey' | 'typeName' | 'minutes' | 'intensity' | 'note'> & {
+    extraItems?: TrainingItem[] | null;
+  },
+): TrainingItem[] {
+  return [
+    {
+      typeKey: t.typeKey,
+      typeName: t.typeName,
+      minutes: t.minutes,
+      intensity: t.intensity,
+      note: t.note ?? null,
+    },
+    ...(t.extraItems ?? []),
+  ];
+}
+
+/**
+ * Whether an entry's kcal are the computed ones (from its own MET, weight and minutes), not typed
+ * (a value from a watch). There is no stored flag; one kcal of rounding is tolerated.
+ */
+export function isAutoTrainingKcal(
+  entry: Pick<ExerciseEntry, 'kcal' | 'met' | 'weightKg' | 'minutes'>,
+): boolean {
+  return Math.abs(entry.kcal - trainingKcal(entry.met, entry.weightKg, entry.minutes)) <= 1;
+}
+
+/** A row of the diary's training card: a single entry, or the entries logged together from a saved training. */
+export type TrainingRow<E extends TrainingRowEntry = ExerciseEntry> =
+  { kind: 'entry'; entry: E } | { kind: 'group'; groupId: string; templateId: string | null; entries: E[] };
+
+type TrainingRowEntry = Pick<ExerciseEntry, 'id' | 'loggedAt'> & {
+  groupId?: string | null;
+  templateId?: string | null;
+};
+
+/**
+ * Groups entries that share a `groupId` into one row at the place of its first entry (`loggedAt`
+ * order). A group needs at least two entries; what is left of one (the others deleted) is a single
+ * row. Titles are resolved by the app (`trainingTitle`), not here.
+ */
+export function groupTrainingEntries<E extends TrainingRowEntry>(entries: readonly E[]): TrainingRow<E>[] {
+  const sorted = [...entries].sort((a, b) => a.loggedAt - b.loggedAt);
+  const byGroup = new Map<string, E[]>();
+  for (const e of sorted) {
+    if (!e.groupId) continue;
+    const list = byGroup.get(e.groupId);
+    if (list) list.push(e);
+    else byGroup.set(e.groupId, [e]);
+  }
+  const rows: TrainingRow<E>[] = [];
+  const seen = new Set<string>();
+  for (const e of sorted) {
+    const group = e.groupId ? byGroup.get(e.groupId) : undefined;
+    if (!group || group.length < 2) {
+      rows.push({ kind: 'entry', entry: e });
+      continue;
+    }
+    if (seen.has(e.groupId!)) continue;
+    seen.add(e.groupId!);
+    rows.push({ kind: 'group', groupId: e.groupId!, templateId: e.templateId ?? null, entries: group });
+  }
+  return rows;
+}
+
+/** The name of a sport for short lists: up to the first " / " ("Dehnen / Mobility" is "Dehnen"). */
+export const shortSportName = (name: string) => name.split(' / ')[0]!;
+
+/** "Krafttraining · Dehnen · 1 Std. 15 Min.": the sports and the total duration of some activities. */
+export function trainingSummary(items: readonly { typeName: string; minutes: number }[]): string {
+  const total = items.reduce((s, i) => s + i.minutes, 0);
+  return [...items.map((i) => shortSportName(i.typeName)), formatDuration(total)].join(' · ');
 }

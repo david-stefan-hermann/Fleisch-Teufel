@@ -16,7 +16,7 @@ import { useDb } from '@/app/session';
 import { NameDialog } from '@/components/NameDialog';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { logTrainings, saveExercise, saveExerciseTemplate, type TrainingToLog } from '@/db/entries';
+import { logTrainings, saveExercise, saveTraining, type TrainingToLog } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useCurrentWeight, useSettings, useTrainingHistory } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
@@ -444,13 +444,17 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
         }
         onConfirm={async (name) => {
           if (!saveRow || !saveType || !saveRow.minutes) return;
-          const id = await saveExerciseTemplate(db, {
-            typeKey: saveType.key,
-            typeName: saveType.name,
-            minutes: saveRow.minutes,
-            intensity: saveRow.intensity,
-            note: saveRow.note.trim() || null,
+          const id = await saveTraining(db, {
             name,
+            items: [
+              {
+                typeKey: saveType.key,
+                typeName: saveType.name,
+                minutes: saveRow.minutes,
+                intensity: saveRow.intensity,
+                note: saveRow.note.trim() || null,
+              },
+            ],
           });
           update(saveRow.key, { templateId: id });
           toast.success(`„${name}“ gespeichert`);

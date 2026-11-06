@@ -12,7 +12,7 @@ import {
   uuidv7,
   type AiAnalysisResult,
   type ExerciseEntry,
-  type ExerciseTemplate,
+  type TrainingItem,
   type FoodEntry,
   type ISODate,
   type Meal,
@@ -130,13 +130,14 @@ export function quickEntryText(entry: Pick<FoodEntry, 'name' | 'note'>): string 
 /** Saves a training entry; editing keeps its day, time, group and saved training. */
 export async function saveExercise(
   db: UserDb,
-  data: TrainingToLog & { date: ISODate },
+  { group: _group, ...data }: TrainingToLog & { date: ISODate },
   existing: ExerciseEntry | null,
 ): Promise<void> {
   if (existing)
     await saveRecord(db, 'exerciseEntries', {
       ...existing,
       ...data,
+      groupId: existing.groupId ?? null,
       templateId: data.templateId === undefined ? (existing.templateId ?? null) : data.templateId,
       date: existing.date,
     });
@@ -144,6 +145,7 @@ export async function saveExercise(
     await saveRecord(db, 'exerciseEntries', {
       ...data,
       templateId: data.templateId ?? null,
+      groupId: null,
       id: uuidv7(),
       loggedAt: Date.now(),
     });
@@ -155,13 +157,17 @@ export async function saveExercise(
  */
 export type TrainingToLog = Omit<
   ExerciseEntry,
-  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId'
-> & { templateId?: string | null };
+  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId' | 'groupId'
+> & {
+  templateId?: string | null;
+  /** Rows with the same mark share a new `groupId` (the activities of one saved training). */
+  group?: string;
+};
 
 /**
- * Logs several trainings of one day at once (strength training and stretching from the same visit),
- * each as its own entry, in one transaction, in the given order (`loggedAt` ascending). Returns the
- * new ids (undo deletes them).
+ * Logs several trainings of one day at once (the activities of a saved training), each as its own
+ * entry, in one transaction, in the given order (`loggedAt` ascending). Rows with the same `group`
+ * mark share a fresh `groupId`. Returns the new ids (undo deletes them).
  */
 export async function logTrainings(
   db: UserDb,
@@ -171,11 +177,18 @@ export async function logTrainings(
   const now = Date.now();
   return db.transaction('rw', [db.exerciseEntries, db.outbox], async () => {
     const ids: string[] = [];
-    for (const [i, row] of rows.entries()) {
+    const groups = new Map<string, string>();
+    for (const [i, { group, ...row }] of rows.entries()) {
       const id = uuidv7();
+      let groupId: string | null = null;
+      if (group !== undefined) {
+        groupId = groups.get(group) ?? uuidv7();
+        groups.set(group, groupId);
+      }
       await saveRecord(db, 'exerciseEntries', {
         ...row,
         templateId: row.templateId ?? null,
+        groupId,
         id,
         date,
         loggedAt: now + i,
@@ -199,14 +212,52 @@ export async function moveEntriesToMeal(db: UserDb, ids: readonly string[], meal
   });
 }
 
-/** Saves a training for reuse ("gespeichertes Training"); returns its id. */
-export async function saveExerciseTemplate(
+/** The fields of a saved training from its activities: activity 1 in the flat fields, the rest in `extraItems`. */
+function trainingFields(items: readonly TrainingItem[]) {
+  const [first, ...rest] = items;
+  if (!first) throw new Error('A saved training needs an activity.');
+  return {
+    typeKey: first.typeKey,
+    typeName: first.typeName,
+    minutes: first.minutes,
+    intensity: first.intensity,
+    note: first.note?.trim() || null,
+    extraItems: rest.length ? rest.map((i) => ({ ...i, note: i.note?.trim() || null })) : null,
+  };
+}
+
+/** Saves a training for reuse ("gespeichertes Training") with one or more activities; returns its id. */
+export async function saveTraining(
   db: UserDb,
-  data: Omit<ExerciseTemplate, 'id' | 'updatedAt' | 'deleted'>,
+  data: { name: string; items: readonly TrainingItem[]; pinned?: boolean | null },
 ): Promise<string> {
   const id = uuidv7();
-  await saveRecord(db, 'exerciseTemplates', { ...data, id });
+  await saveRecord(db, 'exerciseTemplates', {
+    id,
+    name: data.name.trim().slice(0, 80),
+    ...trainingFields(data.items),
+    pinned: data.pinned ? true : null,
+  });
   return id;
+}
+
+/**
+ * Changes a saved training: name, activities and pin, each only when given. False when it is gone
+ * (deleted meanwhile, also on another device).
+ */
+export async function updateTraining(
+  db: UserDb,
+  id: string,
+  patch: { name?: string; items?: readonly TrainingItem[]; pinned?: boolean | null },
+): Promise<boolean> {
+  const prev = await db.exerciseTemplates.get(id);
+  if (!prev || prev.deleted) return false;
+  await patchRecord(db, 'exerciseTemplates', id, {
+    ...(patch.name !== undefined && { name: patch.name.trim().slice(0, 80) || prev.name }),
+    ...(patch.items && trainingFields(patch.items)),
+    ...(patch.pinned !== undefined && { pinned: patch.pinned ? true : null }),
+  });
+  return true;
 }
 
 /**

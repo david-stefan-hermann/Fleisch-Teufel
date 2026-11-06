@@ -56,6 +56,7 @@ const exercise = (date: string, kcal: number): ExerciseEntry => ({
   loggedAt: 1,
   note: null,
   templateId: null,
+  groupId: null,
 });
 
 describe('goals', () => {

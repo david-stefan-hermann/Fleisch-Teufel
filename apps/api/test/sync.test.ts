@@ -187,6 +187,8 @@ describe('sync', () => {
           note: 'Intervalle 6 × 400 m',
           // Logged from a saved training: the diary shows that training's name.
           templateId: uuidv7(),
+          // One activity of a saved training with several, logged together.
+          groupId: uuidv7(),
         },
       },
       {
@@ -201,6 +203,10 @@ describe('sync', () => {
           minutes: 60,
           intensity: 'vigorous',
           note: 'Bankdrücken 3 × 8',
+          extraItems: [
+            { typeKey: 'stretching', typeName: 'Dehnen', minutes: 15, intensity: 'light', note: null },
+          ],
+          pinned: true,
         },
       },
       {
@@ -263,14 +269,26 @@ describe('sync', () => {
       kcal: 360,
       loggedAt: 7,
     };
+    const oldTemplate = {
+      id: uuidv7(),
+      updatedAt: 7,
+      deleted: false,
+      name: 'Feierabendrunde',
+      typeKey: 'cycling',
+      typeName: 'Radfahren',
+      minutes: 45,
+      intensity: 'moderate',
+      note: null,
+    };
     const before = (await pullAll(alice)).cursor;
     const r = await alice.post('/api/sync/push', {
       records: [
         { table: 'foodEntries', data: oldEntry },
         { table: 'exerciseEntries', data: oldExercise },
+        { table: 'exerciseTemplates', data: oldTemplate },
       ],
     });
-    expect(r.json).toMatchObject({ applied: 2, stale: [], rejected: [] });
+    expect(r.json).toMatchObject({ applied: 3, stale: [], rejected: [] });
     const { changes } = await pullAll(alice, before);
     expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({
       ...oldEntry,
@@ -284,6 +302,12 @@ describe('sync', () => {
       ...oldExercise,
       note: null,
       templateId: null,
+      groupId: null,
+    });
+    expect(changes.find((c) => c.data.id === oldTemplate.id)?.data).toEqual({
+      ...oldTemplate,
+      extraItems: null,
+      pinned: null,
     });
   });
 

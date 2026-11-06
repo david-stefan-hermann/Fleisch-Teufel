@@ -1,7 +1,7 @@
 import { addDays, uuidv7, type Intensity } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
-import { logTrainings, saveExerciseTemplate } from '@/db/entries';
+import { logTrainings, saveTraining } from '@/db/entries';
 import { deleteRecord, patchRecord } from '@/db/write';
 import { trainingHistory } from '@/db/trainingSuggestions';
 
@@ -86,13 +86,11 @@ describe('trainingHistory ("Zuletzt & häufig")', () => {
   it('a saved training is a suggestion of its own, named like it, with the values of the last time', async () => {
     const d = db();
     const saved = async (name: string, minutes: number) =>
-      saveExerciseTemplate(d, {
+      saveTraining(d, {
         name,
-        typeKey: 'strength',
-        typeName: 'Krafttraining',
-        minutes,
-        intensity: 'moderate',
-        note: null,
+        items: [
+          { typeKey: 'strength', typeName: 'Krafttraining', minutes, intensity: 'moderate', note: null },
+        ],
       });
     const push = await saved('Push Day', 60);
     const pull = await saved('Pull Day', 60);

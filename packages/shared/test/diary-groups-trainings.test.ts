@@ -1,6 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { groupDiaryEntries, photoIdsOf } from '../src/diary.js';
-import { exerciseEntrySchema, foodEntrySchema } from '../src/schemas.js';
+import {
+  groupTrainingEntries,
+  isAutoTrainingKcal,
+  trainingItemsOf,
+  trainingSummary,
+} from '../src/exercise.js';
+import { exerciseEntrySchema, exerciseTemplateSchema, foodEntrySchema } from '../src/schemas.js';
+
+/** A training entry as an older app version wrote it (no `note`, `templateId`, `groupId`). */
+const training = (id: string, loggedAt: number) => ({
+  id,
+  updatedAt: 1,
+  deleted: false,
+  date: '2026-10-07',
+  typeKey: 'running',
+  name: 'Laufen',
+  minutes: 30,
+  intensity: 'moderate' as const,
+  met: 9.8,
+  weightKg: 80,
+  kcal: 300,
+  loggedAt,
+});
 
 const entry = (id: string, loggedAt: number, kcal: number, groupId: string | null = null) => ({
   id,
@@ -127,5 +149,86 @@ describe('photoIdsOf', () => {
     expect(photoIdsOf({ photoId: 'a', photoIds: null })).toEqual(['a']);
     expect(photoIdsOf({ photoId: 'a' })).toEqual(['a']);
     expect(photoIdsOf({ photoId: null, photoIds: null })).toEqual([]);
+  });
+});
+
+describe('saved trainings with several activities (packages)', () => {
+  const oldTemplate = {
+    id: '0193a000-0000-7000-8000-000000000001',
+    updatedAt: 1,
+    deleted: false,
+    name: 'Gym',
+    typeKey: 'strength',
+    typeName: 'Krafttraining',
+    minutes: 60,
+    intensity: 'vigorous' as const,
+    note: null,
+  };
+  const stretch = {
+    typeKey: 'stretching',
+    typeName: 'Dehnen / Mobility',
+    minutes: 15,
+    intensity: 'light' as const,
+    note: null,
+  };
+
+  it('reads records of older app versions with defaults', () => {
+    const t = exerciseTemplateSchema.parse(oldTemplate);
+    expect(t).toMatchObject({ extraItems: null, pinned: null });
+    expect(trainingItemsOf(t)).toEqual([
+      { typeKey: 'strength', typeName: 'Krafttraining', minutes: 60, intensity: 'vigorous', note: null },
+    ]);
+    const e = exerciseEntrySchema.parse(training('a', 1));
+    expect(e.groupId).toBeNull();
+  });
+
+  it('keeps the extra activities when an older app version edits activity 1', () => {
+    const t = exerciseTemplateSchema.parse({ ...oldTemplate, extraItems: [stretch], pinned: true });
+    // An older version writes only the flat fields; unknown fields stay (patchRecord).
+    const edited = { ...t, typeKey: 'running', typeName: 'Laufen', minutes: 40 };
+    expect(trainingItemsOf(edited).map((i) => `${i.typeKey} ${i.minutes}`)).toEqual([
+      'running 40',
+      'stretching 15',
+    ]);
+  });
+
+  it('groups entries from two of one logging, the rest of a group is a single row', () => {
+    const rows = groupTrainingEntries([
+      { ...training('b', 2), groupId: 'g1', templateId: 't' },
+      { ...training('a', 1), groupId: null },
+      { ...training('c', 3), groupId: 'g1', templateId: 't' },
+      { ...training('d', 4), groupId: 'g2', templateId: 't' },
+    ]);
+    expect(
+      rows.map((r) => (r.kind === 'entry' ? r.entry.id : `${r.groupId}:${r.entries.map((e) => e.id)}`)),
+    ).toEqual(['a', 'g1:b,c', 'd']);
+    expect(rows[1]).toMatchObject({ kind: 'group', templateId: 't' });
+  });
+
+  it('keeps the same saved training twice on a day as two groups', () => {
+    const rows = groupTrainingEntries([
+      { ...training('a', 1), groupId: 'g1' },
+      { ...training('b', 2), groupId: 'g1' },
+      { ...training('c', 3), groupId: 'g2' },
+      { ...training('d', 4), groupId: 'g2' },
+    ]);
+    expect(rows.map((r) => r.kind)).toEqual(['group', 'group']);
+  });
+
+  it('tells computed kcal from typed ones', () => {
+    const e = { met: 6.8, weightKg: 80, minutes: 45 };
+    expect(isAutoTrainingKcal({ ...e, kcal: 348 })).toBe(true);
+    expect(isAutoTrainingKcal({ ...e, kcal: 347 })).toBe(true);
+    expect(isAutoTrainingKcal({ ...e, kcal: 350 })).toBe(false);
+    expect(isAutoTrainingKcal({ ...e, kcal: 520 })).toBe(false);
+  });
+
+  it('summarizes activities with short sport names and the total duration', () => {
+    expect(
+      trainingSummary([
+        { typeName: 'Krafttraining', minutes: 60 },
+        { typeName: 'Dehnen / Mobility', minutes: 15 },
+      ]),
+    ).toBe('Krafttraining · Dehnen · 1 Std. 15 Min.');
   });
 });

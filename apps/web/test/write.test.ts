@@ -6,6 +6,7 @@ import {
   type AiAnalysisResult,
   type Food,
   type MealItem,
+  trainingItemsOf,
 } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
@@ -21,7 +22,8 @@ import {
   logTrainings,
   quickEntryText,
   saveExercise,
-  saveExerciseTemplate,
+  saveTraining,
+  updateTraining,
   saveMealFromEntries,
   saveMealFromItems,
   saveQuickEntry,
@@ -136,14 +138,12 @@ describe('local writes', () => {
     });
     const training = (name: string) => ({
       name,
-      typeKey: 'running',
-      typeName: 'Laufen',
-      minutes: 30,
-      intensity: 'moderate' as const,
-      note: null,
+      items: [
+        { typeKey: 'running', typeName: 'Laufen', minutes: 30, intensity: 'moderate' as const, note: null },
+      ],
     });
-    const t1 = await saveExerciseTemplate(d, training('Bahntraining'));
-    const t2 = await saveExerciseTemplate(d, training('Dauerlauf'));
+    const t1 = await saveTraining(d, training('Bahntraining'));
+    const t2 = await saveTraining(d, training('Dauerlauf'));
     expect(await trashCount(d)).toBe(0);
     await deleteRecord(d, 'exerciseTemplates', t2);
     // Two deletions in the same millisecond would tie on updatedAt.
@@ -717,21 +717,51 @@ describe('local writes', () => {
     expect((await d.foodEntries.get(group[1]!.id))!.meal).toBe(0);
   });
 
-  it('saves training templates', async () => {
+  it('saves trainings with one or more activities and updates them', async () => {
     const d = db();
-    const id = await saveExerciseTemplate(d, {
-      name: 'Oberkörper',
+    const strength = {
       typeKey: 'strength',
       typeName: 'Krafttraining',
       minutes: 60,
-      intensity: 'vigorous',
+      intensity: 'vigorous' as const,
       note: 'Bankdrücken 3 × 8',
-    });
-    expect(await d.exerciseTemplates.get(id)).toMatchObject({
+    };
+    const stretch = {
+      typeKey: 'stretching',
+      typeName: 'Dehnen',
+      minutes: 15,
+      intensity: 'light' as const,
+      note: '',
+    };
+    const one = await saveTraining(d, { name: 'Oberkörper', items: [strength] });
+    expect(await d.exerciseTemplates.get(one)).toMatchObject({
       name: 'Oberkörper',
       note: 'Bankdrücken 3 × 8',
+      extraItems: null,
+      pinned: null,
     });
-    expect(await d.outbox.get(`exerciseTemplates:${id}`)).toBeTruthy();
+    expect(await d.outbox.get(`exerciseTemplates:${one}`)).toBeTruthy();
+
+    const gym = await saveTraining(d, { name: ' Gym-Besuch ', items: [strength, stretch], pinned: true });
+    const saved = (await d.exerciseTemplates.get(gym))!;
+    expect(saved).toMatchObject({ name: 'Gym-Besuch', typeKey: 'strength', pinned: true });
+    expect(saved.extraItems).toEqual([{ ...stretch, note: null }]);
+    expect(trainingItemsOf(saved).map((i) => i.typeKey)).toEqual(['strength', 'stretching']);
+
+    // Only the given fields change; one activity left clears `extraItems`.
+    expect(await updateTraining(d, gym, { items: [{ ...stretch, minutes: 20 }] })).toBe(true);
+    expect(await d.exerciseTemplates.get(gym)).toMatchObject({
+      name: 'Gym-Besuch',
+      typeKey: 'stretching',
+      minutes: 20,
+      extraItems: null,
+      pinned: true,
+    });
+    expect(await updateTraining(d, gym, { pinned: false, name: 'Gym' })).toBe(true);
+    expect(await d.exerciseTemplates.get(gym)).toMatchObject({ name: 'Gym', pinned: null, minutes: 20 });
+    await deleteRecord(d, 'exerciseTemplates', gym);
+    expect(await updateTraining(d, gym, { name: 'x' })).toBe(false);
+    expect(await updateTraining(d, 'missing', { name: 'x' })).toBe(false);
   });
 
   it('creates and updates exercises', async () => {
@@ -762,13 +792,11 @@ describe('local writes', () => {
 
   it('exports the saved training of a training entry as the last column', async () => {
     const d = db();
-    const template = await saveExerciseTemplate(d, {
+    const template = await saveTraining(d, {
       name: 'Push Day',
-      typeKey: 'strength',
-      typeName: 'Krafttraining',
-      minutes: 60,
-      intensity: 'moderate',
-      note: null,
+      items: [
+        { typeKey: 'strength', typeName: 'Krafttraining', minutes: 60, intensity: 'moderate', note: null },
+      ],
     });
     const training = (templateId: string | null) => ({
       typeKey: 'strength',
@@ -816,6 +844,39 @@ describe('local writes', () => {
     expect(entries[0]!.loggedAt).toBeLessThan(entries[1]!.loggedAt);
     expect(entries.map((e) => e.id)).toEqual(ids);
     expect(await d.outbox.filter((o) => o.table === 'exerciseEntries').count()).toBe(2);
+    expect(entries.map((e) => e.groupId)).toEqual([null, null]);
+  });
+
+  it('gives the activities of one saved training a shared, fresh group id', async () => {
+    const d = db();
+    const row = (typeKey: string, group?: string) => ({
+      typeKey,
+      name: typeKey,
+      minutes: 30,
+      intensity: 'moderate' as const,
+      met: 6,
+      weightKg: 80,
+      kcal: 200,
+      note: null,
+      ...(group !== undefined && { group, templateId: 't1' }),
+    });
+    await logTrainings(d, '2026-10-07', [row('strength', 'a'), row('stretching', 'a'), row('running')]);
+    await logTrainings(d, '2026-10-07', [row('strength', 'a'), row('stretching', 'a')]);
+    const entries = await d.exerciseEntries.where('date').equals('2026-10-07').sortBy('loggedAt');
+    const [a, b, single, c, e] = entries;
+    expect(a!.groupId).toBeTruthy();
+    expect(b!.groupId).toBe(a!.groupId);
+    expect(single).toMatchObject({ groupId: null, templateId: null });
+    expect(c!.groupId).toBe(e!.groupId);
+    expect(c!.groupId).not.toBe(a!.groupId);
+    expect(a!.templateId).toBe('t1');
+    // Editing a part keeps its group.
+    await saveExercise(d, { ...row('strength'), date: '2026-10-07', minutes: 45 }, a!);
+    expect(await d.exerciseEntries.get(a!.id)).toMatchObject({
+      groupId: a!.groupId,
+      templateId: 't1',
+      minutes: 45,
+    });
   });
 });
 

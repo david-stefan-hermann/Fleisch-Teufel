@@ -252,10 +252,30 @@ export const exerciseEntrySchema = z.object({
    * for a training logged by its sport and for records from older app versions.
    */
   templateId: idSchema.nullable().default(null),
+  /**
+   * Entries logged together from one saved training share it (new on every logging, like
+   * `foodEntries.groupId`): the diary shows them as one row with the training's name. Null for a
+   * single training and for records from older app versions.
+   */
+  groupId: idSchema.nullable().default(null),
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
 
-/** A saved training ("gespeichertes Training"); kcal are computed when it is logged, with the weight of that day. */
+/** One activity of a saved training: sport, duration, intensity and note. */
+export const trainingItemSchema = z.object({
+  typeKey: z.string().min(1).max(64),
+  typeName: z.string().trim().min(1).max(80),
+  minutes: z.number().min(1).max(1440),
+  intensity: intensitySchema,
+  note: z.string().trim().max(2000).nullable(),
+});
+export type TrainingItem = z.infer<typeof trainingItemSchema>;
+
+/**
+ * A saved training ("gespeichertes Training"): a name and one or more activities; kcal are computed
+ * when it is logged, with the weight of that day. The flat fields are activity 1 (what older app
+ * versions read and edit), `extraItems` hold activities 2..n. Read them with `trainingItemsOf`.
+ */
 export const exerciseTemplateSchema = z.object({
   ...base,
   name: z.string().trim().min(1).max(80),
@@ -264,6 +284,10 @@ export const exerciseTemplateSchema = z.object({
   minutes: z.number().min(1).max(1440),
   intensity: intensitySchema,
   note: z.string().trim().max(2000).nullable(),
+  /** Activities after the first. Null (or empty) for a training of one activity and older records. */
+  extraItems: z.array(trainingItemSchema).max(19).nullable().default(null),
+  /** Pinned trainings come first in the diary chips and the search. Null = not pinned. */
+  pinned: z.boolean().nullable().default(null),
 });
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 

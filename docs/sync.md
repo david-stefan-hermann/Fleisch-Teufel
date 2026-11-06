@@ -42,7 +42,13 @@ Analyse; `photoId` ist immer das erste, ältere Datensätze haben nur `photoId`)
 Text eines Schnelleintrags, „Was hast du gegessen?“; `name` ist sein gekürzter Anfang, `quickEntryTitle`; bei
 allen anderen Einträgen `null`), `exerciseEntries.note`, `exerciseEntries.templateId` (das gespeicherte
 Training, aus dem der Eintrag stammt; das Tagebuch zeigt dessen aktuellen Namen, auch wenn es umbenannt oder
-gelöscht wurde; `null` bei einem Training, das über die Sportart eingetragen wurde) und
+gelöscht wurde; `null` bei einem Training, das über die Sportart eingetragen wurde),
+`exerciseEntries.groupId` (die Aktivitäten eines gespeicherten Trainings, die zusammen eingetragen wurden; das
+Tagebuch zeigt sie als eine aufklappbare Zeile), `exerciseTemplates.extraItems` (Aktivitäten 2 bis n eines
+gespeicherten Trainings; die flachen Felder `typeKey`/`typeName`/`minutes`/`intensity`/`note` sind Aktivität 1,
+gelesen wird nur über `trainingItemsOf`; nichts ist doppelt, eine ältere App-Version bearbeitet weiter gültig
+Aktivität 1 und sieht ein Paket als Training mit seiner ersten Aktivität), `exerciseTemplates.pinned`
+(angepinnt, `null` = nicht) und
 `meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
 wie sie sind).
 

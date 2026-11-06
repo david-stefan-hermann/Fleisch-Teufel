@@ -9,7 +9,7 @@
  *   deleted        tombstone flag
  *   change_seq     server-assigned value from the global `sync_seq` sequence: the pull cursor.
  */
-import type { DayTarget, MacroPlan, MealItem, NutrientMap, Portion } from '@ft/shared';
+import type { DayTarget, MacroPlan, MealItem, NutrientMap, Portion, TrainingItem } from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -192,6 +192,7 @@ export const exerciseEntries = pgTable(
     loggedAt: bigint({ mode: 'number' }).notNull(),
     note: text(),
     templateId: text(),
+    groupId: text(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
@@ -206,6 +207,8 @@ export const exerciseTemplates = pgTable(
     minutes: doublePrecision().notNull(),
     intensity: text({ enum: ['light', 'moderate', 'vigorous'] }).notNull(),
     note: text(),
+    extraItems: jsonb().$type<TrainingItem[]>(),
+    pinned: boolean(),
   },
   syncExtras,
 );
