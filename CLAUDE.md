@@ -66,7 +66,7 @@ Serve the production web build through the API (same origin, service worker acti
   copied with "Kopieren" in its ⋯ menu (kind `meal`, `parts`: its rows as `DiaryPart`s, pasted with the same
   structure). Header of each diary meal (and `/diary-meal`): [`PasteButton` while something is copied]
   [⋯ `DiaryMealMenu`: Kopieren, Als Meal speichern, Wie gestern eintragen, Alle Einträge löschen] [+]. The diary
-  header shows `ClipboardMenu` left of the sync cloud: "Als Meal speichern" (groups and meals,
+  header reads cloud, `ClipboardMenu`, share (round 11); the menu has "Als Meal speichern" (groups and meals,
   `saveMealFromItems`) and "Zwischenablage leeren". "Wie gestern", the clipboard and suggestions log through
   `diaryParts`/`logParts` (`src/db/entries.ts`); a meal saved from diary rows takes every ingredient on its own
   and the first photo of any group (`firstPhotoId`). All "Als Meal speichern" use `SaveMealDialog`. `logItems` returns the new entry ids.
@@ -101,7 +101,15 @@ Serve the production web build through the API (same origin, service worker acti
   `popularity` (scans, not stored). Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
   BLS): add a line whenever a real query ranks badly. On `/add` (`searchLocal`, `mergeOnline` in
   `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; OFF results are sorted into it
-  when they arrive. Rows show the last logged amount, else a serving (never the whole package), and "N× gegessen".
+  when they arrive, but only below the rows that are on the screen at that moment (`pinned`, counted by
+  `rowsOnScreen` when the answer comes): what the person is about to tap never jumps away. Rows show the last
+  logged amount, else a serving (never the whole package), and "N× gegessen". Tabs "Häufig"/"Kürzlich"/"Eigene":
+  typing (2 characters) searches everything and no tab is active; a tap on a tab keeps the text and searches
+  only there (search param `scope`, `filterRecent`/`filterOwn`, no online search; the active tab carries a small
+  x), a tap on that active tab searches everything again (`scope: 'all'`); typing on "Eigene" filters right away.
+  The tabs run on `onClick` alone (no `onValueChange`: Radix changes on mouse down, the click after it would
+  switch the filter twice). The search has no header icons; without `into` it is reached from the food page
+  (pushed, back returns to the camera).
 - Food search with a target: `?into=meal:<id>` / `ai:<localId>` / `group:<groupId>` (its day is `date`) on `/add`,
   `/food/$foodId`, `/scan`, `/custom-food/$id`, `/meals/$mealId` (a saved meal: `MealLogView` adds its kept,
   scaled ingredients one by one via `addItemsToMealDraft` / `addItemsToGroupDraft` / `addFoodsToDraft`; the meal
@@ -113,11 +121,13 @@ Serve the production web build through the API (same origin, service worker acti
   asks first when `draftChanged`). While it runs the review stays visible but locked; a failed run keeps the old
   result. The review shows the photos as `PhotoStrip`; "+" adds more (`addQueuePhotos`), X removes one; photos not
   in `analyzedPhotoIds` carry "Neu" and wait for ↻ (no automatic re-analysis).
-- Camera start: the taps that open `/photo` (add sheet tile, meal "+", search camera icon) call `warmUpCamera()`
+- Camera start: the taps that open `/photo` (add sheet tile, meal "+") call `warmUpCamera()`
   (`components/cameraWarmup.ts`) before navigating, so iOS starts the camera during the page change; the scanner
   takes the stream with `takeWarmStream()` (same `CAMERA_CONSTRAINTS`), an unused one stops after 3 s. The camera
   never runs without a visible picture otherwise (the user rejected keeping it alive). The video fades in on the
   first frame; shutters wait for `onReady`.
+- Sync cloud (`components/SyncIndicator.tsx`): a tap shows the loading animation for at least `MIN_SPIN_MS` (1 s),
+  also offline (only the animation, no message); syncs the app starts itself spin only while they run.
 - Top banners (`app/AppBanners.tsx`): only one at a time, session expired > update > install. The install banner
   (store-banner style, app icon, after `INSTALL_DELAY_MS` without another banner, never standalone, closed for good
   via `ft.installHintDismissed`) shows the Safari steps on iOS, Chrome's dialog on Android (`beforeinstallprompt`
@@ -133,9 +143,27 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
-  "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". `/photo` is the food page "Essen
-  eintragen" (camera, barcode; header: bolt "Schnelleingabe" to `/quick-add` as a new page, then the magnifier to
-  `/add`; food page and search replace each other). Plate photos show a preview (`PhotoPreview`: `PhotoStrip`,
+  "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". Without a chosen meal the sheet
+  asks `logTargetFor` (`lib/meals.ts`) for day and meal: the meal of the youngest entry made today while it is
+  younger than `STICKY_MEAL_MS` (20 minutes; its current meal, also after a drag to another one), over midnight
+  the entry made before midnight for that day (then the forms say the day with `DayNote` and the diary of
+  yesterday opens afterwards), else the meal of the hour; waiting analyses count like entries, a past day shown
+  in the diary and entries added to a past day trigger nothing. The "+" of a meal always wins. `/photo` is the
+  food page "Essen eintragen" (camera, barcode; no header icons). Under the camera sit two buttons, "Eingeben"
+  and "Suchen" (`/add`, pushed). "Eingeben" opens one form (search param `form`, a history step of its own;
+  `features/foods/QuickEntryFields.tsx`: "Was hast du gegessen?", calories, macros, meal): values alone give
+  "Eintragen" (`logQuickEntry`: a plain entry with source `quick`, the full text in the synced `foodEntries.note`,
+  the diary title its first line cut at a word boundary, `quickEntryTitle` in shared, "Schnelleingabe" without a
+  text), a text alone gives "Analysieren" (`enqueueDescription`, `textOnly`, same review; its hint field is
+  labelled "Beschreibung der Mahlzeit"), both give both buttons with "Eintragen" as the main one, and the typed
+  values go to the AI as a clue (`AiQueueItem.typed`, form field `typed` of `/api/ai/analyze`, one line in
+  `userPrompt`; the review shows what the AI found). "Analysieren" is missing only when the AI is off on the
+  server; offline the description is queued. The review replaces the form step in the history. `/quick-add` only
+  edits a quick entry (same fields, full text, "Änderungen übernehmen", no analysis); without `entryId` it
+  redirects to `/photo?form=1`. Copies of a quick entry keep the note (`entryToItem`: clipboard, "Wie gestern",
+  suggestions), ingredients of a meal or group never carry one. "Offene Analysen (N)" below the buttons is
+  collapsible (closed by default, `ft:photo:queueOpen`): rows are discarded by swipe with undo, a failed one has
+  the text link "Wiederholen". Plate photos show a preview (`PhotoPreview`: `PhotoStrip`,
   "+" opens `PhotoCaptureSheet` for further plates, courses or a label, up to `MAX_ANALYSIS_PHOTOS`; the library
   takes several files) and go to the AI only on "Analysieren (N Fotos)", in one call (`analyzePhotos`). The header
   back button in the preview drops the photos and shows the camera again (`Page onBack`); browser or iOS swipe
@@ -149,6 +177,16 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   shows a "Gespeichert" chip). Editors with explicit save (meal editor, saved training editor) block leaving
   with `useBlocker` (`shouldBlockFn` in `useCallback`) and show `DiscardDialog`; navigate with `ignoreBlocker`
   after deleting.
+- Navigation (round 11): back is the page before. Two exceptions: after logging or saving, never back into the
+  finished form; after deleting, never onto the deleted page. A logging flow remembers the diary it started on
+  (`lib/logFlow.ts`: `useRememberLogStart` on the taps that start one, `sessionStorage` `ft.logStart`);
+  `returnToDiary` then goes back in the history to that diary (camera, search, forms and review are dropped
+  from it) and otherwise (started elsewhere, another day, after a reload) replaces the form with the diary.
+  Changing or deleting an entry goes one page back (`goBackOr`). Closing the review is a step back too. The
+  diary keeps its scroll position for the running app (`features/diary/diaryScroll.ts`, one place: day and
+  position) and sets it once the day is loaded (the router restores too early, on the skeletons); the rows a flow
+  just logged (`focus`: entry ids, `pending:<localId>`, else the meal) are scrolled into view only when they are
+  not on the screen (`data-row`, `data-rows`, `data-meal` anchors).
 - Editing from where you log: own foods (`/food/$id`) and saved meals ("Meal eintragen") have a header pencil to
   `/custom-food/$id?from=food` / `/meals/$id?from=log`. Saving in the custom food and meal editors closes them
   (back to the page that opened them, `goBackOr` in `src/lib/history.ts`; the meal editor sets a `leaving` ref so
@@ -173,6 +211,14 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   trainings; a tap selects or deselects (`aria-pressed`). `SportPicker` marks `selectedKeys` and lists saved
   trainings that match the search. The diary's `ExerciseCard` shows `TrainingSuggestions` below its entries (one
   tap logs, undo deletes; nothing already logged that day). Editing an entry (`entryId`) stays a single open row.
+  An entry logged from a saved training (its badge, or "Als Training speichern" before logging) carries
+  `exerciseEntries.templateId` (synced): `trainingTitle` (`training.ts`, names from `useTrainingNames`, deleted
+  ones included) makes the saved training's current name the title and puts the sport into the line below, in the
+  diary (`ExerciseRowBody`), the shared day image, toasts and the rows of the page; renaming the saved training
+  renames old entries (like a meal), entries without the field show the sport. Changing the sport of an entry
+  drops the link. In `trainingHistory` such entries form a suggestion of their own (`key` `t:<id>`, named like
+  the saved training, values of the last entry, not the saved ones); a deleted saved training counts for its
+  sport again; `last` stays per sport. On the page a suggested saved training replaces its own badge.
 - Weight entry uses `TapeMeasure` (`role=slider`): raster and visible range are personal settings
   (`settings.weightStepKg` 0,01/0,05/0,1 and `weightRangeKg` ±0,5/1/2/5, null = default 0,05 and ±0,5; Profil →
   "Gewichtseingabe"; `WEIGHT_STEPS`/`WEIGHT_RANGES` in shared). The value sits on the raster also while dragging;
@@ -187,7 +233,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   final (wheel stopped, typed, unit switched): drafts are written on commit. The wheel reports its stop through
   state and an effect, never straight from its timer (a stale closure overwrote newer state). Only input turns the
   wheel: a scroll event counts as a turn after `pointerdown`/`touchstart`/`wheel` on it; scrolls from outside (a new
-  `index`, rows swapped, clamping) are set in a layout effect and their events ignored (`pending`). The amount
+  `index`, rows swapped, clamping) are set in a layout effect and their events ignored (`pending`). What the wheel
+  shows is the value (round 11): a turn ends only when no finger lies on the wheel (`held`, touch events only,
+  because iOS fires `pointercancel` once it scrolls), no scroll event came for `SETTLE_MS` and the wheel sits on
+  a row (at most 1 s of waiting for the snap); a finger that rests and turns on is the same turn (reporting the
+  pause as the stop dropped everything after it). A scroll nobody turned that leaves the wheel on another row
+  is undone after `SETTLE_MS`: the wheel follows the value, never the other way. The amount
   wheel is keyed by the kind of unit (`key={kind}`), so a unit switch builds it anew instead of swapping 200 gram
   rows against 20 portion rows (that once logged the row the old position landed on: 2 portions became 20 g). A
   unit switch keeps the grams (`convertAmount`, `itemWithAmount`); AI review rows keep grams plus an optional `portion` that
@@ -211,7 +262,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   "Wiederholen" (`retryQueueItem`). Once analysed, `logDeferred` (`features/ai/queue.ts`, only inside the
   serialized queue run, so never twice) logs it as a normal group with all photos (first candidate, the model's
   grams) and removes it from the queue; changes go through the diary group editor. An analysis the person waited
-  for still opens the review, and one without any usable item stays a normal review (toast: under "Analysen").
+  for still opens the review, and one without any usable item stays a normal review (toast: under "Analysen";
+  the list on the food page is "Offene Analysen").
 - Diary rows of an AI analysis are always a group row (`groupDiaryEntries` keeps a single entry with
   `aiAnalysisId` as a group: name, photo, group editor); other groups with one entry left show as a plain entry.
 - Object URLs for blobs only via `useObjectUrl(blob, key)` (`components/MealPhoto.tsx`): StrictMode-safe,
@@ -287,9 +339,6 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   that). One live query per day for all cards (`daySuggestions`, `useDaySuggestions`). One tap logs the last
   amount (`logSuggestion`) with undo; "Wie gestern" (`copyMealFromDay`) is a chip only while the meal is empty,
   else in the ⋯ menu.
-- "Beschreiben statt fotografieren": the keyboard icon on `/photo` swaps the camera for a text form; the
-  queue item has `textOnly: true` and no photos (`enqueueDescription`), `/api/ai/analyze` takes text without
-  images, the review is the same (its hint field is labelled "Beschreibung der Mahlzeit").
 - AI review: while no ingredient is a fat (`isFatFood`, `features/ai/fatSuggestion.ts`) the review offers
   "+ Öl 10 g" / "+ Butter 10 g" (photo apps miss about 30 g fat per meal); candidates show "N× gegessen".
   The prompt lists invisible fats as own rows by default unless the hint rules them out.

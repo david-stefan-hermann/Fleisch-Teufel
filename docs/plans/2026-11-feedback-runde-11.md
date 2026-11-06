@@ -1,11 +1,108 @@
 # Feedback-Runde 11: Suche, Rädchen, Navigation, Essen eintragen, Trainingsnamen, Tagebuch-Kopf
 
-Implementierungsplan für eine neue Fable-Sitzung. Den Statusblock in dieser Datei pflegen; sie ist noch nicht
-committet und geht mit dem Commit von Block 1 ins Repo.
+Implementierungsplan für eine neue Fable-Sitzung. Den Statusblock in dieser Datei pflegen.
 
 ## Status (2026-11-06)
 
-Geplant, nichts umgesetzt. Kein Mockup-Schritt (der Nutzer hat direkt den Implementierungsplan bestellt).
+Alle acht Blöcke am 2026-11-06 von Fable umgesetzt, je Block ein Commit auf `main`, **nicht gepusht**
+(Push-Stand immer mit `git fetch` und `git status -sb` prüfen). Kein Mockup-Schritt (der Nutzer hat direkt den
+Implementierungsplan bestellt).
+
+| Block | Commit          | Inhalt                                                                                    |
+| ----- | --------------- | ----------------------------------------------------------------------------------------- |
+| 1     | `78023ed`       | Rädchen: Finger hält und dreht weiter, Rad folgt dem Wert                                 |
+| 2     | `40049f9`       | Suche: ruhige Liste, Reiter als Filter, kein Kamera-Icon                                  |
+| 3     | `7f1f0ce`       | Navigation (`logFlow`), Tagebuch-Position (`diaryScroll`)                                 |
+| 4     | `bd65d32`       | Essen eintragen: „Eingeben“ und „Suchen“, gemeinsames Formular, `note`, „Offene Analysen“ |
+| 5     | `1f0b195`       | 20-Minuten-Regel (`logTargetFor`), `DayNote`                                              |
+| 6     | `04cf619`       | Trainingsname im Tagebuch und in den Vorschlägen (`templateId`)                           |
+| 7     | `d8fba30`       | Tagebuch-Kopf, Mindestdauer der Wolke                                                     |
+| 8     | siehe `git log` | Doku (`CLAUDE.md`, `docs/sync.md`, dieser Status)                                         |
+
+Zwei Migrationen laufen beim nächsten Deploy automatisch mit: `0010_food-entry-note`,
+`0011_exercise-entry-template`.
+
+### Abweichungen vom Plan
+
+Block 1 (Rädchen)
+
+- Der rote Test hat die im Plan beschriebene Ursache bestätigt (vier neue Tests waren vor der Änderung rot).
+- Der bestehende Test „reports turns by hand“ brauchte ein `touchEnd`: Ein liegender Finger meldet jetzt
+  absichtlich keinen Stopp.
+- Zusätzlich: Ein Tipp, der nichts dreht, meldet nichts (`moved`), weil das Loslassen den Timer neu startet.
+- Folge des Sicherheitsnetzes in einem E2E-Test (Meal-Editor): Ein Scroll per Skript bringt das Rad zurück auf
+  den Wert; der Test dreht danach zwei Zeilen statt einer.
+
+Block 2 (Suche)
+
+- Die Reiter laufen nur über `onClick` (kein `onValueChange`): Radix schaltet schon bei „mouse down“, der Klick
+  danach hätte den Filter doppelt umgeschaltet.
+- `pinned` zählt nur, wenn die Liste zur selben Suchanfrage gehört (`data-q` an der Liste).
+- E2E `food-search`: Die Meal-Zeile wird über ihren Link gefunden, weil Open Food Facts zeitweise Produkte
+  gleichen Namens liefert (Wackler, den es schon vorher gab).
+
+Block 3 (Navigation)
+
+- `returnToDiary` gibt ein Promise zurück (der Button bleibt gesperrt, bis das Tagebuch erreicht ist) und prüft
+  nach dem Zurückgehen auch den Tag der erreichten Seite. Seiten nutzen `useReturnToDiary` und
+  `useRememberLogStart`.
+- Gruppenzeilen tragen zusätzlich `data-rows` (IDs ihrer Einträge) statt einer Suche nach der Gruppe eines
+  Eintrags; wartende Analysen haben `data-row="pending:<localId>"` und werden direkt angezeigt (Plan: nur die
+  Mahlzeit).
+- Das Tagebuch wartet vor dem Setzen der Position zusätzlich auf wartende Analysen und Vorschläge (sie ändern
+  die Höhe der Karten).
+- Auch der Link einer wartenden Analyse im Tagebuch merkt sich den Start. `logFoodEntry`, `logAiItems` und
+  `logAiMeal` geben die neuen IDs zurück.
+- „Review schließen“: Der doppelte `/photo`-Schritt wurde am Code geprüft, nicht mit einem eigenen E2E-Test
+  vorab belegt; das Schließen geht jetzt einen Schritt zurück.
+
+Block 4 (Essen eintragen)
+
+- Die Notiz wandert bei Kopien über `DiaryItem` (Eintrag als Position mit optionaler Notiz, `entryToItem`).
+- Das Schema für die getippten Werte liegt in `shared` (`aiTypedValuesSchema`, `cleanTypedValues`), damit Gerät
+  und Server dieselben Grenzen haben.
+- Ein alter Schnelleintrag mit Standardnamen behält seinen Namen, wenn er ohne Text gespeichert wird.
+- Nur Text bei abgeschalteter KI: „Eintragen“ bleibt deaktiviert (es fehlen Kalorien), ein Hinweis erklärt es.
+- Scheitert eine Analyse aus dem Formular, schließt sich das Formular; die Beschreibung steht unter „Offene
+  Analysen“ („Wiederholen“ oder verwerfen).
+- „Schnell schätzen“ auf „Tag abschließen“ führt direkt ins Formular. `DayNote` entstand schon in diesem Block.
+- Der Suchparameter steht als `form=true` in der URL; `form=1` wird angenommen.
+
+Block 5 (Mahlzeit für den nächsten Eintrag)
+
+- Das „+“-Menü liest die letzten Einträge nur, solange es offen ist. `DayNote` steht auf der Lebensmittelseite
+  auch beim Bearbeiten eines Eintrags von einem anderen Tag. Ein E2E-Fall für die Regel kam dazu.
+
+Block 6 (Trainingsname)
+
+- `TrainingValues` hat `templateId` und `templateName` (`name` bleibt die Sportart), Vorschläge einen `key`.
+- Die Zeilen unter „Ausgewählt“ heißen ebenfalls wie das gespeicherte Training.
+- Der erste E2E-Test im Trainingsbereich wurde angepasst: „Als Training speichern“ vor dem Eintragen verknüpft
+  den Eintrag (wie im Plan vorgesehen), deshalb heißt er dort jetzt „Bahntraining“.
+
+Block 7 (Tagebuch-Kopf)
+
+- Beim Commit war im selben Lauf ein Test aus einem anderen Bereich rot (`week-strip`, Zeitlimit unter Last). Er
+  lief einzeln und in drei weiteren Gesamtläufen grün; sein Zeitlimit wurde mit Block 8 angehoben.
+
+### Annahmen
+
+Alle Annahmen aus dem Abschnitt unten wurden so umgesetzt wie beschrieben; keine musste geändert werden.
+
+### Prüfung
+
+- Je Block: `pnpm lint`, `pnpm typecheck`, `pnpm test` grün (Stand nach Block 8: shared 103, bls-import 5, api 182,
+  web 293 Tests).
+- `pnpm e2e` nach Block 2, 3, 4, 6 und am Ende: Chromium 41 von 41 grün. WebKit (`ios-layout.spec.ts`) war im
+  Container nicht installiert und wurde nachinstalliert (`playwright install --with-deps webkit`, geht bei einem
+  Image-Neubau verloren): 2 von 2 grün.
+- Sichtprüfung mit dem Produktions-Build über die API, iPhone-13-Format, hell und dunkel (eigenes
+  Playwright-Skript, Bilder nicht im Repo): Kameraseite mit „Eingeben“ und „Suchen“, Formular in allen vier
+  Button-Zuständen, Suche mit aktivem Filter-Reiter, Trainingszeile mit Namen, Tagebuch-Kopf, Schnelleintrag im
+  Tagebuch und beim Bearbeiten. Keine Auffälligkeiten.
+- Offen, nur am iPhone prüfbar (dem Nutzer genannt): Rädchen (drehen, Finger kurz halten, weiterdrehen, langsam
+  loslassen; Wert im Feld = Zeile im Rad), Scrollposition nach dem Eintragen und nach Zurück, Kamera startet nach
+  Zurück aus der Suche, Wischen in „Offene Analysen“, die Liste bleibt beim Eintreffen der Markenprodukte ruhig.
 
 ## Context
 

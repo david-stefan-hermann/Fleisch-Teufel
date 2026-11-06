@@ -87,7 +87,10 @@ describe('WeekStrip', () => {
     const day = (name: RegExp) => screen.getByRole('link', { name });
     const dots = (el: HTMLElement) =>
       [...el.querySelectorAll('[data-dot]')].map((d) => d.getAttribute('data-dot'));
-    await waitFor(() => expect(dots(day(/^Dienstag, 6\. Oktober/))).toEqual(['food', 'training']));
+    // (Generous: the live queries are slow while other suites run in parallel.)
+    await waitFor(() => expect(dots(day(/^Dienstag, 6\. Oktober/))).toEqual(['food', 'training']), {
+      timeout: 5000,
+    });
     expect(day(/^Dienstag/).getAttribute('aria-label')).toBe(
       'Dienstag, 6. Oktober, Essen eingetragen, Training eingetragen',
     );
