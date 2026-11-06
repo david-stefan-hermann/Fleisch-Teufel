@@ -1,6 +1,7 @@
 import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, normalize, uuidv7, type Intensity } from '@ft/shared';
 import { Bookmark, Plus, Search } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
+import { DurationWheel } from '@/components/DurationWheel';
 import { useDb } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
 import { Button } from '@/components/ui/button';
@@ -123,34 +124,48 @@ export function SportPicker({
   );
 }
 
-/** Intensity, duration with presets and note of a training. */
+/**
+ * Duration (wheel), intensity, kcal (`kcal`, a slot: the sport page and logging show a field, the
+ * editor of a saved training a total) and note of one activity. An own sport has a single MET
+ * value: the intensity is locked on "Mittel".
+ */
 export function TrainingFields({
+  name,
   intensity,
   onIntensityChange,
   intensityDisabled,
   minutes,
   onMinutesChange,
+  onMinutesLive,
   note,
   onNoteChange,
+  kcal,
 }: {
+  /** The sport, for the accessible name of the wheel. */
+  name?: string;
   intensity: Intensity;
   onIntensityChange: (i: Intensity) => void;
   /** Own sports have a single MET value. */
   intensityDisabled?: boolean;
   minutes: number | null;
+  /** The final duration (wheel stopped, typed). */
   onMinutesChange: (m: number | null) => void;
+  /** The duration while the wheel turns. */
+  onMinutesLive?: (m: number) => void;
   note: string;
   onNoteChange: (note: string) => void;
+  kcal?: ReactNode;
 }) {
   const noteId = useId();
   return (
     <>
+      <DurationWheel name={name} value={minutes} onChange={onMinutesLive} onCommit={onMinutesChange} />
       <div className="grid gap-1.5">
         <span className="text-sm font-medium">Intensität</span>
         <ToggleGroup
           type="single"
           variant="outline"
-          value={intensity}
+          value={intensityDisabled ? 'moderate' : intensity}
           onValueChange={(v) => v && onIntensityChange(v as Intensity)}
           className="w-full"
           disabled={intensityDisabled}
@@ -162,19 +177,7 @@ export function TrainingFields({
           ))}
         </ToggleGroup>
       </div>
-      <NumberField label="Dauer" unit="Min." value={minutes} onValueChange={onMinutesChange} integer />
-      <div className="flex flex-wrap gap-2">
-        {[15, 30, 45, 60, 90].map((m) => (
-          <Button
-            key={m}
-            size="sm"
-            variant={minutes === m ? 'default' : 'secondary'}
-            onClick={() => onMinutesChange(m)}
-          >
-            {m} Min.
-          </Button>
-        ))}
-      </div>
+      {kcal}
       <div className="grid gap-1.5">
         <Label htmlFor={noteId}>Notiz (optional)</Label>
         <Textarea

@@ -19,6 +19,7 @@ import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { Wheel } from '@/components/Wheel';
+import { DurationWheel } from '@/components/DurationWheel';
 import { UserDb } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
@@ -1400,6 +1401,73 @@ describe('ingredient amount wheel', () => {
       expect(screen.getByText('= 300 g')).toBeTruthy();
       expect(onCommit).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('DurationWheel', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  function Duration({ initial, onCommit }: { initial: number; onCommit: (m: number | null) => void }) {
+    const [m, setM] = useState<number | null>(initial);
+    return (
+      <DurationWheel
+        name="Radfahren"
+        value={m}
+        onCommit={(v) => {
+          setM(v);
+          onCommit(v);
+        }}
+      />
+    );
+  }
+  const wheel = () => screen.getByRole('slider', { name: 'Dauer Radfahren' });
+  const rows = () => [...wheel().children].map((o) => o.textContent);
+
+  it('shows hours from an hour on and turns in 5 then 15 minute steps', () => {
+    const onCommit = vi.fn();
+    render(<Duration initial={75} onCommit={onCommit} />);
+    expect(screen.getByText('1 Std. 15 Min.')).toBeTruthy();
+    fireEvent.keyDown(wheel(), { key: 'ArrowDown' });
+    expect(onCommit).toHaveBeenLastCalledWith(80);
+    fireEvent.keyDown(wheel(), { key: 'End' });
+    expect(onCommit).toHaveBeenLastCalledWith(360);
+    expect(screen.getByText('6 Std.')).toBeTruthy();
+  });
+
+  it('opens a minute field with "Genau eingeben"; a typed duration gets its own row', () => {
+    const onCommit = vi.fn();
+    render(<Duration initial={45} onCommit={onCommit} />);
+    const toggle = screen.getByRole('button', { name: 'Genau eingeben' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    const field = screen.getByLabelText('Dauer in Minuten');
+    fireEvent.change(field, { target: { value: '47' } });
+    expect(onCommit).toHaveBeenLastCalledWith(47);
+    expect(rows()).toContain('47 Min.');
+    expect(wheel().getAttribute('aria-valuenow')).toBe('47');
+    fireEvent.change(field, { target: { value: '2000' } });
+    expect(onCommit).toHaveBeenLastCalledWith(null);
+    expect(screen.getByText('Höchstens 1.440 Minuten.')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
+  });
+
+  it('shows a stored duration off the raster on the wheel with the field closed', () => {
+    render(<Duration initial={47} onCommit={() => {}} />);
+    expect(wheel().getAttribute('aria-valuenow')).toBe('47');
+    expect(rows().slice(8, 11)).toEqual(['45 Min.', '47 Min.', '50 Min.']);
+    expect(screen.queryByLabelText('Dauer in Minuten')).toBeNull();
   });
 });
 
