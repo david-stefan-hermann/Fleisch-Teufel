@@ -1,11 +1,4 @@
-import {
-  DEFAULT_WEIGHT_KG,
-  metFor,
-  netExerciseKcal,
-  round,
-  type ExerciseTemplate,
-  type Intensity,
-} from '@ft/shared';
+import { DEFAULT_WEIGHT_KG, metFor, trainingKcal, type ExerciseTemplate, type Intensity } from '@ft/shared';
 import { useBlocker, useNavigate, useParams, type ShouldBlockFn } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Trash2 } from 'lucide-react';
@@ -69,7 +62,7 @@ function TrainingEditorForm({ template }: { template: ExerciseTemplate }) {
 
   const type = options.find((o) => o.key === fields.typeKey) ?? null;
   const met = type ? metFor(type, fields.intensity) : null;
-  const kcal = met && fields.minutes ? round(netExerciseKcal(met, weight, fields.minutes), 0) : 0;
+  const kcal = met && fields.minutes ? trainingKcal(met, weight, fields.minutes) : 0;
   const saved = fieldsOf(template);
   const name = fields.name.trim() || template.name;
   const dirty =

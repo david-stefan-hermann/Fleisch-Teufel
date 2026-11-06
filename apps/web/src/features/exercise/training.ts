@@ -1,14 +1,17 @@
 import {
   EXERCISE_TYPES,
   INTENSITY_LABELS_DE,
+  metFor,
   normalize,
   tokenize,
+  trainingKcal,
   type ExerciseEntry,
   type Intensity,
 } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { useDb } from '@/app/session';
+import type { TrainingToLog } from '@/db/entries';
 import { fmt0, fmtDate } from '@/lib/format';
 
 /** A sport to pick: one of the built-in types or an own one (`custom`, single MET value). */
@@ -17,6 +20,31 @@ export interface TypeOption {
   name: string;
   met: { light?: number; moderate: number; vigorous?: number };
   custom: boolean;
+}
+
+/** What is chosen for one training: duration, intensity, note (and the saved training it comes from). */
+export interface TrainingInput {
+  minutes: number;
+  intensity: Intensity;
+  note: string | null;
+  templateId?: string | null;
+}
+
+/** A training of a sport as it is logged: name, MET and kcal with the given weight (one place for them). */
+export function toLog(type: TypeOption, values: TrainingInput, weightKg: number): TrainingToLog {
+  const intensity = type.custom ? 'moderate' : values.intensity;
+  const met = metFor(type, intensity);
+  return {
+    typeKey: type.key,
+    name: type.name,
+    minutes: values.minutes,
+    intensity,
+    met,
+    weightKg,
+    kcal: trainingKcal(met, weightKg, values.minutes),
+    note: values.note?.trim() || null,
+    templateId: values.templateId ?? null,
+  };
 }
 
 /** Own sports first, then the built-in ones. */

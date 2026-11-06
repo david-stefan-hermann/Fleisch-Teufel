@@ -12,7 +12,7 @@ import {
   DEFAULT_MEAL_NAMES,
   EXERCISE_TYPE_MAP,
   metFor,
-  netExerciseKcal,
+  trainingKcal,
   round,
   today,
   uniformWeek,
@@ -174,7 +174,8 @@ for (let d = 0; d <= 41; d++) {
         intensity: 'moderate',
         met,
         weightKg: round(kg, 1),
-        kcal: round(netExerciseKcal(met, kg, 45), 0),
+        // From the stored weight, so the entry counts as computed (not typed kcal).
+        kcal: trainingKcal(met, round(kg, 1), 45),
         loggedAt: now,
       },
     });

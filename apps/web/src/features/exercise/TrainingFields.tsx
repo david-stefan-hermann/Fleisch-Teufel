@@ -1,6 +1,6 @@
 import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, normalize, uuidv7, type Intensity } from '@ft/shared';
 import { Bookmark, Plus, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useDb } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
 import { Button } from '@/components/ui/button';
@@ -142,6 +142,7 @@ export function TrainingFields({
   note: string;
   onNoteChange: (note: string) => void;
 }) {
+  const noteId = useId();
   return (
     <>
       <div className="grid gap-1.5">
@@ -175,9 +176,9 @@ export function TrainingFields({
         ))}
       </div>
       <div className="grid gap-1.5">
-        <Label htmlFor="ex-note">Notiz (optional)</Label>
+        <Label htmlFor={noteId}>Notiz (optional)</Label>
         <Textarea
-          id="ex-note"
+          id={noteId}
           value={note}
           maxLength={2000}
           onChange={(e) => onNoteChange(e.target.value)}

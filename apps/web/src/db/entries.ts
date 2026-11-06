@@ -127,17 +127,36 @@ export function quickEntryText(entry: Pick<FoodEntry, 'name' | 'note'>): string 
   return entry.note ?? (QUICK_ENTRY_DEFAULT_NAMES.includes(entry.name) ? '' : entry.name);
 }
 
+/** Saves a training entry; editing keeps its day, time, group and saved training. */
 export async function saveExercise(
   db: UserDb,
-  data: Omit<ExerciseEntry, 'id' | 'updatedAt' | 'deleted' | 'loggedAt'>,
+  data: TrainingToLog & { date: ISODate },
   existing: ExerciseEntry | null,
 ): Promise<void> {
-  if (existing) await saveRecord(db, 'exerciseEntries', { ...existing, ...data });
-  else await saveRecord(db, 'exerciseEntries', { ...data, id: uuidv7(), loggedAt: Date.now() });
+  if (existing)
+    await saveRecord(db, 'exerciseEntries', {
+      ...existing,
+      ...data,
+      templateId: data.templateId === undefined ? (existing.templateId ?? null) : data.templateId,
+      date: existing.date,
+    });
+  else
+    await saveRecord(db, 'exerciseEntries', {
+      ...data,
+      templateId: data.templateId ?? null,
+      id: uuidv7(),
+      loggedAt: Date.now(),
+    });
 }
 
-/** A training to log: the fields of an `ExerciseEntry` without ids, date and times. */
-export type TrainingToLog = Omit<ExerciseEntry, 'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date'>;
+/**
+ * A training to log: the fields of an `ExerciseEntry` without ids, date and times. Newer optional
+ * fields may be left out (filled with null here, like `NewFoodEntry`).
+ */
+export type TrainingToLog = Omit<
+  ExerciseEntry,
+  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId'
+> & { templateId?: string | null };
 
 /**
  * Logs several trainings of one day at once (strength training and stretching from the same visit),
@@ -154,7 +173,13 @@ export async function logTrainings(
     const ids: string[] = [];
     for (const [i, row] of rows.entries()) {
       const id = uuidv7();
-      await saveRecord(db, 'exerciseEntries', { ...row, id, date, loggedAt: now + i });
+      await saveRecord(db, 'exerciseEntries', {
+        ...row,
+        templateId: row.templateId ?? null,
+        id,
+        date,
+        loggedAt: now + i,
+      });
       ids.push(id);
     }
     return ids;

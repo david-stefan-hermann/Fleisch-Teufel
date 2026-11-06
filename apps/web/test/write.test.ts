@@ -750,9 +750,14 @@ describe('local writes', () => {
     };
     await saveExercise(d, data, null);
     const [x] = await d.exerciseEntries.toArray();
-    await saveExercise(d, { ...data, minutes: 45, note: 'Intervalle' }, x!);
+    // The page passes the date of its URL; editing keeps the entry's own day.
+    await saveExercise(d, { ...data, date: '2026-10-09', minutes: 45, note: 'Intervalle' }, x!);
     expect(await d.exerciseEntries.count()).toBe(1);
-    expect(await d.exerciseEntries.get(x!.id)).toMatchObject({ minutes: 45, note: 'Intervalle' });
+    expect(await d.exerciseEntries.get(x!.id)).toMatchObject({
+      minutes: 45,
+      note: 'Intervalle',
+      date: '2026-10-07',
+    });
   });
 
   it('exports the saved training of a training entry as the last column', async () => {

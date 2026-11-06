@@ -1,8 +1,7 @@
 import {
   DEFAULT_WEIGHT_KG,
   metFor,
-  netExerciseKcal,
-  round,
+  trainingKcal,
   uuidv7,
   type ExerciseEntry,
   type ExerciseTemplate,
@@ -99,7 +98,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
   };
   const kcalOf = (row: Row) => {
     const met = metOf(row);
-    return met && row.minutes ? round(netExerciseKcal(met, usedWeight, row.minutes), 0) : 0;
+    return met && row.minutes ? trainingKcal(met, usedWeight, row.minutes) : 0;
   };
   const total = rows.reduce((sum, r) => sum + kcalOf(r), 0);
   const valid = rows.length > 0 && rows.every((r) => typeOf(r.typeKey) && r.minutes);
@@ -190,7 +189,7 @@ function ExerciseForm({ date, entry }: { date: string; entry: ExerciseEntry | nu
       };
     });
     if (entry) {
-      await saveExercise(db, { ...toLog[0]!, date }, entry);
+      await saveExercise(db, { ...toLog[0]!, date: entry.date }, entry);
       toast.success(`${toLog[0]!.name}: ${fmt0(toLog[0]!.kcal)} kcal`);
       return leaveEntry();
     }

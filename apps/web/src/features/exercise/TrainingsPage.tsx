@@ -1,4 +1,4 @@
-import { DEFAULT_WEIGHT_KG, metFor, netExerciseKcal } from '@ft/shared';
+import { DEFAULT_WEIGHT_KG, metFor, trainingKcal } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dumbbell } from 'lucide-react';
@@ -28,7 +28,7 @@ export function TrainingsPage() {
         {trainings?.map((t) => {
           const type = options.find((o) => o.key === t.typeKey);
           // With the current weight: what logging it today would count.
-          const kcal = type ? netExerciseKcal(metFor(type, t.intensity), weight, t.minutes) : null;
+          const kcal = type ? trainingKcal(metFor(type, t.intensity), weight, t.minutes) : null;
           return (
             <li key={t.id}>
               <SwipeToDelete

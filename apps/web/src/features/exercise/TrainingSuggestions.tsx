@@ -1,11 +1,4 @@
-import {
-  DEFAULT_WEIGHT_KG,
-  INTENSITY_LABELS_DE,
-  metFor,
-  netExerciseKcal,
-  round,
-  type ISODate,
-} from '@ft/shared';
+import { DEFAULT_WEIGHT_KG, INTENSITY_LABELS_DE, metFor, trainingKcal, type ISODate } from '@ft/shared';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { logTrainings } from '@/db/entries';
@@ -39,7 +32,7 @@ export function TrainingSuggestions({ date, className }: { date: ISODate; classN
       if (!type) return;
       const met = metFor(type, s.intensity);
       const weightKg = weight ?? DEFAULT_WEIGHT_KG;
-      const kcal = round(netExerciseKcal(met, weightKg, s.minutes), 0);
+      const kcal = trainingKcal(met, weightKg, s.minutes);
       const [id] = await logTrainings(db, date, [
         {
           typeKey: type.key,

@@ -317,3 +317,35 @@ export function netExerciseKcal(met: number, weightKg: number, minutes: number):
 
 /** Fallback body weight when none is logged yet (only used for the estimate, UI asks to log weight). */
 export const DEFAULT_WEIGHT_KG = 75;
+
+/** The kcal a training credits to the day, in whole kcal (what an entry stores when nothing was typed). */
+export function trainingKcal(met: number, weightKg: number, minutes: number): number {
+  return Math.round(netExerciseKcal(met, weightKg, minutes));
+}
+
+/** Longest duration of one training in minutes (a day). */
+export const MAX_MINUTES = 1440;
+
+/** "45 Min.", "1 Std.", "1 Std. 15 Min." (minutes rounded to whole ones). */
+export function formatDuration(minutes: number): string {
+  const m = Math.round(minutes);
+  if (m < 60) return `${m} Min.`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest ? `${h} Std. ${rest} Min.` : `${h} Std.`;
+}
+
+/**
+ * Durations on the wheel, ascending: every 5 minutes up to 2 hours, then every 15 minutes up to 6
+ * hours, plus `extra` (a typed or stored duration off the raster, e.g. 47) at its place.
+ */
+export function durationWheelValues(extra: number | null = null): number[] {
+  const out: number[] = [];
+  for (let m = 5; m <= 120; m += 5) out.push(m);
+  for (let m = 135; m <= 360; m += 15) out.push(m);
+  if (extra !== null && extra >= 1 && extra <= MAX_MINUTES && !out.includes(extra)) {
+    out.push(extra);
+    out.sort((a, b) => a - b);
+  }
+  return out;
+}
