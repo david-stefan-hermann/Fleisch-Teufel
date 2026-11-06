@@ -8,7 +8,7 @@ import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
 import { restoreRecord } from '@/db/write';
-import { describe } from '@/features/exercise/training';
+import { trainingItemsOf, trainingSummary } from '@ft/shared';
 import { fmt2, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
 
 /** Rows shown per section; older tombstones stay in the database. */
@@ -105,8 +105,7 @@ export function TrashPage() {
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{t.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {describe(t.typeName, t.minutes, t.intensity, null)} · gelöscht am{' '}
-                    {fmtDateOf(t.updatedAt)}
+                    {trainingSummary(trainingItemsOf(t))} · gelöscht am {fmtDateOf(t.updatedAt)}
                   </div>
                 </div>
                 <Button

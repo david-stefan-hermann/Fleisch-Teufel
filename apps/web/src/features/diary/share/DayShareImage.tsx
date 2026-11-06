@@ -1,6 +1,7 @@
 import {
   get,
   groupDiaryEntries,
+  groupTrainingEntries,
   MEAL_COUNT,
   N,
   type DaySummary,
@@ -14,7 +15,7 @@ import { Section } from '@/components/Page';
 import { fmt0, fmtDayLongYear, fmtIngredients } from '@/lib/format';
 import { CalorieOverview } from '../CalorieCard';
 import { trainingTitle } from '@/features/exercise/training';
-import { ExerciseRowBody } from '../ExerciseCard';
+import { ExerciseRowBody, TrainingGroupRowBody, trainingGroupTitle } from '../ExerciseCard';
 import { EntryRowBody, GroupRowBody } from '../MealCard';
 
 export interface ShareParts {
@@ -77,11 +78,20 @@ export function DayShareImage({ data }: { data: DayShareData }) {
       {parts.training && exercises.length > 0 && (
         <Section title={<Title name="Training" kcal={trainingKcal} />}>
           <ul className="divide-y divide-border/70">
-            {exercises.map((e) => (
-              <li key={e.id} className={ROW}>
-                <ExerciseRowBody entry={e} {...trainingTitle(e, data.savedTrainings)} />
-              </li>
-            ))}
+            {groupTrainingEntries(exercises).map((row) =>
+              row.kind === 'entry' ? (
+                <li key={row.entry.id} className={ROW}>
+                  <ExerciseRowBody entry={row.entry} {...trainingTitle(row.entry, data.savedTrainings)} />
+                </li>
+              ) : (
+                <li key={row.groupId} className={ROW}>
+                  <TrainingGroupRowBody
+                    title={trainingGroupTitle(row.templateId, row.entries, data.savedTrainings)}
+                    entries={row.entries}
+                  />
+                </li>
+              ),
+            )}
           </ul>
         </Section>
       )}

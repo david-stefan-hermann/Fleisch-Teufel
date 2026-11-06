@@ -6,14 +6,17 @@ import {
   normalize,
   tokenize,
   trainingKcal,
+  diffDays,
   type ExerciseEntry,
+  type ISODate,
+  type ExerciseTemplate,
   type Intensity,
 } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
 import { useDb } from '@/app/session';
 import type { TrainingToLog } from '@/db/entries';
-import { fmtDate } from '@/lib/format';
+import { fmtDate, fmtDayMonth, fmtWeekday } from '@/lib/format';
 
 /** A sport to pick: one of the built-in types or an own one (`custom`, single MET value). */
 export interface TypeOption {
@@ -81,24 +84,62 @@ export function rowsToLog(
 
 /** Toast text for activities whose sport was deleted. */
 export const missingSportsText = (missing: readonly string[]) =>
-  missing.length === 1 ? `${missing[0]} gibt es nicht mehr.` : `${missing.join(', ')} gibt es nicht mehr.`;
+  missing.length ? `${missing.join(', ')} gibt es nicht mehr.` : '';
 
-/** Own sports first, then the built-in ones. */
-export function useTypeOptions(): TypeOption[] {
+/** "Zuletzt heute", "Zuletzt gestern", "Zuletzt am Dienstag" (within a week), "Zuletzt am 3. Oktober". */
+export function lastLoggedLabel(lastDate: ISODate, today: ISODate): string {
+  const days = diffDays(lastDate, today);
+  if (days <= 0) return 'Zuletzt heute';
+  if (days === 1) return 'Zuletzt gestern';
+  if (days < 7) return `Zuletzt am ${fmtWeekday(lastDate)}`;
+  return `Zuletzt am ${fmtDayMonth(lastDate)}`;
+}
+
+/** Saved trainings in list order: pinned first, then by name. */
+export function sortTrainings<T extends { name: string; pinned?: boolean | null }>(list: readonly T[]): T[] {
+  return [...list].sort(
+    (a, b) =>
+      Number(b.pinned === true) - Number(a.pinned === true) ||
+      a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }),
+  );
+}
+
+/** Values a sport starts with without history: 30 minutes, moderate. */
+export const DEFAULT_SPORT_VALUES = { minutes: 30, intensity: 'moderate' as Intensity, note: null };
+
+/** The saved trainings (not deleted) in list order. */
+export function useTrainings(): ExerciseTemplate[] | undefined {
+  const db = useDb();
+  return useLiveQuery(
+    async () => sortTrainings(await db.exerciseTemplates.filter((t) => !t.deleted).toArray()),
+    [db],
+  );
+}
+
+const BUILT_IN: TypeOption[] = EXERCISE_TYPES.map((t) => ({
+  key: t.key,
+  name: t.name,
+  met: t.met,
+  custom: false,
+}));
+
+/** Own sports first, then the built-in ones; undefined until the own sports are read. */
+export function useLoadedTypeOptions(): TypeOption[] | undefined {
   const db = useDb();
   const customTypes = useLiveQuery(() => db.exerciseTypes.filter((t) => !t.deleted).toArray(), [db]);
   return useMemo(
-    () => [
-      ...(customTypes ?? []).map((t) => ({
-        key: t.id,
-        name: t.name,
-        met: { moderate: t.met },
-        custom: true,
-      })),
-      ...EXERCISE_TYPES.map((t) => ({ key: t.key, name: t.name, met: t.met, custom: false })),
-    ],
+    () =>
+      customTypes && [
+        ...customTypes.map((t) => ({ key: t.id, name: t.name, met: { moderate: t.met }, custom: true })),
+        ...BUILT_IN,
+      ],
     [customTypes],
   );
+}
+
+/** Own sports first, then the built-in ones (only the built-in ones until the own sports are read). */
+export function useTypeOptions(): TypeOption[] {
+  return useLoadedTypeOptions() ?? BUILT_IN;
 }
 
 /** Names of the saved trainings by id, deleted ones included (an entry keeps showing its name). */

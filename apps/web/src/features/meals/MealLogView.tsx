@@ -35,7 +35,7 @@ import { addItemsToGroupDraft } from '@/db/groupDraft';
 import { addItemsToMealDraft } from '@/db/mealDraft';
 import { getFood } from '@/foods/foodService';
 import { isBasePortion } from '@/lib/amounts';
-import { openTarget, returnFromInto, type Into } from '@/lib/into';
+import { openTarget, returnFromInto, type FoodInto } from '@/lib/into';
 import { useReturnToDiary } from '@/lib/logFlow';
 import { DayNote } from '@/components/DayNote';
 import { logItems } from './logMeal';
@@ -60,7 +60,7 @@ export function MealLogView({
   meal: Meal;
   date: string;
   mealIndex: number;
-  into?: Into | null;
+  into?: FoodInto | null;
 }) {
   const db = useDb();
   const navigate = useNavigate();
@@ -124,7 +124,7 @@ export function MealLogView({
     await returnToDiary({ date, focus: { rows: ids, meal: target } });
   }
 
-  async function add(target: Into) {
+  async function add(target: FoodInto) {
     const ok =
       target.kind === 'meal'
         ? await addItemsToMealDraft(db, target.mealId, scaled)

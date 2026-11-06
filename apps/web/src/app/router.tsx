@@ -12,7 +12,7 @@ import {
 import { AddSheetProvider } from '@/components/AddSheet';
 import { TabBar } from '@/components/TabBar';
 import { ViewportVars } from '@/hooks/useVisualViewport';
-import { intoParam } from '@/lib/into';
+import { intoParam, trainingIntoParam } from '@/lib/into';
 import { useSessionContext } from './session';
 import { AppBanners } from './AppBanners';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -196,6 +196,10 @@ export const routes = {
   }),
   training: createRoute({
     ...r('/trainings/$templateId'),
+    // With `date` the saved training is logged on that day, without it edited; `from: 'log'`: the editor
+    // was opened from "Training eintragen" (deleting returns past that page).
+    validateSearch: (s: Record<string, unknown>): { date?: string; from?: 'log' } =>
+      clean({ date: dateParam(s.date), from: s.from === 'log' ? ('log' as const) : undefined }),
     component: lazyRouteComponent(
       () => import('@/features/exercise/TrainingEditorPage'),
       'TrainingEditorPage',
@@ -245,11 +249,34 @@ export const routes = {
   }),
   exercise: createRoute({
     ...r('/exercise'),
-    validateSearch: (s: Record<string, unknown>): { date: string; entryId?: string } => ({
+    // The training search; `into=training:<id>` adds a sport to a saved training instead.
+    validateSearch: (
+      s: Record<string, unknown>,
+    ): { date: string; q?: string; tab?: string; scope?: SearchScope; into?: string } => ({
       date: dateParam(s.date) ?? today(),
-      ...clean({ entryId: strParam(s.entryId) }),
+      ...clean({
+        q: strParam(s.q),
+        tab: strParam(s.tab),
+        scope: SEARCH_SCOPES.find((v) => v === s.scope),
+        into: trainingIntoParam(s.into),
+      }),
     }),
-    component: lazyRouteComponent(() => import('@/features/exercise/ExercisePage'), 'ExercisePage'),
+    component: lazyRouteComponent(
+      () => import('@/features/exercise/TrainingSearchPage'),
+      'TrainingSearchPage',
+    ),
+  }),
+  sport: createRoute({
+    ...r('/sport/$typeKey'),
+    validateSearch: (s: Record<string, unknown>): { date: string; into?: string } => ({
+      date: dateParam(s.date) ?? today(),
+      ...clean({ into: trainingIntoParam(s.into) }),
+    }),
+    component: lazyRouteComponent(() => import('@/features/exercise/SportPage'), 'SportPage'),
+  }),
+  exerciseEntry: createRoute({
+    ...r('/exercise-entry/$entryId'),
+    component: lazyRouteComponent(() => import('@/features/exercise/SportPage'), 'SportPage'),
   }),
   completeDay: createRoute({
     ...r('/day/$date/complete'),

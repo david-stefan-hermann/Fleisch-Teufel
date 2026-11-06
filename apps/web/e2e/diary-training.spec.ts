@@ -41,161 +41,179 @@ async function swipeLeft(page: Page, target: string | Locator) {
   await page.mouse.up();
 }
 
-test('several trainings at once, saved training from a row, badges on the page and in the diary', async ({
+test('a sport: search, duration wheel with an exact value, own kcal, edit, save as a training', async ({
   page,
 }) => {
   await register(page);
   await page.goto('/exercise');
-  await expect(page.getByText('Wähle unten eine Sportart oder einen Vorschlag.')).toBeVisible();
-  // A sport from the list becomes a row under "Ausgewählt", open with its fields.
-  await page.getByLabel('Sportart suchen').fill('lauf');
-  await page
-    .getByRole('option', { name: /^Laufen/ })
-    .first()
-    .click();
-  await page.getByLabel('Dauer').fill('40');
+  // "Häufig" without history: every sport A to Z.
+  await expect(page.getByText('Alle Sportarten')).toBeVisible();
+  await page.getByLabel('Sportart oder Training suchen').fill('lauf');
+  await expect(page.getByRole('button', { name: 'Eigene Sportart „lauf“ anlegen' })).toBeVisible();
+  await page.getByRole('link', { name: /^Laufen \/ Joggen/ }).click();
+  await expect(page).toHaveURL(/\/sport\/running\?/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Laufen / Joggen' })).toBeVisible();
+  const wheel = page.getByRole('slider', { name: 'Dauer Laufen / Joggen' });
+  await expect(wheel).toHaveAttribute('aria-valuenow', '30');
+  // "Genau eingeben" opens a minute field; 47 gets its own row on the wheel.
+  const exact = page.getByRole('button', { name: 'Genau eingeben' });
+  await exact.click();
+  await expect(exact).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Dauer in Minuten').fill('47');
+  await expect(wheel).toHaveAttribute('aria-valuenow', '47');
   await page.getByLabel('Notiz (optional)').fill('Intervalle 6 × 400 m');
-  // The row's "Als Training speichern" stores a saved training without logging it; its badge is selected.
+  // A value from the watch stays; the link takes the computed one again.
+  await page.getByLabel('Verbrauch').fill('520');
+  await expect(page.getByRole('button', { name: /^Berechneten Wert verwenden \(\d+ kcal\)$/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Eintragen · 520 kcal' }).click();
+
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  const row = page.getByRole('link', { name: /^Laufen \/ Joggen/ });
+  await expect(row).toContainText(/47 Min\. · Mittel · Intervalle 6 × 400 m/);
+  await expect(row).toContainText('+520');
+  await expect(page.getByRole('heading', { name: /^Training/ })).toContainText('520 kcal');
+
+  // Editing keeps the typed kcal when the duration changes, until the computed value is taken.
+  await row.click();
+  await expect(page).toHaveURL(/\/exercise-entry\//);
+  await expect(page.getByLabel('Verbrauch')).toHaveValue('520');
+  await page.getByRole('slider', { name: 'Dauer Laufen / Joggen' }).press('ArrowDown');
+  await expect(page.getByRole('slider', { name: 'Dauer Laufen / Joggen' })).toHaveAttribute(
+    'aria-valuenow',
+    '50',
+  );
+  await expect(page.getByLabel('Verbrauch')).toHaveValue('520');
+  await page.getByRole('button', { name: /^Berechneten Wert verwenden/ }).click();
+  await expect(page.getByLabel('Verbrauch')).not.toHaveValue('520');
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await expect(page.getByRole('link', { name: /^Laufen \/ Joggen/ })).toContainText(/50 Min\. · Mittel/);
+  await expect(page.getByRole('link', { name: /^Laufen \/ Joggen/ })).not.toContainText('+520');
+
+  // The save icon of the sport page makes a saved training of one activity; logged from there it carries its name.
+  await page.goto('/exercise');
+  await page.getByLabel('Sportart oder Training suchen').fill('dehn');
+  await page.getByRole('link', { name: /^Dehnen/ }).click();
   await page.getByRole('button', { name: 'Als Training speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Training speichern' });
-  await expect(dialog).toContainText('Mehr → Gespeicherte Trainings');
-  await dialog.getByLabel('Name').fill('Bahntraining');
-  await dialog.getByRole('button', { name: 'Training speichern' }).click();
-  await expect(page.getByText('„Bahntraining“ gespeichert')).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Bahntraining, / })).toHaveAttribute('aria-pressed', 'true');
-  // A second sport: two rows, the new one open, the footer counts them.
-  await page.getByLabel('Sportart suchen').fill('dehn');
-  await page
-    .getByRole('option', { name: /^Dehnen/ })
-    .first()
-    .click();
-  await page.getByRole('button', { name: '15 Min.' }).click();
-  // The row saved as a training is called like it from then on.
-  await expect(page.getByRole('button', { name: 'Bahntraining entfernen' })).toBeVisible();
-  const footer = page.getByRole('button', { name: /^2 Trainings eintragen/ });
-  await expect(footer).toContainText(/kcal/);
-  await footer.click();
-
-  // The diary shows both, with the note. The one saved as a training carries that name, the sport
-  // stands in the line below; the other one is called like its sport.
-  await expect(page).toHaveURL(/\/(\?.*)?$/);
-  await expect(page.getByRole('link', { name: /^Bahntraining/ })).toContainText(
-    /Laufen \/ Joggen · 40 Min\. · .* · Intervalle 6 × 400 m/,
+  await dialog.getByLabel('Name').fill('Abenddehnen');
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('Gespeichert als „Abenddehnen“')).toBeVisible();
+  await page.getByRole('button', { name: /^Eintragen · \d+ kcal$/ }).click();
+  await expect(page.getByRole('link', { name: /^Abenddehnen/ })).toContainText(
+    /Dehnen \/ Mobility · 30 Min\. · Mittel/,
   );
-  await expect(page.getByRole('link', { name: /^Dehnen/ })).toContainText(/15 Min\. · Mittel/);
-  // Nothing to suggest today (both are logged); tomorrow the badges log with one tap, with undo
-  // (suggestions come from the days up to the date, so yesterday knows nothing yet).
-  await expect(page.getByText('Zuletzt & häufig')).toHaveCount(0);
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-  await page.goto(`/?date=${tomorrow}`);
-  // The suggestion is called like the saved training too and logs the values of last time.
-  await page
-    .getByRole('button', { name: /^Bahntraining, Laufen \/ Joggen · 40 Min\. · .*, eintragen$/ })
-    .click();
-  await expect(page.getByText(/^Bahntraining eingetragen: \d+ kcal$/)).toBeVisible();
-  await expect(page.getByRole('link', { name: /^Bahntraining/ })).toContainText(
-    /Laufen \/ Joggen · 40 Min\. · .* · Intervalle 6 × 400 m/,
-  );
-  await page.getByRole('button', { name: 'Rückgängig' }).click();
-  await expect(page.getByText(/40 Min\. · .* · Intervalle 6 × 400 m/)).toHaveCount(0);
 
-  // On the page a badge selects the training with the values of last time, a second tap takes it out.
-  // The saved training has one badge, not a second one with its own values.
+  // The search finds a saved training by its name and by its sport; "Kürzlich" lists what was logged.
   await page.goto('/exercise');
-  const laufen = page.getByRole('button', { name: /^Bahntraining, Laufen \/ Joggen · 40 Min\./ });
-  await expect(page.getByRole('button', { name: /^Bahntraining, / })).toHaveCount(1);
-  await laufen.click();
-  await expect(laufen).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByLabel('Notiz (optional)')).toHaveValue('Intervalle 6 × 400 m');
-  await expect(page.getByLabel('Dauer')).toHaveValue('40');
-  await laufen.click();
-  await expect(laufen).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByText('Wähle unten eine Sportart oder einen Vorschlag.')).toBeVisible();
-  // Selected, the row is called like the saved training; the sport search finds it by name.
-  await laufen.click();
-  await expect(page.getByRole('button', { name: 'Bahntraining entfernen' })).toBeVisible();
-  await expect(page.getByLabel('Dauer')).toHaveValue('40');
-  await page.getByLabel('Sportart suchen').fill('bahn');
-  await expect(page.getByRole('option', { name: /^Bahntraining/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByLabel('Sportart oder Training suchen').fill('mobil');
+  await expect(page.getByRole('link', { name: /Abenddehnen/ })).toBeVisible();
+  await page.getByLabel('Sportart oder Training suchen').fill('');
+  await page.getByRole('tab', { name: 'Kürzlich' }).click();
+  await expect(page.getByRole('link', { name: /Abenddehnen.*1× eingetragen/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Laufen \/ Joggen.*1× eingetragen/ })).toBeVisible();
 
-  // Editing an entry stays one form.
-  await page.goto('/');
-  await page.getByRole('link', { name: /Laufen \/ Joggen.*40 Min\./ }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Training bearbeiten' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Ausgewählt' })).toHaveCount(0);
-  await page.getByLabel('Dauer').fill('45');
-  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
-  await expect(page.getByText(/45 Min\. · .* · Intervalle 6 × 400 m/)).toBeVisible();
-
-  // Renaming the saved training renames the entries logged from it (like a saved meal).
-  await page.goto('/trainings');
-  await page.getByRole('link', { name: /Bahntraining/ }).click();
-  await page.getByLabel('Name').fill('Stadion');
-  await page.getByRole('button', { name: 'Speichern', exact: true }).click();
-  await expect(page.getByText('„Stadion“ gespeichert', { exact: true })).toBeVisible();
-  await page.goto('/');
-  await expect(page.getByRole('link', { name: /^Stadion/ })).toContainText(/Laufen \/ Joggen · 45 Min\./);
-  await expect(page.getByRole('link', { name: /^Bahntraining/ })).toHaveCount(0);
+  // An own sport from the search: the dialog takes the typed name, then its page opens.
+  await page.getByLabel('Sportart oder Training suchen').fill('Paddeln');
+  await page.getByRole('button', { name: 'Eigene Sportart „Paddeln“ anlegen' }).click();
+  const custom = page.getByRole('dialog', { name: 'Eigene Sportart' });
+  await expect(custom.getByLabel('Name')).toHaveValue('Paddeln');
+  await custom.getByRole('button', { name: 'Anlegen' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Paddeln' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Mittel' })).toBeDisabled();
 });
 
-test('saved trainings: manage under "Mehr", edit with explicit save, trash', async ({ page }) => {
+test('saved trainings with several activities: editor via the search, pin, log, change and update, package row', async ({
+  page,
+}) => {
   await register(page);
-  await page.goto('/exercise');
-  await page.getByLabel('Sportart suchen').fill('lauf');
-  await page
-    .getByRole('option', { name: /^Laufen/ })
-    .first()
-    .click();
-  await page.getByLabel('Dauer').fill('40');
-  await page.getByRole('button', { name: 'Als Training speichern' }).click();
-  await page.getByRole('dialog').getByLabel('Name').fill('Bahntraining');
-  await page.getByRole('dialog').getByRole('button', { name: 'Training speichern' }).click();
-  await expect(page.getByText('„Bahntraining“ gespeichert', { exact: true })).toBeVisible();
-
-  // Managed under "Mehr" (the quick selection has no "Verwalten" link any more).
-  await page.goto('/more');
-  await page.getByRole('link', { name: 'Gespeicherte Trainings' }).click();
-  const row = page.getByRole('link', { name: /Bahntraining/ });
-  await expect(row).toContainText(/Laufen.* · 40 Min\. · Mittel/);
-  await expect(row).toContainText(/\d+ kcal/);
-
-  // Editor: same fields as logging, "Speichern" only with changes, leaving with changes asks.
-  await row.click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Bahntraining' })).toBeVisible();
+  await page.goto('/trainings');
+  await expect(page.getByText('Noch keine gespeicherten Trainings.')).toBeVisible();
+  await page.getByRole('button', { name: 'Neues Training' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Neues Training' })).toBeVisible();
   const save = page.getByRole('button', { name: 'Speichern', exact: true });
   await expect(save).toBeDisabled();
-  await expect(page.getByText('Verbrauch beim aktuellen Gewicht')).toBeVisible();
-  await page.getByLabel('Name').fill('Intervalle');
-  await page.getByRole('button', { name: '60 Min.' }).click();
-  await page.getByRole('button', { name: 'Zurück' }).click();
-  const ask = page.getByRole('dialog', { name: 'Änderungen verwerfen?' });
-  await expect(ask).toContainText('Du hast Bahntraining geändert.');
-  await ask.getByRole('button', { name: 'Weiter bearbeiten' }).click();
+  await page.getByLabel('Name').fill('Gym-Besuch');
+  // "Aktivität hinzufügen" is the training search with the training as target (only sports).
+  for (const [query, sport] of [
+    ['kraft', /^Krafttraining/],
+    ['dehn', /^Dehnen/],
+  ] as const) {
+    await page.getByRole('button', { name: 'Aktivität hinzufügen' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Zu „Gym-Besuch“ hinzufügen' })).toBeVisible();
+    await page.getByLabel('Sportart suchen').fill(query);
+    await page.getByRole('link', { name: sport }).click();
+    await page.getByRole('button', { name: 'Hinzufügen' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Gym-Besuch' })).toBeVisible();
+  }
+  await expect(page.getByRole('button', { name: /^Krafttraining\s*30 Min/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Krafttraining entfernen' })).toBeEnabled();
+  await page.getByRole('switch').click();
   await save.click();
-  await expect(page.getByText('„Intervalle“ gespeichert', { exact: true })).toBeVisible();
-  // Saving closes the editor (like the meal and food editors).
+  await expect(page.getByText('„Gym-Besuch“ gespeichert', { exact: true })).toBeVisible();
+  // Saving closes the editor, and back does not lead into it again.
   await expect(page).toHaveURL(/\/trainings$/);
-  await expect(page.getByRole('link', { name: /Intervalle/ })).toContainText('60 Min.');
-
-  // Discarding keeps the saved state.
-  await page.getByRole('link', { name: /Intervalle/ }).click();
-  await page.getByLabel('Name').fill('Weg damit');
+  const listRow = page.getByRole('link', { name: /Gym-Besuch/ });
+  await expect(listRow).toContainText('Krafttraining · Dehnen · 1 Std.');
+  await expect(listRow.getByLabel('angepinnt')).toBeVisible();
   await page.getByRole('button', { name: 'Zurück' }).click();
-  await ask.getByRole('button', { name: 'Verwerfen' }).click();
-  await expect(page.getByRole('link', { name: /Intervalle/ })).toBeVisible();
+  await expect(page).not.toHaveURL(/\/trainings\//);
+
+  // Pinned: the first chip of the diary, never logged yet. One tap logs both activities as one row.
+  await page.goto('/');
+  await page
+    .getByRole('button', { name: /^Gym-Besuch, Krafttraining · Dehnen · 1 Std\., eintragen$/ })
+    .click();
+  await expect(page.getByText(/^„Gym-Besuch“ eingetragen: \d+ kcal$/)).toBeVisible();
+  const pkg = page.getByRole('button', { name: /^Gym-Besuch\s*2 Aktivitäten · 1 Std\./ });
+  await expect(pkg).toHaveAttribute('aria-expanded', 'false');
+  await pkg.click();
+  await expect(pkg).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('link', { name: /^Krafttraining/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Krafttraining' })).toBeVisible();
+  // A part of a package is no saved training of its own.
+  await expect(page.getByRole('button', { name: 'Als Training speichern' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Zurück' }).click();
+  // Swipe deletes the package as a whole, undo brings back both.
+  await swipeLeft(page, page.getByText('Gym-Besuch', { exact: true }));
+  await page.getByRole('button', { name: 'Gym-Besuch löschen' }).click();
+  await expect(page.getByText('2 Aktivitäten · 1 Std.')).toHaveCount(0);
+  await page
+    .locator('[data-sonner-toast]', { hasText: 'Gym-Besuch gelöscht' })
+    .getByRole('button', { name: 'Rückgängig' })
+    .click();
+  await expect(page.getByText('2 Aktivitäten · 1 Std.')).toBeVisible();
+
+  // "Training eintragen" of the saved training: its saved values, a change marks the row, the save
+  // icon updates it.
+  await page.goto('/exercise');
+  await page.getByRole('link', { name: /Gym-Besuch/ }).click();
+  await expect(page).toHaveURL(/\/trainings\/[^/?]+\?date=/);
+  const saveIcon = page.getByRole('button', { name: 'Als Training speichern' });
+  await expect(saveIcon).toBeDisabled();
+  await expect(page.getByText('geändert')).toHaveCount(0);
+  await page.getByRole('slider', { name: 'Dauer Krafttraining' }).press('ArrowUp');
+  await expect(page.getByText('geändert')).toBeVisible();
+  await saveIcon.click();
+  const ask = page.getByRole('dialog', { name: 'Als Training speichern' });
+  await expect(ask.getByRole('radio', { name: '„Gym-Besuch“ aktualisieren' })).toBeChecked();
+  await ask.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page.getByText('„Gym-Besuch“ aktualisiert')).toBeVisible();
+  await expect(page.getByText('geändert')).toHaveCount(0);
+  await expect(page.getByText(/Aktivitäten\s*55 Min\./)).toBeVisible();
+  await page.getByRole('button', { name: /^Eintragen · \d+ kcal$/ }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await expect(page.getByRole('button', { name: /^Gym-Besuch\s*2 Aktivitäten · 55 Min\./ })).toBeVisible();
 
   // Delete from the editor, then restore from the trash.
-  await page.getByRole('link', { name: /Intervalle/ }).click();
+  await page.goto('/trainings');
+  await page.getByRole('link', { name: /Gym-Besuch/ }).click();
   await page.getByRole('button', { name: 'Training löschen' }).click();
   await expect(page).toHaveURL(/\/trainings$/);
-  await expect(page.getByText('Noch keine gespeicherten Trainings')).toBeVisible();
   await page.goto('/settings/trash');
-  await expect(page.getByText(/Laufen.* · 60 Min\. · Mittel · gelöscht am/)).toBeVisible();
-  await page.getByRole('button', { name: 'Intervalle wiederherstellen' }).click();
-  await expect(page.getByText('„Intervalle“ wiederhergestellt', { exact: true })).toBeVisible();
-  await expect(page.getByText('Keine gelöschten gespeicherten Trainings')).toBeVisible();
-  await page.goto('/exercise');
-  await expect(page.getByRole('button', { name: /^Intervalle/ })).toBeVisible();
+  await expect(page.getByText(/Krafttraining · Dehnen · 55 Min\. · gelöscht am/)).toBeVisible();
+  await page.getByRole('button', { name: 'Gym-Besuch wiederherstellen' }).click();
+  await expect(page.getByText('„Gym-Besuch“ wiederhergestellt', { exact: true })).toBeVisible();
 });
 
 test('swipe to delete a diary entry with undo, date picker on the title', async ({ page }) => {

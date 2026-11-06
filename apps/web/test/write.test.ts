@@ -56,6 +56,13 @@ import {
   readClipboard,
 } from '@/db/clipboard';
 import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
+import {
+  addActivityToTraining,
+  isTrainingDirty,
+  readTrainingDraft,
+  saveTrainingDraft,
+  startNewTraining,
+} from '@/db/trainingDraft';
 import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@/db/notes';
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
@@ -1639,5 +1646,52 @@ describe('closing all past days ("Alle vergangenen Tage abschließen")', () => {
     expect(await d.dayNotes.get(dayId.note('2026-10-29'))).toMatchObject({ completedAt: null });
     expect(await d.dayNotes.get(dayId.note('2026-10-31'))).toMatchObject({ completedAt: 5 });
     expect(await openPastDays(d, '2026-11-01')).toEqual(['2026-10-29', '2026-10-30']);
+  });
+});
+
+describe('saved training editor draft', () => {
+  const run = {
+    typeKey: 'running',
+    typeName: 'Laufen',
+    minutes: 40,
+    intensity: 'moderate' as const,
+    note: null,
+  };
+  const stretch = {
+    typeKey: 'stretching',
+    typeName: 'Dehnen',
+    minutes: 15,
+    intensity: 'light' as const,
+    note: null,
+  };
+
+  it('creates a new training only on save; an empty new draft has no record', async () => {
+    const d = db();
+    const id = await startNewTraining(d);
+    expect(await d.exerciseTemplates.get(id)).toBeUndefined();
+    expect(await readTrainingDraft(d, id)).toMatchObject({ isNew: true, items: [] });
+    expect(await addActivityToTraining(d, id, run)).toBe(true);
+    expect(await addActivityToTraining(d, id, stretch)).toBe(true);
+    const draft = (await readTrainingDraft(d, id))!;
+    expect(draft.items.map((i) => i.typeKey)).toEqual(['running', 'stretching']);
+    expect(await saveTrainingDraft(d, { ...draft, name: 'Bahn und Dehnen', pinned: true })).toBe(true);
+    const saved = (await d.exerciseTemplates.get(id))!;
+    expect(saved).toMatchObject({ name: 'Bahn und Dehnen', typeKey: 'running', pinned: true });
+    expect(trainingItemsOf(saved).map((i) => i.typeKey)).toEqual(['running', 'stretching']);
+    expect(await readTrainingDraft(d, id)).toBeNull();
+  });
+
+  it('adds to a draft of an existing training and saves only the draft fields', async () => {
+    const d = db();
+    const id = await saveTraining(d, { name: 'Bahntraining', items: [run] });
+    expect(await addActivityToTraining(d, id, stretch)).toBe(true);
+    const draft = (await readTrainingDraft(d, id))!;
+    expect(draft).toMatchObject({ name: 'Bahntraining', pinned: false });
+    expect(isTrainingDirty(draft, (await d.exerciseTemplates.get(id))!)).toBe(true);
+    expect(await saveTrainingDraft(d, draft)).toBe(true);
+    expect(trainingItemsOf((await d.exerciseTemplates.get(id))!)).toHaveLength(2);
+    await deleteRecord(d, 'exerciseTemplates', id);
+    expect(await addActivityToTraining(d, id, run)).toBe(false);
+    expect(await addActivityToTraining(d, 'missing', run)).toBe(false);
   });
 });

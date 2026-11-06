@@ -1,5 +1,6 @@
 import { ChevronDown, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { fmt0 } from '@/lib/format';
@@ -19,6 +20,7 @@ export function TrainingRow({
   onRemove,
   removeDisabled,
   changed,
+  onSwipe,
   children,
 }: {
   title: string;
@@ -29,48 +31,59 @@ export function TrainingRow({
   onRemove?: () => void;
   removeDisabled?: boolean;
   changed?: boolean;
+  /** Swipe left on the row (not on its open fields) leaves the activity out. */
+  onSwipe?: { label: string; onDelete: () => void };
   /** The fields, shown while the row is open. */
   children: ReactNode;
 }) {
+  const header = (
+    <div className="flex items-center">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left focus-visible:bg-accent focus-visible:outline-none"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium">{title}</span>
+            {changed && (
+              <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[11px] font-normal">
+                geändert
+              </Badge>
+            )}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">{detail}</div>
+        </div>
+        <span className="tabular font-semibold text-exercise">+{fmt0(kcal)}</span>
+        <ChevronDown
+          className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
+      {onRemove && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mr-2"
+          aria-label={`${title} entfernen`}
+          disabled={removeDisabled}
+          onClick={onRemove}
+        >
+          <X aria-hidden />
+        </Button>
+      )}
+    </div>
+  );
   return (
     <div>
-      <div className="flex items-center">
-        <button
-          type="button"
-          aria-expanded={open}
-          onClick={onToggle}
-          className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left focus-visible:bg-accent focus-visible:outline-none"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="truncate font-medium">{title}</span>
-              {changed && (
-                <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[11px] font-normal">
-                  geändert
-                </Badge>
-              )}
-            </div>
-            <div className="truncate text-xs text-muted-foreground">{detail}</div>
-          </div>
-          <span className="tabular font-semibold text-exercise">+{fmt0(kcal)}</span>
-          <ChevronDown
-            className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
-            aria-hidden
-          />
-        </button>
-        {onRemove && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mr-2"
-            aria-label={`${title} entfernen`}
-            disabled={removeDisabled}
-            onClick={onRemove}
-          >
-            <X aria-hidden />
-          </Button>
-        )}
-      </div>
+      {onSwipe ? (
+        <SwipeToDelete label={onSwipe.label} onDelete={onSwipe.onDelete}>
+          {header}
+        </SwipeToDelete>
+      ) : (
+        header
+      )}
       {open && <div className="grid gap-4 bg-muted/30 px-4 pt-1 pb-4">{children}</div>}
     </div>
   );

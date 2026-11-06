@@ -1,5 +1,4 @@
-import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, normalize, uuidv7, type Intensity } from '@ft/shared';
-import { Bookmark, Plus, Search } from 'lucide-react';
+import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, uuidv7, type Intensity } from '@ft/shared';
 import { useId, useState, type ReactNode } from 'react';
 import { DurationWheel } from '@/components/DurationWheel';
 import { useDb } from '@/app/session';
@@ -18,111 +17,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { Badge } from '@/components/ui/badge';
 import { saveRecord } from '@/db/write';
 import { fmt0, fmt1, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { matchesTraining, type TypeOption } from './training';
-
-/**
- * Sport search and list with "Eigene Sportart" (logging a training and the saved training editor).
- * Marks one sport (`typeKey`) or several (`selectedKeys`, the page "Training eintragen"); while the
- * search has text, saved trainings whose name or sport matches are listed first (`templates`).
- */
-export function SportPicker({
-  options,
-  typeKey,
-  selectedKeys,
-  onSelect,
-  filter,
-  onFilterChange,
-  onCustomCreated,
-  templates,
-  onTemplate,
-}: {
-  options: TypeOption[];
-  typeKey: string | null;
-  /** Several marked sports (a tap on a marked one is reported too: the caller takes it out). */
-  selectedKeys?: ReadonlySet<string>;
-  onSelect: (key: string) => void;
-  filter: string;
-  onFilterChange: (filter: string) => void;
-  /** A new own sport was created (and should be selected). */
-  onCustomCreated: (id: string) => void;
-  templates?: { id: string; name: string; typeName: string; selected: boolean }[];
-  onTemplate?: (id: string) => void;
-}) {
-  const [customOpen, setCustomOpen] = useState(false);
-  const shown = filter ? options.filter((o) => normalize(o.name).includes(normalize(filter))) : options;
-  const shownTemplates = filter
-    ? (templates ?? []).filter((t) => matchesTraining(filter, [t.name, t.typeName]))
-    : [];
-  const isSelected = (key: string) => (selectedKeys ? selectedKeys.has(key) : typeKey === key);
-  return (
-    <div className="grid gap-3 px-4 pb-4">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          aria-label="Sportart suchen"
-          placeholder="Sportart suchen…"
-          autoComplete="off"
-          value={filter}
-          onChange={(e) => onFilterChange(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-      <ul
-        className="max-h-72 overflow-y-auto overscroll-contain rounded-xl border"
-        role="listbox"
-        aria-label="Sportarten"
-      >
-        {shownTemplates.map((t) => (
-          <li key={`t:${t.id}`} role="option" aria-selected={t.selected}>
-            <button
-              type="button"
-              onClick={() => onTemplate?.(t.id)}
-              className={cn(
-                'flex min-h-11 w-full items-center justify-between px-3 text-left text-sm transition-colors focus-visible:bg-accent focus-visible:outline-none',
-                t.selected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
-              )}
-            >
-              <span>
-                {t.name}
-                <span className="ml-1 text-xs opacity-70">(gespeichert, {t.typeName})</span>
-              </span>
-              <Bookmark className="size-4 shrink-0 opacity-70" aria-hidden />
-            </button>
-          </li>
-        ))}
-        {shown.map((o) => (
-          <li key={o.key} role="option" aria-selected={isSelected(o.key)}>
-            <button
-              type="button"
-              onClick={() => onSelect(o.key)}
-              className={cn(
-                'flex min-h-11 w-full items-center justify-between px-3 text-left text-sm transition-colors focus-visible:bg-accent focus-visible:outline-none',
-                isSelected(o.key) ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
-              )}
-            >
-              <span>
-                {o.name}
-                {o.custom && <span className="ml-1 text-xs opacity-70">(eigene)</span>}
-              </span>
-              <span className="tabular text-xs opacity-70">MET {fmt1(o.met.moderate)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <Button variant="outline" size="sm" onClick={() => setCustomOpen(true)}>
-        <Plus aria-hidden /> Eigene Sportart
-      </Button>
-      <CustomTypeDialog open={customOpen} onOpenChange={setCustomOpen} onCreated={onCustomCreated} />
-    </div>
-  );
-}
 
 /**
  * Duration (wheel), intensity, kcal (`kcal`, a slot: the sport page and logging show a field, the
@@ -193,17 +91,20 @@ export function TrainingFields({
   );
 }
 
-function CustomTypeDialog({
+/** "Eigene Sportart": name and MET value; mount it with a `key` per `defaultName` to prefill the name. */
+export function CustomTypeDialog({
   open,
   onOpenChange,
   onCreated,
+  defaultName = '',
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onCreated: (id: string) => void;
+  defaultName?: string;
 }) {
   const db = useDb();
-  const [name, setName] = useState('');
+  const [name, setName] = useState(defaultName);
   const [met, setMet] = useState<number | null>(6);
   const valid = name.trim().length > 0 && met !== null && met >= 1 && met <= 25;
   return (
@@ -257,33 +158,93 @@ function CustomTypeDialog({
   );
 }
 
-/** Calories of a training with the formula behind them. */
+/** Highest kcal of one training (the schema's limit). */
+export const MAX_TRAINING_KCAL = 20_000;
+
+/** Whether typed kcal can be logged: none typed (computed), or a whole number in the range. */
+export const validOwnKcal = (own: number | null) =>
+  own === null || (Number.isFinite(own) && own >= 0 && own <= MAX_TRAINING_KCAL);
+
+/**
+ * The kcal of a training: a field that shows the computed value (with the formula below) until a
+ * number is typed (a watch's value). A typed value stays when the duration changes; the field is
+ * marked then and the link "Berechneten Wert verwenden (N kcal)" takes the computed one again. `own`
+ * is NaN while the field is empty. Without `onOwnChange` (the editor of a saved training) the value is
+ * only shown. `marks` are short states next to the label ("Standardgewicht", "nicht angerechnet").
+ */
 export function TrainingKcal({
-  label,
-  kcal,
+  label = 'Verbrauch',
+  computed,
+  own = null,
+  onOwnChange,
   met,
   weightKg,
   minutes,
-  note,
+  marks = [],
 }: {
-  label: string;
-  kcal: number;
+  label?: string;
+  computed: number;
+  own?: number | null;
+  onOwnChange?: (own: number | null) => void;
   met: number | null;
   weightKg: number;
   minutes: number | null;
-  /** Extra remark after the formula (standard weight, not credited, …). */
-  note?: string;
+  marks?: string[];
 }) {
+  const id = useId();
+  const typed = own !== null;
   return (
-    <div className="rounded-xl bg-muted p-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm">{label}</span>
-        <span className="tabular shrink-0 text-2xl font-bold text-exercise">{fmt0(kcal)} kcal</span>
+    <div className="grid gap-2 rounded-xl border border-border/70 bg-card p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="grid min-w-0 gap-1">
+          <Label htmlFor={onOwnChange ? id : undefined} className="text-sm font-normal">
+            {label}
+          </Label>
+          {marks.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {marks.map((m) => (
+                <Badge key={m} variant="secondary" className="px-1.5 py-0 text-[11px] font-normal">
+                  {m}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+        {onOwnChange ? (
+          <NumberField
+            id={id}
+            className="w-36 shrink-0"
+            inputClassName={cn(
+              'text-lg font-bold text-exercise',
+              typed && 'border-exercise ring-[3px] ring-exercise/25',
+            )}
+            value={typed ? own : computed}
+            unit="kcal"
+            integer
+            onValueChange={(v) => {
+              if (v === null) return onOwnChange(Number.NaN);
+              onOwnChange(Math.round(v) === computed && !typed ? null : Math.round(v));
+            }}
+            error={validOwnKcal(own) ? null : `0 bis ${fmt0(MAX_TRAINING_KCAL)} kcal.`}
+          />
+        ) : (
+          <span className="tabular shrink-0 text-2xl font-bold text-exercise">{fmt0(computed)} kcal</span>
+        )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        (MET {met ? fmt1(met) : NO_VALUE} − 1) × {fmt1(weightKg)} kg ×{' '}
-        {minutes ? fmt1(minutes / 60) : NO_VALUE} h{note}
-      </p>
+      {typed ? (
+        <button
+          type="button"
+          className="justify-self-start text-left text-xs text-primary underline underline-offset-2"
+          onClick={() => onOwnChange?.(null)}
+        >
+          Berechneten Wert verwenden ({fmt0(computed)} kcal)
+        </button>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          (MET {met ? fmt1(met) : NO_VALUE} − 1) × {fmt1(weightKg)} kg ×{' '}
+          {minutes ? fmt1(minutes / 60) : NO_VALUE} h
+        </p>
+      )}
     </div>
   );
 }

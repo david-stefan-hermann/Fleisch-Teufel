@@ -3,7 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useDb } from '@/app/session';
 import { EmptyState, Page } from '@/components/Page';
 import { newMealPlaceholder, readMealDraft } from '@/db/mealDraft';
-import { parseInto } from '@/lib/into';
+import { parseFoodInto } from '@/lib/into';
 import { MealEditor } from './MealEditor';
 import { MealLogView } from './MealLogView';
 
@@ -37,7 +37,7 @@ export function MealPage() {
         meal={meal}
         date={search.date}
         mealIndex={search.meal}
-        into={parseInto(search.into)}
+        into={parseFoodInto(search.into)}
       />
     );
   return <MealEditor meal={meal} fromLog={search.from === 'log'} />;

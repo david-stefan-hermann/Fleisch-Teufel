@@ -230,8 +230,9 @@ function trainingFields(items: readonly TrainingItem[]) {
 export async function saveTraining(
   db: UserDb,
   data: { name: string; items: readonly TrainingItem[]; pinned?: boolean | null },
+  /** The id of a new training whose draft already has one ("Neues Training"). */
+  id: string = uuidv7(),
 ): Promise<string> {
-  const id = uuidv7();
   await saveRecord(db, 'exerciseTemplates', {
     id,
     name: data.name.trim().slice(0, 80),

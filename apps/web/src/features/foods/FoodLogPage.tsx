@@ -44,7 +44,7 @@ import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
 import { goBackOr } from '@/lib/history';
-import { formatInto, openTarget, parseInto, returnFromInto, type Into } from '@/lib/into';
+import { formatInto, openTarget, parseFoodInto, returnFromInto, type FoodInto } from '@/lib/into';
 import { useReturnToDiary } from '@/lib/logFlow';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
@@ -132,7 +132,7 @@ export function FoodLogPage() {
       entry={entry ?? null}
       defaultDate={search.date}
       defaultMeal={search.meal}
-      into={entry ? null : parseInto(search.into)}
+      into={entry ? null : parseFoodInto(search.into)}
     />
   );
 }
@@ -143,7 +143,7 @@ interface FormProps {
   defaultDate?: string;
   defaultMeal?: number;
   /** Add to a saved meal / AI analysis instead of the diary. */
-  into: Into | null;
+  into: FoodInto | null;
 }
 
 interface Initial {
@@ -242,7 +242,7 @@ function FoodLogEditor({
   const valid = q > 0;
   const unit = food.unit;
 
-  async function addToTarget(target: Into) {
+  async function addToTarget(target: FoodInto) {
     const item = {
       foodId: food.id,
       source: food.source,

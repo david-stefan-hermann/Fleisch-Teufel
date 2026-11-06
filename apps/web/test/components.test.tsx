@@ -15,6 +15,7 @@ import { MealPhoto, PHOTO_DECODE_ATTEMPTS, useObjectUrl, usePhotoBlobFrom } from
 import { NameDialog } from '@/components/NameDialog';
 import { HintCount, HintField } from '@/components/HintField';
 import { SaveMealDialog } from '@/components/SaveMealDialog';
+import { SaveTrainingDialog } from '@/features/exercise/SaveTrainingDialog';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
@@ -1686,6 +1687,37 @@ describe('HintField (analysis hint growing with its text)', () => {
   });
 });
 
+describe('SaveTrainingDialog', () => {
+  it('preselects updating the saved training it comes from; a new one asks for a name', async () => {
+    const onConfirm = vi.fn();
+    render(
+      <SaveTrainingDialog
+        open
+        onOpenChange={() => {}}
+        existing={{ name: 'Gym-Besuch' }}
+        defaultName="Gym-Besuch"
+        onConfirm={onConfirm}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Als Training speichern' });
+    const update = screen.getByRole('radio', { name: '„Gym-Besuch“ aktualisieren' });
+    expect(update.getAttribute('aria-checked')).toBe('true');
+    expect(dialog.textContent).toContain('ersetzen die von „Gym-Besuch“');
+    expect(screen.queryByLabelText('Name')).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Als neues Training speichern' }));
+    const name = screen.getByLabelText('Name') as HTMLInputElement;
+    fireEvent.change(name, { target: { value: 'Gym kurz' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith('Gym kurz', 'new'));
+  });
+
+  it('without a saved training it only asks for the name', () => {
+    render(<SaveTrainingDialog open onOpenChange={() => {}} defaultName="Radfahren" onConfirm={() => {}} />);
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Radfahren');
+  });
+});
+
 describe('SaveMealDialog', () => {
   it('offers to update the meal a group came from and fills in its name', async () => {
     const onConfirm = vi.fn();
@@ -1854,10 +1886,37 @@ describe('DayShareImage', () => {
     expect(screen.getByText('Radfahren')).toBeTruthy();
     expect(screen.getByText('45 Min. · Mittel')).toBeTruthy();
     expect(screen.getByText('Push Day')).toBeTruthy();
-    expect(screen.getByText('Krafttraining · 60 Min. · Intensiv · Beine')).toBeTruthy();
+    expect(screen.getByText('Krafttraining · 1 Std. · Intensiv · Beine')).toBeTruthy();
     expect(screen.getByText('Notiz')).toBeTruthy();
     expect(screen.getByText(/Viel Hunger\.\s+Wenig Schlaf\./)).toBeTruthy();
     expect(screen.queryByText('Ziel')).toBeNull();
     expect(screen.queryByText('Abendessen')).toBeNull();
+  });
+
+  it('shows a logged saved training with several activities as one closed row', () => {
+    const base = data({ food: false, training: true, note: false });
+    const part = (id: string, name: string, minutes: number, kcal: number): ExerciseEntry => ({
+      ...base.exercises[0]!,
+      id,
+      name,
+      minutes,
+      kcal,
+      loggedAt: 10 + minutes,
+      templateId: 't-gym',
+      groupId: 'g-gym',
+    });
+    render(
+      <DayShareImage
+        data={{
+          ...base,
+          exercises: [part('p1', 'Krafttraining', 60, 400), part('p2', 'Dehnen / Mobility', 15, 30)],
+          savedTrainings: new Map([['t-gym', 'Gym-Besuch']]),
+        }}
+      />,
+    );
+    expect(screen.getByText('Gym-Besuch')).toBeTruthy();
+    expect(screen.getByText('2 Aktivitäten · 1 Std. 15 Min.')).toBeTruthy();
+    expect(screen.getByText('+430')).toBeTruthy();
+    expect(screen.queryByText('Krafttraining')).toBeNull();
   });
 });

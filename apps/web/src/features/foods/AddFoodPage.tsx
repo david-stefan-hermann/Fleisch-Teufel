@@ -37,7 +37,7 @@ import { useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
-import { parseInto, type Into } from '@/lib/into';
+import { parseFoodInto, type FoodInto } from '@/lib/into';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 
 type Tab = 'frequent' | 'recent' | 'mine';
@@ -81,7 +81,7 @@ export function AddFoodPage() {
   const today = useToday();
   const settings = useSettings();
   const { date, meal } = search;
-  const into = parseInto(search.into);
+  const into = parseFoodInto(search.into);
   /** Search params for links to the food page / scanner: keep the target (diary meal or `into`). */
   const linkSearch: FoodLinkSearch = { date, meal, ...(search.into ? { into: search.into } : {}) };
   const tab = TABS.find((t) => t.id === search.tab)?.id ?? DEFAULT_TAB;
@@ -488,7 +488,7 @@ function rowsOnScreen(list: HTMLUListElement | null, q: string): number {
  * "+" on a recent food in `into` mode: same amount as last time, into the meal / analysis / diary
  * group (`date` is the group's day). Returns false when the target is gone.
  */
-async function addRecentToTarget(db: UserDb, into: Into, r: RecentFood, date: string): Promise<boolean> {
+async function addRecentToTarget(db: UserDb, into: FoodInto, r: RecentFood, date: string): Promise<boolean> {
   const item = mealItem(r.last);
   if (into.kind === 'meal') return addItemToMeal(db, into.mealId, item);
   if (into.kind === 'group') return addItemToGroupDraft(db, into.groupId, date, item);
