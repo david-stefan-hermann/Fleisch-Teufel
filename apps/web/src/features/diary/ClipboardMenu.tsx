@@ -12,7 +12,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { clearClipboard, clipboardKcal, type Clipboard, CLIPBOARD_KEY } from '@/db/clipboard';
+import {
+  clearClipboard,
+  clipboardKcal,
+  CLIPBOARD_KEY,
+  foodClipboard,
+  type AnyClipboard,
+} from '@/db/clipboard';
+import { describe } from '@/features/exercise/training';
 import { saveMealFromItems } from '@/db/entries';
 import { fmt0, fmtIngredients } from '@/lib/format';
 import { entryAmountLabel } from './MealCard';
@@ -21,24 +28,11 @@ import { entryAmountLabel } from './MealCard';
  * The clipboard icon in the diary header (only while something is copied): what is copied, "Als Meal
  * speichern" for a copied group (e.g. a scanned meal) or diary meal and "Zwischenablage leeren".
  */
-export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
+export function ClipboardMenu({ clipboard }: { clipboard: AnyClipboard }) {
   const db = useDb();
   const [saveOpen, setSaveOpen] = useState(false);
-  const kind = clipboard.kind;
-  const first = clipboard.items[0];
-  const rows = clipboard.parts?.length ?? 0;
-  const detail = [
-    `${fmt0(clipboardKcal(clipboard))} kcal`,
-    kind === 'meal'
-      ? `${fmt0(rows)} ${rows === 1 ? 'Eintrag' : 'Einträge'}`
-      : kind === 'group'
-        ? fmtIngredients(clipboard.items.length)
-        : first
-          ? entryAmountLabel(first)
-          : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  const detail = clipboardDetail(clipboard);
+  const food = foodClipboard(clipboard);
   return (
     <>
       <DropdownMenu>
@@ -54,7 +48,7 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
             <span className="tabular block text-xs font-normal text-muted-foreground">{detail}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {kind !== 'entry' && (
+          {food && food.kind !== 'entry' && (
             <DropdownMenuItem onSelect={() => setSaveOpen(true)}>
               <Save aria-hidden /> Als Meal speichern
             </DropdownMenuItem>
@@ -75,16 +69,46 @@ export function ClipboardMenu({ clipboard }: { clipboard: Clipboard }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <SaveMealDialog
-        open={saveOpen}
-        onOpenChange={setSaveOpen}
-        count={clipboard.items.length}
-        defaultName={clipboard.name}
-        onConfirm={async (name) => {
-          await saveMealFromItems(db, name, clipboard.items, clipboard.photoIds[0] ?? null);
-          toast.success(`„${name}“ gespeichert`);
-        }}
-      />
+      {food && (
+        <SaveMealDialog
+          open={saveOpen}
+          onOpenChange={setSaveOpen}
+          count={food.items.length}
+          defaultName={food.name}
+          onConfirm={async (name) => {
+            await saveMealFromItems(db, name, food.items, food.photoIds[0] ?? null);
+            toast.success(`„${name}“ gespeichert`);
+          }}
+        />
+      )}
     </>
   );
+}
+
+/** The line under the copied name: kcal and how many entries, ingredients, activities or the amount. */
+function clipboardDetail(clip: AnyClipboard): string {
+  if (clip.kind === 'training') {
+    const kcal = clip.parts.reduce((s, p) => s + p.kcal, 0);
+    const n = clip.parts.length;
+    return [
+      `${fmt0(kcal)} kcal`,
+      n === 1
+        ? describe(null, clip.parts[0]!.minutes, clip.parts[0]!.intensity, null)
+        : `${fmt0(n)} Aktivitäten`,
+    ].join(' · ');
+  }
+  const first = clip.items[0];
+  const rows = clip.parts?.length ?? 0;
+  return [
+    `${fmt0(clipboardKcal(clip))} kcal`,
+    clip.kind === 'meal'
+      ? `${fmt0(rows)} ${rows === 1 ? 'Eintrag' : 'Einträge'}`
+      : clip.kind === 'group'
+        ? fmtIngredients(clip.items.length)
+        : first
+          ? entryAmountLabel(first)
+          : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }

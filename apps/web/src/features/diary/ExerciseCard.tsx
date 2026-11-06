@@ -1,7 +1,14 @@
-import { formatDuration, groupTrainingEntries, INTENSITY_LABELS_DE, shortSportName } from '@ft/shared';
+import {
+  addDays,
+  DEFAULT_WEIGHT_KG,
+  formatDuration,
+  groupTrainingEntries,
+  INTENSITY_LABELS_DE,
+  shortSportName,
+} from '@ft/shared';
 import type { ExerciseEntry, ISODate } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
-import { ChevronDown, Dumbbell, Plus } from 'lucide-react';
+import { ChevronDown, ClipboardPaste, Dumbbell, Plus } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -9,10 +16,22 @@ import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  copiesOf,
+  copyTrainingToClipboard,
+  trainingParts,
+  trainingPartsKcal,
+  type TrainingClipboard,
+  type TrainingPart,
+} from '@/db/clipboard';
 import type { UserDb } from '@/db/dexie';
+import { logTrainings } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { trainingTitle, useTrainingNames } from '@/features/exercise/training';
+import { TrainingChip } from '@/features/exercise/TrainingChips';
 import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
+import { useCurrentWeight, useDayExercises } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
@@ -26,23 +45,61 @@ export function ExerciseCard({
   date,
   exercises,
   credited,
-  headerAction,
-  leadingChips,
-  onCopy,
+  clipboard,
 }: {
   date: ISODate;
   exercises: ExerciseEntry[];
   credited: boolean;
-  /** Before the "+" (the paste button while a training is copied). */
-  headerAction?: ReactNode;
-  /** Chips before the suggestions ("Wie gestern"). */
-  leadingChips?: ReactNode;
-  /** Swipe right copies a row (a training or a package). */
-  onCopy?: (title: string, entries: ExerciseEntry[]) => void;
+  /** Copied trainings: the paste icon stands before the "+". */
+  clipboard: TrainingClipboard | null;
 }) {
   const db = useDb();
   const rememberStart = useRememberLogStart();
   const names = useTrainingNames();
+  const weightKg = useCurrentWeight(date) ?? DEFAULT_WEIGHT_KG;
+  const yesterday = useDayExercises(addDays(date, -1));
+  const { busy, run } = useSubmitting();
+  /** Swipe right: copies a row (a training or a package). */
+  const onCopy = (title: string, list: ExerciseEntry[]) =>
+    void copyTrainingToClipboard(db, title, list).then(() => toast(`„${title}“ kopiert`));
+  /** Logs copied trainings on this day (kcal with its weight), with undo. */
+  const logCopies = (parts: TrainingPart[], message: string) =>
+    run(async () => {
+      const ids = await logTrainings(db, date, copiesOf(parts, weightKg));
+      toast(message, {
+        action: {
+          label: 'Rückgängig',
+          onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'exerciseEntries', id))),
+        },
+      });
+    });
+  const yesterdayRows = yesterday && exercises.length === 0 ? groupTrainingEntries(yesterday).length : 0;
+  const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterday!) : [];
+  const yesterdayDetail = `${fmt0(yesterdayRows)} ${yesterdayRows === 1 ? 'Training' : 'Trainings'} · ${fmt0(
+    trainingPartsKcal(yesterdayParts, weightKg),
+  )} kcal`;
+  const headerAction = clipboard && (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={`„${clipboard.name}“ ins Training eintragen`}
+      disabled={busy}
+      onClick={() => void logCopies(clipboard.parts, `„${clipboard.name}“ eingetragen`)}
+    >
+      <ClipboardPaste className="size-5 text-primary" aria-hidden />
+    </Button>
+  );
+  const leadingChips = yesterdayRows > 0 && (
+    <li className="shrink-0">
+      <TrainingChip
+        title="Wie gestern"
+        detail={yesterdayDetail}
+        disabled={busy}
+        ariaLabel={`Wie gestern, ${yesterdayDetail}, eintragen`}
+        onClick={() => void logCopies(yesterdayParts, 'Trainings von gestern eingetragen')}
+      />
+    </li>
+  );
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
   const rows = groupTrainingEntries(exercises);
   return (
@@ -99,7 +156,7 @@ export function ExerciseCard({
                   <SwipeToDelete
                     label={`${title} löschen`}
                     onDelete={() => void removeTrainingsWithUndo(db, [e], title)}
-                    onCopy={onCopy && (() => onCopy(title, [e]))}
+                    onCopy={() => onCopy(title, [e])}
                   >
                     <EntryLink entry={e}>
                       <ExerciseRowBody entry={e} title={title} sport={sport} />
@@ -119,7 +176,7 @@ export function ExerciseCard({
                   title={title}
                   entries={row.entries}
                   onDelete={() => void removeTrainingsWithUndo(db, row.entries, title)}
-                  onCopy={onCopy && (() => onCopy(title, row.entries))}
+                  onCopy={() => onCopy(title, row.entries)}
                 />
               </li>
             );

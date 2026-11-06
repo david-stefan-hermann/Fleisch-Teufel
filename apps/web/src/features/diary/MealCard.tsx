@@ -216,7 +216,8 @@ export async function copyMealWithToast(
 }
 
 function copiedToast(name: string) {
-  toast(`„${name}“ kopiert`, { description: 'Zum Eintragen auf das Einfügen-Symbol einer Mahlzeit tippen.' });
+  // The paste icon in the meal headers shows where it goes.
+  toast(`„${name}“ kopiert`);
 }
 
 /** Logs the clipboard into a diary meal, with an undo toast. */

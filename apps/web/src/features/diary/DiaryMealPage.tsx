@@ -7,6 +7,7 @@ import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { foodClipboard } from '@/db/clipboard';
 import { useClipboard, useDaySuggestions, useGoals, useSettings, useToday } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
@@ -27,7 +28,7 @@ export function DiaryMealPage() {
   const today = useToday();
   const settings = useSettings();
   const goals = useGoals();
-  const clipboard = useClipboard();
+  const clipboard = foodClipboard(useClipboard());
   const suggestions = useDaySuggestions(date);
   const entries = useLiveQuery(
     () =>

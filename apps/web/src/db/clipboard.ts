@@ -7,13 +7,27 @@
  * It holds a snapshot (item fields, group fields, photo ids), no references to the source entries: the
  * source may be changed or deleted afterwards. Photos are immutable, so their ids are shared, not copied.
  *
+ * Trainings go into the same clipboard (`TrainingClipboard`, swipe right on a training row): only the
+ * training card pastes them, only meals paste food.
+ *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { get, N, photoIdsOf, type FoodEntry } from '@ft/shared';
+import {
+  get,
+  groupTrainingEntries,
+  isAutoTrainingKcal,
+  N,
+  photoIdsOf,
+  trainingKcal,
+  type ExerciseEntry,
+  type FoodEntry,
+  type Intensity,
+} from '@ft/shared';
 import type { UserDb } from './dexie';
 import {
   diaryParts,
   entriesToMealItems,
+  type TrainingToLog,
   entryToItem,
   firstPhotoId,
   logParts,
@@ -41,12 +55,105 @@ export interface Clipboard {
   copiedAt: number;
 }
 
+/** One copied training: what it was logged with, as a snapshot. */
+export interface TrainingPart {
+  typeKey: string;
+  name: string;
+  minutes: number;
+  intensity: Intensity;
+  met: number;
+  note: string | null;
+  kcal: number;
+  /** The kcal were computed (they follow the weight of the day pasted into); false: typed, they stay. */
+  auto: boolean;
+  templateId: string | null;
+  /** Parts with the same mark were logged together (a saved training) and are pasted together again. */
+  group: string | null;
+}
+
+/** Copied trainings: a single one, or the activities of a saved training logged together. */
+export interface TrainingClipboard {
+  kind: 'training';
+  name: string;
+  parts: TrainingPart[];
+  copiedAt: number;
+}
+
+/** Whatever the clipboard holds: food (`Clipboard`) or trainings. */
+export type AnyClipboard = Clipboard | TrainingClipboard;
+
 export const CLIPBOARD_KEY = 'clipboard';
 
-export async function readClipboard(db: UserDb): Promise<Clipboard | null> {
+export async function readClipboard(db: UserDb): Promise<AnyClipboard | null> {
   const row = await db.kv.get(CLIPBOARD_KEY);
-  return (row?.value as Clipboard | undefined) ?? null;
+  return (row?.value as AnyClipboard | undefined) ?? null;
 }
+
+/** The clipboard when it holds food (what meals paste), else null. */
+export const foodClipboard = (clip: AnyClipboard | null | undefined): Clipboard | null =>
+  clip && clip.kind !== 'training' ? clip : null;
+
+/** The clipboard when it holds trainings (what the training card pastes), else null. */
+export const trainingClipboard = (clip: AnyClipboard | null | undefined): TrainingClipboard | null =>
+  clip?.kind === 'training' ? clip : null;
+
+/** Training entries as parts to log again (diary order, a package keeps its mark). */
+export function trainingParts(entries: readonly ExerciseEntry[]): TrainingPart[] {
+  return groupTrainingEntries(entries).flatMap((row) =>
+    (row.kind === 'entry' ? [row.entry] : row.entries).map((e) => ({
+      typeKey: e.typeKey,
+      name: e.name,
+      minutes: e.minutes,
+      intensity: e.intensity,
+      met: e.met,
+      note: e.note ?? null,
+      kcal: e.kcal,
+      auto: isAutoTrainingKcal(e),
+      templateId: e.templateId ?? null,
+      group: row.kind === 'group' ? row.groupId : null,
+    })),
+  );
+}
+
+/** Copies trainings (a row or a package of the training card); replaces what was copied before. */
+export async function copyTrainingToClipboard(
+  db: UserDb,
+  name: string,
+  entries: readonly ExerciseEntry[],
+): Promise<TrainingClipboard> {
+  const clip: TrainingClipboard = {
+    kind: 'training',
+    name: name.trim().slice(0, 120),
+    parts: trainingParts(entries),
+    copiedAt: Date.now(),
+  };
+  await db.kv.put({ key: CLIPBOARD_KEY, value: clip });
+  return clip;
+}
+
+/**
+ * Parts as trainings to log on another day: computed kcal again with that day's weight (the stored
+ * MET and minutes), typed kcal as they are; a package gets a new group (`logTrainings` gives each
+ * mark a fresh `groupId`).
+ */
+export function copiesOf(parts: readonly TrainingPart[], weightKg: number): TrainingToLog[] {
+  return parts.map((p) => ({
+    typeKey: p.typeKey,
+    name: p.name,
+    minutes: p.minutes,
+    intensity: p.intensity,
+    met: p.met,
+    weightKg,
+    kcal: p.auto ? trainingKcal(p.met, weightKg, p.minutes) : p.kcal,
+    note: p.note,
+    templateId: p.templateId,
+    ...(p.group && { group: p.group }),
+  }));
+}
+
+/** kcal of the parts as they would be logged with `weightKg`. */
+export const trainingPartsKcal = (parts: readonly TrainingPart[], weightKg: number) =>
+  copiesOf(parts, weightKg).reduce((s, r) => s + r.kcal, 0);
 
 export async function clearClipboard(db: UserDb): Promise<void> {
   await db.kv.delete(CLIPBOARD_KEY);

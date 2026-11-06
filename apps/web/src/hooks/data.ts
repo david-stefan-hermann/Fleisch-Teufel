@@ -14,7 +14,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
-import { readClipboard, type Clipboard } from '@/db/clipboard';
+import { readClipboard, type AnyClipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
@@ -177,7 +177,7 @@ export function useDaySuggestions(date: ISODate): Map<number, MealSuggestions> |
 }
 
 /** The diary clipboard on this device (`db/clipboard.ts`); null when empty, undefined while loading. */
-export function useClipboard(): Clipboard | null | undefined {
+export function useClipboard(): AnyClipboard | null | undefined {
   const db = useDb();
   return useLiveQuery(() => readClipboard(db), [db]);
 }

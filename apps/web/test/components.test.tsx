@@ -16,6 +16,7 @@ import { NameDialog } from '@/components/NameDialog';
 import { HintCount, HintField } from '@/components/HintField';
 import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { SaveTrainingDialog } from '@/features/exercise/SaveTrainingDialog';
+import { ClipboardMenu } from '@/features/diary/ClipboardMenu';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
@@ -1684,6 +1685,55 @@ describe('HintField (analysis hint growing with its text)', () => {
     expect(container.textContent).toBe('');
     rerender(<HintCount length={850} />);
     expect(container.textContent).toBe('850 von 1.000 Zeichen');
+  });
+});
+
+describe('ClipboardMenu with copied trainings', () => {
+  it('names the trainings with kcal and activities, offers only clearing', async () => {
+    render(
+      <ClipboardMenu
+        clipboard={{
+          kind: 'training',
+          name: 'Gym-Besuch',
+          copiedAt: 1,
+          parts: [
+            {
+              typeKey: 'strength',
+              name: 'Krafttraining',
+              minutes: 60,
+              intensity: 'vigorous',
+              met: 6,
+              note: null,
+              kcal: 400,
+              auto: true,
+              templateId: 't',
+              group: 'g',
+            },
+            {
+              typeKey: 'stretching',
+              name: 'Dehnen',
+              minutes: 15,
+              intensity: 'light',
+              met: 2.3,
+              note: null,
+              kcal: 30,
+              auto: true,
+              templateId: 't',
+              group: 'g',
+            },
+          ],
+        }}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Zwischenablage' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    const menu = await screen.findByRole('menu');
+    expect(menu.textContent).toContain('Gym-Besuch');
+    expect(menu.textContent).toContain('430 kcal · 2 Aktivitäten');
+    expect(within(menu).queryByText('Als Meal speichern')).toBeNull();
+    expect(within(menu).getByText('Zwischenablage leeren')).toBeTruthy();
   });
 });
 

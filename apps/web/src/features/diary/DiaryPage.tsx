@@ -20,6 +20,7 @@ import {
 } from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
 import { clearLogStart } from '@/lib/logFlow';
+import { foodClipboard, trainingClipboard } from '@/db/clipboard';
 import { CalorieCard } from './CalorieCard';
 import { ClipboardMenu } from './ClipboardMenu';
 import { DiaryDnd } from './DiaryDnd';
@@ -154,12 +155,17 @@ export function DiaryPage() {
                 entries={entries.filter((e) => e.meal === m)}
                 totals={summary.perMeal[m] ?? {}}
                 pending={pending?.filter((p) => p.meal === m)}
-                clipboard={clipboard ?? null}
+                clipboard={foodClipboard(clipboard)}
                 suggestions={suggestions?.get(m)}
               />
             ))}
           </DiaryDnd>
-          <ExerciseCard date={date} exercises={exercises} credited={settings.addExerciseCalories} />
+          <ExerciseCard
+            date={date}
+            exercises={exercises}
+            credited={settings.addExerciseCalories}
+            clipboard={trainingClipboard(clipboard)}
+          />
           <NoteCard key={date} date={date} />
           {note !== undefined && (
             // Not `key={date}`: that is the note card's key, and siblings sharing a key leave stale

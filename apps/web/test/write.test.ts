@@ -51,6 +51,7 @@ import {
   clearClipboard,
   clipboardKcal,
   copyMealToClipboard,
+  foodClipboard,
   copyToClipboard,
   pasteClipboard,
   readClipboard,
@@ -1192,7 +1193,7 @@ describe('diary clipboard (copy by swiping right, paste into a meal)', () => {
     await copyToClipboard(d, 'group', 'Curry vom Foto', source);
     // The clipboard is a snapshot: deleting the source does not empty it.
     for (const e of source) await deleteRecord(d, 'foodEntries', e.id);
-    const clip = (await readClipboard(d))!;
+    const clip = foodClipboard(await readClipboard(d))!;
     expect(clip).toMatchObject({ kind: 'group', name: 'Curry vom Foto', photoIds: ['p1', 'p2'] });
     expect(clipboardKcal(clip)).toBe(330);
 
@@ -1211,7 +1212,7 @@ describe('diary clipboard (copy by swiping right, paste into a meal)', () => {
     expect(rows[0]!.kind).toBe('group');
 
     // It stays filled after pasting: a second paste is another group.
-    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-08', meal: 0 });
+    await pasteClipboard(d, foodClipboard(await readClipboard(d))!, { date: '2026-10-08', meal: 0 });
     expect(new Set((await live(d, '2026-10-08')).map((e) => e.groupId)).size).toBe(2);
   });
 
@@ -1224,7 +1225,7 @@ describe('diary clipboard (copy by swiping right, paste into a meal)', () => {
       { mealId: 'm1' },
     );
     await copyToClipboard(d, 'group', 'Frühstücksbrot', await live(d, '2026-10-07'));
-    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-09', meal: 0 });
+    await pasteClipboard(d, foodClipboard(await readClipboard(d))!, { date: '2026-10-09', meal: 0 });
     expect((await live(d, '2026-10-09')).map((e) => [e.mealId, e.groupName])).toEqual([
       ['m1', null],
       ['m1', null],
@@ -1250,7 +1251,7 @@ describe('diary clipboard (copy by swiping right, paste into a meal)', () => {
       groupName: null,
       photoIds: [],
     });
-    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-08', meal: 2 });
+    await pasteClipboard(d, foodClipboard(await readClipboard(d))!, { date: '2026-10-08', meal: 2 });
     expect((await live(d, '2026-10-08')).map((e) => [e.name, e.groupId, e.photoId, e.photoIds])).toEqual([
       ['Reis', null, null, null],
     ]);
@@ -1404,7 +1405,7 @@ describe('diary clipboard: a whole diary meal', () => {
     expect(clip.items.map((i) => i.name)).toEqual(['Brot', 'Reis', 'Curry']);
     expect(clipboardKcal(clip)).toBe(580);
 
-    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-06', meal: 2 });
+    await pasteClipboard(d, foodClipboard(await readClipboard(d))!, { date: '2026-10-06', meal: 2 });
     const pasted = await live(d, '2026-10-06', 2);
     const rows = groupDiaryEntries(pasted);
     expect(rows.map((r) => r.kind)).toEqual(['entry', 'group']);
@@ -1433,7 +1434,7 @@ describe('diary clipboard: a whole diary meal', () => {
         copiedAt: 1,
       },
     });
-    await pasteClipboard(d, (await readClipboard(d))!, { date: '2026-10-06', meal: 0 });
+    await pasteClipboard(d, foodClipboard(await readClipboard(d))!, { date: '2026-10-06', meal: 0 });
     const pasted = await live(d, '2026-10-06', 0);
     expect(groupDiaryEntries(pasted)).toHaveLength(1);
     expect(pasted[0]!.groupName).toBe('Alt');

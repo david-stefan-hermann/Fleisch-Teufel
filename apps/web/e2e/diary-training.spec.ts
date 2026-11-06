@@ -41,6 +41,55 @@ async function swipeLeft(page: Page, target: string | Locator) {
   await page.mouse.up();
 }
 
+/**
+ * Types into the training search and waits until the text is in the URL (debounced): a tap on a
+ * result while that replace runs would be lost.
+ */
+async function searchTraining(page: Page, text: string, label = 'Sportart oder Training suchen') {
+  await page.getByLabel(label).fill(text);
+  if (text.length >= 2) await expect(page).toHaveURL(new RegExp(`[?&]q=${encodeURIComponent(text)}(&|$)`));
+}
+
+async function swipeRight(page: Page, target: Locator) {
+  await target.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const box = (await target.boundingBox())!;
+  const y = box.y + box.height / 2;
+  const x = box.x + 10;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const dx of [10, 40, 80, 120, 160]) await page.mouse.move(x + dx, y);
+  await page.mouse.up();
+}
+
+test('copy a training to another day, "Wie gestern" on an empty card', async ({ page }) => {
+  await register(page);
+  // Days as the app sees them (Berlin time, like the browser of the test).
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  await page.goto(`/exercise?date=${day(-1)}`);
+  await searchTraining(page, 'rad');
+  await page.getByRole('link', { name: /^Radfahren/ }).click();
+  await page.getByRole('button', { name: /^Eintragen · \d+ kcal$/ }).click();
+  await expect(page.getByRole('link', { name: /^Radfahren/ })).toBeVisible();
+
+  // Swipe right copies; only the training card offers to paste it (no meal does).
+  await swipeRight(page, page.getByText('Radfahren', { exact: true }));
+  await expect(page.getByText('„Radfahren“ kopiert')).toBeVisible();
+  await expect(page.getByRole('button', { name: '„Radfahren“ ins Training eintragen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^„Radfahren“ in .* eintragen$/ })).toHaveCount(0);
+  await page.goto(`/?date=${day(-3)}`);
+  await page.getByRole('button', { name: '„Radfahren“ ins Training eintragen' }).click();
+  await expect(page.getByText('„Radfahren“ eingetragen')).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Radfahren/ })).toContainText(/30 Min\. · Mittel/);
+
+  // The day after: the empty card offers yesterday's trainings as its first chip.
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Wie gestern, 1 Training · \d+ kcal, eintragen$/ }).click();
+  await expect(page.getByText('Trainings von gestern eingetragen')).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Radfahren/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Wie gestern/ })).toHaveCount(0);
+});
+
 test('a sport: search, duration wheel with an exact value, own kcal, edit, save as a training', async ({
   page,
 }) => {
@@ -48,7 +97,7 @@ test('a sport: search, duration wheel with an exact value, own kcal, edit, save 
   await page.goto('/exercise');
   // "Häufig" without history: every sport A to Z.
   await expect(page.getByText('Alle Sportarten')).toBeVisible();
-  await page.getByLabel('Sportart oder Training suchen').fill('lauf');
+  await searchTraining(page, 'lauf');
   await expect(page.getByRole('button', { name: 'Eigene Sportart „lauf“ anlegen' })).toBeVisible();
   await page.getByRole('link', { name: /^Laufen \/ Joggen/ }).click();
   await expect(page).toHaveURL(/\/sport\/running\?/);
@@ -92,7 +141,7 @@ test('a sport: search, duration wheel with an exact value, own kcal, edit, save 
 
   // The save icon of the sport page makes a saved training of one activity; logged from there it carries its name.
   await page.goto('/exercise');
-  await page.getByLabel('Sportart oder Training suchen').fill('dehn');
+  await searchTraining(page, 'dehn');
   await page.getByRole('link', { name: /^Dehnen/ }).click();
   await page.getByRole('button', { name: 'Als Training speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Training speichern' });
@@ -106,15 +155,16 @@ test('a sport: search, duration wheel with an exact value, own kcal, edit, save 
 
   // The search finds a saved training by its name and by its sport; "Kürzlich" lists what was logged.
   await page.goto('/exercise');
-  await page.getByLabel('Sportart oder Training suchen').fill('mobil');
+  await searchTraining(page, 'mobil');
   await expect(page.getByRole('link', { name: /Abenddehnen/ })).toBeVisible();
   await page.getByLabel('Sportart oder Training suchen').fill('');
+  await expect(page).not.toHaveURL(/[?&]q=/);
   await page.getByRole('tab', { name: 'Kürzlich' }).click();
   await expect(page.getByRole('link', { name: /Abenddehnen.*1× eingetragen/ })).toBeVisible();
   await expect(page.getByRole('link', { name: /Laufen \/ Joggen.*1× eingetragen/ })).toBeVisible();
 
   // An own sport from the search: the dialog takes the typed name, then its page opens.
-  await page.getByLabel('Sportart oder Training suchen').fill('Paddeln');
+  await searchTraining(page, 'Paddeln');
   await page.getByRole('button', { name: 'Eigene Sportart „Paddeln“ anlegen' }).click();
   const custom = page.getByRole('dialog', { name: 'Eigene Sportart' });
   await expect(custom.getByLabel('Name')).toHaveValue('Paddeln');
@@ -141,7 +191,7 @@ test('saved trainings with several activities: editor via the search, pin, log, 
   ] as const) {
     await page.getByRole('button', { name: 'Aktivität hinzufügen' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Zu „Gym-Besuch“ hinzufügen' })).toBeVisible();
-    await page.getByLabel('Sportart suchen').fill(query);
+    await searchTraining(page, query, 'Sportart suchen');
     await page.getByRole('link', { name: sport }).click();
     await page.getByRole('button', { name: 'Hinzufügen' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Gym-Besuch' })).toBeVisible();
