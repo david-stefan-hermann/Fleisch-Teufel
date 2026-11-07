@@ -1,0 +1,1833 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Trainings neu gedacht: Mockup</title>
+    <style>
+      /* Trainings designed from scratch (as if the app had no training feature yet). Tokens and phone frames
+         follow the round 10 mockup; the screens are rendered by the script at the end from sample data
+         (80 kg; Radfahren MET 6,8; Krafttraining intensiv MET 6,0; Dehnen MET 2,5; Laufen MET 9,8). */
+
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.45 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+        --ask-bg: oklch(0.97 0.035 85);
+        --ask-border: oklch(0.85 0.08 85);
+        --frame: oklch(0.25 0.005 40);
+
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --popover: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --secondary: oklch(0.955 0.008 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --destructive: oklch(0.55 0.2 27);
+        --exercise: oklch(0.5 0.12 230);
+        --copy: oklch(0.6 0.01 50);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+          --ask-bg: oklch(0.26 0.04 85);
+          --ask-border: oklch(0.42 0.07 85);
+          --frame: oklch(0.3 0.005 40);
+
+          --background: oklch(0.18 0.006 40);
+          --foreground: oklch(0.95 0.006 60);
+          --card: oklch(0.225 0.008 40);
+          --popover: oklch(0.24 0.008 40);
+          --primary: oklch(0.64 0.17 25);
+          --primary-foreground: oklch(0.15 0.01 40);
+          --secondary: oklch(0.27 0.008 40);
+          --muted: oklch(0.27 0.008 40);
+          --muted-foreground: oklch(0.7 0.012 50);
+          --accent: oklch(0.3 0.01 40);
+          --border: oklch(0.32 0.008 40);
+          --input: oklch(0.36 0.01 40);
+          --destructive: oklch(0.68 0.17 27);
+          --exercise: oklch(0.67 0.12 230);
+          --copy: oklch(0.5 0.008 50);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+        --ask-bg: oklch(0.26 0.04 85);
+        --ask-border: oklch(0.42 0.07 85);
+        --frame: oklch(0.3 0.005 40);
+
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --popover: oklch(0.24 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --secondary: oklch(0.27 0.008 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --destructive: oklch(0.68 0.17 27);
+        --exercise: oklch(0.67 0.12 230);
+        --copy: oklch(0.5 0.008 50);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding-block: 24px 64px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      .wrap > h2 {
+        font-size: 19px;
+        margin: 48px 0 6px;
+        text-wrap: balance;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 80ch;
+        text-wrap: pretty;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        max-width: 92ch;
+      }
+      .note.ask {
+        background: var(--ask-bg);
+        border-color: var(--ask-border);
+      }
+      .note ul,
+      .note ol {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 22px;
+        margin: 16px 0 24px;
+        padding: 12px 14px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+      }
+      @media (min-width: 900px) {
+        .controls {
+          position: sticky;
+          top: 8px;
+          z-index: 20;
+        }
+      }
+      .ctl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ctl > span {
+        font-weight: 600;
+      }
+      .seg {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .seg button {
+        font: inherit;
+        min-height: 32px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+        border-color: var(--page-ink);
+      }
+      button:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+        outline-offset: 2px;
+      }
+
+      /* Phones */
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px 24px;
+        justify-content: center;
+        align-items: flex-start;
+        margin-top: 16px;
+      }
+      .phones > figure {
+        margin: 0;
+        max-width: 100%;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: var(--frame);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        position: relative;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .screen:has(.dialog) {
+        min-height: 620px;
+      }
+      .kbox .top b {
+        white-space: nowrap;
+      }
+      figcaption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin: 10px auto 0;
+        max-width: 375px;
+        text-wrap: pretty;
+      }
+      figcaption b {
+        display: block;
+        color: var(--page-ink);
+        font-size: 15px;
+      }
+
+      /* App: header, cards, rows */
+      .tabular {
+        font-variant-numeric: tabular-nums;
+      }
+      .hdr {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .hdr h1 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ibtn {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+      }
+      .ibtn.off {
+        opacity: 0.35;
+      }
+      .ibtn.hl {
+        position: relative;
+      }
+      .ibtn.hl::after {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        border-radius: 12px;
+        border: 2px dashed var(--new-border);
+      }
+      svg.i {
+        display: block;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .main {
+        padding: 12px 16px 16px;
+      }
+      .date {
+        margin: 0 0 12px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .card {
+        margin-bottom: 16px;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .sec-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+      .sec-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .sec-head h2 .k {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .sec-head .acts {
+        display: flex;
+        align-items: center;
+        margin-right: -8px;
+      }
+      .rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .rows > li + li {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .row {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+      }
+      .row.part {
+        padding-left: 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .row .txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .row .name {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .row .name > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub.exp {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        cursor: pointer;
+      }
+      .kc {
+        flex: none;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .kc.ex {
+        color: var(--exercise);
+      }
+      .mf {
+        color: var(--muted-foreground);
+      }
+      .badge {
+        flex: none;
+        padding: 0 6px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 18px;
+        background: var(--secondary);
+        color: var(--muted-foreground);
+      }
+      .dashed {
+        margin: 0 16px 16px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+
+      /* Package block under "Ausgewählt" */
+      .blk-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 4px 8px 0 16px;
+        font-weight: 600;
+      }
+      .blk-head .n {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .blk-head .n > span:not(.badge) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .blk-head .kc {
+        font-weight: 600;
+      }
+      .fields {
+        display: grid;
+        gap: 14px;
+        padding: 4px 16px 16px 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .fields.flat {
+        padding-left: 16px;
+        background: none;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      .tg {
+        display: flex;
+        border: 1px solid var(--input);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .tg span {
+        flex: 1;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .tg span + span {
+        border-left: 1px solid var(--input);
+      }
+      .tg span.on {
+        background: var(--accent);
+      }
+      .inp {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        font-size: 16px;
+        background: var(--background);
+      }
+      .inp .u {
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .inp.ph {
+        color: var(--muted-foreground);
+      }
+      .inp.own {
+        border-color: var(--exercise);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--exercise) 22%, transparent);
+      }
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .btn {
+        height: 40px;
+        border-radius: 10px;
+        border: 0;
+        padding: 0 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .btn.sm {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+      .btn.sec {
+        background: var(--secondary);
+        color: var(--foreground);
+      }
+      .btn.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.out {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--input);
+      }
+      .btn.lg {
+        height: 48px;
+        width: 100%;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .btn.lg {
+        white-space: nowrap;
+      }
+      .btn.lg .k {
+        font-weight: 400;
+        opacity: 0.8;
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .kbox {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+      }
+      .fields .kbox {
+        background: var(--card);
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .kbox .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .kbox .inp {
+        width: 132px;
+        height: 40px;
+        font-weight: 700;
+        color: var(--exercise);
+      }
+      .kbox p {
+        margin: 6px 0 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .tlink {
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+
+      /* Chips "Zuletzt & häufig" */
+      .cap {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        overflow: hidden;
+        margin: 0 -16px;
+        padding: 0 16px 2px;
+      }
+      .chip {
+        flex: none;
+        max-width: 190px;
+        height: 44px;
+        display: grid;
+        align-content: center;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--background);
+      }
+      .chip.on {
+        border-color: color-mix(in oklch, var(--exercise) 60%, transparent);
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+      }
+      .chip .t {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .chip .d {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .search {
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .search .inp {
+        justify-content: flex-start;
+        padding-left: 36px;
+        background: var(--card);
+      }
+      .search svg {
+        position: absolute;
+        left: 12px;
+        top: 14px;
+        color: var(--muted-foreground);
+      }
+      .pick {
+        list-style: none;
+        margin: 0 16px 16px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .pick li {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        font-size: 14px;
+      }
+      .pick li.on {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .pick li .m {
+        font-size: 12px;
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+      .footer {
+        padding: 12px 16px 16px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 92%, transparent);
+      }
+      .hint {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .switch {
+        flex: none;
+        width: 44px;
+        height: 26px;
+        border-radius: 99px;
+        background: var(--input);
+        position: relative;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 99px;
+        background: var(--background);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+      }
+      .switch.on {
+        background: var(--primary);
+      }
+      .switch.on::after {
+        left: 21px;
+      }
+
+      /* Dialog, toast, swipe */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: rgb(0 0 0 / 0.5);
+      }
+      .dialog {
+        position: absolute;
+        z-index: 6;
+        top: 72px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        box-shadow: 0 10px 25px rgb(0 0 0 / 0.2);
+      }
+      .dialog h3 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.2;
+        font-weight: 600;
+        text-align: center;
+      }
+      .dialog .desc {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+        text-align: center;
+        text-wrap: pretty;
+      }
+      .radio {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 44px;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+      }
+      .radio .dot {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 99px;
+        border: 1px solid var(--input);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .radio[aria-checked='true'] .dot {
+        border-color: var(--primary);
+      }
+      .radio[aria-checked='true'] .dot::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .dfoot {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .dfoot .btn {
+        width: 100%;
+      }
+      .toast {
+        margin: 0 16px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .toast b {
+        flex: none;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: var(--foreground);
+        color: var(--background);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .swipe {
+        display: flex;
+      }
+      .swipe .copy {
+        flex: none;
+        width: 72px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: var(--copy);
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .swipe .row {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* ---- new in this mockup: tabs, list sections, wheel, chip rows, info lines ---- */
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        padding: 3px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        background: var(--muted);
+      }
+      .tabs span {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .tabs span.on {
+        background: var(--background);
+        color: var(--foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+      }
+      .lcap {
+        margin: 0;
+        padding: 10px 16px 4px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      .row .meta {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .row .tail {
+        flex: none;
+        display: grid;
+        justify-items: end;
+        gap: 2px;
+      }
+      mark {
+        background: color-mix(in oklch, var(--primary) 18%, transparent);
+        color: inherit;
+        border-radius: 3px;
+      }
+      .wheel {
+        position: relative;
+        width: 124px;
+        height: 132px;
+        border-radius: 10px;
+        overflow: hidden;
+        mask-image: linear-gradient(transparent, black 30%, black 70%, transparent);
+      }
+      .wheel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--accent);
+      }
+      .wheel div {
+        position: relative;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .wheel div.on {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      .amount {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+      .amount .wheel {
+        width: 100%;
+      }
+      .amount.one {
+        grid-template-columns: 1fr;
+      }
+      .amount.one .wheel {
+        mask-image: linear-gradient(transparent, black 25%, black 75%, transparent);
+      }
+      .amount.one .wheel div {
+        font-size: 18px;
+      }
+      .lblrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .lblrow .lbl {
+        margin: 0;
+      }
+      .lblrow .btn.sm {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+        gap: 4px;
+      }
+      .lblrow .btn.sm[aria-pressed='true'] {
+        background: var(--foreground);
+        color: var(--background);
+      }
+      .exact {
+        display: grid;
+        gap: 6px;
+      }
+      .exact .inp {
+        font-weight: 600;
+      }
+      .exact p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .amount .inp {
+        font-weight: 600;
+      }
+      .amount .eq {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info .badge {
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+      }
+      .chipgrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chipgrid .chip {
+        max-width: 100%;
+      }
+      .saved {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        height: 24px;
+        border-radius: 99px;
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .daynote {
+        margin: -4px 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .tabbar {
+        height: 64px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        align-items: center;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        font-size: 10px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .tabbar span {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+      }
+      .tabbar span.on {
+        color: var(--primary);
+      }
+      .tabbar .fab {
+        width: 48px;
+        height: 48px;
+        border-radius: 99px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+      }
+      .sheet {
+        position: absolute;
+        z-index: 6;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 16px 24px;
+        border-radius: 20px 20px 0 0;
+        background: var(--background);
+        box-shadow: 0 -10px 30px rgb(0 0 0 / 0.2);
+      }
+      .sheet .tiles {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1fr;
+        gap: 10px;
+      }
+      .sheet .tile {
+        height: 84px;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 6px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+      }
+      .sheet .tile.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+      }
+      .sheet .tile.hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: 2px;
+      }
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        align-items: center;
+        margin: 0 0 16px;
+        font-size: 14px;
+      }
+      .flow span {
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+      }
+      .flow i {
+        font-style: normal;
+        color: var(--page-muted);
+      }
+      .diff {
+        width: 100%;
+        max-width: 92ch;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 8px 0 16px;
+      }
+      .diff th,
+      .diff td {
+        text-align: left;
+        vertical-align: top;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--note-border);
+      }
+      .diff th {
+        font-weight: 600;
+        color: var(--page-muted);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Trainings neu gedacht: Mockup v3</h1>
+      <p class="lead">
+        Konzept, als gäbe es in der App noch keine Trainings. Leitidee: <b>Trainings laufen wie Essen</b>.
+        Eine Sportart ist ein Lebensmittel (Seite mit Rädchen, „Eintragen“), ein gespeichertes Training ist
+        ein Meal (Name, mehrere Aktivitäten, ein Tipp trägt alles ein), die Suche ist dieselbe Seite wie
+        <code>/add</code> mit denselben Reitern „Häufig · Kürzlich · Eigene“, und die Trainingskarte im
+        Tagebuch benimmt sich wie eine Mahlzeit (Vorschläge, Wischen, Kopieren, „Wie gestern“). Beispiel: 80
+        kg, „Gym-Besuch“ (Krafttraining 60 Min. intensiv + Dehnen 15 Min.), „Bahntraining“ (Laufen 40 Min.,
+        angepinnt), Sportarten Radfahren und Yoga.
+      </p>
+
+      <div class="controls">
+        <div class="ctl">
+          <span>Farbschema</span>
+          <div class="seg" id="theme">
+            <button data-v="system" aria-pressed="true">System</button>
+            <button data-v="light" aria-pressed="false">Hell</button>
+            <button data-v="dark" aria-pressed="false">Dunkel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Die Wege</b>
+        <div class="flow" style="margin-top: 8px">
+          <span>Tagebuch-Karte „+“ oder Tab-Bar „+“</span><i>→</i
+          ><span>Suche: Sportart oder gespeichertes Training</span><i>→</i
+          ><span>Seite der Sportart (Rädchen) oder „Training eintragen“ (Aktivitäten)</span><i>→</i
+          ><span>„Eintragen“, zurück ins Tagebuch</span>
+        </div>
+        <div class="flow">
+          <span>Tagebuch-Karte, Chip „Zuletzt &amp; häufig“</span><i>→</i
+          ><span>eingetragen, mit Rückgängig (ein Tipp)</span>
+        </div>
+        <div class="flow" style="margin-bottom: 0">
+          <span>Seite der Sportart, Speichern-Symbol</span><i>→</i><span>Name</span><i>→</i
+          ><span
+            >gespeichertes Training mit einer Aktivität; weitere kommen im Editor dazu (Suche mit
+            <code>into=training:…</code>, wie Zutaten eines Meals)</span
+          >
+        </div>
+      </div>
+
+      <div class="note" style="background: var(--new-bg); border-color: var(--new-border)">
+        <b>Neu gegenüber v2</b>
+        <ul>
+          <li>
+            <b>C1:</b> „Genau eingeben“ zeigt seinen Zustand: an = gefüllt, ein zweiter Tipp schließt das
+            Feld.
+          </li>
+          <li>
+            <b>Keine Erklärtexte mehr in der Oberfläche.</b> Weg sind: der Satz unter dem Minutenfeld (C1),
+            „Wischen nach links lässt eine Aktivität heute weg …“ (D), der Satz unter „Anpinnen“ und der
+            Hinweistext am Ende des Editors (E), „Mindestens eine Aktivität …“ (E2). Was bleibt, ist
+            Information zum Eintrag: Formel, „Zuletzt …“, „N× eingetragen“.
+          </li>
+          <li>
+            <b>D2:</b> „geändert“ steht als Marke an der geänderten Aktivität selbst, nicht mehr als Satz
+            oben.
+          </li>
+          <li>
+            <b>C2:</b> beim eigenen kcal-Wert nur noch der Link „Berechneten Wert verwenden (348 kcal)“.
+          </li>
+          <li><b>C1b</b> (zwei Rädchen) ist raus, entschieden ist C1.</li>
+        </ul>
+      </div>
+      <div class="note" style="background: var(--new-bg); border-color: var(--new-border)">
+        <b>Neu gegenüber v1</b>
+        <ul>
+          <li>
+            <b>B:</b> Reiter wie beim Essen, „Häufig · Kürzlich · Eigene“. „Eigene“ sind gespeicherte
+            Trainings und eigene Sportarten (dort auch „Neues Training“ und „Eigene Sportart“). Unter „Häufig“
+            hängt die ganze Sportliste A bis Z an, damit man ohne Tippen stöbern kann.
+          </li>
+          <li>
+            <b>C:</b> Dauer neu: ein Rädchen, das Minuten und ab einer Stunde „1 Std. 15 Min.“ zeigt; kein
+            zweites Feld. Krumme Werte über „Genau eingeben“ neben dem Label (wie „Eigene Portion“ auf der
+            Lebensmittelseite); der getippte Wert bekommt seine eigene Zeile auf dem Rädchen.
+          </li>
+          <li>
+            <b>D, E:</b> die aufgeklappte Aktivität nutzt dasselbe Dauer-Rädchen statt eines Zahlenfelds.
+          </li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <b>Entschieden (mit dir, 6. November) und hier eingebaut</b>
+        <ul>
+          <li>
+            Gespeichertes Training = Paket mit Namen und einer oder mehreren Aktivitäten; ein Tipp trägt alles
+            ein, im Tagebuch eine aufklappbare Zeile (A).
+          </li>
+          <li>
+            Es trägt immer die gespeicherten Werte ein; Abweichen ändert nur diesen Eintrag, Speichern bietet
+            „aktualisieren“ oder „als neues speichern“ (D).
+          </li>
+          <li>Eigene kcal pro Eintrag (C2), Kopieren und „Wie gestern“ (A2, A3), Anpinnen (E, F).</li>
+          <li>
+            Kein Sammelkorb: eine Sportart nach der anderen, wie beim Essen. Ein Tipp auf eine Zeile der Suche
+            öffnet die Seite. Reiter wie beim Essen. Die Teile heißen „Aktivitäten“. Fußleiste „Eintragen · N
+            kcal“ ohne Zählung.
+          </li>
+          <li>
+            Dauer: ein Rädchen (C1), Raster 5 Minuten bis 2 Stunden, dann 15 Minuten bis 6 Stunden; „Genau
+            eingeben“ für krumme Werte. „Kürzlich“ nach letztem Eintrag, „Häufig“ nach Häufigkeit und
+            Wochentag.
+          </li>
+          <li>Keine Erklärtexte in der Oberfläche: die Bedienung ergibt sich aus dem UI.</li>
+        </ul>
+      </div>
+
+      <div class="note ask">
+        <b>Offen</b>
+        <p style="margin: 6px 0 0">
+          Nichts mehr. Nächster Schritt: die Entscheidungen in den Plan, dann „los“.
+        </p>
+      </div>
+
+      <h2>A. Tagebuch: die Trainingskarte</h2>
+      <p class="lead">
+        Wie eine Mahlzeit: Kopf mit Summe, [Einfügen solange etwas kopiert ist] [+], Zeilen, darunter „Zuletzt
+        &amp; häufig“ (angepinnte zuerst; ein Tipp trägt ein, Rückgängig im Toast). Ein eingetragenes Training
+        ist eine Zeile mit seinem Namen; „2 Aktivitäten ⌄“ klappt die Teile auf, ein Tipp auf einen Teil
+        öffnet ihn zum Bearbeiten (C3). Wischen nach links löscht (Paket als Ganzes), nach rechts kopiert.
+      </p>
+      <div class="phones" id="A"></div>
+
+      <h2>B. Suche: Sportart oder gespeichertes Training</h2>
+      <p class="lead">
+        Dieselbe Seite wie die Lebensmittelsuche: ein Feld, die Reiter „Häufig · Kürzlich · Eigene“, eine
+        Liste. Gespeicherte Trainings und Sportarten stehen in einer Liste (angepinnte zuerst); jede Zeile
+        sagt, womit sie eintragen würde (gespeicherte Werte, sonst die vom letzten Mal, sonst 30 Min. mittel)
+        und wie oft. Tippen durchsucht alles ohne Reiter, am Ende „Eigene Sportart anlegen“. Erreichbar über
+        das „+“ der Karte, die Tab-Bar-Kachel „Training eintragen“ und im Editor als „Aktivität hinzufügen“.
+      </p>
+      <div class="phones" id="B"></div>
+
+      <h2>C. Seite einer Sportart</h2>
+      <p class="lead">
+        Die „Lebensmittelseite“ fürs Training: Dauer als Rädchen, Intensität, Verbrauch mit Formel, Notiz,
+        Fußleiste „Eintragen“. Das Speichern-Symbol oben rechts macht daraus ein gespeichertes Training (Name
+        im Dialog, danach Chip „Gespeichert“). Tippst du im Verbrauch eine Zahl (Uhr), bleibt sie stehen, auch
+        wenn die Dauer danach wechselt. Dieselbe Seite bearbeitet einen Eintrag (C3).
+      </p>
+      <div class="phones" id="C"></div>
+
+      <h2>D. Gespeichertes Training eintragen</h2>
+      <p class="lead">
+        Wie „Meal eintragen“: die Aktivitäten mit den gespeicherten Werten, eine klappt auf zum Anpassen,
+        Wischen lässt eine nur heute weg. Abweichen zeigt „geändert“ am Kopf und schaltet das Speichern-Symbol
+        frei; der Dialog bietet „aktualisieren“ oder „als neues speichern“. Nichts fragt von selbst.
+      </p>
+      <div class="phones" id="D"></div>
+
+      <h2>E. Editor eines gespeicherten Trainings</h2>
+      <p class="lead">
+        Wie der Meal-Editor: Name, Aktivitäten als Karten (aufklappbar, X, die letzte bleibt), „Aktivität
+        hinzufügen“ öffnet die Suche B mit Ziel, Schalter „Anpinnen“, Summe beim aktuellen Gewicht,
+        „Speichern“ schließt den Editor. Umbenennen benennt alte Einträge mit; Werte alter Einträge bleiben.
+      </p>
+      <div class="phones" id="E"></div>
+
+      <h2>F. Mehr → Gespeicherte Trainings, und der Einstieg über die Tab-Bar</h2>
+      <p class="lead">
+        Liste wie <code>/meals</code>: „Neues Training“, angepinnte zuerst, Zeile mit Aktivitäten und Summe,
+        Tipp öffnet den Editor, Wischen löscht in den Papierkorb. Die Tab-Bar-Kachel „Training eintragen“
+        führt in die Suche B für den Tag, den die 20-Minuten-Regel wählt.
+      </p>
+      <div class="phones" id="F"></div>
+
+      <h2>Was sich gegenüber heute ändert</h2>
+      <table class="diff">
+        <tr>
+          <th>Heute</th>
+          <th>Neu</th>
+        </tr>
+        <tr>
+          <td>
+            Eine Seite „Training eintragen“ mit Sammelkorb „Ausgewählt“, Badges, Sportliste und Speichern pro
+            Zeile
+          </td>
+          <td>
+            Suche (B) → Seite der Sportart (C) oder „Training eintragen“ (D); ein Vorgang je Eintrag, wie beim
+            Essen
+          </td>
+        </tr>
+        <tr>
+          <td>Gespeichertes Training = eine Sportart, trägt die Werte vom letzten Mal ein</td>
+          <td>
+            Paket mit mehreren Aktivitäten, trägt die gespeicherten Werte ein; Sportarten behalten „letztes
+            Mal“
+          </td>
+        </tr>
+        <tr>
+          <td>Dauer: Zahlenfeld mit Knöpfen</td>
+          <td>Rädchen, „Genau eingeben“ für krumme Werte</td>
+        </tr>
+        <tr>
+          <td>kcal nur berechnet</td>
+          <td>Feld; getippter Wert bleibt, Link zurück zum berechneten</td>
+        </tr>
+        <tr>
+          <td>Kein Kopieren, kein „Wie gestern“, kein Anpinnen</td>
+          <td>Wischen nach rechts, Einfügen-Symbol, Chip „Wie gestern“, Pin im Editor</td>
+        </tr>
+        <tr>
+          <td>Editor: eine Sportart, Hinweistext stimmt nicht</td>
+          <td>
+            Editor wie beim Meal: Aktivitäten, „Aktivität hinzufügen“ über die Suche, „Speichern“ schließt
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <script>
+      // ---------- helpers ----------
+      const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+      const fmt0 = (n) => nf0.format(Math.round(n));
+      const WEIGHT = 80;
+      const kcalOf = (met, min) => Math.round((met - 1) * WEIGHT * (min / 60));
+      const ICONS = {
+        chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+        chevronRight: '<path d="m9 18 6-6-6-6"/>',
+        chevronDown: '<path d="m6 9 6 6 6-6"/>',
+        chevronUp: '<path d="m18 15-6-6-6 6"/>',
+        plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+        pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+        bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+        bookmarkPlus:
+          '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+        pencil:
+          '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+        trash:
+          '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+        dumbbell:
+          '<path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/>',
+        paste:
+          '<path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+        copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+        chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+        menu: '<path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/>',
+        scale:
+          '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>',
+        utensils:
+          '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+      };
+      const ic = (name, size = 20, style = '') =>
+        `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" style="${style}" aria-hidden="true">${ICONS[name]}</svg>`;
+      const MF = 'color:var(--muted-foreground)';
+      const EX = 'color:var(--exercise)';
+      const PRI = 'color:var(--primary)';
+
+      // ---------- sample data ----------
+      // Sports: name, MET at the intensity the person last used, last values and count.
+      const SPORTS = [
+        { name: 'Radfahren', met: 6.8, min: 45, int: 'Mittel', n: 12 },
+        { name: 'Krafttraining', met: 6.0, min: 60, int: 'Intensiv', n: 9 },
+        { name: 'Yoga', met: 3.0, min: 30, int: 'Mittel', n: 4 },
+        { name: 'Laufen / Joggen', met: 9.8, min: 40, int: 'Mittel', n: 3 },
+        { name: 'Gehen / Spazieren', met: 3.5, min: 60, int: 'Mittel', n: 2 },
+        { name: 'Schwimmen', met: 8.3, min: 30, int: 'Mittel', n: 0 },
+        { name: 'Dehnen / Mobility', met: 2.5, min: 15, int: 'Mittel', n: 0 },
+      ];
+      const gymItems = (kraftMin = 60) => [
+        { name: 'Krafttraining', met: 6.0, min: kraftMin, int: 'Intensiv', note: 'Oberkörper' },
+        { name: 'Dehnen / Mobility', met: 2.5, min: 15, int: 'Mittel', note: '' },
+      ];
+      const sum = (items) => items.reduce((a, i) => a + (i.own ?? kcalOf(i.met, i.min)), 0);
+      const summary = (items) =>
+        items.map((i) => i.name.split(' / ')[0]).join(' · ') +
+        ' · ' +
+        items.reduce((a, i) => a + i.min, 0) +
+        ' Min.';
+      const TRAININGS = [
+        {
+          name: 'Bahntraining',
+          pinned: true,
+          items: [{ name: 'Laufen / Joggen', met: 9.8, min: 40, int: 'Mittel', note: '' }],
+          n: 5,
+        },
+        { name: 'Gym-Besuch', pinned: false, items: gymItems(), n: 7 },
+        {
+          name: 'Yoga am Abend',
+          pinned: false,
+          items: [{ name: 'Yoga', met: 3.0, min: 30, int: 'Mittel', note: '' }],
+          n: 2,
+        },
+      ];
+
+      // ---------- pieces ----------
+      const phone = (title, caption, body) =>
+        `<figure><div class="phone"><div class="screen">${body}</div></div><figcaption><b>${title}</b>${caption}</figcaption></figure>`;
+      const header = (title, acts = '', back = true) =>
+        `<div class="hdr">${back ? `<span class="ibtn">${ic('chevronLeft', 24)}</span>` : '<span style="width:8px"></span>'}<h1>${title}</h1>${acts}</div>`;
+      const card = (title, inner, { k = '', acts = '' } = {}) =>
+        `<section class="card">${title ? `<div class="sec-head"><h2><span>${title}</span>${k ? `<span class="k tabular">${k}</span>` : ''}</h2>${acts ? `<div class="acts">${acts}</div>` : ''}</div>` : ''}${inner}</section>`;
+      const footer = (label, kcal, disabled = false) =>
+        `<div class="footer"><button class="btn pri lg" ${disabled ? 'disabled' : ''}>${label}${kcal ? `<span class="k tabular"> · ${fmt0(kcal)} kcal</span>` : ''}</button></div>`;
+      const chip = (title, detail, { icon = '' } = {}) =>
+        `<span class="chip"><span class="t">${icon ? ic(icon, 14, MF) : ''}${title}</span><span class="d">${detail}</span></span>`;
+      const trainingChip = (t) => chip(t.name, summary(t.items), { icon: t.pinned ? 'pin' : 'bookmark' });
+      const sportChip = (s) => chip(s.name.split(' / ')[0], `${s.min} Min. · ${s.int}`);
+      const plusBtn = `<span class="ibtn">${ic('plus', 20, PRI)}</span>`;
+      const tabbar = (on = 'diary') =>
+        `<div class="tabbar"><span class="${on === 'diary' ? 'on' : ''}">${ic('book', 22)}Tagebuch</span><span class="${on === 'progress' ? 'on' : ''}">${ic('chart', 22)}Fortschritt</span><span><span class="fab">${ic('plus', 24)}</span></span><span>${ic('scale', 22)}Gewicht</span><span>${ic('menu', 22)}Mehr</span></div>`;
+      const intensity = (on) =>
+        `<div><div class="lbl">Intensität</div><div class="tg">${['Locker', 'Mittel', 'Intensiv'].map((l) => `<span class="${l === on ? 'on' : ''}">${l}</span>`).join('')}</div></div>`;
+      /** Minutes as the wheel shows them: "45 Min.", "1 Std.", "1 Std. 15 Min." */
+      const minLabel = (m) =>
+        m < 60 ? `${m} Min.` : m % 60 ? `${Math.floor(m / 60)} Std. ${m % 60} Min.` : `${m / 60} Std.`;
+      /** Raster of the duration wheel: 5 min up to 2 h, then 15 min up to 6 h. */
+      const step = (m) => (m < 120 ? 5 : 15);
+      const wheelCol = (label, rows, on, cls = '') =>
+        `<div class="wheel ${cls}" role="slider" aria-label="${label}" aria-valuenow="${on}">${rows.map(([v, t]) => `<div class="${v === on ? 'on' : ''}">${t}</div>`).join('')}</div>`;
+      /** C1: one wheel; an exact value off the raster (47) gets its own row between its neighbours. */
+      const durationWheel = (min, { exact = false } = {}) => {
+        const onRaster = min % step(min) === 0;
+        const below = onRaster ? min - step(min - 1) : Math.floor(min / 5) * 5;
+        const above = onRaster ? min + step(min) : Math.ceil(min / 5) * 5;
+        const rows = [below, min, above].filter((m) => m > 0).map((m) => [m, minLabel(m)]);
+        return `<div><div class="lblrow"><div class="lbl">Dauer</div><span class="btn sec sm" role="button" aria-pressed="${exact}">Genau eingeben</span></div><div class="amount one">${wheelCol('Dauer', rows, min)}${
+          exact
+            ? `<div class="exact"><div class="inp tabular"><span>${min}</span><span class="u">Min.</span></div></div>`
+            : ''
+        }</div></div>`;
+      };
+      /** Inside an expanded activity (D, E): the same wheel as C1, compact. */
+      const durationFields = (min) => durationWheel(min);
+      const note = (text, ph = 'z. B. Oberkörper, 3 × 8 à 60 kg…') =>
+        `<div><div class="lbl">Notiz (optional)</div><div class="inp ${text ? '' : 'ph'}" style="height:auto;min-height:48px;align-items:flex-start;padding:10px 12px;font-size:15px">${text || ph}</div></div>`;
+      const formula = (met, min) =>
+        `(MET ${met.toLocaleString('de-DE', { minimumFractionDigits: 1 })} − 1) × ${WEIGHT},0 kg × ${(min / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 })} h`;
+      /** kcal box: computed (formula line) or own value (fixed number, reset link). */
+      const kcalBox = (met, min, own = null, { toggle = '' } = {}) => {
+        const computed = kcalOf(met, min);
+        return `<div class="kbox"><div class="top"><span>Verbrauch</span><div class="inp tabular ${own ? 'own' : ''}"><span>${fmt0(own ?? computed)}</span><span class="u">kcal</span></div></div>${
+          own
+            ? `<p><button class="tlink" data-own="0">Berechneten Wert verwenden (${fmt0(computed)} kcal)</button></p>`
+            : `<p>${formula(met, min)}${toggle ? `<br><button class="tlink" data-own="1" style="color:var(--muted-foreground)">(Mockup: Zahl von der Uhr tippen)</button>` : ''}</p>`
+        }</div>`;
+      };
+      const search = (text = '', ph = 'Sportart oder Training suchen…') =>
+        `<div class="search">${ic('search', 16)}<div class="inp ${text ? '' : 'ph'}">${text || ph}</div></div>`;
+      const tabs = (on = '') =>
+        `<div class="tabs">${['Häufig', 'Kürzlich', 'Eigene'].map((t) => `<span class="${t === on ? 'on' : ''}">${t}${t === on ? ic('x', 12) : ''}</span>`).join('')}</div>`;
+      const hl = (s, q) => (q ? s.replace(new RegExp(`(${q})`, 'i'), '<mark>$1</mark>') : s);
+      const trainingRow = (t, q = '') =>
+        `<li><div class="row"><div class="txt"><div class="name">${ic(t.pinned ? 'pin' : 'bookmark', 14, MF)}<span>${hl(t.name, q)}</span></div><div class="sub">${hl(summary(t.items), q)}</div></div><div class="tail"><span class="kc tabular">${fmt0(sum(t.items))} kcal</span><span class="meta">${t.n}× eingetragen</span></div></div></li>`;
+      const sportRow = (s, q = '') =>
+        `<li><div class="row"><div class="txt"><div class="name"><span>${hl(s.name, q)}</span></div><div class="sub">${s.n ? `${s.min} Min. · ${s.int}` : '30 Min. · Mittel'}</div></div><div class="tail"><span class="kc tabular">${fmt0(kcalOf(s.met, s.n ? s.min : 30))} kcal</span>${s.n ? `<span class="meta">${s.n}× eingetragen</span>` : ''}</div></div></li>`;
+      const ownSportRow = (q) =>
+        `<li><div class="row" style="min-height:48px"><span style="${PRI}">${ic('plus', 16)}</span><div class="txt"><div class="name" style="${PRI};font-weight:500"><span>Eigene Sportart „${q}“ anlegen</span></div></div></div></li>`;
+      const saveIcon = (off = false) =>
+        `<span class="ibtn ${off ? 'off' : ''} hl" title="Als Training speichern">${ic('bookmarkPlus', 22)}</span>`;
+      const dayNote = (text) => `<p class="daynote">${text}</p>`;
+
+      /** Diary training card. */
+      const diaryCard = (rows, { k = '', acts = plusBtn, chips = '' } = {}) =>
+        card('Training', `${rows}${chips}`, { k, acts });
+      /** A logged package: a group row with its parts when open. */
+      const groupRow = (t, open, idAttr = '') => {
+        const parts = open
+          ? `<ul class="rows" style="border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)">${t.items
+              .map(
+                (i) =>
+                  `<li><div class="row part"><div class="txt"><div class="name"><span>${i.name}</span></div><div class="sub">${i.min} Min. · ${i.int}${i.note ? ' · ' + i.note : ''}</div></div><span class="kc ex">+${fmt0(i.own ?? kcalOf(i.met, i.min))}</span>${ic('chevronRight', 16, MF)}</div></li>`,
+              )
+              .join('')}</ul>`
+          : '';
+        return `<div class="row"><div class="txt"><div class="name"><span>${t.name}</span></div><button class="sub exp" ${idAttr} aria-expanded="${open}">${t.items.length} Aktivitäten · ${t.items.reduce((a, i) => a + i.min, 0)} Min.${ic(open ? 'chevronUp' : 'chevronDown', 14)}</button></div><span class="kc ex">+${fmt0(sum(t.items))}</span></div>${parts}`;
+      };
+      const entryRow = (s, min, int, noteText = '', own = null) =>
+        `<div class="row"><div class="txt"><div class="name"><span>${s.name}</span></div><div class="sub">${min} Min. · ${int}${noteText ? ' · ' + noteText : ''}</div></div><span class="kc ex">+${fmt0(own ?? kcalOf(s.met, min))}</span></div>`;
+      const diaryChips = (inner) =>
+        `<div style="padding:12px 16px 14px;border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)"><p class="cap">Zuletzt &amp; häufig</p><div class="chips">${inner}</div></div>`;
+
+      // ---------- A: diary ----------
+      const aState = { open: false };
+      function renderA() {
+        const gym = TRAININGS[1];
+        const rad = SPORTS[0];
+        const chips = diaryChips(
+          trainingChip(TRAININGS[0]) + sportChip(SPORTS[2]) + trainingChip(TRAININGS[2]),
+        );
+        document.getElementById('A').innerHTML =
+          phone(
+            'A1 Zwei Einträge: ein Paket und eine Sportart',
+            'Tipp auf „2 Aktivitäten“ klappt die Teile auf (hier klickbar). Ein Tipp auf einen Teil oder auf „Radfahren“ öffnet C3. Chips tragen mit einem Tipp ein.',
+            `<div class="main">${diaryCard(`<ul class="rows"><li>${groupRow(gym, aState.open, 'id="exp"')}</li><li>${entryRow(rad, 45, 'Mittel', 'zur Arbeit')}</li></ul>`, { k: '778 kcal', chips })}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A2 Kopiert',
+            'Wischen nach rechts kopiert die Zeile oder das Paket (ein Schnappschuss, wie beim Essen). Das Einfügen-Symbol steht vor dem „+“, solange ein Training kopiert ist, und trägt am angezeigten Tag ein (kcal mit dem Gewicht dieses Tages).',
+            `<div class="main">${diaryCard(
+              `<ul class="rows"><li><div class="swipe"><span class="copy">${ic('copy', 18)}Kopieren</span>${groupRow(gym, false)}</div></li><li>${entryRow(rad, 45, 'Mittel', 'zur Arbeit')}</li></ul>`,
+              { k: '778 kcal', acts: `<span class="ibtn hl">${ic('paste', 20, MF)}</span>${plusBtn}`, chips },
+            )}<div class="toast"><span>„Gym-Besuch“ kopiert. Einfügen über das Symbol der Trainingskarte.</span></div></div>${tabbar()}`,
+          ) +
+          phone(
+            'A3 Leerer Tag',
+            '„Wie gestern“ ist der erste Chip, solange die Karte leer ist und gestern Trainings hat; dann angepinnte, dann zuletzt und häufig. Der gestrichelte Hinweis öffnet die Suche B wie das „+“.',
+            `<div class="main">${diaryCard(
+              `<div class="dashed" style="margin-top:4px">${ic('dumbbell', 16)} Training eintragen</div>`,
+              {
+                chips: `<div style="padding:0 16px 14px"><p class="cap">Zuletzt &amp; häufig</p><div class="chips">${chip('Wie gestern', '2 Trainings · 778 kcal')}${trainingChip(TRAININGS[0])}${trainingChip(TRAININGS[1])}</div></div>`,
+              },
+            )}<div class="toast"><span>„Bahntraining“ eingetragen</span><b>Rückgängig</b></div></div>${tabbar()}`,
+          );
+        document.getElementById('exp').addEventListener('click', () => {
+          aState.open = !aState.open;
+          renderA();
+        });
+      }
+
+      // ---------- B: search ----------
+      function renderB() {
+        const page = (inner, text = '', tab = '') =>
+          header('Training eintragen') +
+          `<div class="main">${dayNote('Freitag, 6. November')}${search(text)}${tabs(tab)}<section class="card">${inner}</section></div>`;
+        // "Häufig": saved trainings and sports in one list by score (pinned first), then every other sport A to Z.
+        const frequent = `<ul class="rows">${trainingRow(TRAININGS[0])}${sportRow(SPORTS[0])}${sportRow(SPORTS[1])}${trainingRow(TRAININGS[1])}${sportRow(SPORTS[2])}${sportRow(SPORTS[3])}</ul><p class="lcap" style="border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)">Alle Sportarten</p><ul class="rows">${[
+          ['Aerobic / Fitnesskurs', 6.5],
+          ['Badminton', 5.5],
+          ['Basketball', 6.5],
+          ['Bodyweight / Calisthenics', 5.0],
+        ]
+          .map(([name, met]) => sportRow({ name, met, min: 30, int: 'Mittel', n: 0 }))
+          .join('')}</ul>`;
+        const q = 'lauf';
+        const found = `<ul class="rows">${trainingRow(TRAININGS[0], q)}${sportRow(SPORTS[3], q)}${sportRow({ name: 'Laufband', met: 8.0, min: 30, int: 'Mittel', n: 0 }, q)}${ownSportRow(q)}</ul>`;
+        const own = `<p class="lcap">Gespeicherte Trainings</p><ul class="rows">${TRAININGS.map((t) => trainingRow(t)).join('')}</ul><div style="padding:8px 16px 12px"><span class="btn out sm" style="width:100%">${ic('plus', 16)} Neues Training</span></div><p class="lcap" style="border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)">Eigene Sportarten</p><ul class="rows">${sportRow({ name: 'Bouldern (Halle)', met: 5.8, min: 90, int: 'Mittel', n: 6 })}</ul><div style="padding:8px 16px 16px"><span class="btn out sm" style="width:100%">${ic('plus', 16)} Eigene Sportart</span></div>`;
+        document.getElementById('B').innerHTML =
+          phone(
+            'B1 Reiter „Häufig“',
+            'Gespeicherte Trainings und Sportarten in einer Liste nach Häufigkeit (angepinnte zuerst), darunter alle Sportarten A bis Z zum Stöbern. Die Zeile nennt die Werte, mit denen sie eintragen würde, und die kcal beim heutigen Gewicht. Tipp öffnet C oder D.',
+            page(frequent, '', 'Häufig'),
+          ) +
+          phone(
+            'B2 Mit Text „lauf“',
+            'Wie beim Essen: ab zwei Zeichen wird alles durchsucht, kein Reiter ist aktiv. Findet gespeicherte Trainings nach Name und Sportart und alle Sportarten; am Ende „Eigene Sportart anlegen“.',
+            page(found, 'lauf'),
+          ) +
+          phone(
+            'B3 Reiter „Eigene“',
+            'Gespeicherte Trainings mit „Neues Training“ (Editor E2) und eigene Sportarten mit „Eigene Sportart“. „Kürzlich“ (nicht gezeigt) ist dieselbe Liste wie B1 nach dem letzten Eintrag. Reiter wie beim Essen: Text bleibt, ein Tipp auf den aktiven Reiter hebt ihn auf.',
+            page(own, '', 'Eigene'),
+          );
+      }
+
+      // ---------- C: sport page ----------
+      const cState = { own: false };
+      function renderC() {
+        const rad = SPORTS[0];
+        const sportPage = ({
+          min = 45,
+          own = null,
+          edit = false,
+          savedChip = false,
+          infoLine = true,
+          acts = saveIcon(),
+          toggle = false,
+          foot,
+          duration = durationWheel(min),
+        }) =>
+          header('Radfahren', acts) +
+          `<div class="main">${dayNote(edit ? 'Freitag, 6. November' : 'Freitag, 6. November · Training')}${
+            savedChip
+              ? `<p class="info"><span class="saved">${ic('check', 12)} Gespeichert als „Feierabendrunde“</span></p>`
+              : infoLine
+                ? `<p class="info">Zuletzt 45 Min. · Mittel <span class="badge">12× eingetragen</span></p>`
+                : ''
+          }<div class="fields flat" style="padding:0 0 4px">${duration}${intensity('Mittel')}${kcalBox(rad.met, min, own, { toggle })}${note(edit ? 'zur Arbeit' : '')}</div></div>${foot}`;
+        document.getElementById('C').innerHTML =
+          phone(
+            'C1 Ein Rädchen',
+            'Raster 5 Minuten bis 2 Stunden, dann 15 Minuten; ab einer Stunde zeigt es „1 Std. 15 Min.“. Kein zweites Feld, keine Umrechnung. Intensität, Verbrauch mit Formel, Notiz wie gehabt; oben rechts „Als Training speichern“.',
+            sportPage({ foot: footer('Eintragen', kcalOf(rad.met, 45)) }),
+          ) +
+          phone(
+            'C1 Genau eingeben',
+            '„Genau eingeben“ neben dem Label (wie „Eigene Portion“ beim Essen) öffnet ein Minutenfeld unter dem Rädchen; 47 bekommt eine eigene Zeile zwischen 45 und 50 und bleibt, bis das Rädchen weitergedreht wird. Der Knopf zeigt, dass er an ist (gefüllt); ein zweiter Tipp schließt das Feld wieder. Kein Text erklärt das: man sieht es.',
+            sportPage({
+              min: 47,
+              duration: durationWheel(47, { exact: true }),
+              foot: footer('Eintragen', kcalOf(rad.met, 47)),
+            }),
+          ) +
+          phone(
+            cState.own ? 'C2 Eigener Wert (klickbar)' : 'C2 kcal berechnet (klickbar)',
+            'Eine getippte Zahl bleibt stehen, auch wenn die Dauer danach wechselt; der Link holt den berechneten Wert zurück. Nur am Eintrag, nie im gespeicherten Training.',
+            sportPage({
+              own: cState.own ? 520 : null,
+              toggle: true,
+              foot: footer('Eintragen', cState.own ? 520 : kcalOf(rad.met, 45)),
+            }),
+          ) +
+          phone(
+            'C3 Eintrag bearbeiten',
+            'Dieselbe Seite für einen Eintrag im Tagebuch: „Änderungen übernehmen“, Papierkorb oben rechts. Bei einem Teil eines Pakets heißt der Titel wie die Sportart; das Paket bleibt verbunden.',
+            sportPage({
+              edit: true,
+              infoLine: false,
+              acts: `${saveIcon()}<span class="ibtn">${ic('trash', 22, 'color:var(--destructive)')}</span>`,
+              foot: footer('Änderungen übernehmen', 0),
+            }),
+          ) +
+          phone(
+            'C4 Nach dem Speichern-Symbol',
+            'Der Namensdialog wie beim Meal. Danach zeigt die Seite den Chip „Gespeichert als …“, und das Training steht unter „Gespeichert“ (B) und in den Chips (A).',
+            sportPage({ savedChip: true, infoLine: false, foot: footer('Eintragen', kcalOf(rad.met, 45)) }) +
+              `<div class="overlay"></div><div class="dialog"><div><h3>Als Training speichern</h3><p class="desc">Radfahren, 45 Min. · Mittel. Weitere Aktivitäten kommen im Editor dazu.</p></div><div><div class="lbl">Name</div><div class="inp"><span>Feierabendrunde</span></div></div><div class="dfoot"><span class="btn pri">Speichern</span><span class="btn out">Abbrechen</span></div></div>`,
+          );
+      }
+
+      // ---------- D: log a saved training ----------
+      const dState = { mode: 'update' };
+      function renderD() {
+        const items = (kraftMin, open) =>
+          `<ul class="rows">${gymItems(kraftMin)
+            .map(
+              (i, idx) =>
+                `<li><div class="row"><div class="txt"><div class="name"><span>${i.name}</span>${i.min !== 60 && idx === 0 ? '<span class="badge">geändert</span>' : ''}</div><div class="sub">${i.min} Min. · ${i.int}${i.note ? ' · ' + i.note : ''}</div></div><span class="kc ex">+${fmt0(kcalOf(i.met, i.min))}</span>${ic(open === idx ? 'chevronUp' : 'chevronDown', 16, MF)}</div>${
+                  open === idx
+                    ? `<div class="fields">${durationFields(i.min)}${intensity(i.int)}${kcalBox(i.met, i.min)}${note(i.note)}</div>`
+                    : ''
+                }</li>`,
+            )
+            .join('')}</ul>`;
+        const page = ({ kraftMin = 60, open = null, changed = false, extra = '' }) =>
+          header('Gym-Besuch', `${saveIcon(!changed)}<span class="ibtn">${ic('pencil', 20)}</span>`) +
+          `<div class="main">${dayNote('Freitag, 6. November · Training')}<p class="info">Zuletzt am Dienstag <span class="badge">7× eingetragen</span></p>${card('Aktivitäten', items(kraftMin, open), { k: `${kraftMin + 15} Min.` })}</div>${footer('Eintragen', sum(gymItems(kraftMin)))}${extra}`;
+        const dialog = `<div class="overlay"></div><div class="dialog"><div><h3>Als Training speichern</h3><p class="desc">${
+          dState.mode === 'update'
+            ? 'Die Aktivitäten, wie sie hier stehen, ersetzen die von „Gym-Besuch“. Bereits eingetragene Trainings bleiben, wie sie sind.'
+            : '„Gym-Besuch“ bleibt, wie es ist.'
+        }</p></div><div role="radiogroup" aria-label="Speichern als"><button class="radio" role="radio" data-mode="update" aria-checked="${dState.mode === 'update'}"><span class="dot"></span>„Gym-Besuch“ aktualisieren</button><button class="radio" role="radio" data-mode="new" aria-checked="${dState.mode === 'new'}"><span class="dot"></span>Als neues Training speichern</button></div>${
+          dState.mode === 'new'
+            ? `<div><div class="lbl">Name</div><div class="inp"><span>Gym-Besuch kurz</span></div></div>`
+            : ''
+        }<div class="dfoot"><span class="btn pri">Speichern</span><span class="btn out">Abbrechen</span></div></div>`;
+        document.getElementById('D').innerHTML =
+          phone(
+            'D1 Gespeicherte Werte',
+            'Wie „Meal eintragen“: alle Aktivitäten mit den gespeicherten Werten, eine aufgeklappt. Das Speichern-Symbol ist aus, solange nichts abweicht.',
+            page({ open: 0 }),
+          ) +
+          phone(
+            'D2 Abweichung',
+            'Heute nur 45 Minuten: die Aktivität trägt „geändert“, das Speichern-Symbol wird aktiv, Eintragen nimmt 45. Das gespeicherte Training bleibt bei 60, bis du oben speicherst. Wischen nach links lässt eine Aktivität heute weg (ohne Text, wie Zutaten beim Meal).',
+            page({ kraftMin: 45, changed: true }),
+          ) +
+          phone(
+            'D3 Speichern-Dialog (klickbar)',
+            'Vorauswahl „aktualisieren“, weil das Training von hier kommt. „Als neues“ fragt nach einem Namen.',
+            page({ kraftMin: 45, changed: true, extra: dialog }),
+          );
+      }
+
+      // ---------- E: editor ----------
+      function renderE() {
+        const act = (i, open) =>
+          `<li><div class="row"><div class="txt"><div class="name"><span>${i.name}</span></div><div class="sub">${i.min} Min. · ${i.int}${i.note ? ' · ' + i.note : ''}</div></div><span class="kc ex">+${fmt0(kcalOf(i.met, i.min))}</span>${ic(open ? 'chevronUp' : 'chevronDown', 16, MF)}<span class="ibtn" style="margin-right:-8px">${ic('x', 18)}</span></div>${
+            open ? `<div class="fields">${durationFields(i.min)}${intensity(i.int)}${note(i.note)}</div>` : ''
+          }</li>`;
+        const body = (isNew) =>
+          header(
+            isNew ? 'Neues Training' : 'Gym-Besuch',
+            isNew ? '' : `<span class="ibtn">${ic('trash', 22, 'color:var(--destructive)')}</span>`,
+          ) +
+          `<div class="main">${card('', `<div style="padding:16px"><div class="lbl">Name</div><div class="inp ${isNew ? 'ph' : ''}"><span>${isNew ? 'z. B. Gym-Besuch' : 'Gym-Besuch'}</span></div></div>`)}` +
+          card(
+            'Aktivitäten',
+            (isNew ? '' : `<ul class="rows">${act(gymItems()[0], true)}${act(gymItems()[1], false)}</ul>`) +
+              `<div style="padding:4px 16px 16px"><span class="btn out sm hl" style="width:100%">${ic('plus', 16)} Aktivität hinzufügen</span></div>`,
+            { k: isNew ? '' : '75 Min.' },
+          ) +
+          card(
+            '',
+            `<div class="switch-row"><div style="font-weight:500">Anpinnen</div><span class="switch ${isNew ? '' : ''}"></span></div>`,
+          ) +
+          (isNew
+            ? ''
+            : `<div class="kbox" style="margin-bottom:12px"><div class="top"><span>Verbrauch beim aktuellen Gewicht</span><b class="tabular" style="font-size:22px;${EX}">430 kcal</b></div></div>`) +
+          `</div>${footer('Speichern', 0, true)}`;
+        document.getElementById('E').innerHTML =
+          phone(
+            'E1 Bestehendes Training',
+            '„Speichern“ wird aktiv, sobald sich etwas ändert, und schließt den Editor. Das X der letzten Aktivität ist gesperrt. Kein Hinweistext: alte Einträge behalten ihre Werte, nur der Name folgt (steht in der Doku, nicht im UI).',
+            body(false),
+          ) +
+          phone(
+            'E2 Neues Training',
+            'Von „Neues Training“ (B3, F1). „Speichern“ bleibt aus, bis Name und eine Aktivität da sind; der Datensatz entsteht erst dann, ohne Eingabe verlassen fragt nicht.',
+            body(true),
+          ) +
+          phone(
+            'E3 Aktivität hinzufügen = Suche B mit Ziel',
+            'Dieselbe Suche, Kopfzeile nennt das Ziel; ein Tipp auf eine Sportart öffnet C ohne Datum mit „Hinzufügen“ und kehrt in den Editor zurück (wie <code>into=meal:</code> beim Essen).',
+            header('Zu „Gym-Besuch“ hinzufügen') +
+              `<div class="main">${search()}${tabs()}<section class="card"><p class="lcap">Sportarten</p><ul class="rows">${SPORTS.slice(
+                0,
+                5,
+              )
+                .map((s) => sportRow(s))
+                .join('')}</ul></section></div>`,
+          );
+      }
+
+      // ---------- F: list and tab bar entry ----------
+      function renderF() {
+        document.getElementById('F').innerHTML =
+          phone(
+            'F1 Gespeicherte Trainings',
+            'Tipp öffnet den Editor, Wischen nach links löscht (Rückgängig, dann Papierkorb).',
+            header('Gespeicherte Trainings') +
+              `<div class="main"><span class="btn out" style="width:100%;margin-bottom:12px">${ic('plus', 16)} Neues Training</span><section class="card"><ul class="rows">${TRAININGS.map(
+                (t) =>
+                  trainingRow(t)
+                    .replace('<div class="tail">', '<div class="tail" style="grid-template-rows:auto">')
+                    .replace(/<span class="meta">.*?<\/span>/, ''),
+              ).join('')}</ul></section></div>`,
+          ) +
+          phone(
+            'F2 Tab-Bar „+“',
+            'Die Kachel „Training eintragen“ öffnet die Suche B für den Tag der 20-Minuten-Regel (wie „Essen eintragen“ die Mahlzeit wählt).',
+            `<div class="main" style="min-height:560px"><div class="date">Freitag, 6. November</div>${diaryCard(`<ul class="rows"><li>${entryRow(SPORTS[0], 45, 'Mittel')}</li></ul>`, { k: '348 kcal' })}</div><div class="overlay"></div><div class="sheet"><div class="tiles"><span class="tile">${ic('scale', 22)}Gewicht eintragen</span><span class="tile pri">${ic('utensils', 22)}Essen eintragen</span><span class="tile hl">${ic('dumbbell', 22)}Training eintragen</span></div></div>`,
+          );
+      }
+
+      // ---------- controls ----------
+      document.getElementById('theme').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        e.currentTarget
+          .querySelectorAll('button')
+          .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        if (b.dataset.v === 'system') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.dataset.theme = b.dataset.v;
+      });
+      document.getElementById('C').addEventListener('click', (e) => {
+        const r = e.target.closest('[data-own]');
+        if (!r) return;
+        cState.own = r.dataset.own === '1';
+        renderC();
+      });
+      document.getElementById('D').addEventListener('click', (e) => {
+        const r = e.target.closest('[data-mode]');
+        if (!r) return;
+        dState.mode = r.dataset.mode;
+        renderD();
+      });
+      renderA();
+      renderB();
+      renderC();
+      renderD();
+      renderE();
+      renderF();
+    </script>
+  </body>
+</html>

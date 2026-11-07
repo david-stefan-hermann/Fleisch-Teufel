@@ -24,7 +24,7 @@ pnpm lint           # eslint + prettier --check   (pnpm format to fix)
 pnpm typecheck      # sequential tsc in all packages (parallel runs can OOM the container)
 pnpm build
 pnpm --filter @ft/api seed:demo   # demo user with 6 weeks of data (server must run, registration open)
-pnpm --filter @ft/api db:generate -- --name <change>   # after editing apps/api/src/db/schema.ts
+pnpm --filter @ft/api db:generate --name <change>   # after editing apps/api/src/db/schema.ts
 ```
 
 Serve the production web build through the API (same origin, service worker active):
@@ -175,7 +175,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   calls `leaveAnalysis`: the item becomes `deferred` and is logged by itself; the review opens only while the
   person waits on the page (refs `waiting`/`gone` in `PhotoPage`, never navigate after an await otherwise). The "+" of a diary meal links straight to `/photo` for that meal.
 - Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
-  meal or an AI review, "Änderungen übernehmen" when editing an entry.
+  meal or an AI review and activities of a saved training ("Aktivität", never "Übung"/"Teil" in the UI),
+  "Änderungen übernehmen" when editing an entry.
+- No explanation texts in the UI (user rule, 2026-11-06): no sentences that explain how to operate something; the
+  UI shows the state instead (a badge like "geändert" or "nicht angerechnet", a disabled button, a title, a link
+  with the computed value). Allowed: consequences of an action in a dialog, limits not visible elsewhere, steps the
+  system enforces (iOS install), information about the data (formulas, "Zuletzt …", "N× eingetragen").
 - Page primary action: `Page footer={<Button size="lg">…</Button>}` renders the sticky `PageFooter`. Saving for
   reuse is a header save icon that opens `NameDialog` (meal page, training, AI review; after saving the review
   shows a "Gespeichert" chip). Editors with explicit save (meal editor, saved training editor) block leaving
@@ -203,26 +208,58 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   a name and an ingredient; left without input it is dropped). `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
   entry only), without them edits (`MealEditor`). The editor writes a device draft (`db/mealDraft.ts`, `kv`) and
   only `saveMealDraft` touches the synced record; `addItemToMeal` (food search `into=meal:`) appends to the draft.
-- Saved trainings (`exerciseTemplates`, never "Vorlage" in the UI): `/trainings`, `/trainings/$templateId`; sport
-  picker and fields shared with logging (`features/exercise/TrainingFields.tsx`, `training.ts`). Trash covers
-  weights, meals and saved trainings.
-- Training entry (`features/exercise/ExercisePage.tsx`): several trainings of a day at once. The page holds rows
-  under "Ausgewählt" (own duration, intensity, note; the last one added is open; "Als Training speichern" per row)
-  and logs them with `logTrainings` (`db/entries.ts`, one transaction, one `exerciseEntry` each, `loggedAt`
-  ascending). Badges "Zuletzt & häufig" (`TrainingChip`/`ChipRow` in `TrainingChips.tsx`): the sports this person
-  logs with the values of last time (`db/trainingSuggestions.ts` `trainingHistory`: 60 days, frequency and recency
-  like the meal suggestions, same weekday higher; `withLogged` on the page keeps today's sports) and the saved
-  trainings; a tap selects or deselects (`aria-pressed`). `SportPicker` marks `selectedKeys` and lists saved
-  trainings that match the search. The diary's `ExerciseCard` shows `TrainingSuggestions` below its entries (one
-  tap logs, undo deletes; nothing already logged that day). Editing an entry (`entryId`) stays a single open row.
-  An entry logged from a saved training (its badge, or "Als Training speichern" before logging) carries
-  `exerciseEntries.templateId` (synced): `trainingTitle` (`training.ts`, names from `useTrainingNames`, deleted
-  ones included) makes the saved training's current name the title and puts the sport into the line below, in the
-  diary (`ExerciseRowBody`), the shared day image, toasts and the rows of the page; renaming the saved training
-  renames old entries (like a meal), entries without the field show the sport. Changing the sport of an entry
-  drops the link. In `trainingHistory` such entries form a suggestion of their own (`key` `t:<id>`, named like
-  the saved training, values of the last entry, not the saved ones); a deleted saved training counts for its
-  sport again; `last` stays per sport. On the page a suggested saved training replaces its own badge.
+- Trainings run like food (plan `docs/plans/2026-11-gespeicherte-trainings.md`, mockup `2026-11-trainings-neu-mockup.html`):
+  a sport is a food, a saved training (`exerciseTemplates`, never "Vorlage" in the UI) is a meal, its parts are
+  "Aktivitäten". Data: the flat fields of a saved training are activity 1 (what older app versions read and edit),
+  `extraItems` hold activities 2..n, read them only with `trainingItemsOf` (shared); `pinned`; entries logged in
+  one go from a saved training share `exerciseEntries.groupId` and carry its `templateId`. Write saved trainings
+  only with `saveTraining`/`updateTraining` (`db/entries.ts`), trainings with `logTrainings` (rows with the same
+  `group` mark get one fresh `groupId`) and `saveExercise` (editing keeps day, group and saved training).
+  - Search `/exercise?date&q&tab&scope[&into]` (`TrainingSearchPage.tsx`): the mechanics of `/add` (tabs "Häufig ·
+    Kürzlich · Eigene", typing from 2 characters searches everything, a tab filters, x lifts it). One list of saved
+    trainings (`matchesTraining` on name and sports) and sports; "Häufig" = `trainingHistory` suggestions (pinned
+    first) then "Alle Sportarten" A to Z, "Kürzlich" by last date (`stats`), "Eigene" = saved trainings ("Neues
+    Training") and own sports ("Eigene Sportart", `CustomTypeDialog`); typed text ends with "Eigene Sportart „q“
+    anlegen". A row opens the sport page or the saved training. Entries: card "+", the dashed hint, the add sheet tile.
+  - Sport page `/sport/$typeKey?date[&into]`, editing `/exercise-entry/$entryId` (`SportPage.tsx`): `DurationWheel`
+    (`components/DurationWheel.tsx`: 5 min raster to 2 h, then 15 min to 6 h, `formatDuration` "1 Std. 15 Min.";
+    "Genau eingeben" toggles a minute field, a value off the raster gets its own row like `extra` of the amount
+    wheel), intensity (locked "Mittel" for an own sport), `TrainingKcal`, note. Start values: the entry, else `last`
+    of the sport, else 30 min moderate. Footer "Eintragen · N kcal" (`useReturnToDiary`), with `into` "Hinzufügen",
+    editing "Änderungen übernehmen" + trash. Header save icon: `NameDialog`, a saved training of one activity, chip
+    "Gespeichert als „…“", the entry then carries it; no save icon for a part of a package. No sport switch.
+  - Own kcal: `TrainingKcal` is a field (whole kcal, 0 to 20 000). Typed kcal stay when the duration changes, the
+    field is marked and "Berechneten Wert verwenden (N kcal)" resets. No stored flag: an entry counts as computed
+    when `isAutoTrainingKcal` (its kcal match `trainingKcal(met, weightKg, minutes)` to 1 kcal). Saved trainings
+    always compute. Marks "Standardgewicht" (no weight logged) and "nicht angerechnet" (setting) sit at the box.
+  - `/trainings/$templateId?date` logs a saved training (`TrainingLogView.tsx`, like `MealLogView`): `TrainingRow`
+    per activity with the saved values, one open; a change shows the badge "geändert", swipe left leaves one out
+    today (one stays). "Eintragen · N kcal" logs all as one group. The save icon (active once something differs)
+    opens `SaveTrainingDialog` ("„…“ aktualisieren" preselected, or "Als neues Training speichern" with a name);
+    the view is keyed by `updatedAt` and starts again from the saved values. Pencil: editor with `from=log`.
+  - Editor `/trainings/$templateId` (no date; `TrainingEditorPage.tsx`, like `MealEditor`): device draft
+    `db/trainingDraft.ts` (`kv` `trainingDraft:<id>`, `baseUpdatedAt` + `ConflictBanner`, "Neues Training" =
+    `startNewTraining`, an `isNew` draft without record, dropped when left empty; only `saveTrainingDraft` writes).
+    Name, "Aktivitäten" (`TrainingRow` with X, the last one cannot be removed), "Aktivität hinzufügen" = the search
+    with `into=training:<id>` (`lib/into.ts`; the router accepts that target only on `/exercise` and `/sport`, the
+    food search parses with `parseFoodInto`), the sport page appends with `addActivityToTraining` and
+    `returnFromInto`. Switch "Anpinnen", "Verbrauch beim aktuellen Gewicht". Saving closes (`goBackOr`), the
+    blocker lets the way to the search through. Renaming renames old entries; their values never change.
+  - `/trainings`: "Neues Training", pinned first then by name (`sortTrainings`), swipe deletes into the trash
+    (trash rows use `trainingSummary`). Trash covers weights, meals and saved trainings.
+  - Diary `ExerciseCard`: `groupTrainingEntries` (shared; a group needs two live entries) renders a package as one
+    row (title: the saved training's current name, else its sports, `trainingGroupTitle`; "N Aktivitäten · 75 Min."
+    opens the parts, each a link to `/exercise-entry/$id` with its own swipe); swipe left deletes a row or package
+    in one transaction with undo (`removeTrainingsWithUndo`), swipe right copies it (`copyTrainingToClipboard`,
+    `TrainingClipboard` in the same `kv` key as food; `foodClipboard`/`trainingClipboard` narrow it: meals paste
+    only food, the card shows its paste icon only for trainings). Pasting and "Wie gestern" (first chip of an empty
+    card while the day before has trainings) log `copiesOf(parts, weight of the day)`: computed kcal again, typed
+    kcal kept, a package as a new group. `TrainingSuggestions` ("Zuletzt & häufig", `TrainingChip`) below: pinned
+    first; a sport logs the values of its last entry, a saved training its saved activities (all as one group,
+    undo deletes all). `trainingHistory` (`db/trainingSuggestions.ts`, 60 days, frequency and recency, same weekday
+    higher) counts a saved training once per logging (`groupId`), entries of a deleted one count for their sport;
+    `last` per sport (parts included), `stats` per key for "N× eingetragen" and "Kürzlich". `ExerciseRowBody` and
+    `TrainingGroupRowBody` also build the shared day image (packages closed).
 - Weight entry uses `TapeMeasure` (`role=slider`): raster and visible range are personal settings
   (`settings.weightStepKg` 0,01/0,05/0,1 and `weightRangeKg` ±0,5/1/2/5, null = default 0,05 and ±0,5; Profil →
   "Gewichtseingabe"; `WEIGHT_STEPS`/`WEIGHT_RANGES` in shared). The value sits on the raster also while dragging;
