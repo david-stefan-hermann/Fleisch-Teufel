@@ -17,6 +17,7 @@ import { LabelCaptureSheet } from '@/components/LabelCaptureSheet';
 import { NumberField } from '@/components/NumberField';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { Page, Section } from '@/components/Page';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -220,13 +221,9 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
         }}
       >
         {template && (
-          <p className="mb-4 flex gap-2 rounded-xl bg-muted p-3 text-sm text-pretty">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span>
-              Kopie von Open Food Facts. Korrigiere die Werte (oder lies sie vom Etikett ab); beim Scannen und
-              Suchen gilt danach dein Lebensmittel statt des Datenbank-Eintrags.
-            </span>
-          </p>
+          <Badge variant="secondary" className="mb-4">
+            Kopie von Open Food Facts
+          </Badge>
         )}
         {ai !== 'loading' && ai !== 'off' && (
           <LabelEntry
@@ -348,7 +345,6 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
                 value={servingGrams}
                 onValueChange={setServingGrams}
                 error={touched ? errors.serving : null}
-                hint={`Wird beim Speichern auf 100 ${unit} umgerechnet.`}
                 inputClassName={cn(flash.has('servingGrams') && 'field-flash')}
               />
             )}
@@ -367,9 +363,6 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
 
         <Section title="Portionen">
           <div className="grid gap-3 px-4 pb-4">
-            {portions.length === 0 && (
-              <p className="text-sm text-muted-foreground">Optional, z. B. „1 Stück“ = 120 g.</p>
-            )}
             <ul className="grid gap-2">
               {portions.map((p, i) => (
                 <li

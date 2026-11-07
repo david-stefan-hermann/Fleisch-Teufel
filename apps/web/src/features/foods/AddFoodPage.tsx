@@ -341,16 +341,14 @@ export function AddFoodPage() {
           )}
           {rows && rows.length === 0 && onlineState !== 'loading' && (
             <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
-              Versuche ein allgemeineres Wort (z. B. „Käse“ statt „Bergkäse gerieben“) oder{' '}
               <Link
                 to="/custom-food/$id"
                 params={{ id: 'new' }}
                 search={{ name: q, ...linkSearch }}
                 className="text-primary underline"
               >
-                lege ein eigenes Lebensmittel an
+                Eigenes Lebensmittel anlegen
               </Link>
-              .
             </EmptyState>
           )}
           <OnlineStatus state={onlineState} short={q.length < 3} />
@@ -370,7 +368,7 @@ export function AddFoodPage() {
           search={linkSearch}
           onQuick={(r) => void run(() => quickRelog(r))}
           showCount
-          empty="Was du mindestens zweimal einträgst, erscheint hier zum schnellen Wiederverwenden."
+          empty="Noch nichts mehrfach eingetragen"
         />
       )}
 
@@ -419,7 +417,6 @@ export function AddFoodPage() {
           )}
           {own.meals.length === 0 && own.custom.length === 0 && (
             <EmptyState icon={<Search />} title="Nichts Eigenes gefunden">
-              Unter „Eigene“ suchst du nur in deinen Lebensmitteln und Meals.{' '}
               <Link
                 to="/custom-food/$id"
                 params={{ id: 'new' }}
@@ -453,11 +450,7 @@ export function AddFoodPage() {
               <Plus aria-hidden /> Eigenes Lebensmittel anlegen
             </Link>
           </Button>
-          {custom && custom.length === 0 && (
-            <EmptyState title="Noch keine eigenen Lebensmittel">
-              Lege Rezepte von zu Hause oder Produkte ohne Barcode-Eintrag an.
-            </EmptyState>
-          )}
+          {custom && custom.length === 0 && <EmptyState title="Noch keine eigenen Lebensmittel" />}
           <ul className="-mx-4 divide-y divide-border/70">
             {custom?.map((c) => (
               <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
@@ -514,9 +507,9 @@ function OnlineStatus({
           ? 'Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.'
           : state === 'error'
             ? 'Open Food Facts antwortet gerade nicht.'
-            : short
-              ? 'Ab 3 Zeichen werden auch Markenprodukte gesucht.'
-              : 'Markenprodukte: Open Food Facts.';
+            : 'Markenprodukte: Open Food Facts.';
+  // Below 3 characters there is no online search, so nothing to report.
+  if (short && (state === 'done' || state === null)) return null;
   return (
     <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
       {state === 'loading' ? (
@@ -630,11 +623,7 @@ function FoodRow({
 function MealList({ meals, search }: { meals: Meal[] | undefined; search: FoodLinkSearch }) {
   if (!meals) return null;
   if (meals.length === 0)
-    return (
-      <p className="py-2 text-sm text-muted-foreground text-pretty">
-        Noch keine gespeicherten Meals. Tippe im Tagebuch auf ⋯ einer Mahlzeit und wähle „Als Meal speichern“.
-      </p>
-    );
+    return <p className="py-2 text-sm text-muted-foreground text-pretty">Noch keine gespeicherten Meals.</p>;
   return (
     <ul className="-mx-4 divide-y divide-border/70">
       {meals.map((m) => (
@@ -667,7 +656,7 @@ function RecentList({
   search,
   onQuick,
   showCount,
-  empty = 'Was du einträgst, erscheint hier zum schnellen Wiederverwenden.',
+  empty = 'Noch keine Einträge',
 }: {
   items: RecentFood[] | undefined;
   search: FoodLinkSearch;
@@ -676,7 +665,7 @@ function RecentList({
   empty?: string;
 }) {
   if (!items) return null;
-  if (items.length === 0) return <EmptyState title="Noch keine Einträge">{empty}</EmptyState>;
+  if (items.length === 0) return <EmptyState title={empty} />;
   return (
     <ul className="-mx-4 divide-y divide-border/70">
       {items.map((r) => (

@@ -43,7 +43,7 @@ export type ChartData = [number[], ...(number | null)[][]];
 export function buildChart(
   rows: DailyRow[],
   metric: Metric,
-  /** Setting "Trainingskalorien anrechnen": the target line then includes the training. */
+  /** Setting "Training aufs Ziel anrechnen": the target line then includes the training. */
   creditExercise = true,
 ): { data: ChartData; series: ChartSeries[]; hasData: boolean } {
   const xs = rows.map((r) => xOf(r.date));

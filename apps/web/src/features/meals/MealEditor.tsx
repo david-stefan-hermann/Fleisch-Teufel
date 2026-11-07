@@ -271,21 +271,11 @@ function MealEditorForm({
       <Button variant="outline" className="mb-2 w-full" onClick={addIngredient}>
         <Plus aria-hidden /> Zutat hinzufügen
       </Button>
-      <p className="mb-4 px-1 text-xs text-muted-foreground text-pretty">
-        {isNew
-          ? 'Füge Lebensmittel oder ein anderes Meal als Zutaten hinzu. Eingetragen wird es später über die Suche.'
-          : 'Änderungen gelten für künftige Einträge. Bereits eingetragene Tage bleiben, wie sie sind.'}
-      </p>
       <Section>
         <div className="grid gap-3 p-4">
           <div className="grid gap-2">
             <div className="flex items-baseline justify-between gap-2">
-              <div>
-                <Label htmlFor="meal-scale">Gesamtmenge</Label>
-                <p id="meal-scale-hint" className="text-xs text-muted-foreground">
-                  Skaliert alle Zutaten
-                </p>
-              </div>
+              <Label htmlFor="meal-scale">Gesamtmenge</Label>
               <output htmlFor="meal-scale" className="tabular text-lg font-semibold">
                 {fmtPercent(scale)}
               </output>
@@ -293,7 +283,6 @@ function MealEditorForm({
             <Slider
               id="meal-scale"
               aria-label="Gesamtmenge skalieren"
-              aria-describedby="meal-scale-hint"
               aria-valuetext={fmtPercent(scale)}
               min={SCALE_MIN}
               max={SCALE_MAX}
@@ -322,11 +311,7 @@ function MealEditorForm({
             integer
             value={cooked}
             onValueChange={(v) => commit({ ...draft, cookedGrams: v && v > 0 ? Math.round(v) : null })}
-            hint={
-              rawGrams > 0
-                ? `Zutaten roh ${fmtGrams(rawGrams)}. Mit dem Gewicht nach dem Kochen rechnet die App pro 100 g gekocht; beim Eintragen kannst du dann die gegessenen Gramm angeben.`
-                : 'Mit dem Gewicht nach dem Kochen rechnet die App pro 100 g gekocht.'
-            }
+            hint={rawGrams > 0 ? `Zutaten roh ${fmtGrams(rawGrams)}` : undefined}
           />
           {per100 && (
             <p className="tabular text-sm text-muted-foreground">

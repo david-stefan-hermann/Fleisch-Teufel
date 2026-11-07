@@ -238,9 +238,6 @@ function GoalsForm({
 
       <Section title="Nährstoff-Ziele">
         <div className="grid gap-3 px-4 pb-4">
-          <p className="text-xs text-muted-foreground">
-            Leer lassen für DGE-Empfehlungen (abhängig vom Kalorienziel).
-          </p>
           <div className="grid grid-cols-2 items-start gap-3">
             {MICRO_ROWS.map((m) => (
               <NumberField
@@ -282,9 +279,6 @@ function GoalsForm({
               </li>
             ))}
           </ul>
-          <p className="px-4 pb-3 text-xs text-muted-foreground">
-            Vergangene Tage werden immer mit dem damals gültigen Ziel bewertet.
-          </p>
         </Section>
       )}
     </Page>

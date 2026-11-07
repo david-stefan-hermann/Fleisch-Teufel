@@ -217,9 +217,6 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                 <div className="text-sm text-muted-foreground">{ACTIVITY_LABELS_DE[a].hint}</div>
               </button>
             ))}
-            <p className="mt-1 text-xs text-muted-foreground">
-              Training trägst du separat ein, es wird dann zusätzlich angerechnet.
-            </p>
           </div>
         </Section>
       )}
@@ -316,8 +313,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
                   </p>
                 )}
               <p className="text-xs text-muted-foreground">
-                Das sind {fmt1(protein && weight ? protein / weight : 0)} g Eiweiß pro kg Körpergewicht. Ziele
-                je Wochentag stellst du danach unter „Ziele“ ein.
+                Das sind {fmt1(protein && weight ? protein / weight : 0)} g Eiweiß pro kg Körpergewicht.
               </p>
             </div>
           </Section>

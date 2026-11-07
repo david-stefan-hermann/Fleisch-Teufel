@@ -56,6 +56,7 @@ export function ReminderPage() {
 
   const on = !!current;
   const canUse = blocker === null && server === true;
+  const notice = reminderNotice(blocker, server);
 
   async function turnOn(at: string) {
     try {
@@ -85,11 +86,8 @@ export function ReminderPage() {
       <Section>
         <div className="flex min-h-14 items-center gap-3 px-4 py-3">
           <BellRing className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-          <label htmlFor="reminder-on" className="min-w-0 flex-1">
-            <div className="font-medium">Täglich erinnern</div>
-            <div className="text-xs text-muted-foreground">
-              Nur wenn an dem Tag noch nichts eingetragen ist. Eine Mitteilung, keine Serien.
-            </div>
+          <label htmlFor="reminder-on" className="min-w-0 flex-1 font-medium">
+            Täglich erinnern
           </label>
           <Switch
             id="reminder-on"
@@ -116,21 +114,24 @@ export function ReminderPage() {
               </Button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground text-pretty">
-            {blocker === 'unsupported'
-              ? 'Dieser Browser unterstützt keine Mitteilungen für Web-Apps.'
-              : blocker === 'ios_not_installed'
-                ? 'Auf dem iPhone gibt es Mitteilungen nur für die installierte App: Teilen → „Zum Home-Bildschirm“, dann hier einschalten.'
-                : blocker === 'denied'
-                  ? 'Mitteilungen sind für diese App blockiert. Erlaube sie in den Einstellungen des Geräts.'
-                  : server === false
-                    ? 'Der Server hat keine Schlüssel für Mitteilungen (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY in der .env).'
-                    : server === 'offline'
-                      ? 'Nur online einzurichten.'
-                      : 'Gilt für dieses Gerät und folgt seiner Zeitzone. Abmelden schaltet die Erinnerung aus.'}
-          </p>
+          {notice && <p className="text-xs text-muted-foreground text-pretty">{notice}</p>}
         </div>
       </Section>
     </Page>
   );
+}
+
+/** Why the reminder cannot be set up here (browser, device, server), or null when it can. */
+function reminderNotice(blocker: ReturnType<typeof reminderBlocker>, server: boolean | 'offline' | null) {
+  return blocker === 'unsupported'
+    ? 'Dieser Browser unterstützt keine Mitteilungen für Web-Apps.'
+    : blocker === 'ios_not_installed'
+      ? 'Auf dem iPhone gibt es Mitteilungen nur für die installierte App: Teilen → „Zum Home-Bildschirm“, dann hier einschalten.'
+      : blocker === 'denied'
+        ? 'Mitteilungen sind für diese App blockiert. Erlaube sie in den Einstellungen des Geräts.'
+        : server === false
+          ? 'Der Server hat keine Schlüssel für Mitteilungen (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY in der .env).'
+          : server === 'offline'
+            ? 'Nur online einzurichten.'
+            : null;
 }

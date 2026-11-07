@@ -84,7 +84,7 @@ interface GroupData {
   entries: FoodEntry[];
   /** The name the diary row shows (own name, else the saved meal's). */
   name: string;
-  /** Saved meal the group was logged from (also a deleted one), for the hint and the photo. */
+  /** Saved meal the group was logged from (also a deleted one), for the photo and "Als Meal speichern". */
   meal: { name: string; photoId: string | null } | null;
 }
 
@@ -423,7 +423,7 @@ function DiaryGroupForm({
           max={MAX_ANALYSIS_PHOTOS - photoCount}
           preset={IMAGE_PRESETS.analysis}
           footerLabel={(n) => (n === 0 ? 'Hinzufügen' : `Hinzufügen (${n} ${n === 1 ? 'Foto' : 'Fotos'})`)}
-          hint={`Weitere Teller, Gänge oder die Nährwerttabelle, bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt. Gespeichert wird mit „Änderungen übernehmen“.`}
+          hint={`Bis zu ${MAX_ANALYSIS_PHOTOS} Fotos insgesamt.`}
           onSubmit={(blobs) => {
             setSheet(false);
             void addGroupDraftPhotos(db, draft.groupId, blobs);
@@ -465,22 +465,11 @@ function DiaryGroupForm({
         <Button variant="outline" className="mb-2 w-full" onClick={addIngredient}>
           <Plus aria-hidden /> Zutat hinzufügen
         </Button>
-        {first.mealId && (
-          <p className="mb-4 px-1 text-xs text-muted-foreground text-pretty">
-            Ändert nur diesen Eintrag. Das gespeicherte Meal{meal ? ` „${meal.name}“` : ''} bleibt, wie es
-            ist.
-          </p>
-        )}
         <Section>
           <div className="grid gap-3 p-4">
             <div className="grid gap-2">
               <div className="flex items-baseline justify-between gap-2">
-                <div>
-                  <Label htmlFor="group-scale">Gesamtmenge</Label>
-                  <p id="group-scale-hint" className="text-xs text-muted-foreground">
-                    Skaliert alle Zutaten
-                  </p>
-                </div>
+                <Label htmlFor="group-scale">Gesamtmenge</Label>
                 <output htmlFor="group-scale" className="tabular text-lg font-semibold">
                   {fmtPercent(scale)}
                 </output>
@@ -488,7 +477,6 @@ function DiaryGroupForm({
               <Slider
                 id="group-scale"
                 aria-label="Gesamtmenge skalieren"
-                aria-describedby="group-scale-hint"
                 aria-valuetext={fmtPercent(scale)}
                 min={SCALE_MIN}
                 max={SCALE_MAX}

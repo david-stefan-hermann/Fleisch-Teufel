@@ -44,7 +44,7 @@ test('food search: tabs as filters, used foods first, own foods with collapsible
   // Tabs "Häufig" (default), "Kürzlich", "Eigene".
   await expect(page.getByRole('tab')).toHaveText(['Häufig', 'Kürzlich', 'Eigene']);
   await expect(page.getByRole('tab', { name: 'Häufig' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByText('Was du mindestens zweimal einträgst')).toBeVisible();
+  await expect(page.getByText('Noch nichts mehrfach eingetragen')).toBeVisible();
 
   // No header icons: the search is reached from the food page (camera) and back leads there.
   await expect(page.getByRole('link', { name: 'Barcode scannen' })).toHaveCount(0);
@@ -270,7 +270,6 @@ test('own food: kcal from the macros, ten values saved, sticky save, barcode hin
   await page.goto('/custom-food/new');
   await page.getByLabel('Name').fill('Proteinriegel');
   await page.getByRole('radio', { name: 'pro Portion' }).click();
-  await expect(page.getByText('Wird beim Speichern auf 100 g umgerechnet.')).toBeVisible();
   await page.getByLabel('Portionsgröße').fill('45');
   await page.getByLabel('Kalorien', { exact: true }).fill('175');
   await page.getByRole('button', { name: 'Anlegen', exact: true }).click();

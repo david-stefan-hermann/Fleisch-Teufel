@@ -39,13 +39,7 @@ export function MealsPage() {
       >
         <Plus aria-hidden /> Neues Meal
       </Button>
-      {meals?.length === 0 && (
-        <EmptyState icon={<UtensilsCrossed />} title="Noch keine Meals">
-          Lege oben ein neues Meal an, oder tippe im Tagebuch auf ⋯ einer Mahlzeit bzw. das Speichern-Symbol
-          eines Eintrags und wähle „Als Meal speichern“. Eingetragen wird ein Meal über die Lebensmittelsuche,
-          Reiter „Eigene“.
-        </EmptyState>
-      )}
+      {meals?.length === 0 && <EmptyState icon={<UtensilsCrossed />} title="Noch keine Meals" />}
       <ul className="-mx-4 divide-y divide-border/70">
         {meals?.map((m) => (
           <li key={m.id}>

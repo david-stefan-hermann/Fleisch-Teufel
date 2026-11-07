@@ -20,7 +20,9 @@ test('Mehr → Aussehen: app theme and icon variant, kept per device', async ({ 
   );
   await page.getByRole('link', { name: /Aussehen/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Aussehen' })).toBeVisible();
-  await expect(page.getByText('Folgt der Einstellung des Geräts, gerade hell.')).toBeVisible();
+  await expect(
+    page.getByRole('radiogroup', { name: 'Darstellung der App' }).getByRole('radio', { name: 'System' }),
+  ).toHaveAttribute('aria-checked', 'true');
 
   // Dark app: class, colors, browser chrome and the default icon follow.
   await page

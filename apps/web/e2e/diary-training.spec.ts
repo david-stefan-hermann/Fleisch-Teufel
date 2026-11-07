@@ -554,9 +554,6 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
   await lunch.getByRole('link', { name: 'Bowl', exact: true }).click();
   await expect(page).toHaveURL(/\/diary-group\/.+date=/);
   await expect(page.getByRole('heading', { level: 1, name: 'Bowl' })).toBeVisible();
-  await expect(
-    page.getByText('Ändert nur diesen Eintrag. Das gespeicherte Meal „Bowl“ bleibt, wie es ist.'),
-  ).toBeVisible();
   const apply = page.getByRole('button', { name: 'Änderungen übernehmen' });
   await expect(apply).toBeDisabled();
   await page.getByLabel('Name').fill('Große Bowl');

@@ -35,15 +35,7 @@ export function TrashPage() {
 
   return (
     <Page title="Papierkorb" back="/more" withTabBar={false}>
-      <p className="mb-4 px-1 text-sm text-muted-foreground text-pretty">
-        Gelöschte Gewichtseinträge, Meals und gespeicherte Trainings bleiben hier und lassen sich auf allen
-        Geräten wiederherstellen.
-      </p>
-
       <Section title="Gewicht">
-        <p className="px-4 pb-2 text-xs text-muted-foreground text-pretty">
-          Ein Eintrag pro Tag: ein neues Gewicht am selben Tag ersetzt den gelöschten.
-        </p>
         {weights?.length === 0 && <EmptyState icon={<Scale />} title="Keine gelöschten Gewichtseinträge" />}
         {weights && weights.length > 0 && (
           <ul className="divide-y divide-border/70 pb-1">

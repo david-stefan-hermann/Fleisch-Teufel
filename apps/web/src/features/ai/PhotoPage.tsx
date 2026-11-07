@@ -447,7 +447,7 @@ export function PhotoPage() {
                 ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
                 : aiEnabled === false
                   ? 'Der Text steht als Titel im Tagebuch. Eingetragen werden die Werte, die du angibst.'
-                  : 'Mit Kalorien trägst du direkt ein. Nur mit Text analysiert die KI die Mahlzeit, Mengen helfen ihr („200 g“, „halbe Portion“).'
+                  : undefined
             }
           />
           {analyzing && (
@@ -510,13 +510,6 @@ export function PhotoPage() {
               </Collapsible>
             </Section>
           )}
-          <p className="mt-4 text-xs text-muted-foreground text-pretty">
-            Barcodes im Bild werden sofort erkannt und nachgeschlagen. Teller-Fotos zeigen erst eine Vorschau,
-            dort kannst du weitere Fotos hinzufügen (Dessert, Nährwerttabelle); mit „Analysieren“ gehen sie an
-            Claude (Anthropic) und werden dort nicht gespeichert. Die Nährwerte stammen immer aus dem BLS bzw.
-            Open Food Facts; die KI schätzt nur, was und wie viel auf dem Teller liegt (typisch ±20 bis
-            40&nbsp;%). Prüfe die Mengen vor dem Eintragen.
-          </p>
         </>
       )}
     </Page>
@@ -602,9 +595,7 @@ function PhotoPreview({
         )}
         <p id="ai-text-hint" className="text-xs text-muted-foreground">
           <HintCount length={text.length} />
-          {busy
-            ? 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'
-            : 'Erst mit „Analysieren“ gehen die Fotos an Claude. Mit + kommen weitere Teller, Gänge oder die Nährwerttabelle dazu.'}
+          {busy && 'Du kannst zurück ins Tagebuch gehen. Das Ergebnis wird dort eingetragen.'}
         </p>
       </div>
       {sheet && (
@@ -1093,8 +1084,8 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         {photosChanged && !busy && (
           <p className="text-sm text-muted-foreground text-pretty">
             {fresh.length === 0
-              ? 'Fotos geändert. Tippe oben auf ↻, um neu zu analysieren.'
-              : `${fresh.length === 1 ? '1 Foto' : `${fresh.length} Fotos`} noch nicht analysiert. Tippe oben auf ↻, um neu zu analysieren.`}
+              ? 'Fotos geändert, noch nicht neu analysiert'
+              : `${fresh.length === 1 ? '1 Foto' : `${fresh.length} Fotos`} noch nicht analysiert`}
           </p>
         )}
       </div>
@@ -1136,7 +1127,6 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
           />
           <p id="review-hint-help" className="text-xs text-muted-foreground">
             <HintCount length={hint.length} />
-            Ändern und oben auf ↻ tippen, um neu zu analysieren.
           </p>
         </div>
         {rows.map((r) => (
@@ -1181,12 +1171,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
             {rows.some((r) => (scaleBase[r.key] ?? 0) > 0) && (
               <div className="grid gap-2">
                 <div className="flex items-baseline justify-between gap-2">
-                  <div>
-                    <Label htmlFor="result-scale">Gesamtmenge</Label>
-                    <p id="result-scale-hint" className="text-xs text-muted-foreground">
-                      Skaliert alle Zutaten
-                    </p>
-                  </div>
+                  <Label htmlFor="result-scale">Gesamtmenge</Label>
                   <output htmlFor="result-scale" className="tabular text-lg font-semibold">
                     {fmtPercent(scale)}
                   </output>
@@ -1194,7 +1179,6 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
                 <Slider
                   id="result-scale"
                   aria-label="Gesamtmenge skalieren"
-                  aria-describedby="result-scale-hint"
                   aria-valuetext={fmtPercent(scale)}
                   min={SCALE_MIN}
                   max={SCALE_MAX}
@@ -1229,11 +1213,6 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
                 </SelectContent>
               </Select>
             </div>
-            <p className="text-xs text-muted-foreground text-pretty">
-              {savedMealId
-                ? `Als Meal „${name}“ gespeichert (mit Foto). „Meal eintragen“ hängt es an dieses Meal, so erscheint es im Tagebuch mit Foto.`
-                : `${fmtIngredients(resolved.length)} werden als Gruppe „${name}“ eingetragen. Mit dem Speichern-Icon oben legst du sie zusätzlich mit Foto unter „Gespeicherte Meals“ ab.`}
-            </p>
             <p className="text-xs text-muted-foreground">
               Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}
               {result.usage.costUsd.toLocaleString('de-DE', {

@@ -422,7 +422,7 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   // A picked gallery photo (no barcode in it) shows a preview first; nothing goes to the AI yet.
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toBeVisible();
-  await expect(page.getByText(/^Erst mit „Analysieren“ gehen die Fotos an Claude\./)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Analysieren', exact: true })).toBeVisible();
   // The X of the only photo drops it, so does back (the page stays).
   await page.getByRole('button', { name: 'Foto 1 entfernen' }).click();
   await expect(page.getByRole('img', { name: 'Aufgenommenes Foto' })).toHaveCount(0);
@@ -478,7 +478,6 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
 
   // Saving (header icon, name dialog) stores the meal with the photo but logs nothing yet.
   await expect(page.getByLabel('Name des Meals')).toHaveCount(0);
-  await expect(page.getByText(/als Gruppe „Nudeln mit Soße“ eingetragen/)).toBeVisible();
   await page.getByRole('button', { name: 'Als Meal speichern' }).click();
   const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
   await expect(dialog).toContainText('Eingetragen wird erst mit „Meal eintragen“');
@@ -487,7 +486,6 @@ test('AI result shows the photo, takes extra ingredients and becomes a meal with
   await expect(page.getByText('„Nudeln mit Soße“ gespeichert', { exact: true })).toBeVisible();
   const chip = page.getByRole('button', { name: /Als Meal „Nudeln mit Soße“ gespeichert/ });
   await expect(chip).toContainText('Gespeichert');
-  await expect(page.getByText(/Als Meal „Nudeln mit Soße“ gespeichert \(mit Foto\)/)).toBeVisible();
   // The chip reopens the dialog to rename the meal.
   await chip.click();
   await dialog.getByLabel('Name').fill('Nudeln Bolo');
@@ -772,7 +770,6 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   // The hint of the preview is in the review, under the note of the AI.
   const hint = page.getByLabel('Hinweis für die Analyse', { exact: true });
   await expect(hint).toHaveValue('mit Butter');
-  await expect(page.getByText('Ändern und oben auf ↻ tippen, um neu zu analysieren.')).toBeVisible();
   await expect(page.getByText('Erkannt: Nudeln mit Soße.')).toBeVisible();
 
   // After a change to the ingredients ↻ asks first; "Abbrechen" keeps everything.
@@ -1067,9 +1064,7 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
   // Review: a third photo waits as "Neu" until ↻.
   await page.getByRole('button', { name: 'Fotos hinzufügen' }).click();
   await addInSheet('Fotos hinzufügen', 'public/pwa-192x192.png');
-  await expect(
-    page.getByText('1 Foto noch nicht analysiert. Tippe oben auf ↻, um neu zu analysieren.'),
-  ).toBeVisible();
+  await expect(page.getByText('1 Foto noch nicht analysiert')).toBeVisible();
   await expect(page.getByText('Neu', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Neu analysieren' }).click();
   await expect.poll(() => sent).toEqual([2, 3]);

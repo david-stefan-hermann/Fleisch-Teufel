@@ -160,9 +160,6 @@ function ProfileForm({ initial }: { initial: Settings }) {
               </Select>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Gilt für das Band bei „Gewicht eintragen“; der genaue Wert nimmt immer zwei Stellen.
-          </p>
         </div>
       </Section>
       <Button
@@ -186,7 +183,6 @@ function ProfileForm({ initial }: { initial: Settings }) {
         Speichern
       </Button>
       <p className="mt-3 text-center text-sm text-muted-foreground">
-        Profiländerungen passen deine Ziele nicht automatisch an.{' '}
         <Link to="/onboarding" className="text-primary underline">
           Ziele neu berechnen
         </Link>

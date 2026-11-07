@@ -26,7 +26,6 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -489,12 +488,9 @@ function NewPortionDialog({
   const { busy, run } = useSubmitting();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Eigene Portion</DialogTitle>
-          <DialogDescription>
-            Zum Beispiel „Meine Müslischale“ oder „1 Scheibe“. Gilt auf allen deinen Geräten.
-          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="grid gap-1.5">

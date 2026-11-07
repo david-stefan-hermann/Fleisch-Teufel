@@ -1,7 +1,8 @@
 import { KCAL_PER_G, MACRO_PRESETS, macrosForPlan, planFromPreset, round, type MacroPlan } from '@ft/shared';
 import { Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { fmt0, fmt1 } from '@/lib/format';
+import { fmt0, fmt1, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 /**
@@ -70,7 +71,7 @@ export function MacroPlanPicker({
           />
         </div>
       )}
-      {m && (
+      {m ? (
         <dl
           className="tabular grid grid-cols-3 gap-2 rounded-xl border p-3 text-center text-sm"
           aria-live="polite"
@@ -91,16 +92,19 @@ export function MacroPlanPicker({
             <dd className="text-xs text-muted-foreground">{pct(m.fatG, KCAL_PER_G.fat)} %</dd>
           </div>
         </dl>
+      ) : (
+        // Protein is set per kg body weight: without a weight there are no grams to show.
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+          <span className="tabular">
+            Eiweiß {NO_VALUE} · Kohlenh. {NO_VALUE} · Fett {NO_VALUE}
+          </span>
+          <Badge variant="outline">Gewicht fehlt</Badge>
+        </div>
       )}
       {m && weightKg && m.proteinG < Math.round(plan.proteinPerKg * weightKg) - 1 && (
         <p className="text-xs text-warn-text">
           Eiweiß ist auf 35 % der Kalorien begrenzt ({fmt0(m.proteinG)} g statt{' '}
           {fmt0(plan.proteinPerKg * weightKg)} g). Mehr ist bei diesem Kalorienziel nicht sinnvoll.
-        </p>
-      )}
-      {!weightKg && (
-        <p className="text-xs text-muted-foreground">
-          Trage dein Gewicht ein, damit Eiweiß pro kg berechnet werden kann.
         </p>
       )}
     </div>

@@ -23,11 +23,7 @@ export function CustomFoodsPage() {
         </Button>
       }
     >
-      {foods?.length === 0 && (
-        <EmptyState icon={<Salad />} title="Noch keine eigenen Lebensmittel">
-          Lege Rezepte oder Produkte an, die weder im BLS noch bei Open Food Facts zu finden sind.
-        </EmptyState>
-      )}
+      {foods?.length === 0 && <EmptyState icon={<Salad />} title="Noch keine eigenen Lebensmittel" />}
       <ul className="-mx-4 divide-y divide-border/70">
         {foods?.map((f) => (
           <li key={f.id}>

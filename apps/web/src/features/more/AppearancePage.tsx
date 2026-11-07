@@ -54,11 +54,6 @@ export function AppearancePage() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <p className="text-xs text-muted-foreground text-pretty">
-            {a.theme === 'system'
-              ? `Folgt der Einstellung des Geräts, gerade ${a.mode === 'dark' ? 'dunkel' : 'hell'}.`
-              : 'Gilt nur auf diesem Gerät.'}
-          </p>
         </div>
       </Section>
 
@@ -120,9 +115,6 @@ export function AppearancePage() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <p className="text-xs text-muted-foreground text-pretty">
-            Gilt für das Logo in der App und im Browser-Tab.
-          </p>
           <div className="grid gap-1.5 rounded-xl bg-muted p-3 text-xs text-pretty">
             <p className="font-medium text-foreground">Icon auf dem Home-Bildschirm</p>
             <p className="text-muted-foreground">

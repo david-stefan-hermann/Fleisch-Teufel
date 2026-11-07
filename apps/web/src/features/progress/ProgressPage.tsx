@@ -24,14 +24,13 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TapeMeasure, tapeDecimals } from '@/components/TapeMeasure';
+import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
@@ -120,8 +119,7 @@ export function ProgressPage() {
     >
       {weights && weights.length === 0 ? (
         <EmptyState icon={<Scale />} title="Noch kein Gewicht eingetragen">
-          <p>Wiege dich am besten morgens nach dem Aufstehen. Der Trend zählt, nicht der einzelne Wert.</p>
-          <Button className="mt-4" onClick={() => setLogOpen(true)}>
+          <Button className="mt-2" onClick={() => setLogOpen(true)}>
             Gewicht eintragen
           </Button>
         </EmptyState>
@@ -259,6 +257,7 @@ export function ProgressPage() {
         today={today}
         entry={editing}
         last={latest?.kg ?? null}
+        weights={weights}
         onDelete={editing ? () => void removeWeight(editing) : undefined}
       />
     </Page>
@@ -271,6 +270,7 @@ function WeightDialog({
   today,
   entry,
   last,
+  weights,
   onDelete,
 }: {
   open: boolean;
@@ -280,6 +280,8 @@ function WeightDialog({
   today: string;
   entry: WeightEntry | null;
   last: number | null;
+  /** All weights: a new entry replaces the one of its day, so the dialog shows that value. */
+  weights: WeightEntry[] | undefined;
 }) {
   const db = useDb();
   const [date, setDate] = useState(entry?.date ?? today);
@@ -295,6 +297,8 @@ function WeightDialog({
     setValue(entry?.kg ?? last);
   }
   const valid = value !== null && value >= 20 && value <= 400;
+  // One weight per day: a new entry overwrites the day's existing one.
+  const replaced = entry ? undefined : weights?.find((w) => w.date === date);
   // The tape starts at the last weight; "Genauer Wert" takes anything from 20 to 400 kg.
   const base = entry?.kg ?? last ?? 80;
   // Raster and visible range of the tape are personal settings (Mehr → Profil → Gewichtseingabe).
@@ -303,30 +307,22 @@ function WeightDialog({
   const range = settings?.weightRangeKg ?? DEFAULT_WEIGHT_RANGE;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{entry ? 'Gewicht ändern' : 'Gewicht eintragen'}</DialogTitle>
-          <DialogDescription>
-            Ein Wert pro Tag. Ein neuer Eintrag ersetzt den des gleichen Tages.
-          </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="tabular text-center">
             <output className="text-4xl font-bold">{value === null ? NO_VALUE : fmtFixed(value, 2)}</output>
             <span className="ml-1 text-lg text-muted-foreground">kg</span>
           </div>
-          <div className="grid gap-1.5">
-            <TapeMeasure
-              value={valid ? value : base}
-              onChange={setValue}
-              step={step}
-              visibleRange={range}
-              label="Gewicht in Kilogramm"
-            />
-            <p className="text-center text-xs text-muted-foreground">
-              Ziehen oder wischen, rastet auf {fmtFixed(step, tapeDecimals(step))} kg ein
-            </p>
-          </div>
+          <TapeMeasure
+            value={valid ? value : base}
+            onChange={setValue}
+            step={step}
+            visibleRange={range}
+            label="Gewicht in Kilogramm"
+          />
           <NumberField
             label="Genauer Wert"
             decimals={2}
@@ -341,6 +337,7 @@ function WeightDialog({
               <span className="flex items-center gap-2 text-muted-foreground">
                 <CalendarDays className="size-4" aria-hidden />
                 {fmtRelativeDay(date, today)}
+                {replaced && <span className="tabular">· bisher {fmt2(replaced.kg)} kg</span>}
               </span>
               {!entry && (
                 <Button variant="ghost" size="sm" onClick={() => setDateOpen(true)}>
@@ -358,6 +355,9 @@ function WeightDialog({
                 max={today}
                 onChange={(e) => e.target.value && setDate(e.target.value)}
               />
+              {replaced && (
+                <p className="tabular text-sm text-muted-foreground">bisher {fmt2(replaced.kg)} kg</p>
+              )}
             </div>
           )}
         </DialogBody>

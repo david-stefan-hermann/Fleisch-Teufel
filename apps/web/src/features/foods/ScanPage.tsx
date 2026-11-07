@@ -131,9 +131,6 @@ export function ScanPage() {
             <p className="flex items-center gap-2 font-medium">
               <PackageSearch className="size-5" aria-hidden /> Produkt {state.code} unbekannt
             </p>
-            <p className="text-sm text-muted-foreground">
-              Lege es einmal selbst an, danach findest du es beim nächsten Scan sofort.
-            </p>
             {ai === 'on' ? (
               <>
                 {/* The label photo fills the new food; "Selbst anlegen" is the empty editor. */}

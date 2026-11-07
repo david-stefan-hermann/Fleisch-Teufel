@@ -86,10 +86,7 @@ export function MorePage() {
       <Section>
         <div className="flex min-h-14 items-center gap-3 px-4 py-2">
           <label htmlFor="exercise-credit" className="min-w-0 flex-1">
-            <div className="font-medium">Trainingskalorien anrechnen</div>
-            <div className="text-xs text-muted-foreground">
-              Erhöht das Tagesziel um den Trainingsverbrauch
-            </div>
+            <div className="font-medium">Training aufs Ziel anrechnen</div>
           </label>
           <Switch
             id="exercise-credit"
@@ -103,12 +100,7 @@ export function MorePage() {
       </Section>
       <Section>
         <ul className="divide-y divide-border/70">
-          <Row
-            to="/settings/reminder"
-            icon={<BellRing aria-hidden />}
-            label="Erinnerung"
-            hint="Einmal am Tag, nur wenn noch nichts eingetragen ist"
-          />
+          <Row to="/settings/reminder" icon={<BellRing aria-hidden />} label="Erinnerung" />
           <Row
             to="/settings/appearance"
             icon={<Palette aria-hidden />}
