@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { goalForDate, microTarget, targetsForDate, uniformWeek } from '../src/goals.js';
 import { microStatus, QUICK_TITLE_MAX, quickEntryTitle, summarizeDay } from '../src/diary.js';
-import { dailyRows, periodStats } from '../src/reports.js';
+import { dailyRows, dayBudget, periodStats } from '../src/reports.js';
 import type { ExerciseEntry, FoodEntry, Goal } from '../src/schemas.js';
 
 const goal = (validFrom: string, kcal: number, weekend?: number): Goal => ({
@@ -117,6 +117,53 @@ describe('day summary & reports', () => {
       settings: { addExerciseCalories: false },
     });
     expect(off.remainingKcal).toBe(800);
+  });
+
+  it('credits steps apart from trainings', () => {
+    const steps: ExerciseEntry = {
+      ...exercise('2026-10-07', 250),
+      id: 's:2026-10-07',
+      typeKey: 'steps',
+      name: 'Schritte',
+      minutes: 76,
+      steps: 8432,
+      distanceM: 6100,
+    };
+    const day = (addStepsCalories: boolean | null, addExerciseCalories = true) =>
+      summarizeDay({
+        date: '2026-10-07',
+        entries,
+        exercises: [exercise('2026-10-07', 300), steps],
+        goals,
+        settings: { addExerciseCalories, addStepsCalories },
+      });
+    expect(day(null)).toMatchObject({
+      exerciseKcal: 550,
+      stepsKcal: 250,
+      creditedKcal: 550,
+      budgetKcal: 2550,
+    });
+    expect(day(false)).toMatchObject({ exerciseKcal: 550, creditedKcal: 300, budgetKcal: 2300 });
+    expect(day(true, false)).toMatchObject({ creditedKcal: 250, budgetKcal: 2250 });
+
+    const [row] = dailyRows({
+      from: '2026-10-07',
+      to: '2026-10-07',
+      entries,
+      exercises: [exercise('2026-10-07', 300), steps],
+      weights: [],
+      goals,
+    });
+    // kcal with the steps, "Trainingszeit" without them.
+    expect(row).toMatchObject({
+      exerciseKcal: 550,
+      stepsKcal: 250,
+      exerciseMinutes: 30,
+      steps: 8432,
+      distanceM: 6100,
+    });
+    expect(dayBudget(row!, true, false)).toBe(2300);
+    expect(periodStats([row!], { creditSteps: false }).daysUnderGoal).toBe(1);
   });
 
   it('aggregates periods over logged days only', () => {

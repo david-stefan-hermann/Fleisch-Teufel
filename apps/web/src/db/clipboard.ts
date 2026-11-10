@@ -16,6 +16,7 @@ import {
   get,
   groupTrainingEntries,
   isAutoTrainingKcal,
+  isStepsEntry,
   N,
   photoIdsOf,
   trainingKcal,
@@ -99,7 +100,8 @@ export const trainingClipboard = (clip: AnyClipboard | null | undefined): Traini
 
 /** Training entries as parts to log again (diary order, a package keeps its mark). */
 export function trainingParts(entries: readonly ExerciseEntry[]): TrainingPart[] {
-  return groupTrainingEntries(entries).flatMap((row) =>
+  // Steps come from Apple Health once per day: they are never copied.
+  return groupTrainingEntries(entries.filter((e) => !isStepsEntry(e))).flatMap((row) =>
     (row.kind === 'entry' ? [row.entry] : row.entries).map((e) => ({
       typeKey: e.typeKey,
       name: e.name,
@@ -137,18 +139,20 @@ export async function copyTrainingToClipboard(
  * mark a fresh `groupId`).
  */
 export function copiesOf(parts: readonly TrainingPart[], weightKg: number): TrainingToLog[] {
-  return parts.map((p) => ({
-    typeKey: p.typeKey,
-    name: p.name,
-    minutes: p.minutes,
-    intensity: p.intensity,
-    met: p.met,
-    weightKg,
-    kcal: p.auto ? trainingKcal(p.met, weightKg, p.minutes) : p.kcal,
-    note: p.note,
-    templateId: p.templateId,
-    ...(p.group && { group: p.group }),
-  }));
+  return parts
+    .filter((p) => !isStepsEntry(p))
+    .map((p) => ({
+      typeKey: p.typeKey,
+      name: p.name,
+      minutes: p.minutes,
+      intensity: p.intensity,
+      met: p.met,
+      weightKg,
+      kcal: p.auto ? trainingKcal(p.met, weightKg, p.minutes) : p.kcal,
+      note: p.note,
+      templateId: p.templateId,
+      ...(p.group && { group: p.group }),
+    }));
 }
 
 /** kcal of the parts as they would be logged with `weightKg`. */

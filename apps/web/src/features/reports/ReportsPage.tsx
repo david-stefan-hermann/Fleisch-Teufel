@@ -115,9 +115,13 @@ export function ReportsPage() {
     });
   }, [data, goals, today]);
   const credit = settings?.addExerciseCalories ?? true;
-  const stats = rows ? periodStats(rows, { creditExercise: credit }) : null;
+  const creditSteps = settings?.addStepsCalories !== false;
+  const stats = rows ? periodStats(rows, { creditExercise: credit, creditSteps }) : null;
 
-  const chart = useMemo(() => (rows ? buildChart(rows, metric, credit) : null), [rows, metric, credit]);
+  const chart = useMemo(
+    () => (rows ? buildChart(rows, metric, credit, creditSteps) : null),
+    [rows, metric, credit, creditSteps],
+  );
   // Choices live in the URL; the page keeps its scroll position (no "reload" feeling).
   const set = (patch: Partial<{ range: string; end: string; metric: string }>) =>
     void navigate({ search: (s) => ({ ...s, ...patch }), replace: true, resetScroll: false });

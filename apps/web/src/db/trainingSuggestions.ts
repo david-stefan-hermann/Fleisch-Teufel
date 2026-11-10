@@ -12,6 +12,7 @@
 import {
   addDays,
   diffDays,
+  isStepsEntry,
   trainingItemsOf,
   type ExerciseEntry,
   type ExerciseTemplate,
@@ -97,7 +98,8 @@ export async function trainingHistory(
   const entries = await db.exerciseEntries
     .where('date')
     .between(addDays(date, -SUGGESTION_DAYS), date, true, true)
-    .filter((e) => !e.deleted)
+    // The day's steps come from Apple Health: never a suggestion, no "last values", no count.
+    .filter((e) => !e.deleted && !isStepsEntry(e))
     .toArray();
   const templates = new Map(
     (await db.exerciseTemplates.filter((t) => !t.deleted).toArray()).map((t) => [t.id, t]),

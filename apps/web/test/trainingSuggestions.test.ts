@@ -2,7 +2,7 @@ import { addDays, uuidv7, type Intensity } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import { logTrainings, saveTraining, updateTraining } from '@/db/entries';
-import { deleteRecord } from '@/db/write';
+import { deleteRecord, saveRecord } from '@/db/write';
 import { trainingHistory } from '@/db/trainingSuggestions';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
@@ -81,6 +81,23 @@ describe('trainingHistory ("Zuletzt & häufig")', () => {
     const [id] = await logTrainings(d, addDays(TODAY, -1), [row('running', 30)]);
     await d.exerciseEntries.update(id!, { deleted: true });
     expect((await trainingHistory(d, TODAY)).suggestions).toEqual([]);
+  });
+
+  it('steps from Apple Health are never a suggestion', async () => {
+    const d = db();
+    await saveRecord(d, 'exerciseEntries', {
+      ...row('steps', 84),
+      id: 's:2026-10-25',
+      date: addDays(TODAY, -1),
+      name: 'Schritte',
+      loggedAt: 1,
+      groupId: null,
+      steps: 8432,
+      distanceM: null,
+    });
+    const h = await trainingHistory(d, TODAY);
+    expect(h.suggestions).toEqual([]);
+    expect(h.last.has('steps')).toBe(false);
   });
 
   it('a saved training is a suggestion of its own with its saved values, counted once per logging', async () => {

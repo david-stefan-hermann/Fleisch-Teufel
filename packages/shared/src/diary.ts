@@ -1,4 +1,5 @@
 import type { ISODate } from './dates.js';
+import { isStepsEntry } from './exercise.js';
 import { targetsForDate, type ResolvedTargets } from './goals.js';
 import { MICRO_NUTRIENTS, N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, scaleNutrients, sumNutrients } from './nutrition.js';
@@ -92,11 +93,34 @@ export interface DaySummary {
   targets: ResolvedTargets;
   food: NutrientMap;
   perMeal: NutrientMap[];
+  /** All trainings of the day, steps included. */
   exerciseKcal: number;
+  /** The part of `exerciseKcal` from the day's steps (Apple Health). */
+  stepsKcal: number;
+  /** What raises the budget: trainings and steps, each when its setting says so. */
+  creditedKcal: number;
   /** Goal + credited exercise. */
   budgetKcal: number;
   remainingKcal: number;
   entryCount: number;
+}
+
+/** Which trainings raise the day's budget: settings "Training/Schritte aufs Ziel anrechnen". */
+export interface Credit {
+  exercise: boolean;
+  steps: boolean;
+}
+
+/** Both on unless switched off (null in older records means on). */
+export function creditOf(
+  settings: Partial<Pick<Settings, 'addExerciseCalories' | 'addStepsCalories'>> | undefined,
+): Credit {
+  return { exercise: settings?.addExerciseCalories !== false, steps: settings?.addStepsCalories !== false };
+}
+
+/** The credited part of a day's training kcal (`total` includes the steps). */
+export function creditedTrainingKcal(total: number, stepsKcal: number, credit: Credit): number {
+  return (credit.exercise ? total - stepsKcal : 0) + (credit.steps ? stepsKcal : 0);
 }
 
 /**
@@ -108,7 +132,7 @@ export function summarizeDay(params: {
   entries: readonly FoodEntry[];
   exercises: readonly ExerciseEntry[];
   goals: readonly Goal[];
-  settings: Pick<Settings, 'addExerciseCalories'> | undefined;
+  settings: (Pick<Settings, 'addExerciseCalories'> & Partial<Pick<Settings, 'addStepsCalories'>>) | undefined;
   mealCount?: number;
 }): DaySummary {
   const { date } = params;
@@ -124,14 +148,20 @@ export function summarizeDay(params: {
     exercises.reduce((s, e) => s + e.kcal, 0),
     0,
   );
-  const credit = params.settings?.addExerciseCalories === false ? 0 : exerciseKcal;
-  const budgetKcal = targets.kcal + credit;
+  const stepsKcal = round(
+    exercises.filter(isStepsEntry).reduce((s, e) => s + e.kcal, 0),
+    0,
+  );
+  const creditedKcal = creditedTrainingKcal(exerciseKcal, stepsKcal, creditOf(params.settings));
+  const budgetKcal = targets.kcal + creditedKcal;
   return {
     date,
     targets,
     food,
     perMeal,
     exerciseKcal,
+    stepsKcal,
+    creditedKcal,
     budgetKcal,
     remainingKcal: round(budgetKcal - get(food, N.kcal), 0),
     entryCount: entries.length,

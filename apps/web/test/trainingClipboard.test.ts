@@ -10,6 +10,7 @@ import {
 } from '@/db/clipboard';
 import { UserDb } from '@/db/dexie';
 import { logTrainings } from '@/db/entries';
+import { saveRecord } from '@/db/write';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -42,6 +43,27 @@ describe('training clipboard (copy by swiping right, paste into the training car
     const copies = copiesOf(parts, 70);
     expect(copies[0]).toMatchObject({ weightKg: 70, kcal: trainingKcal(6, 70, 45) });
     expect(copies[1]).toMatchObject({ weightKg: 70, kcal: 520 });
+  });
+
+  it('never copies the steps of a day', async () => {
+    const d = db();
+    await logTrainings(d, '2026-11-05', [training('cycling', 45)]);
+    await saveRecord(d, 'exerciseEntries', {
+      ...training('steps', 84),
+      id: 's:2026-11-05',
+      date: '2026-11-05',
+      name: 'Schritte',
+      loggedAt: 1,
+      templateId: null,
+      groupId: null,
+      steps: 8432,
+      distanceM: null,
+    });
+    const entries = await d.exerciseEntries.where('date').equals('2026-11-05').toArray();
+    expect(entries).toHaveLength(2);
+    expect(trainingParts(entries).map((p) => p.typeKey)).toEqual(['cycling']);
+    // An older snapshot with steps in it pastes without them.
+    expect(copiesOf([{ ...trainingParts(entries)[0]!, typeKey: 'steps' }], 80)).toEqual([]);
   });
 
   it('pastes a package as a new group with its saved training', async () => {

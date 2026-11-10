@@ -51,7 +51,10 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
     return { dismissed: false as const, rows, weights };
   }, [db, monday, sunday, today]);
   if (!data || data.dismissed || !settings) return null;
-  const s = weekSummary(data.rows, data.weights, { creditExercise: settings.addExerciseCalories });
+  const s = weekSummary(data.rows, data.weights, {
+    creditExercise: settings.addExerciseCalories,
+    creditSteps: settings.addStepsCalories !== false,
+  });
   if (s.loggedDays === 0) return null;
   return (
     <Section

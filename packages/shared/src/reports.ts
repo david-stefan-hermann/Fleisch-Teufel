@@ -1,4 +1,6 @@
 import { dateRange, type ISODate } from './dates.js';
+import { creditedTrainingKcal } from './diary.js';
+import { isStepsEntry } from './exercise.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, sumNutrients } from './nutrition.js';
@@ -23,8 +25,15 @@ export interface DailyRow {
   targetProteinG: number;
   targetFatG: number;
   targetCarbsG: number;
+  /** All trainings of the day, steps included. */
   exerciseKcal: number;
+  /** The steps' part of `exerciseKcal`. */
+  stepsKcal: number;
+  /** Minutes of the trainings without the steps (walking all day is no "Trainingszeit"). */
   exerciseMinutes: number;
+  /** Steps and walking distance (m) from Apple Health, null on days without. */
+  steps: number | null;
+  distanceM: number | null;
   weightKg: number | null;
 }
 
@@ -58,6 +67,7 @@ export function dailyRows(params: {
     const es = byDate.get(date) ?? [];
     const xs = exByDate.get(date) ?? [];
     const t = targetsForDate(params.goals, date);
+    const walk = xs.find(isStepsEntry);
     return {
       date,
       logged: es.length > 0,
@@ -72,7 +82,10 @@ export function dailyRows(params: {
         xs.reduce((s, x) => s + x.kcal, 0),
         0,
       ),
-      exerciseMinutes: xs.reduce((s, x) => s + x.minutes, 0),
+      stepsKcal: walk ? round(walk.kcal, 0) : 0,
+      exerciseMinutes: xs.reduce((s, x) => s + (isStepsEntry(x) ? 0 : x.minutes), 0),
+      steps: walk?.steps ?? null,
+      distanceM: walk?.distanceM ?? null,
       weightKg: wByDate.get(date) ?? null,
     };
   });
@@ -119,17 +132,27 @@ export interface PeriodStats {
 }
 
 export interface PeriodOptions {
-  /** Whether training kcal raise the day's budget (setting "Trainingskalorien anrechnen"). */
+  /** Whether training kcal raise the day's budget (setting "Training aufs Ziel anrechnen"). */
   creditExercise?: boolean;
+  /** The same for the steps (setting "Schritte aufs Ziel anrechnen"). */
+  creditSteps?: boolean;
 }
 
-/** The kcal a day may have: its target, plus the training when that is credited. */
-export function dayBudget(r: Pick<DailyRow, 'targetKcal' | 'exerciseKcal'>, creditExercise = true): number {
-  return r.targetKcal + (creditExercise ? r.exerciseKcal : 0);
+/** The kcal a day may have: its target, plus the trainings and steps that are credited. */
+export function dayBudget(
+  r: Pick<DailyRow, 'targetKcal' | 'exerciseKcal'> & { stepsKcal?: number },
+  creditExercise = true,
+  creditSteps = true,
+): number {
+  return (
+    r.targetKcal +
+    creditedTrainingKcal(r.exerciseKcal, r.stepsKcal ?? 0, { exercise: creditExercise, steps: creditSteps })
+  );
 }
 
 export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {}): PeriodStats {
   const credit = opts.creditExercise ?? true;
+  const creditSteps = opts.creditSteps ?? true;
   const anyLogged = rows.filter((r) => r.logged);
   const complete = anyLogged.filter(isCompleteDay);
   const basis = complete.length > 0 ? 'complete' : 'logged';
@@ -162,9 +185,9 @@ export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {})
       fatG: round(logged.reduce((s, r) => s + r.targetFatG, 0) / n, 1),
       carbsG: round(logged.reduce((s, r) => s + r.targetCarbsG, 0) / n, 1),
     },
-    daysUnderGoal: logged.filter((r) => get(r.nutrients, N.kcal) <= dayBudget(r, credit)).length,
+    daysUnderGoal: logged.filter((r) => get(r.nutrients, N.kcal) <= dayBudget(r, credit, creditSteps)).length,
     daysOnTarget: logged.filter((r) => {
-      const budget = dayBudget(r, credit);
+      const budget = dayBudget(r, credit, creditSteps);
       const kcal = get(r.nutrients, N.kcal);
       return budget > 0 && kcal >= budget * 0.9 && kcal <= budget * 1.1;
     }).length,

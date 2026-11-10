@@ -4,6 +4,7 @@ import {
   estimateExpenditure,
   EXPENDITURE_WINDOW_DAYS,
   isCompleteDay,
+  SETTINGS_ID,
   type ExpenditureEstimate,
   type ISODate,
 } from '@ft/shared';
@@ -27,7 +28,7 @@ export function useExpenditure(date: ISODate): ExpenditureState | undefined {
     const from = addDays(date, -(EXPENDITURE_WINDOW_DAYS - 1));
     const inWindow = <T extends { date: string; deleted: boolean }>(list: T[]) =>
       list.filter((x) => !x.deleted && x.date >= from && x.date <= date);
-    const [entries, exercises, weights, goals, notes] = await Promise.all([
+    const [entries, exercises, weights, goals, notes, settings] = await Promise.all([
       db.foodEntries
         .where('date')
         .between(from, date, true, true)
@@ -45,10 +46,11 @@ export function useExpenditure(date: ISODate): ExpenditureState | undefined {
         .between(from, date, true, true)
         .filter((n) => !n.deleted)
         .toArray(),
+      db.settings.get(SETTINGS_ID),
     ]);
     const rows = dailyRows({ from, to: date, entries, exercises, weights, goals, notes });
     return {
-      estimate: estimateExpenditure({ rows, weights }),
+      estimate: estimateExpenditure({ rows, weights, creditSteps: settings?.addStepsCalories !== false }),
       completeDays: rows.filter(isCompleteDay).length,
       weighIns: inWindow(weights).length,
     };

@@ -4,6 +4,7 @@ import {
   formatDuration,
   groupTrainingEntries,
   INTENSITY_LABELS_DE,
+  isStepsEntry,
   shortSportName,
 } from '@ft/shared';
 import type { ExerciseEntry, ISODate } from '@ft/shared';
@@ -73,8 +74,10 @@ export function ExerciseCard({
         },
       });
     });
-  const yesterdayRows = yesterday && exercises.length === 0 ? groupTrainingEntries(yesterday).length : 0;
-  const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterday!) : [];
+  const yesterdayTrainings = yesterday?.filter((e) => !isStepsEntry(e));
+  const yesterdayRows =
+    yesterdayTrainings && exercises.length === 0 ? groupTrainingEntries(yesterdayTrainings).length : 0;
+  const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterdayTrainings!) : [];
   const yesterdayDetail = `${fmt0(yesterdayRows)} ${yesterdayRows === 1 ? 'Training' : 'Trainings'} · ${fmt0(
     trainingPartsKcal(yesterdayParts, weightKg),
   )} kcal`;

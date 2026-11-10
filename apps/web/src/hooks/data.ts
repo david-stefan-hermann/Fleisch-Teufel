@@ -1,4 +1,5 @@
 import {
+  isStepsEntry,
   SETTINGS_ID,
   summarizeDay,
   today as todayOf,
@@ -142,14 +143,14 @@ export function useLoggedDates(from: ISODate, to: ISODate): Set<string> | undefi
   }, [db, from, to]);
 }
 
-/** Days in [from, to] with at least one training (blue dot in the week strip). */
+/** Days in [from, to] with at least one training (blue dot in the week strip); steps alone are none. */
 export function useTrainedDates(from: ISODate, to: ISODate): Set<string> | undefined {
   const db = useDb();
   return useLiveQuery(async () => {
     const list = await db.exerciseEntries
       .where('date')
       .between(from, to, true, true)
-      .filter((e) => !e.deleted)
+      .filter((e) => !e.deleted && !isStepsEntry(e))
       .toArray();
     return new Set(list.map((e) => e.date));
   }, [db, from, to]);

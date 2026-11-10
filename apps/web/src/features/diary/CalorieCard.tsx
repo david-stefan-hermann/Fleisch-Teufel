@@ -86,6 +86,8 @@ export function CalorieOverview({
   const eaten = get(summary.food, N.kcal);
   const t = summary.targets;
   const over = summary.remainingKcal < 0;
+  // Steps can count while trainings do not (and the other way round): the row shows what is credited.
+  const nothingCredited = !exerciseCredited && summary.creditedKcal === 0;
   return (
     <>
       <div className="flex items-center gap-4">
@@ -94,9 +96,9 @@ export function CalorieOverview({
           <Row label="Ziel" value={fmt0(t.kcal)} />
           <Row label="Essen" value={`− ${fmt0(eaten)}`} />
           <Row
-            label={exerciseCredited ? 'Training' : 'Training (nicht angerechnet)'}
-            value={`+ ${fmt0(exerciseCredited ? summary.exerciseKcal : 0)}`}
-            muted={!exerciseCredited}
+            label={nothingCredited ? 'Training (nicht angerechnet)' : 'Training'}
+            value={`+ ${fmt0(summary.creditedKcal)}`}
+            muted={nothingCredited}
           />
           <div className="border-t border-border pt-2">
             <Row

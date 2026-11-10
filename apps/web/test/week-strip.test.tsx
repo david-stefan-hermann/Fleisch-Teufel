@@ -85,6 +85,15 @@ describe('WeekStrip', () => {
     await saveRecord(sessionDb, 'exerciseEntries', training('2026-10-07'));
     const deleted = await saveRecord(sessionDb, 'exerciseEntries', training('2026-10-08'));
     await deleteRecord(sessionDb, 'exerciseEntries', deleted.id);
+    // Steps from Apple Health are no training for the strip (almost every day would be blue).
+    await saveRecord(sessionDb, 'exerciseEntries', {
+      ...training('2026-10-08'),
+      id: 's:2026-10-08',
+      typeKey: 'steps',
+      name: 'Schritte',
+      steps: 8432,
+      distanceM: 6100,
+    });
     renderStrip('2026-10-09', '2026-10-09');
 
     const day = (name: RegExp) => screen.getByRole('link', { name });
@@ -102,7 +111,7 @@ describe('WeekStrip', () => {
     // Training only: just the blue dot, in the training color.
     expect(dots(day(/^Mittwoch/))).toEqual(['training']);
     expect(day(/^Mittwoch/).querySelector('[data-dot=training]')!.className).toContain('bg-exercise');
-    // A deleted training does not count.
+    // A deleted training does not count, nor do steps.
     expect(dots(day(/^Donnerstag/))).toEqual([]);
     expect(day(/^Donnerstag/).getAttribute('aria-label')).toBe('Donnerstag, 8. Oktober');
   });

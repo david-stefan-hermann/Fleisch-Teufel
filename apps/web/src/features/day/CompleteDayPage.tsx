@@ -39,7 +39,7 @@ export function CompleteDayPage() {
     );
 
   const eaten = get(summary.food, N.kcal);
-  const credited = settings.addExerciseCalories ? summary.exerciseKcal : 0;
+  const credited = summary.creditedKcal;
   const net = eaten - credited;
   // Maintenance from the person's own data when there is enough of it, else from the profile and
   // this day's weight. Only without a complete profile the goal minus the planned daily delta stands

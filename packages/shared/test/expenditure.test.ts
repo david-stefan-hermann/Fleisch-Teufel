@@ -15,7 +15,10 @@ const row = (date: string, kcal: number | null, over: Partial<DailyRow> = {}): D
   targetFatG: 70,
   targetCarbsG: 200,
   exerciseKcal: 0,
+  stepsKcal: 0,
   exerciseMinutes: 0,
+  steps: null,
+  distanceM: null,
   weightKg: null,
   ...over,
 });

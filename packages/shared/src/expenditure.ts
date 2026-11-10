@@ -13,7 +13,7 @@ import { diffDays, type ISODate } from './dates.js';
 import { linearTrend, type WeightPoint } from './forecast.js';
 import { N } from './nutrients.js';
 import { get, round } from './nutrition.js';
-import { isCompleteDay, type DailyRow } from './reports.js';
+import { dayBudget, isCompleteDay, type DailyRow } from './reports.js';
 import { dailyDeltaForWeeklyRate, KCAL_PER_KG_BODY_WEIGHT, MIN_KCAL, type Sex } from './tdee.js';
 
 /** Days of diary considered (the last three weeks, like MacroFactor's window). */
@@ -55,6 +55,8 @@ export function estimateExpenditure(params: {
   weights: readonly WeightPoint[];
   windowDays?: number;
   minDays?: number;
+  /** Setting "Schritte aufs Ziel anrechnen" (default on). */
+  creditSteps?: boolean;
 }): ExpenditureEstimate | null {
   const windowDays = params.windowDays ?? EXPENDITURE_WINDOW_DAYS;
   const minDays = params.minDays ?? EXPENDITURE_MIN_DAYS;
@@ -71,7 +73,10 @@ export function estimateExpenditure(params: {
   const trend = linearTrend(sorted);
   if (!trend || Math.abs(trend.slopePerDay * 7) > MAX_WEEKLY_TREND_KG) return null;
   const intakeAvg = complete.reduce((s, r) => s + get(r.nutrients, N.kcal), 0) / complete.length;
-  const exerciseAvg = complete.reduce((s, r) => s + r.exerciseKcal, 0) / complete.length;
+  // Steps that are not credited belong to the everyday movement the expenditure contains anyway.
+  const exerciseAvg =
+    complete.reduce((s, r) => s + r.exerciseKcal - (params.creditSteps === false ? r.stepsKcal : 0), 0) /
+    complete.length;
   const base = intakeAvg - exerciseAvg - trend.slopePerDay * KCAL_PER_KG_BODY_WEIGHT;
   if (!Number.isFinite(base) || base < PLAUSIBLE.min || base > PLAUSIBLE.max) return null;
   return {
@@ -121,9 +126,10 @@ export interface WeekSummary {
 export function weekSummary(
   rows: readonly DailyRow[],
   weights: readonly WeightPoint[],
-  opts: { creditExercise?: boolean } = {},
+  opts: { creditExercise?: boolean; creditSteps?: boolean } = {},
 ): WeekSummary {
   const credit = opts.creditExercise ?? true;
+  const creditSteps = opts.creditSteps ?? true;
   const from = rows[0]?.date ?? '';
   const to = rows.at(-1)?.date ?? from;
   const logged = rows.filter((r) => r.logged);
@@ -141,7 +147,7 @@ export function weekSummary(
     completeDays: complete.length,
     loggedDays: logged.length,
     avgKcal: avg((r) => get(r.nutrients, N.kcal)),
-    avgBudgetKcal: avg((r) => r.targetKcal + (credit ? r.exerciseKcal : 0)),
+    avgBudgetKcal: avg((r) => dayBudget(r, credit, creditSteps)),
     avgProteinG: avg((r) => get(r.nutrients, N.protein)),
     avgProteinTargetG: avg((r) => r.targetProteinG),
     weightDeltaKg: trend && span > 0 ? round(trend.slopePerDay * span, 2) : null,

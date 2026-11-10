@@ -45,6 +45,8 @@ export function buildChart(
   metric: Metric,
   /** Setting "Training aufs Ziel anrechnen": the target line then includes the training. */
   creditExercise = true,
+  /** Setting "Schritte aufs Ziel anrechnen": the same for the steps. */
+  creditSteps = true,
 ): { data: ChartData; series: ChartSeries[]; hasData: boolean } {
   const xs = rows.map((r) => xOf(r.date));
   const v = (fn: (r: DailyRow) => number) => rows.map((r) => (r.logged ? fn(r) : null));
@@ -66,9 +68,9 @@ export function buildChart(
         seg((x) => (x.p > 0 ? x.p : null)),
         parts.map((x) => (x && !x.has ? x.kcal : null)),
         parts.map((x) => x?.kcal ?? null),
-        rows.map((r) => dayBudget(r, creditExercise)),
+        rows.map((r) => dayBudget(r, creditExercise, creditSteps)),
       ],
-      series: creditExercise ? KCAL_SERIES_CREDIT : KCAL_SERIES_PLAIN,
+      series: creditExercise || creditSteps ? KCAL_SERIES_CREDIT : KCAL_SERIES_PLAIN,
       hasData: rows.some((r) => r.logged),
     };
   }
