@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS: Settings = {
   macroPlan: null,
   weightStepKg: null,
   weightRangeKg: null,
+  stepsMinimum: null,
+  addStepsCalories: null,
 };
 
 /**

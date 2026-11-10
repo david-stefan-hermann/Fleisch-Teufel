@@ -93,3 +93,15 @@ export function weightOn(points: readonly WeightPoint[], date: ISODate): number 
   }
   return best?.kg;
 }
+
+/**
+ * The weight to compute with on a date: the last one logged up to it, before the first weigh-in
+ * the earliest one, undefined without any.
+ */
+export function weightForDay(points: readonly WeightPoint[], date: ISODate): number | undefined {
+  const on = weightOn(points, date);
+  if (on !== undefined) return on;
+  let first: WeightPoint | undefined;
+  for (const p of points) if (!first || p.date < first.date) first = p;
+  return first?.kg;
+}

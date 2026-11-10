@@ -146,6 +146,8 @@ export async function saveExercise(
       ...data,
       templateId: data.templateId ?? null,
       groupId: null,
+      steps: null,
+      distanceM: null,
       id: uuidv7(),
       loggedAt: Date.now(),
     });
@@ -157,7 +159,7 @@ export async function saveExercise(
  */
 export type TrainingToLog = Omit<
   ExerciseEntry,
-  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId' | 'groupId'
+  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId' | 'groupId' | 'steps' | 'distanceM'
 > & {
   templateId?: string | null;
   /** Rows with the same mark share a new `groupId` (the activities of one saved training). */
@@ -189,6 +191,8 @@ export async function logTrainings(
         ...row,
         templateId: row.templateId ?? null,
         groupId,
+        steps: null,
+        distanceM: null,
         id,
         date,
         loggedAt: now + i,

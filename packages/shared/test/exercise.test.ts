@@ -5,11 +5,16 @@ import {
   EXERCISE_TYPES,
   exerciseKcal,
   formatDuration,
+  isAutoTrainingKcal,
+  isStepsEntry,
   MAX_MINUTES,
   metFor,
   netExerciseKcal,
+  STEPS_MET,
+  stepsValues,
   trainingKcal,
 } from '../src/exercise.js';
+import { weightForDay } from '../src/forecast.js';
 
 describe('exercise', () => {
   it('has ~30+ unique activities with sane MET values', () => {
@@ -56,5 +61,51 @@ describe('training durations and kcal', () => {
     expect(durationWheelValues(45)).toEqual(v);
     expect(durationWheelValues(MAX_MINUTES + 1)).toEqual(v);
     expect(durationWheelValues(500).at(-1)).toBe(500);
+  });
+});
+
+describe('steps from Apple Health', () => {
+  it('turns the distance into walking time at 4,8 km/h and kcal like a training', () => {
+    // 6,1 km at 80 m per minute: 76 minutes; (3,5 − 1) × 80 kg × 76/60 h = 253 kcal.
+    expect(stepsValues({ steps: 8432, distanceM: 6100, weightKg: 80 })).toEqual({
+      minutes: 76,
+      kcal: 253,
+      distanceM: 6100,
+    });
+    const v = stepsValues({ steps: 8432, distanceM: 6100, weightKg: 80 });
+    expect(isAutoTrainingKcal({ kcal: v.kcal, met: STEPS_MET, weightKg: 80, minutes: v.minutes })).toBe(true);
+  });
+
+  it('falls back to 100 steps a minute without a believable distance', () => {
+    expect(stepsValues({ steps: 8432, distanceM: null, weightKg: 80 })).toMatchObject({
+      minutes: 84,
+      distanceM: null,
+    });
+    // 0,05 m and 3 m per step are not a walk: the distance is dropped.
+    expect(stepsValues({ steps: 10_000, distanceM: 500, weightKg: 80 }).distanceM).toBeNull();
+    expect(stepsValues({ steps: 1000, distanceM: 3000, weightKg: 80 }).distanceM).toBeNull();
+  });
+
+  it('keeps the duration between one minute and a day', () => {
+    expect(stepsValues({ steps: 20, distanceM: 15, weightKg: 80 }).minutes).toBe(1);
+    expect(stepsValues({ steps: 200_000, distanceM: 150_000, weightKg: 80 }).minutes).toBe(MAX_MINUTES);
+  });
+
+  it('knows a steps entry by its type', () => {
+    expect(isStepsEntry({ typeKey: 'steps' })).toBe(true);
+    expect(isStepsEntry({ typeKey: 'walking' })).toBe(false);
+  });
+});
+
+describe('weightForDay', () => {
+  const points = [
+    { date: '2026-11-03', kg: 81 },
+    { date: '2026-11-01', kg: 82 },
+  ];
+  it('takes the last weight up to the day, before the first weigh-in the earliest', () => {
+    expect(weightForDay(points, '2026-11-02')).toBe(82);
+    expect(weightForDay(points, '2026-11-10')).toBe(81);
+    expect(weightForDay(points, '2026-10-01')).toBe(82);
+    expect(weightForDay([], '2026-10-01')).toBeUndefined();
   });
 });

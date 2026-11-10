@@ -4,7 +4,7 @@
  *
  * Sync rules (see docs/sync.md): every synced record has
  * - `id`: generated on the device (UUID v7) or deterministic for one-per-day records
- *   (`w:2026-10-07` for weights, `n:…` for notes, `g:…` for goals, `profile` for settings)
+ *   (`w:2026-10-07` for weights, `n:…` for notes, `g:…` for goals, `s:…` for steps, `profile` for settings)
  * - `updatedAt`: epoch ms of the last local change (last write wins)
  * - `deleted`: soft delete (tombstone), so deletions sync too.
  */
@@ -88,6 +88,10 @@ export const settingsSchema = z.object({
     .union([z.literal(0.5), z.literal(1), z.literal(2), z.literal(5)])
     .nullable()
     .default(null),
+  /** Steps from Apple Health: logged from this many steps a day (null = `DEFAULT_STEPS_MINIMUM`). */
+  stepsMinimum: z.number().int().min(0).max(100_000).nullable().default(null),
+  /** Whether steps raise the day's budget, apart from trainings (null = yes). */
+  addStepsCalories: z.boolean().nullable().default(null),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -258,6 +262,13 @@ export const exerciseEntrySchema = z.object({
    * single training and for records from older app versions.
    */
   groupId: idSchema.nullable().default(null),
+  /**
+   * Steps of the day from Apple Health (`typeKey: 'steps'`, id `s:<date>`, written by the server's
+   * import): the count and the walking distance in meters. Null for every other training and for
+   * records from older app versions.
+   */
+  steps: z.number().int().min(0).max(200_000).nullable().default(null),
+  distanceM: z.number().min(0).max(300_000).nullable().default(null),
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
 
@@ -328,11 +339,15 @@ export type AnySyncRecord = SyncRecordMap[SyncTable];
 
 export const syncTableSchema = z.enum(SYNC_TABLES as [SyncTable, ...SyncTable[]]);
 
+/** `typeKey` of the one training per day with the steps from Apple Health (id `dayId.steps`). */
+export const STEPS_TYPE_KEY = 'steps';
+
 /** Deterministic ids for one-record-per-day entities, so two offline devices converge. */
 export const dayId = {
   weight: (date: string) => `w:${date}`,
   note: (date: string) => `n:${date}`,
   goal: (validFrom: string) => `g:${validFrom}`,
+  steps: (date: string) => `s:${date}`,
 };
 
 // ---------------------------------------------------------------- sync protocol
@@ -585,6 +600,8 @@ export function requiredId(table: SyncTable, record: Record<string, unknown>): s
       return dayId.note(String(record.date));
     case 'goals':
       return dayId.goal(String(record.validFrom));
+    case 'exerciseEntries':
+      return record.typeKey === STEPS_TYPE_KEY ? dayId.steps(String(record.date)) : null;
     default:
       return null;
   }

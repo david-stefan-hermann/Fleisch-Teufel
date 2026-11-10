@@ -84,6 +84,8 @@ describe('sync', () => {
       macroPlan: { preset: 'low_carb', proteinPerKg: 1.8, fatPct: null, carbsPct: 20 },
       weightStepKg: 0.01,
       weightRangeKg: 2,
+      stepsMinimum: 2500,
+      addStepsCalories: false,
     };
     const goal = {
       id: dayId.goal('2026-10-01'),
@@ -189,6 +191,31 @@ describe('sync', () => {
           templateId: uuidv7(),
           // One activity of a saved training with several, logged together.
           groupId: uuidv7(),
+          steps: null,
+          distanceM: null,
+        },
+      },
+      // The day's steps from Apple Health: one per day with a deterministic id.
+      {
+        table: 'exerciseEntries',
+        data: {
+          id: dayId.steps('2026-10-07'),
+          updatedAt: 5,
+          deleted: false,
+          date: '2026-10-07',
+          typeKey: 'steps',
+          name: 'Schritte',
+          minutes: 76,
+          intensity: 'moderate',
+          met: 3.5,
+          weightKg: 82.4,
+          kcal: 261,
+          loggedAt: 5,
+          note: null,
+          templateId: null,
+          groupId: null,
+          steps: 8432,
+          distanceM: 6100,
         },
       },
       {
@@ -303,6 +330,8 @@ describe('sync', () => {
       note: null,
       templateId: null,
       groupId: null,
+      steps: null,
+      distanceM: null,
     });
     expect(changes.find((c) => c.data.id === oldTemplate.id)?.data).toEqual({
       ...oldTemplate,
@@ -410,11 +439,32 @@ describe('sync', () => {
         { table: 'foodEntries', data: { ...entry(), meal: 7 } },
         { table: 'weightEntries', data: { ...weight('2026-10-10', 80, 1), id: 'random-id' } },
         { table: 'settings', data: { id: 'x' } },
+        // Steps are one entry per day: any other id is refused (other trainings take any id).
+        {
+          table: 'exerciseEntries',
+          data: {
+            id: uuidv7(),
+            updatedAt: 1,
+            deleted: false,
+            date: '2026-10-10',
+            typeKey: 'steps',
+            name: 'Schritte',
+            minutes: 50,
+            intensity: 'moderate',
+            met: 3.5,
+            weightKg: 80,
+            kcal: 167,
+            loggedAt: 1,
+            steps: 5000,
+            distanceM: 4000,
+          },
+        },
       ],
     });
     expect(r.json.applied).toBe(1);
-    expect(r.json.rejected).toHaveLength(3);
+    expect(r.json.rejected).toHaveLength(4);
     expect(r.json.rejected[1].error).toMatch(/w:2026-10-10/);
+    expect(r.json.rejected[3].error).toMatch(/s:2026-10-10/);
     const bad = await alice.post('/api/sync/push', { records: [{ table: 'nope', data: {} }] });
     expect(bad.status).toBe(400);
   });

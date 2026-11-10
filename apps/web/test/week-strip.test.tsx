@@ -72,6 +72,8 @@ const training = (date: string) => ({
   note: null,
   templateId: null,
   groupId: null,
+  steps: null,
+  distanceM: null,
 });
 
 describe('WeekStrip', () => {

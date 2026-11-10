@@ -1,0 +1,2006 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Schritte aus Health</title>
+    <style>
+      /* Steps from Apple Health as a training. Tokens, phone frames and building blocks come from the
+         trainings mockup; the screens are rendered by the script at the end from sample data
+         (80 kg; steps at MET 3,5 and 4,8 km/h; Radfahren MET 6,8). */
+
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.45 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+        --ask-bg: oklch(0.97 0.035 85);
+        --ask-border: oklch(0.85 0.08 85);
+        --frame: oklch(0.25 0.005 40);
+
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --popover: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --secondary: oklch(0.955 0.008 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --destructive: oklch(0.55 0.2 27);
+        --exercise: oklch(0.5 0.12 230);
+        --copy: oklch(0.6 0.01 50);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+          --ask-bg: oklch(0.26 0.04 85);
+          --ask-border: oklch(0.42 0.07 85);
+          --frame: oklch(0.3 0.005 40);
+
+          --background: oklch(0.18 0.006 40);
+          --foreground: oklch(0.95 0.006 60);
+          --card: oklch(0.225 0.008 40);
+          --popover: oklch(0.24 0.008 40);
+          --primary: oklch(0.64 0.17 25);
+          --primary-foreground: oklch(0.15 0.01 40);
+          --secondary: oklch(0.27 0.008 40);
+          --muted: oklch(0.27 0.008 40);
+          --muted-foreground: oklch(0.7 0.012 50);
+          --accent: oklch(0.3 0.01 40);
+          --border: oklch(0.32 0.008 40);
+          --input: oklch(0.36 0.01 40);
+          --destructive: oklch(0.68 0.17 27);
+          --exercise: oklch(0.67 0.12 230);
+          --copy: oklch(0.5 0.008 50);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+        --ask-bg: oklch(0.26 0.04 85);
+        --ask-border: oklch(0.42 0.07 85);
+        --frame: oklch(0.3 0.005 40);
+
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --popover: oklch(0.24 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --secondary: oklch(0.27 0.008 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --destructive: oklch(0.68 0.17 27);
+        --exercise: oklch(0.67 0.12 230);
+        --copy: oklch(0.5 0.008 50);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding-block: 24px 64px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      .wrap > h2 {
+        font-size: 19px;
+        margin: 48px 0 6px;
+        text-wrap: balance;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 80ch;
+        text-wrap: pretty;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        max-width: 92ch;
+      }
+      .note.ask {
+        background: var(--ask-bg);
+        border-color: var(--ask-border);
+      }
+      .note ul,
+      .note ol {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 22px;
+        margin: 16px 0 24px;
+        padding: 12px 14px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+      }
+      @media (min-width: 900px) {
+        .controls {
+          position: sticky;
+          top: 8px;
+          z-index: 20;
+        }
+      }
+      .ctl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ctl > span {
+        font-weight: 600;
+      }
+      .seg {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .seg button {
+        font: inherit;
+        min-height: 32px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+        border-color: var(--page-ink);
+      }
+      button:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+        outline-offset: 2px;
+      }
+
+      /* Phones */
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px 24px;
+        justify-content: center;
+        align-items: flex-start;
+        margin-top: 16px;
+      }
+      .phones > figure {
+        margin: 0;
+        max-width: 100%;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: var(--frame);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        position: relative;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .screen:has(.dialog) {
+        min-height: 620px;
+      }
+      .kbox .top b {
+        white-space: nowrap;
+      }
+      figcaption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin: 10px auto 0;
+        max-width: 375px;
+        text-wrap: pretty;
+      }
+      figcaption b {
+        display: block;
+        color: var(--page-ink);
+        font-size: 15px;
+      }
+
+      /* App: header, cards, rows */
+      .tabular {
+        font-variant-numeric: tabular-nums;
+      }
+      .hdr {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .hdr h1 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ibtn {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+      }
+      .ibtn.off {
+        opacity: 0.35;
+      }
+      .ibtn.hl {
+        position: relative;
+      }
+      .ibtn.hl::after {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        border-radius: 12px;
+        border: 2px dashed var(--new-border);
+      }
+      svg.i {
+        display: block;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .main {
+        padding: 12px 16px 16px;
+      }
+      .date {
+        margin: 0 0 12px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .card {
+        margin-bottom: 16px;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .sec-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+      .sec-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .sec-head h2 .k {
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .sec-head .acts {
+        display: flex;
+        align-items: center;
+        margin-right: -8px;
+      }
+      .rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .rows > li + li {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .row {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+      }
+      .row.part {
+        padding-left: 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .row .txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .row .name {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .row .name > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub.exp {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        cursor: pointer;
+      }
+      .kc {
+        flex: none;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .kc.ex {
+        color: var(--exercise);
+      }
+      .mf {
+        color: var(--muted-foreground);
+      }
+      .badge {
+        flex: none;
+        padding: 0 6px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 18px;
+        background: var(--secondary);
+        color: var(--muted-foreground);
+      }
+      .dashed {
+        margin: 0 16px 16px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+
+      /* Package block under "Ausgewählt" */
+      .blk-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 4px 8px 0 16px;
+        font-weight: 600;
+      }
+      .blk-head .n {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .blk-head .n > span:not(.badge) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .blk-head .kc {
+        font-weight: 600;
+      }
+      .fields {
+        display: grid;
+        gap: 14px;
+        padding: 4px 16px 16px 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .fields.flat {
+        padding-left: 16px;
+        background: none;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      .tg {
+        display: flex;
+        border: 1px solid var(--input);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .tg span {
+        flex: 1;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .tg span + span {
+        border-left: 1px solid var(--input);
+      }
+      .tg span.on {
+        background: var(--accent);
+      }
+      .inp {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        font-size: 16px;
+        background: var(--background);
+      }
+      .inp .u {
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .inp.ph {
+        color: var(--muted-foreground);
+      }
+      .inp.own {
+        border-color: var(--exercise);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--exercise) 22%, transparent);
+      }
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .btn {
+        height: 40px;
+        border-radius: 10px;
+        border: 0;
+        padding: 0 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .btn.sm {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+      .btn.sec {
+        background: var(--secondary);
+        color: var(--foreground);
+      }
+      .btn.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.out {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--input);
+      }
+      .btn.lg {
+        height: 48px;
+        width: 100%;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .btn.lg {
+        white-space: nowrap;
+      }
+      .btn.lg .k {
+        font-weight: 400;
+        opacity: 0.8;
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .kbox {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+      }
+      .fields .kbox {
+        background: var(--card);
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .kbox .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .kbox .inp {
+        width: 132px;
+        height: 40px;
+        font-weight: 700;
+        color: var(--exercise);
+      }
+      .kbox p {
+        margin: 6px 0 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .tlink {
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+
+      /* Chips "Zuletzt & häufig" */
+      .cap {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        overflow: hidden;
+        margin: 0 -16px;
+        padding: 0 16px 2px;
+      }
+      .chip {
+        flex: none;
+        max-width: 190px;
+        height: 44px;
+        display: grid;
+        align-content: center;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--background);
+      }
+      .chip.on {
+        border-color: color-mix(in oklch, var(--exercise) 60%, transparent);
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+      }
+      .chip .t {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .chip .d {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .search {
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .search .inp {
+        justify-content: flex-start;
+        padding-left: 36px;
+        background: var(--card);
+      }
+      .search svg {
+        position: absolute;
+        left: 12px;
+        top: 14px;
+        color: var(--muted-foreground);
+      }
+      .pick {
+        list-style: none;
+        margin: 0 16px 16px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .pick li {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        font-size: 14px;
+      }
+      .pick li.on {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .pick li .m {
+        font-size: 12px;
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+      .footer {
+        padding: 12px 16px 16px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 92%, transparent);
+      }
+      .hint {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .switch {
+        flex: none;
+        width: 44px;
+        height: 26px;
+        border-radius: 99px;
+        background: var(--input);
+        position: relative;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 99px;
+        background: var(--background);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+      }
+      .switch.on {
+        background: var(--primary);
+      }
+      .switch.on::after {
+        left: 21px;
+      }
+
+      /* Dialog, toast, swipe */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: rgb(0 0 0 / 0.5);
+      }
+      .dialog {
+        position: absolute;
+        z-index: 6;
+        top: 72px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        box-shadow: 0 10px 25px rgb(0 0 0 / 0.2);
+      }
+      .dialog h3 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.2;
+        font-weight: 600;
+        text-align: center;
+      }
+      .dialog .desc {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+        text-align: center;
+        text-wrap: pretty;
+      }
+      .radio {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 44px;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+      }
+      .radio .dot {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 99px;
+        border: 1px solid var(--input);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .radio[aria-checked='true'] .dot {
+        border-color: var(--primary);
+      }
+      .radio[aria-checked='true'] .dot::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .dfoot {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .dfoot .btn {
+        width: 100%;
+      }
+      .toast {
+        margin: 0 16px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .toast b {
+        flex: none;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: var(--foreground);
+        color: var(--background);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .swipe {
+        display: flex;
+      }
+      .swipe .copy {
+        flex: none;
+        width: 72px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: var(--copy);
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .swipe .row {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* ---- new in this mockup: tabs, list sections, wheel, chip rows, info lines ---- */
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        padding: 3px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        background: var(--muted);
+      }
+      .tabs span {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .tabs span.on {
+        background: var(--background);
+        color: var(--foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+      }
+      .lcap {
+        margin: 0;
+        padding: 10px 16px 4px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      .row .meta {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .row .tail {
+        flex: none;
+        display: grid;
+        justify-items: end;
+        gap: 2px;
+      }
+      mark {
+        background: color-mix(in oklch, var(--primary) 18%, transparent);
+        color: inherit;
+        border-radius: 3px;
+      }
+      .wheel {
+        position: relative;
+        width: 124px;
+        height: 132px;
+        border-radius: 10px;
+        overflow: hidden;
+        mask-image: linear-gradient(transparent, black 30%, black 70%, transparent);
+      }
+      .wheel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--accent);
+      }
+      .wheel div {
+        position: relative;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .wheel div.on {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      .amount {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+      .amount .wheel {
+        width: 100%;
+      }
+      .amount.one {
+        grid-template-columns: 1fr;
+      }
+      .amount.one .wheel {
+        mask-image: linear-gradient(transparent, black 25%, black 75%, transparent);
+      }
+      .amount.one .wheel div {
+        font-size: 18px;
+      }
+      .lblrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .lblrow .lbl {
+        margin: 0;
+      }
+      .lblrow .btn.sm {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+        gap: 4px;
+      }
+      .lblrow .btn.sm[aria-pressed='true'] {
+        background: var(--foreground);
+        color: var(--background);
+      }
+      .exact {
+        display: grid;
+        gap: 6px;
+      }
+      .exact .inp {
+        font-weight: 600;
+      }
+      .exact p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .amount .inp {
+        font-weight: 600;
+      }
+      .amount .eq {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info .badge {
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+      }
+      .chipgrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chipgrid .chip {
+        max-width: 100%;
+      }
+      .saved {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        height: 24px;
+        border-radius: 99px;
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .daynote {
+        margin: -4px 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .tabbar {
+        height: 64px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        align-items: center;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        font-size: 10px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .tabbar span {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+      }
+      .tabbar span.on {
+        color: var(--primary);
+      }
+      .tabbar .fab {
+        width: 48px;
+        height: 48px;
+        border-radius: 99px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+      }
+      .sheet {
+        position: absolute;
+        z-index: 6;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 16px 24px;
+        border-radius: 20px 20px 0 0;
+        background: var(--background);
+        box-shadow: 0 -10px 30px rgb(0 0 0 / 0.2);
+      }
+      .sheet .tiles {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1fr;
+        gap: 10px;
+      }
+      .sheet .tile {
+        height: 84px;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 6px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+      }
+      .sheet .tile.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+      }
+      .sheet .tile.hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: 2px;
+      }
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        align-items: center;
+        margin: 0 0 16px;
+        font-size: 14px;
+      }
+      .flow span {
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+      }
+      .flow i {
+        font-style: normal;
+        color: var(--page-muted);
+      }
+      .diff {
+        width: 100%;
+        max-width: 92ch;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 8px 0 16px;
+      }
+      .diff th,
+      .diff td {
+        text-align: left;
+        vertical-align: top;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--note-border);
+      }
+      .diff th {
+        font-weight: 600;
+        color: var(--page-muted);
+        font-size: 13px;
+      }
+
+      /* ---- new in this mockup: steps row, refresh, settings, week strip, share image ---- */
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spin svg {
+        animation: spin 1s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin svg {
+          animation-duration: 3s;
+        }
+      }
+      .ibtn.sm {
+        width: 36px;
+        height: 36px;
+        color: var(--muted-foreground);
+      }
+      :root {
+        --steps: oklch(0.52 0.13 155);
+      }
+      :root[data-theme='dark'] {
+        --steps: oklch(0.74 0.13 155);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --steps: oklch(0.74 0.13 155);
+        }
+      }
+      .kc.st {
+        color: var(--steps);
+      }
+      .row .lead-ic {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 99px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: color-mix(in oklch, var(--steps) 14%, transparent);
+        color: var(--steps);
+      }
+      .row .name .own-mark {
+        flex: none;
+      }
+      .swipe .del {
+        flex: none;
+        width: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: var(--destructive);
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .swipe .row.shift {
+        margin-left: -80px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .hero > div {
+        background: var(--card);
+        padding: 14px 16px;
+      }
+      .hero .v {
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+      }
+      .hero .l {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .kv {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 48px;
+        padding: 6px 16px;
+        font-size: 14px;
+      }
+      .kv + .kv {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .kv .r {
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pad {
+        padding: 4px 16px 16px;
+        display: grid;
+        gap: 8px;
+      }
+      .btn.dz {
+        background: var(--background);
+        color: var(--destructive);
+        border: 1px solid var(--input);
+      }
+      .btn.full {
+        width: 100%;
+      }
+      .secret {
+        display: grid;
+        gap: 6px;
+      }
+      .secret .lbl {
+        margin: 0;
+      }
+      .mono {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 8px 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        background: var(--background);
+        font:
+          13px/1.35 ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        word-break: break-all;
+      }
+      .mono span {
+        flex: 1;
+        min-width: 0;
+      }
+      .steps-ol {
+        margin: 0;
+        padding: 0 16px 16px 36px;
+        font-size: 14px;
+      }
+      .steps-ol li + li {
+        margin-top: 8px;
+      }
+      .steps-ol .sub {
+        display: block;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      code.k {
+        font:
+          12px ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: var(--muted);
+      }
+      .morerow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .morerow .txt {
+        flex: 1;
+        min-width: 0;
+      }
+      .morerow .h {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .morerow.hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: -4px;
+        border-radius: 12px;
+      }
+      .week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        padding: 8px 8px 10px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .week > div {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+        padding: 4px 0;
+        border-radius: 10px;
+        font-size: 11px;
+        color: var(--muted-foreground);
+      }
+      .week > div b {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .week > div.on {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .week > div.on b {
+        color: var(--primary-foreground);
+      }
+      .dots {
+        height: 6px;
+        display: flex;
+        gap: 3px;
+      }
+      .dots i {
+        width: 6px;
+        height: 6px;
+        border-radius: 99px;
+      }
+      .dots i.f {
+        background: var(--primary);
+      }
+      .dots i.t {
+        background: var(--exercise);
+      }
+      .week > div.on .dots i {
+        background: var(--primary-foreground);
+      }
+      .chip.get {
+        border-style: dashed;
+      }
+      .shareimg {
+        padding: 16px;
+        background: var(--background);
+      }
+      .shareimg .sh-date {
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      .shareimg .sh-foot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        margin: 0;
+        background: color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .stats > div {
+        background: var(--card);
+        padding: 10px 16px;
+      }
+      .stats dt {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .stats dd {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .stats dd small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .stats .hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: -4px;
+      }
+      .vs {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--new-bg);
+        border: 1px solid var(--new-border);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Schritte aus Apple Health: Mockup v3</h1>
+      <p class="lead">
+        Ein iOS-Kurzbefehl liest Schritte und Geh-/Laufstrecke aus Health und schickt sie mit einem
+        persönlichen Zugang an den Server. Daraus wird <b>ein Trainingseintrag pro Tag</b> („Schritte“), den
+        jedes Gerät über den normalen Sync bekommt. kcal rechnet die App wie bei „Gehen“ (MET 3,5, 4,8 km/h,
+        netto). Beispiel: 80 kg, heute 8.432 Schritte und 6,1 km (76 Min., 253 kcal), gestern 11.204 Schritte
+        und 8,3 km (104 Min., 347 kcal), Grenze 1.000 Schritte. Plan:
+        <code>docs/plans/2026-11-schritte-apple-health.md</code>.
+      </p>
+
+      <div class="controls">
+        <div class="ctl">
+          <span>Farbschema</span>
+          <div class="seg" id="theme">
+            <button data-v="system" aria-pressed="true">System</button>
+            <button data-v="light" aria-pressed="false">Hell</button>
+            <button data-v="dark" aria-pressed="false">Dunkel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Die Wege</b>
+        <div class="flow" style="margin-top: 8px">
+          <span>Mehr → Schritte: „Zugang erstellen“</span><i>→</i><span>Zugang und Adresse kopieren</span
+          ><i>→</i><span>Kurzbefehl einmal bauen, Automation „Tageszeit“</span>
+        </div>
+        <div class="flow">
+          <span>Kurzbefehl läuft (Automation oder ↻)</span><i>→</i
+          ><span>Server schreibt <code>s:&lt;Tag&gt;</code> für die letzten 7 Tage</span><i>→</i
+          ><span>Sync, Zeile „Schritte“ in der Trainingskarte</span>
+        </div>
+        <div class="flow" style="margin-bottom: 0">
+          <span>Tipp auf die Zeile</span><i>→</i><span>Schritte-Seite: Daten, kcal, ↻, Löschen</span>
+        </div>
+      </div>
+
+      <div class="note" style="background: var(--new-bg); border-color: var(--new-border)">
+        <b>Neu gegenüber v2</b>
+        <ul>
+          <li>Grün für Schritte ist entschieden, der Schalter oben ist weg.</li>
+          <li>
+            <b>Kein iCloud-Link, sondern eine Anleitung</b> auf Mehr → Schritte (C1 bis C3): Zugang und
+            Adresse zum Kopieren, darunter die Aktionen des Kurzbefehls und die Automation als nummerierte
+            Liste (vom System erzwungene Schritte). Der Knopf „Kurzbefehl hinzufügen“ ist raus.
+          </li>
+          <li>
+            Apple Watch (manchmal getragen): Der Kurzbefehl gruppiert nach Tag. iOS sollte die Tagessumme dann
+            wie die Health-App rechnen, Uhr und iPhone zählen nicht doppelt. Prüfen kannst du das an einem Tag
+            mit Uhr (Liste „Nur am iPhone prüfbar“ im Plan).
+          </li>
+        </ul>
+      </div>
+      <div class="note" style="background: var(--new-bg); border-color: var(--new-border)">
+        <b>Neu gegenüber v1</b>
+        <ul>
+          <li>
+            <b>Schritte in Grün</b>: Fuß-Symbol und kcal der Schritte-Zeile in einem eigenen Grün
+            <code>--steps</code>, Trainings bleiben blau. Der Wochenstreifen ist davon nicht betroffen (E1).
+          </li>
+          <li>
+            <b>Mehr: „Schritte aufs Ziel anrechnen“</b> als eigener Schalter unter „Training aufs Ziel
+            anrechnen“ (C0). Ist er aus, trägt die Schritte-Zeile „nicht angerechnet“ (A4).
+          </li>
+          <li>
+            <b>Probe ausgewertet</b>: Health liefert ungruppiert viele Messungen je Tag, das Datum als
+            „03/11/2026, 02:41“ (ohne Zeitzone). Der Kurzbefehl gruppiert deshalb nach Tag und formatiert das
+            Datum fest als <code>yyyy-MM-dd</code>; die Strecke kommt in km.
+          </li>
+          <li>E1 und F1 entschieden, E2 und F2 sind raus.</li>
+        </ul>
+      </div>
+
+      <div class="note">
+        <b>Entschieden (mit dir, 10. November)</b>
+        <ul>
+          <li>Ein iOS-Kurzbefehl mit persönlichem Zugang, keine native App, kein Health-Export.</li>
+          <li>Der Abruf darf beliebig oft laufen: ein Eintrag je Tag, nichts doppelt.</li>
+          <li>
+            Schritte sind ein Training: kcal zählen wie jedes Training. Ob sie aufs Ziel angerechnet werden,
+            entscheidet ein eigener Schalter „Schritte aufs Ziel anrechnen“ (neu in v2).
+          </li>
+          <li>Strecke in km aus Health („Geh- und Laufstrecke“), angezeigt als „6,1 km“.</li>
+          <li>Schritte in Grün (<code>--steps</code>). „Schritte aufs Ziel anrechnen“ ist anfangs an.</li>
+          <li>
+            Den Kurzbefehl baut jeder selbst nach der Anleitung auf Mehr → Schritte (kein iCloud-Link). Er
+            gruppiert nach Tag (damit die Apple Watch nicht doppelt zählt) und schickt das Datum als
+            <code>yyyy-MM-dd</code>.
+          </li>
+          <li>
+            Wochenstreifen: kein blauer Punkt für Tage nur mit Schritten (E1). ↻ nur an der Zeile und auf der
+            Seite (F1).
+          </li>
+          <li>
+            kcal rechnet die App aus der Strecke (Health hat keine kcal für Schritte, die „Aktivitätsenergie“
+            würde Trainings doppelt zählen). Getippte kcal bleiben stehen.
+          </li>
+          <li>
+            Ein Eintrag entsteht erst ab einer Grenze, die du unter Mehr → Schritte wählst (Start: 1.000).
+          </li>
+          <li>↻ an der Zeile und auf der Seite stößt den Abruf selbst an.</li>
+        </ul>
+      </div>
+
+      <div class="note ask">
+        <b>Gilt so, wenn du nichts sagst</b>
+        <ol>
+          <li>
+            <b>Gelöscht bleibt gelöscht</b>, auch beim nächsten Abruf; zurück über den Papierkorb (D), danach
+            aktualisiert der nächste Abruf den Eintrag wieder.
+          </li>
+          <li>
+            <b>Schritte bleiben draußen</b> aus „Zuletzt &amp; häufig“, „Kürzlich“, „Wie gestern“ und der
+            Zwischenablage (kein Wischen nach rechts).
+          </li>
+          <li>
+            <b>Getippte kcal</b> sind im Tagebuch nicht markiert (wie bei Trainings), nur auf der
+            Schritte-Seite (B2).
+          </li>
+          <li>
+            <b>Berichte</b>: kcal der Schritte zählen bei „Training“ mit, die Minuten nicht (G2), sonst
+            stünden dort jeden Tag 1 bis 2 Stunden „Training“.
+          </li>
+        </ol>
+      </div>
+
+      <h2>A. Tagebuch: die Schritte-Zeile in der Trainingskarte</h2>
+      <p class="lead">
+        Die Schritte stehen immer zuerst. Titel „8.432 Schritte“, darunter die Strecke, ↻ vor den kcal (die
+        kcal-Spalte bleibt bündig mit den Trainings). Ein Tipp auf die Zeile öffnet die Schritte-Seite B.
+        Wischen nach links löscht mit Rückgängig, nach rechts passiert nichts. Leerer Zustand und Chips
+        richten sich nach den Trainings ohne Schritte. ↻ nur auf dem iPhone und nur mit eingerichtetem Zugang.
+      </p>
+      <div class="phones" id="A"></div>
+
+      <h2>B. Schritte-Seite <code>/steps/$date</code></h2>
+      <p class="lead">
+        Schritte und Strecke sind Daten aus Health, keine Felder. Änderbar sind nur die kcal (wie
+        <code>TrainingKcal</code>: eigener Wert markiert, Link zurück zum berechneten). Keine Dauer, keine
+        Intensität, kein Speichern-Symbol. Kopf: Papierkorb. „Zuletzt empfangen“ mit ↻.
+      </p>
+      <div class="phones" id="B"></div>
+
+      <h2>C. Mehr → Schritte <code>/settings/steps</code></h2>
+      <p class="lead">
+        Die Zeile sitzt bei „Erinnerung“, der neue Schalter „Schritte aufs Ziel anrechnen“ unter dem für
+        Trainings. Drei Zustände der Seite: nicht eingerichtet, Zugang gerade erstellt, eingerichtet. Die
+        Anleitung (Kurzbefehl und Automation) steht als nummerierte Liste da, wie die Schritte der
+        iOS-Installation; eingerichtet ist sie zugeklappt. Auf Geräten ohne iOS fehlt „Jetzt abrufen“.
+      </p>
+      <div class="phones" id="C"></div>
+
+      <h2>D. Papierkorb</h2>
+      <p class="lead">
+        Eigener Abschnitt „Schritte“ wie „Gewicht“. „Wiederherstellen“ holt den Eintrag mit seinen letzten
+        Werten zurück; der nächste Abruf aktualisiert ihn wieder.
+      </p>
+      <div class="phones" id="D"></div>
+
+      <h2>E, F. Wochenstreifen und ↻ <span class="vs">entschieden</span></h2>
+      <p class="lead">
+        E1: Tage nur mit Schritten bekommen keinen blauen Punkt. F1: ↻ gibt es nur an der Zeile und auf der
+        Seite, an Tagen ohne Zeile ruft die Automation oder Mehr → Schritte ab.
+      </p>
+      <div class="phones" id="E"></div>
+
+      <h2>G. Tagesbild und Berichte</h2>
+      <p class="lead">
+        Das geteilte Tagesbild zeigt die Schritte-Zeile ohne ↻. In den Berichten zählen die kcal der Schritte
+        bei „Training“ mit, die Minuten nicht. Die CSV bekommt am Ende „Schritte“ und „Distanz (m)“.
+      </p>
+      <div class="phones" id="G"></div>
+
+      <h2>Kurzbefehl</h2>
+      <div class="note">
+        <b>Ergebnis der Probe (10. November)</b>
+        <ul>
+          <li>
+            Ungruppiert liefert Health viele Messungen je Tag, Datum im Format des iPhones („03/11/2026,
+            02:41“, ohne Zeitzone, je nach Region anders). Deshalb: <b>Gruppieren nach Tag</b> und
+            Datumsformat <code>yyyy-MM-dd</code>. Der Server versteht zur Sicherheit auch „03/11/2026, 02:41“
+            und „03.11.2026, 02:41“ (Tag, Monat, Jahr).
+          </li>
+          <li>
+            Mit der Gruppierung sollte iOS die Tagessumme wie die Health-App rechnen: Schritte, die iPhone und
+            Uhr gleichzeitig zählen, kommen nur einmal. Das lässt sich nur am iPhone prüfen und steht deshalb
+            in der Liste „Nur am iPhone prüfbar“.
+          </li>
+        </ul>
+      </div>
+
+      <h2>Bekannte Grenzen</h2>
+      <ul class="lead" style="padding-left: 20px">
+        <li>
+          Das Aktivitätslevel im Profil enthält Alltagsbewegung. Wer Schritte anrechnet, stellt es auf
+          „sitzend“, sonst zählt Gehen doppelt. Die App ändert das nicht selbst.
+        </li>
+        <li>Die Schritte eines getrennt eingetragenen Laufs stecken auch in der Tagessumme von Health.</li>
+        <li>
+          Health ist bei gesperrtem iPhone nicht lesbar: die Automation braucht eine Zeit, zu der es entsperrt
+          ist.
+        </li>
+        <li>Nach ↻ springt iOS nicht von selbst in die App zurück (oben links „◀ Fleisch-Teufel“ tippen).</li>
+      </ul>
+    </div>
+
+    <script>
+      // ---------- helpers ----------
+      const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+      const nf1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const fmt0 = (n) => nf0.format(Math.round(n));
+      const WEIGHT = 80;
+      const kcalOf = (met, min) => Math.round((met - 1) * WEIGHT * (min / 60));
+      /** Steps rule of the plan: distance at 4,8 km/h (80 m per minute), else 100 steps per minute. */
+      const stepsMin = (steps, m) => (m ? Math.round(m / 80) : Math.round(steps / 100));
+      const ICONS = {
+        chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+        chevronRight: '<path d="m9 18 6-6-6-6"/>',
+        chevronDown: '<path d="m6 9 6 6 6-6"/>',
+        chevronUp: '<path d="m18 15-6-6-6 6"/>',
+        download:
+          '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+        plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+        bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+        trash:
+          '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+        dumbbell:
+          '<path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/>',
+        refresh: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+        foot: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
+        copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+        bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/>',
+        palette:
+          '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+        undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+        chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+        menu: '<path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/>',
+        scale:
+          '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>',
+        share:
+          '<path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
+        cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+      };
+      const ic = (name, size = 20, style = '') =>
+        `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" style="${style}" aria-hidden="true">${ICONS[name]}</svg>`;
+      const MF = 'color:var(--muted-foreground)';
+      const PRI = 'color:var(--primary)';
+      const LINE = 'border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)';
+
+      // ---------- sample data ----------
+      const TODAY = { steps: 8432, m: 6100 };
+      const YESTERDAY = { steps: 11204, m: 8340 };
+      const RAD = { name: 'Radfahren', met: 6.8, min: 45, int: 'Mittel', note: 'zur Arbeit' };
+      const kcalSteps = (d) => kcalOf(3.5, stepsMin(d.steps, d.m));
+      const km = (m) => `${nf1.format(m / 1000)} km`;
+
+      // ---------- pieces ----------
+      const phone = (title, caption, body) =>
+        `<figure><div class="phone"><div class="screen">${body}</div></div><figcaption><b>${title}</b>${caption}</figcaption></figure>`;
+      const header = (title, acts = '', back = true) =>
+        `<div class="hdr">${back ? `<span class="ibtn">${ic('chevronLeft', 24)}</span>` : '<span style="width:8px"></span>'}<h1>${title}</h1>${acts}</div>`;
+      const card = (title, inner, { k = '', acts = '', badge = '', hl = false } = {}) =>
+        `<section class="card"${hl ? ' style="outline:2px dashed var(--new-border);outline-offset:2px"' : ''}>${title ? `<div class="sec-head"><h2><span>${title}</span>${k ? `<span class="k tabular">${k}</span>` : ''}${badge}</h2>${acts ? `<div class="acts">${acts}</div>` : ''}</div>` : ''}${inner}</section>`;
+      const plusBtn = `<span class="ibtn">${ic('plus', 20, PRI)}</span>`;
+      const notCredited = `<span class="badge" style="align-self:center">nicht angerechnet</span>`;
+      const chip = (title, detail, { icon = '', cls = '' } = {}) =>
+        `<span class="chip ${cls}"><span class="t">${icon ? ic(icon, 14, MF) : ''}${title}</span><span class="d">${detail}</span></span>`;
+      const chipsBlock = (inner, top = true) =>
+        `<div style="padding:${top ? '12px' : '0'} 16px 14px;${top ? LINE : ''}"><p class="cap">Zuletzt &amp; häufig</p><div class="chips">${inner}</div></div>`;
+      const usualChips =
+        chip('Bahntraining', 'Laufen · 40 Min.', { icon: 'pin' }) +
+        chip('Radfahren', '45 Min. · Mittel') +
+        chip('Gym-Besuch', 'Krafttraining · Dehnen · 75 Min.', { icon: 'bookmark' });
+      const tabbar = () =>
+        `<div class="tabbar"><span class="on">${ic('book', 22)}Tagebuch</span><span>${ic('chart', 22)}Fortschritt</span><span><span class="fab">${ic('plus', 24)}</span></span><span>${ic('scale', 22)}Gewicht</span><span>${ic('menu', 22)}Mehr</span></div>`;
+      const refreshBtn = (spinning = false) =>
+        `<span class="ibtn sm ${spinning ? 'spin' : ''}" role="button" aria-label="Schritte abrufen">${ic('refresh', 18)}</span>`;
+      /** The steps row: icon, "8.432 Schritte", distance, [↻], kcal (aligned with the trainings). */
+      const stepsRow = (d, { spinning = false, own = null, refresh = true, cls = '', off = false } = {}) =>
+        `<div class="row ${cls}"><span class="lead-ic">${ic('foot', 16)}</span><div class="txt"><div class="name"><span class="tabular">${fmt0(d.steps)} Schritte</span></div><div class="sub tabular" style="display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;white-space:normal;overflow:visible">${d.m ? km(d.m) : 'ohne Strecke'}${off ? '<span class="badge">nicht angerechnet</span>' : ''}</div></div>${refresh ? refreshBtn(spinning) : ''}<span class="kc st">+${fmt0(own ?? kcalSteps(d))}</span></div>`;
+      const plainEntryRow = (s) =>
+        `<div class="row"><div class="txt"><div class="name"><span>${s.name}</span></div><div class="sub">${s.min} Min. · ${s.int}${s.note ? ' · ' + s.note : ''}</div></div><span class="kc ex">+${fmt0(kcalOf(s.met, s.min))}</span></div>`;
+      const dashed = `<div class="dashed" style="margin-top:4px">${ic('dumbbell', 16)} Training eintragen</div>`;
+      const toast = (text, action = 'Rückgängig') =>
+        `<div class="toast"><span>${text}</span>${action ? `<b>${action}</b>` : ''}</div>`;
+      const dateLine = (t) => `<div class="date">${t}</div>`;
+
+      // ---------- A: diary ----------
+      function renderA() {
+        const sKcal = kcalSteps(TODAY);
+        const radKcal = kcalOf(RAD.met, RAD.min);
+        document.getElementById('A').innerHTML =
+          phone(
+            'A1 Schritte und ein Training',
+            'Die Schritte stehen zuerst, die Summe im Kopf zählt sie mit. Die Chips darunter sind dieselben wie heute: Schritte tauchen dort nie auf.',
+            `<div class="main">${dateLine('Dienstag, 10. November')}${card(
+              'Training',
+              `<ul class="rows"><li style="outline:2px dashed var(--new-border);outline-offset:-3px;border-radius:4px">${stepsRow(TODAY)}</li><li>${plainEntryRow(RAD)}</li></ul>${chipsBlock(usualChips)}`,
+              { k: `${fmt0(sKcal + radKcal)} kcal`, acts: plusBtn },
+            )}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A2 Nur Schritte',
+            'Für den Rest zählt die Karte als leer: gestrichelter Hinweis und „Wie gestern“ bleiben (gestern: Radfahren). „Wie gestern“ kopiert nie Schritte.',
+            `<div class="main">${dateLine('Dienstag, 10. November')}${card(
+              'Training',
+              `<ul class="rows"><li>${stepsRow(TODAY)}</li></ul><div style="${LINE};padding-top:12px">${dashed}</div>${chipsBlock(chip('Wie gestern', '1 Training · 348 kcal') + usualChips, false)}`,
+              { k: `${fmt0(sKcal)} kcal`, acts: plusBtn },
+            )}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A3 ↻ läuft',
+            'Tipp auf ↻ öffnet den Kurzbefehl, iOS wechselt kurz in die Kurzbefehle-App. Zurück in der App dreht ↻, bis der Server den Abruf bekommen hat (höchstens 30 s), dann synchronisiert die App einmal.',
+            `<div class="main">${dateLine('Dienstag, 10. November')}${card(
+              'Training',
+              `<ul class="rows"><li>${stepsRow({ steps: 6120, m: 4420 }, { spinning: true })}</li><li>${plainEntryRow(RAD)}</li></ul>${chipsBlock(usualChips)}`,
+              { k: `${fmt0(kcalSteps({ steps: 6120, m: 4420 }) + radKcal)} kcal`, acts: plusBtn },
+            )}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A4 Getippte kcal, Schritte nicht angerechnet',
+            'Getippte kcal (hier 290 von der Uhr) stehen wie bei Trainings ohne Marke in der Zeile; die Seite B zeigt sie markiert. „Schritte aufs Ziel anrechnen“ ist aus: die Marke sitzt an der Zeile, nicht am Kopf (Trainings zählen weiter). Ist „Training aufs Ziel anrechnen“ aus, steht die Marke wie heute am Kopf.',
+            `<div class="main">${dateLine('Dienstag, 10. November')}${card(
+              'Training',
+              `<ul class="rows"><li>${stepsRow(TODAY, { own: 290, off: true })}</li><li>${plainEntryRow(RAD)}</li></ul>${chipsBlock(usualChips)}`,
+              { k: `${fmt0(290 + kcalOf(RAD.met, RAD.min))} kcal`, acts: plusBtn },
+            )}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A5 Unter der Grenze',
+            'Heute früh, 640 Schritte bei einer Grenze von 1.000: keine Zeile, die Karte sieht aus wie heute. Sobald ein Abruf 1.000 übersteigt, erscheint die Zeile; danach wird sie immer aktualisiert, auch wenn der Wert sinkt.',
+            `<div class="main">${dateLine('Dienstag, 10. November')}${card(
+              'Training',
+              `${dashed}${chipsBlock(chip('Wie gestern', '1 Training · 348 kcal') + usualChips, false)}`,
+              { acts: plusBtn },
+            )}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A6 Wischen nach links',
+            'Löscht mit Rückgängig. Gelöscht bleibt gelöscht, auch beim nächsten Abruf; zurück über den Papierkorb (D). Wischen nach rechts tut nichts (keine Zwischenablage).',
+            `<div class="main">${dateLine('Montag, 9. November')}${card(
+              'Training',
+              `<ul class="rows"><li><div class="swipe" style="overflow:hidden">${stepsRow(YESTERDAY, { cls: 'shift' })}<span class="del">${ic('trash', 18)}Löschen</span></div></li><li>${plainEntryRow(RAD)}</li></ul>${chipsBlock(usualChips)}`,
+              { k: `${fmt0(kcalSteps(YESTERDAY) + radKcal)} kcal`, acts: plusBtn },
+            )}${toast('Schritte gelöscht')}</div>${tabbar()}`,
+          );
+      }
+
+      // ---------- B: steps page ----------
+      const bState = { own: false };
+      function renderB() {
+        const min = stepsMin(TODAY.steps, TODAY.m);
+        const computed = kcalSteps(TODAY);
+        const own = bState.own ? 290 : null;
+        const trashBtn = `<span class="ibtn">${ic('trash', 20, 'color:var(--destructive)')}</span>`;
+        const kbox = `<div class="kbox"><div class="top"><span>Verbrauch</span><div class="inp tabular ${own ? 'own' : ''}"><span>${fmt0(own ?? computed)}</span><span class="u">kcal</span></div></div>${
+          own
+            ? `<p><button class="tlink" data-own="0">Berechneten Wert verwenden (${fmt0(computed)} kcal)</button></p>`
+            : `<p>(MET 3,5 − 1) × 80,0 kg × ${nf0.format(min)} Min.<br><button class="tlink" data-own="1" style="color:var(--muted-foreground)">(Mockup: Zahl von der Uhr tippen)</button></p>`
+        }</div>`;
+        const page = (data, spinning, footerOn) =>
+          header('Schritte', trashBtn) +
+          `<div class="main">${dateLine('Dienstag, 10. November')}<section class="card"><div class="hero"><div><div class="v">${fmt0(data.steps)}</div><div class="l">Schritte</div></div><div><div class="v">${data.m ? km(data.m) : '–'}</div><div class="l">${data.m ? `${nf0.format(stepsMin(data.steps, data.m))} Min. bei 4,8 km/h` : `${nf0.format(stepsMin(data.steps, 0))} Min. bei 100 Schritten/Min.`}</div></div></div><div class="kv" style="${LINE}"><span>Zuletzt empfangen</span><span class="r">heute, 14:02 ${refreshBtn(spinning)}</span></div></section>${data === TODAY ? kbox : `<div class="kbox"><div class="top"><span>Verbrauch</span><div class="inp tabular"><span>${fmt0(kcalSteps(data))}</span><span class="u">kcal</span></div></div><p>(MET 3,5 − 1) × 80,0 kg × ${nf0.format(stepsMin(data.steps, 0))} Min.</p></div>`}</div><div class="footer" style="margin-top:96px"><button class="btn pri lg" ${footerOn ? '' : 'disabled'}>Änderungen übernehmen</button></div>`;
+        document.getElementById('B').innerHTML =
+          phone(
+            bState.own ? 'B2 Eigener Wert' : 'B1 Berechnet',
+            bState.own
+              ? 'Getippte kcal sind markiert und bleiben bei jedem Abruf stehen (Schritte und Strecke werden weiter aktualisiert). Der Link setzt zurück. (Hier klickbar.)'
+              : 'Schritte und Strecke kommen aus Health. Die Dauer ist nur Rechengröße (Strecke bei 4,8 km/h) und steht deshalb klein unter der Strecke. „Änderungen übernehmen“ wird aktiv, sobald die kcal anders sind. (Grauer Link: Mockup-Schalter.)',
+            page(TODAY, false, bState.own),
+          ) +
+          phone(
+            'B3 Ohne Strecke',
+            'Liefert Health keine brauchbare Strecke (Werte außerhalb 0,3 bis 1,5 m je Schritt), rechnet die App mit 100 Schritten je Minute. ↻ dreht wie in der Zeile.',
+            page({ steps: 8432, m: 0 }, true, false),
+          ) +
+          phone(
+            'B4 Löschen',
+            'Papierkorb im Kopf: Dialog mit der Folge, dann zurück ins Tagebuch.',
+            header('Schritte', trashBtn) +
+              `<div class="main" style="min-height:520px">${dateLine('Dienstag, 10. November')}</div><div class="overlay"></div><div class="dialog"><div><h3>Schritte löschen?</h3><p class="desc">Der nächste Abruf trägt diesen Tag nicht wieder ein. Zurück über den Papierkorb.</p></div><div class="dfoot"><button class="btn out">Abbrechen</button><button class="btn pri" style="background:var(--destructive)">Löschen</button></div></div>`,
+          );
+      }
+
+      // ---------- C: settings ----------
+      function renderC() {
+        const moreRow = (icon, label, hint, hl = false) =>
+          `<li><div class="morerow ${hl ? 'hl' : ''}">${ic(icon, 20, MF)}<div class="txt"><div style="font-weight:500">${label}</div>${hint ? `<div class="h">${hint}</div>` : ''}</div>${ic('chevronRight', 16, MF)}</div></li>`;
+        const minimum = card(
+          'Eintragen ab',
+          `<div class="pad"><div class="inp tabular"><span>1.000</span><span class="u">Schritte</span></div></div>`,
+        );
+        const automation = (open) =>
+          card(
+            'Kurzbefehl',
+            open
+              ? `<ol class="steps-ol"><li><b>Health-Messungen suchen</b><span class="sub">Schritte · Startdatum in den letzten 7 Tagen · Einheit Anzahl · Gruppieren nach Tag</span></li><li><b>Health-Messungen suchen</b><span class="sub">Geh- und Laufstrecke · gleicher Filter · Einheit km · Gruppieren nach Tag</span></li><li><b>Inhalte von URL abrufen</b><span class="sub">Adresse · POST · Header <code class="k">Authorization</code>: <code class="k">Bearer</code> + Leerzeichen + Zugang · JSON, Felder vom Typ Text: <code class="k">stepDates</code> <code class="k">stepValues</code> (Startdatum, Wert aus 1), <code class="k">distanceDates</code> <code class="k">distanceValues</code> (aus 2), <code class="k">now</code> (Aktuelles Datum) · jedes Datum: Datumsformat Eigenes <code class="k">yyyy-MM-dd</code></span></li><li><b>Name</b><span class="sub">Fleisch-Teufel Schritte</span></li><li><b>Automation</b> → + → <b>Tageszeit</b><span class="sub">Zeiten wählen (z. B. 12:00, 18:00, 22:00) · Sofort ausführen · Fleisch-Teufel Schritte</span></li></ol>`
+              : '',
+            { acts: `<span class="ibtn">${ic(open ? 'chevronUp' : 'chevronDown', 18, MF)}</span>` },
+          );
+        const secret = `<div class="pad"><div class="secret"><div class="lbl">Zugang</div><div class="mono"><span>ftst_7Qv2Lk9xWm3RbT8nYc4HsJ6pDa1EzUgF</span><span class="btn sec sm">${ic('copy', 14)}Kopieren</span></div></div><p class="hint">Nur jetzt sichtbar.</p><div class="secret"><div class="lbl">Adresse</div><div class="mono"><span>https://fleisch-teufel.avernus.cloud/api/steps/import</span><span class="btn sec sm">${ic('copy', 14)}Kopieren</span></div></div></div>`;
+        document.getElementById('C').innerHTML =
+          phone(
+            'C0 Mehr',
+            'Neuer Schalter „Schritte aufs Ziel anrechnen“ unter dem für Trainings, neue Zeile „Schritte“ bei „Erinnerung“ (der Hinweis zeigt den Zustand).',
+            header('Mehr', '', false) +
+              `<div class="main"><section class="card"><div class="switch-row"><span style="font-weight:500">Training aufs Ziel anrechnen</span><span class="switch on"></span></div><div class="switch-row" style="${LINE};outline:2px dashed var(--new-border);outline-offset:-4px;border-radius:12px"><span style="font-weight:500">Schritte aufs Ziel anrechnen</span><span class="switch on"></span></div></section><section class="card"><ul class="rows">${moreRow('bell', 'Erinnerung', '')}${moreRow('foot', 'Schritte', 'Zuletzt empfangen heute, 14:02', true)}${moreRow('palette', 'Aussehen', 'System · Icon folgt der App')}${moreRow('cloud', 'Daten &amp; Synchronisation', 'Synchronisiert')}${moreRow('trash', 'Papierkorb', '1 Eintrag')}</ul></section></div>${tabbar()}`,
+          ) +
+          phone(
+            'C1 Nicht eingerichtet',
+            'Zustand, Knopf, Grenze, die Anleitung offen.',
+            header('Schritte') +
+              `<div class="main">${card('Apple Health', `<div class="kv" style="padding-top:0"><span>Zugang</span><span class="r">nicht eingerichtet</span></div><div class="pad"><button class="btn pri full">Zugang erstellen</button></div>`)}${minimum}${automation(true)}</div>`,
+          ) +
+          phone(
+            'C2 Zugang erstellt',
+            'Zugang und Adresse zum Kopieren, darunter die Anleitung (aufgeklappt). Der Zugang steht nur in diesem Moment auf der Seite (der Server kennt nur seinen Hash); verloren: „Zugang ersetzen“.',
+            header('Schritte') +
+              `<div class="main">${card('Apple Health', secret, { hl: true })}${automation(true)}${minimum}</div>`,
+          ) +
+          phone(
+            'C3 Eingerichtet',
+            '„Jetzt abrufen“ startet den Kurzbefehl wie ↻ (nur auf dem iPhone). „Zugang ersetzen“ macht den alten Zugang ungültig und zeigt C2 (den neuen Zugang im Kurzbefehl beim Header eintragen). Die Anleitung ist zugeklappt.',
+            header('Schritte') +
+              `<div class="main">${card('Apple Health', `<div class="kv" style="padding-top:0"><span>Zuletzt empfangen</span><span class="r">heute, 14:02</span></div><div class="kv"><span>Eingerichtet</span><span class="r">3. Nov.</span></div><div class="pad" style="padding-top:8px"><button class="btn pri full">${ic('refresh', 16)}Jetzt abrufen</button><button class="btn out full">Zugang ersetzen</button><button class="btn dz full">Zugang löschen</button></div>`)}${automation(false)}${minimum}</div>`,
+          ) +
+          phone(
+            'C4 Zugang löschen',
+            'Der Dialog nennt die Folge.',
+            header('Schritte') +
+              `<div class="main" style="min-height:520px"></div><div class="overlay"></div><div class="dialog"><div><h3>Zugang löschen?</h3><p class="desc">Der Kurzbefehl kann dann keine Schritte mehr senden. Eingetragene Schritte bleiben.</p></div><div class="dfoot"><button class="btn out">Abbrechen</button><button class="btn pri" style="background:var(--destructive)">Löschen</button></div></div>`,
+          );
+      }
+
+      // ---------- D: trash ----------
+      function renderD() {
+        const trow = (title, sub) =>
+          `<li><div class="row"><div class="txt"><div class="name tabular" style="white-space:normal"><span>${title}</span></div><div class="sub">${sub}</div></div><button class="btn out sm">Wiederherstellen</button></div></li>`;
+        document.getElementById('D').innerHTML = phone(
+          'D1 Papierkorb',
+          'Abschnitt „Schritte“ neben „Gewicht“, „Meals“ und „Gespeicherte Trainings“. Zeile: Tag und Schritte, gelöscht am.',
+          header('Papierkorb') +
+            `<div class="main">${card('Gewicht', `<ul class="rows">${trow('Mi., 4. Nov. · 81,35 kg', 'gelöscht am 5. Nov.')}</ul>`)}${card('Schritte', `<ul class="rows">${trow('Mo., 9. Nov. · 11.204 Schritte', 'gelöscht am 10. Nov.')}</ul>`, { hl: true })}${card('Meals', `<div class="dashed" style="border:0;margin:0 16px 12px">Keine gelöschten Meals</div>`)}</div>`,
+        );
+      }
+
+      // ---------- E, F: variants ----------
+      function renderE() {
+        // Mo..So of this week: food on all logged days, trainings Mi + Sa, steps every day up to today (Di).
+        const days = [
+          ['Mo', 9, true, false, true],
+          ['Di', 10, true, false, true],
+          ['Mi', 11, false, false, false],
+          ['Do', 12, false, false, false],
+          ['Fr', 13, false, false, false],
+          ['Sa', 14, false, false, false],
+          ['So', 15, false, false, false],
+        ];
+        const prev = [
+          ['Mo', 2, true, false, true],
+          ['Di', 3, true, false, true],
+          ['Mi', 4, true, true, true],
+          ['Do', 5, true, false, true],
+          ['Fr', 6, true, false, true],
+          ['Sa', 7, true, true, true],
+          ['So', 8, true, false, true],
+        ];
+        const strip = (list, withSteps, on) =>
+          `<div class="week">${list
+            .map(
+              ([d, n, food, train, steps]) =>
+                `<div class="${n === on ? 'on' : ''}">${d}<b>${n}</b><span class="dots">${food ? '<i class="f"></i>' : ''}${train || (withSteps && steps) ? '<i class="t"></i>' : ''}</span></div>`,
+            )
+            .join('')}</div>`;
+        const diaryHead = `<div class="hdr"><span style="width:8px"></span><h1>Tagebuch</h1><span class="ibtn">${ic('cloud', 20, MF)}</span><span class="ibtn">${ic('share', 20, MF)}</span></div>`;
+        const early = `<div class="main">${dateLine('Dienstag, 10. November, 7:40')}`;
+        document.getElementById('E').innerHTML =
+          phone(
+            'E1 Kein Punkt für Schritte',
+            'Letzte Woche: blau nur Mi und Sa, die Tage mit echtem Training. Der Streifen bleibt aussagekräftig.',
+            diaryHead +
+              strip(prev, false, 7) +
+              `<div class="main">${card('Training', `<ul class="rows"><li>${stepsRow({ steps: 9310, m: 6720 })}</li><li>${plainEntryRow({ name: 'Laufen / Joggen', met: 9.8, min: 40, int: 'Mittel' })}</li></ul>`, { k: `${fmt0(kcalSteps({ steps: 9310, m: 6720 }) + kcalOf(9.8, 40))} kcal`, acts: plusBtn })}</div>`,
+          ) +
+          phone(
+            'F1 ↻ nur an Zeile und Seite',
+            'Heute früh, noch keine Zeile: kein ↻ in der Karte. Abrufen geht dann über Mehr → Schritte oder die Automation.',
+            diaryHead +
+              strip(days, false, 10) +
+              early +
+              card(
+                'Training',
+                `${dashed}${chipsBlock(chip('Wie gestern', '1 Training · 348 kcal') + usualChips, false)}`,
+                { acts: plusBtn },
+              ) +
+              `</div>`,
+          );
+      }
+
+      // ---------- G: share image, reports ----------
+      function renderG() {
+        const radKcal = kcalOf(RAD.met, RAD.min);
+        document.getElementById('G').innerHTML =
+          phone(
+            'G1 Geteiltes Tagesbild, Training an',
+            'Dieselbe Zeile wie im Tagebuch (<code>StepsRowBody</code>), ohne ↻.',
+            `<div class="shareimg"><p class="sh-date">Dienstag, 10. November 2026</p>${card('Training', `<ul class="rows"><li>${stepsRow(TODAY, { refresh: false })}</li><li>${plainEntryRow(RAD)}</li></ul>`, { k: `${fmt0(kcalSteps(TODAY) + radKcal)} kcal` })}<div class="sh-foot">${ic('foot', 14)} Fleisch-Teufel</div></div>`,
+          ) +
+          phone(
+            'G2 Berichte, Woche',
+            '„Training“: Minuten ohne Schritte (nur Radfahren, Laufen, Gym), kcal mit Schritten. Die CSV hat am Ende „Schritte“ und „Distanz (m)“ je Tag.',
+            header('Berichte', '', false) +
+              `<div class="main">${card('Woche 2. bis 8. Nov.', `<dl class="stats"><div><dt>Ø kcal</dt><dd>2.140<small>Ziel 2.300</small></dd></div><div><dt>Vollständige Tage</dt><dd>6/7<small>4 im Ziel (±10 %)</small></dd></div><div><dt>Gewicht</dt><dd>−0,4 kg<small>81,1 kg</small></dd></div><div class="hl"><dt>Training</dt><dd>200 Min.<small>2.920 kcal, davon Schritte 1.870</small></dd></div></dl>`)}</div>`,
+          );
+      }
+
+      // ---------- controls ----------
+      document.getElementById('theme').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        e.currentTarget
+          .querySelectorAll('button')
+          .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        if (b.dataset.v === 'system') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.dataset.theme = b.dataset.v;
+      });
+      document.getElementById('B').addEventListener('click', (e) => {
+        const r = e.target.closest('[data-own]');
+        if (!r) return;
+        bState.own = r.dataset.own === '1';
+        renderB();
+      });
+      renderA();
+      renderB();
+      renderC();
+      renderD();
+      renderE();
+      renderG();
+    </script>
+  </body>
+</html>

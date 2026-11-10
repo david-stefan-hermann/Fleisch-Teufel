@@ -11,7 +11,9 @@
  * double counting; that is what gets added to the day's budget.
  */
 
-import type { ExerciseEntry, ExerciseTemplate, TrainingItem } from './schemas.js';
+import { STEPS_TYPE_KEY, type ExerciseEntry, type ExerciseTemplate, type TrainingItem } from './schemas.js';
+
+export { STEPS_TYPE_KEY };
 
 export type Intensity = 'light' | 'moderate' | 'vigorous';
 
@@ -425,4 +427,42 @@ export const shortSportName = (name: string) => name.split(' / ')[0]!;
 export function trainingSummary(items: readonly { typeName: string; minutes: number }[]): string {
   const total = items.reduce((s, i) => s + i.minutes, 0);
   return [...items.map((i) => shortSportName(i.typeName)), formatDuration(total)].join(' · ');
+}
+
+// ---------------------------------------------------------------- steps from Apple Health
+
+/** Walking at a moderate pace (Compendium 17190/17200), the MET of a steps entry. */
+export const STEPS_MET = 3.5;
+/** Steps are logged from this many a day unless the person chose another limit (`settings.stepsMinimum`). */
+export const DEFAULT_STEPS_MINIMUM = 1000;
+/** Distance per minute at 4,8 km/h: the walking time behind a distance. */
+const STEPS_METERS_PER_MINUTE = 80;
+/** Without a usable distance: steps per minute of walking. */
+const STEPS_PER_MINUTE = 100;
+/** A distance counts when one step is between these lengths (else Health sent something odd). */
+const STEP_LENGTH_M = { min: 0.3, max: 1.5 };
+
+/** Whether a training is the day's steps (shown and counted apart from the other trainings). */
+export function isStepsEntry(e: Pick<ExerciseEntry, 'typeKey'>): boolean {
+  return e.typeKey === STEPS_TYPE_KEY;
+}
+
+/**
+ * Duration and kcal of a day's steps: walking time from the distance at 4,8 km/h (or 100 steps a
+ * minute when the distance is missing or implausible), kcal like any training at `STEPS_MET`.
+ * `distanceM` is null when it was not usable.
+ */
+export function stepsValues(p: { steps: number; distanceM: number | null; weightKg: number }): {
+  minutes: number;
+  kcal: number;
+  distanceM: number | null;
+} {
+  const perStep = p.distanceM !== null && p.steps > 0 ? p.distanceM / p.steps : 0;
+  const distanceM =
+    p.distanceM !== null && perStep >= STEP_LENGTH_M.min && perStep <= STEP_LENGTH_M.max
+      ? Math.round(p.distanceM)
+      : null;
+  const raw = distanceM !== null ? distanceM / STEPS_METERS_PER_MINUTE : p.steps / STEPS_PER_MINUTE;
+  const minutes = Math.min(MAX_MINUTES, Math.max(1, Math.round(raw)));
+  return { minutes, kcal: trainingKcal(STEPS_MET, p.weightKg, minutes), distanceM };
 }

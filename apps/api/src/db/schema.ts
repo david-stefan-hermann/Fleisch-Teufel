@@ -25,6 +25,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -87,6 +88,8 @@ export const userSettings = pgTable(
     macroPlan: jsonb().$type<MacroPlan>(),
     weightStepKg: doublePrecision(),
     weightRangeKg: doublePrecision(),
+    stepsMinimum: integer(),
+    addStepsCalories: boolean(),
   },
   syncExtras,
 );
@@ -193,6 +196,8 @@ export const exerciseEntries = pgTable(
     note: text(),
     templateId: text(),
     groupId: text(),
+    steps: integer(),
+    distanceM: doublePrecision(),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
@@ -324,6 +329,26 @@ export const pushSubscriptions = pgTable(
     failures: integer().notNull().default(0),
   },
   (t) => [index().on(t.userId)],
+);
+
+/**
+ * Personal access tokens for imports that run outside the app (the iOS shortcut sending steps from
+ * Apple Health). Only good for the route of their `kind`, never for the rest of the account; one per
+ * user and kind (a new one replaces the old). Server only, survives a password change.
+ */
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    /** SHA-256 of the token; the token itself is shown once and never stored. */
+    id: text().primaryKey(),
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text({ enum: ['steps'] }).notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [uniqueIndex().on(t.userId, t.kind)],
 );
 
 export const appMeta = pgTable('app_meta', {

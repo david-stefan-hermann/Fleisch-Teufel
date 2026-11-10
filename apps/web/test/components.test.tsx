@@ -1878,6 +1878,8 @@ describe('DayShareImage', () => {
       note: null,
       templateId: null,
       groupId: null,
+      steps: null,
+      distanceM: null,
       updatedAt: 1,
       deleted: false,
     },
@@ -1896,6 +1898,8 @@ describe('DayShareImage', () => {
       note: 'Beine',
       templateId: 't1',
       groupId: null,
+      steps: null,
+      distanceM: null,
       updatedAt: 1,
       deleted: false,
     },
@@ -1954,6 +1958,8 @@ describe('DayShareImage', () => {
       loggedAt: 10 + minutes,
       templateId: 't-gym',
       groupId: 'g-gym',
+      steps: null,
+      distanceM: null,
     });
     render(
       <DayShareImage

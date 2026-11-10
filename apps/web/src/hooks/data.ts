@@ -2,7 +2,7 @@ import {
   SETTINGS_ID,
   summarizeDay,
   today as todayOf,
-  weightOn,
+  weightForDay,
   type DaySummary,
   type ExerciseEntry,
   type FoodEntry,
@@ -90,7 +90,7 @@ export function useWeights(): WeightEntry[] | undefined {
 export function useCurrentWeight(date: ISODate): number | undefined {
   const weights = useWeights();
   if (!weights) return undefined;
-  return weightOn(weights, date) ?? weights.find((w) => !w.deleted)?.kg;
+  return weightForDay(weights, date);
 }
 
 export function useDayNote(date: ISODate) {
