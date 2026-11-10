@@ -420,7 +420,27 @@ export interface StepsStatus {
   configured: boolean;
   createdAt: number | null;
   lastUsedAt: number | null;
+  /** The last imports, newest first (`STEPS_LOG_SIZE`); missing in answers of older servers. */
+  recent?: StepsImportLog[];
 }
+
+/** One call of the shortcut as the server saw it. */
+export interface StepsImportLog {
+  /** Epoch ms (server time). */
+  at: number;
+  /** Days in the window that came with steps. */
+  days: number;
+  /** Days whose entry was created or changed. */
+  written: number;
+  /** Days that came with a usable distance. */
+  withDistance: number;
+  /** What was wrong with the call (German, shown as it is), null when it went through. */
+  error: string | null;
+  /** Things that went through but look wrong (German), e.g. a distance that does not fit the steps. */
+  warnings: string[];
+}
+
+export const STEPS_LOG_SIZE = 10;
 
 export interface ServerInfo {
   name: string;

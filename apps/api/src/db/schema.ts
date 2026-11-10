@@ -9,7 +9,15 @@
  *   deleted        tombstone flag
  *   change_seq     server-assigned value from the global `sync_seq` sequence: the pull cursor.
  */
-import type { DayTarget, MacroPlan, MealItem, NutrientMap, Portion, TrainingItem } from '@ft/shared';
+import type {
+  DayTarget,
+  MacroPlan,
+  MealItem,
+  NutrientMap,
+  Portion,
+  StepsImportLog,
+  TrainingItem,
+} from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -347,6 +355,8 @@ export const apiTokens = pgTable(
     kind: text({ enum: ['steps'] }).notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     lastUsedAt: timestamp({ withTimezone: true }),
+    /** The last calls with this token, newest first (at most `STEPS_LOG_SIZE`). */
+    recent: jsonb().$type<StepsImportLog[]>(),
   },
   (t) => [uniqueIndex().on(t.userId, t.kind)],
 );

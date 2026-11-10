@@ -103,7 +103,7 @@ const week = (date: string, steps: string, km: string | null = null) => ({
 describe('steps access', () => {
   it('creates, shows, replaces and deletes the access; only the newest token works', async () => {
     let status = await bob.get('/api/steps/status');
-    expect(status.json).toEqual({ configured: false, createdAt: null, lastUsedAt: null });
+    expect(status.json).toEqual({ configured: false, createdAt: null, lastUsedAt: null, recent: [] });
     const first = await newToken(bob);
     status = await bob.get('/api/steps/status');
     expect(status.json).toMatchObject({ configured: true, lastUsedAt: null });
@@ -133,6 +133,32 @@ describe('steps access', () => {
     expect((await new TestClient(ctx.app).post('/api/steps/import', week('2026-11-10', '5000'))).status).toBe(
       401,
     );
+  });
+
+  it('keeps the last calls with their outcome and says when the distance is missing or wrong', async () => {
+    const token = await newToken(bob);
+    const c = shortcut(token);
+    // No distance at all (the second Health action filtered the steps instead of searching).
+    let r = await c.post('/api/steps/import', week('2026-11-01', '5000'));
+    expect(r.json.warnings).toEqual([expect.stringMatching(/^Keine Strecke empfangen/)]);
+    // Meters without a unit: read as km, does not fit the steps, left out.
+    r = await c.post('/api/steps/import', week('2026-11-02', '6000', '4400'));
+    expect(r.json.warnings).toEqual([
+      expect.stringMatching(/^2026-11-02: 4\.400 km passen nicht zu 6\.000 Schritten/),
+    ]);
+    r = await c.post('/api/steps/import', week('2026-11-03', '6000', '4,4'));
+    expect(r.json.warnings).toEqual([]);
+    expect((await c.post('/api/steps/import', { stepDates: ['2026-11-03'], stepValues: [] })).status).toBe(
+      400,
+    );
+
+    const { recent } = (await bob.get('/api/steps/status')).json;
+    expect(recent).toHaveLength(4);
+    expect(recent[0]).toMatchObject({ days: 0, error: expect.stringMatching(/1 dates but 0 values/) });
+    expect(recent[1]).toMatchObject({ days: 1, written: 1, withDistance: 1, error: null, warnings: [] });
+    expect(recent[2]).toMatchObject({ withDistance: 0, warnings: [expect.any(String)] });
+    for (let i = 0; i < 12; i++) await c.post('/api/steps/import', week('2026-11-03', '6000', '4,4'));
+    expect((await bob.get('/api/steps/status')).json.recent).toHaveLength(10);
   });
 
   it('answers unreadable lists with a message', async () => {
@@ -177,6 +203,8 @@ describe('steps import', () => {
         { date: '2026-10-20', steps: 640, written: false },
         { date: '2026-10-21', steps: 8432, written: true },
       ],
+      // A day without a distance is no warning while another day of the call has one.
+      warnings: [],
     });
     const e = await stepsEntry(alice, '2026-10-21');
     expect(e).toMatchObject({

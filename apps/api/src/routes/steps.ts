@@ -9,17 +9,26 @@ import {
   DEFAULT_WEIGHT_KG,
   nextVersion,
   weightForDay,
+  STEPS_LOG_SIZE,
   type ExerciseEntry,
+  type StepsImportLog,
   type StepsStatus,
 } from '@ft/shared';
-import { and, eq, inArray } from 'drizzle-orm';
-import { Hono, type MiddlewareHandler } from 'hono';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { Hono, type Context, type MiddlewareHandler } from 'hono';
 import { createHash, randomBytes } from 'node:crypto';
 import { requireUser } from '../auth/session.js';
 import { apiTokens, exerciseEntries, userSettings, weightEntries } from '../db/schema.js';
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
-import { stepsDays, stepsImportSchema, stepsRecord, type StepsDay } from '../steps/import.js';
+import {
+  stepsDays,
+  stepsImportSchema,
+  stepsRecord,
+  stepsWarnings,
+  hasUsableDistance,
+  type StepsDay,
+} from '../steps/import.js';
 import { StepsParseError } from '../steps/parse.js';
 import { lockUser, push, toWire } from '../sync/service.js';
 import type { Db } from '../db/client.js';
@@ -63,6 +72,8 @@ function requireApiToken(db: Db, failures: RateLimiter): MiddlewareHandler<Steps
 export interface StepsImportResult {
   ok: true;
   days: { date: string; steps: number; written: boolean }[];
+  /** Readable in the shortcut's answer: what went through but looks wrong. */
+  warnings: string[];
 }
 
 /**
@@ -129,17 +140,47 @@ export function stepsRoutes(deps: Deps) {
   const failures = new RateLimiter(20, 15 * 60_000);
   const imports = new RateLimiter(60, 60 * 60_000);
 
+  /** Notes a call on the token: `lastUsedAt` (↻ waits for it) and the list of the last calls. */
+  async function remember(tokenId: string, entry: Omit<StepsImportLog, 'at'>) {
+    const now = new Date();
+    const item: StepsImportLog = { at: now.getTime(), ...entry };
+    await db
+      .update(apiTokens)
+      .set({
+        lastUsedAt: now,
+        recent: sql`(jsonb_build_array(${JSON.stringify(item)}::jsonb) || coalesce(${apiTokens.recent}, '[]'::jsonb)) - ${STEPS_LOG_SIZE}::int`,
+      })
+      .where(eq(apiTokens.id, tokenId));
+  }
+
+  /** A call that could not be read: logged, kept in the list of calls, answered with the reason. */
+  async function refuse(tokenId: string, message: string, status: 400 | 500, c: Context) {
+    log.warn('steps import refused', { message });
+    await remember(tokenId, { days: 0, written: 0, withDistance: 0, error: message, warnings: [] });
+    return c.json({ error: status === 400 ? 'validation' : 'internal', message }, status);
+  }
+
   app.post('/import', requireApiToken(db, failures), async (c) => {
     const tokenId = c.get('stepsToken');
     const wait = imports.take(tokenId);
     if (wait > 0) return c.json({ error: 'too_many_requests', retryAfterMs: wait }, 429);
     const body = await parseJson(c, stepsImportSchema);
-    if (!body.ok) return body.response;
+    if (!body.ok) {
+      const json = (await body.response.clone().json()) as {
+        error: string;
+        issues?: { path: string; message: string }[];
+      };
+      const message =
+        json.error === 'invalid_json'
+          ? 'Kein gültiges JSON (Anfragetext „JSON“ wählen).'
+          : `Felder passen nicht: ${(json.issues ?? []).map((i) => `${i.path}: ${i.message}`).join('; ')}`;
+      return refuse(tokenId, message, 400, c);
+    }
     let days: StepsDay[];
     try {
       days = stepsDays(body.data);
     } catch (e) {
-      if (e instanceof StepsParseError) return c.json({ error: 'validation', message: e.message }, 400);
+      if (e instanceof StepsParseError) return refuse(tokenId, e.message, 400, c);
       throw e;
     }
     const userId = c.get('stepsUser');
@@ -148,10 +189,14 @@ export function stepsRoutes(deps: Deps) {
       result = await importSteps(db, userId, days);
     } catch (e) {
       log.error('steps import failed', { error: e instanceof Error ? e.message : String(e) });
-      return c.json({ error: 'internal' }, 500);
+      return refuse(tokenId, 'Fehler auf dem Server.', 500, c);
     }
-    await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, tokenId));
-    const out: StepsImportResult = { ok: true, days: result };
+    const warnings = stepsWarnings(days);
+    const written = result.filter((d) => d.written).length;
+    const withDistance = days.filter(hasUsableDistance).length;
+    log.info('steps import', { days: days.length, written, withDistance, warnings: warnings.length });
+    await remember(tokenId, { days: days.length, written, withDistance, error: null, warnings });
+    const out: StepsImportResult = { ok: true, days: result, warnings };
     return c.json(out);
   });
 
@@ -160,13 +205,14 @@ export function stepsRoutes(deps: Deps) {
   app.get('/status', user, async (c) => {
     const me = c.get('user');
     const [row] = await db
-      .select({ createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt })
+      .select({ createdAt: apiTokens.createdAt, lastUsedAt: apiTokens.lastUsedAt, recent: apiTokens.recent })
       .from(apiTokens)
       .where(and(eq(apiTokens.userId, me.id), eq(apiTokens.kind, 'steps')));
     const status: StepsStatus = {
       configured: !!row,
       createdAt: row?.createdAt.getTime() ?? null,
       lastUsedAt: row?.lastUsedAt?.getTime() ?? null,
+      recent: row?.recent ?? [],
     };
     return c.json(status);
   });

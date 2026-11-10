@@ -53,10 +53,15 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
   app.use('/api/*', async (c, next) => {
     // Photo uploads have their own, larger limits.
     if (c.req.path === '/api/ai/analyze' || c.req.path === '/api/ai/label') return next();
-    return bodyLimit({ maxSize: 4 * 1024 * 1024, onError: (cx) => cx.json({ error: 'too_large' }, 413) })(
-      c,
-      next,
-    );
+    return bodyLimit({
+      maxSize: 4 * 1024 * 1024,
+      onError: (cx) => {
+        // The steps shortcut sends what Health gives it: a too big body means the grouping by day is off.
+        if (cx.req.path === '/api/steps/import')
+          log.warn('steps import too large', { contentLength: cx.req.header('content-length') ?? null });
+        return cx.json({ error: 'too_large' }, 413);
+      },
+    })(c, next);
   });
 
   // CSRF: state-changing API calls must come from our own origin (cookies are SameSite=Lax too).

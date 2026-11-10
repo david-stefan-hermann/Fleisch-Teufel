@@ -19,7 +19,7 @@ import {
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { fmtDateOf } from '@/lib/format';
+import { fmt0, fmtDateOf } from '@/lib/format';
 import {
   fmtReceived,
   refreshStepsStatus,
@@ -31,6 +31,9 @@ import {
   useStepsStatus,
 } from '@/lib/steps';
 import { cn } from '@/lib/utils';
+
+/** Calls listed under "Letzte Abrufe" (the server keeps a few more). */
+const RECENT_SHOWN = 5;
 
 /**
  * Mehr → Schritte: the personal access for the iOS shortcut that sends steps from Apple Health,
@@ -130,6 +133,30 @@ export function StepsSettingsPage() {
           </>
         )}
       </Section>
+
+      {configured && !token && status?.recent && status.recent.length > 0 && (
+        <Section title="Letzte Abrufe">
+          <ul className="divide-y divide-border/70 pb-1">
+            {status.recent.slice(0, RECENT_SHOWN).map((r) => (
+              <li key={r.at} className="px-4 py-2.5 text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="tabular">{fmtReceived(r.at, today)}</span>
+                  <span className="tabular text-xs text-muted-foreground">
+                    {r.error
+                      ? 'nicht übernommen'
+                      : `${fmt0(r.days)} ${r.days === 1 ? 'Tag' : 'Tage'} · ${fmt0(r.written)} geändert · ${fmt0(r.withDistance)} mit Strecke`}
+                  </span>
+                </div>
+                {(r.error ? [r.error] : r.warnings).map((w) => (
+                  <p key={w} className={cn('mt-1 text-xs', r.error ? 'text-destructive' : 'text-warn-text')}>
+                    {w}
+                  </p>
+                ))}
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Collapsible open={open} onOpenChange={setGuideOpen}>
         <Section
@@ -237,6 +264,7 @@ function ShortcutGuide() {
         <span className={sub}>
           Strecke (Gehen und Laufen) · Startdatum in den letzten 7 Tagen · Einheit km · Gruppieren nach Tag
         </span>
+        <span className={sub}>Als eigene Aktion: „Health-Messungen suchen“, nicht „Steps filtern“</span>
       </li>
       <li className={item}>
         <span className="font-medium">Inhalte von URL abrufen</span>

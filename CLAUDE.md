@@ -437,7 +437,10 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   delete with a dialog, the shortcut's actions as numbered steps, "Eintragen ab". ↻ (`lib/steps.ts`
   `runStepsShortcut`, iPhone with a configured access only, status cached in `kv` `steps.status`): opens
   `shortcuts://run-shortcut?name=Fleisch-Teufel%20Schritte`, polls `GET /api/steps/status` every 2 s up to 30 s
-  after the app is visible again until `lastUsedAt` is after the tap, then syncs once.
+  after the app is visible again until `lastUsedAt` is after the tap, then syncs once. Every call with a valid
+  token lands in `api_tokens.recent` (last `STEPS_LOG_SIZE`: days, written, with distance, error, warnings),
+  shown as "Letzte Abrufe"; the import answers `warnings` (`stepsWarnings`: no distance at all, a distance that
+  does not fit the steps) and the server logs refused and too large calls.
 - Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
   notification a day at a chosen local time, only when nothing is logged that day, per device
   (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/

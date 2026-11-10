@@ -157,3 +157,31 @@ export function stepsRecord(p: {
     next.kcal === existing.kcal;
   return same ? null : next;
 }
+
+/** Whether a day came with a distance that fits its steps (else the steps alone count). */
+export function hasUsableDistance(d: StepsDay): boolean {
+  return (
+    d.distanceM !== null &&
+    stepsValues({ steps: d.steps, distanceM: d.distanceM, weightKg: 1 }).distanceM !== null
+  );
+}
+
+/**
+ * What looks wrong in a payload that went through: no distance at all (the second Health action is
+ * missing or filters the steps instead of searching), or a distance that does not fit the steps of
+ * its day (wrong unit) and was left out. German, for the shortcut's answer and Mehr → Schritte.
+ */
+export function stepsWarnings(days: readonly StepsDay[]): string[] {
+  if (days.length === 0) return [];
+  if (days.every((d) => d.distanceM === null))
+    return [
+      'Keine Strecke empfangen: Aktion „Health-Messungen suchen“ mit „Strecke (Gehen und Laufen)“ prüfen.',
+    ];
+  return days.flatMap((d) =>
+    d.distanceM !== null && !hasUsableDistance(d)
+      ? [
+          `${d.date}: ${(d.distanceM / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} km passen nicht zu ${d.steps.toLocaleString('de-DE')} Schritten, Strecke nicht übernommen (Einheit km?).`,
+        ]
+      : [],
+  );
+}

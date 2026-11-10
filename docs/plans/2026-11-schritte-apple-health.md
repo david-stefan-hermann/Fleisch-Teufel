@@ -28,6 +28,15 @@ Abweichungen und Ergänzungen bei der Umsetzung:
 - Eine kcal-Änderung, die ein Gerät noch nicht hochgeladen hat, verliert gegen einen neueren Import
   (Last-Write-Wins, im E2E-Test gesehen). In der Praxis selten, weil die App 0,8 s nach einer Änderung hochlädt.
 
+Nach der ersten Einrichtung am iPhone (2026-11-11, Nutzer):
+
+- Typen heißen in der Auswahl „Steps“ und „Strecke (Gehen und Laufen)“; iOS verlangt Einstellungen → Kurzbefehle
+  → Erweitert → „Teilen großer Datenmengen erlauben“. Beides steht in der Anleitung.
+- Fügt man die zweite Health-Aktion direkt unter die erste, wird daraus „Steps filtern“ (Eingabe = Ergebnis der
+  ersten Aktion), und es kommt keine Strecke an. Die Anleitung sagt das jetzt; die Antwort des Imports und
+  „Letzte Abrufe“ (Migration `0014`, `api_tokens.recent`) zeigen fehlende oder unpassende Strecken als Hinweis.
+- Mit „Gruppieren nach Tag“ und richtiger Strecke kommen plausible Werte an (0,7 bis 0,8 m je Schritt).
+
 Nur am iPhone prüfbar (offen):
 
 - Kurzbefehl nach der Anleitung auf Mehr → Schritte gegen `https://fleisch-teufel.avernus.cloud` bauen; die

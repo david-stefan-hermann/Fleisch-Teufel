@@ -869,4 +869,9 @@ test('steps from Apple Health: access, import by the shortcut, typed kcal stay, 
   await expect(page.getByText(/^Schritte vom .* wiederhergestellt$/)).toBeVisible();
   await page.goto('/');
   await expect(page.getByRole('link', { name: '9.000 Schritte' })).toBeVisible();
+
+  // Mehr → Schritte lists the calls: the one after the deletion changed nothing.
+  await page.goto('/settings/steps');
+  await expect(page.getByRole('heading', { name: 'Letzte Abrufe' })).toBeVisible();
+  await expect(page.getByText('1 Tag · 0 geändert · 1 mit Strecke')).toBeVisible();
 });
