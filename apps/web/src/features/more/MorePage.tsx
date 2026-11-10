@@ -4,6 +4,7 @@ import {
   Dumbbell,
   ChevronRight,
   Database,
+  Footprints,
   Info,
   Palette,
   ListOrdered,
@@ -22,8 +23,9 @@ import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Switch } from '@/components/ui/switch';
 import { trashCount } from '@/db/trash';
 import { saveSettings } from '@/db/settings';
-import { useSettings } from '@/hooks/data';
+import { useSettings, useToday } from '@/hooks/data';
 import { useAppearance } from '@/lib/appearance';
+import { fmtReceived, useStepsStatus } from '@/lib/steps';
 
 const THEME_LABEL = { system: 'Wie das System', light: 'Hell', dark: 'Dunkel' } as const;
 const ICON_LABEL = { auto: 'wie die App', light: 'hell', dark: 'dunkel' } as const;
@@ -52,6 +54,8 @@ export function MorePage() {
   const sync = useSyncState();
   const trashed = useLiveQuery(() => trashCount(db), [db]);
   const look = useAppearance();
+  const steps = useStepsStatus();
+  const today = useToday();
   return (
     <Page title="Mehr">
       <Section>
@@ -97,10 +101,37 @@ export function MorePage() {
             }}
           />
         </div>
+        <div className="flex min-h-14 items-center gap-3 border-t border-border/70 px-4 py-2">
+          <label htmlFor="steps-credit" className="min-w-0 flex-1">
+            <div className="font-medium">Schritte aufs Ziel anrechnen</div>
+          </label>
+          <Switch
+            id="steps-credit"
+            checked={settings?.addStepsCalories !== false}
+            onCheckedChange={async (v) => {
+              if (!settings) return;
+              await saveSettings(db, { addStepsCalories: v });
+            }}
+          />
+        </div>
       </Section>
       <Section>
         <ul className="divide-y divide-border/70">
           <Row to="/settings/reminder" icon={<BellRing aria-hidden />} label="Erinnerung" />
+          <Row
+            to="/settings/steps"
+            icon={<Footprints aria-hidden />}
+            label="Schritte"
+            hint={
+              steps === undefined
+                ? undefined
+                : steps?.configured
+                  ? steps.lastUsedAt
+                    ? `Zuletzt empfangen ${fmtReceived(steps.lastUsedAt, today)}`
+                    : 'Eingerichtet'
+                  : 'Nicht eingerichtet'
+            }
+          />
           <Row
             to="/settings/appearance"
             icon={<Palette aria-hidden />}

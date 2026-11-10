@@ -31,11 +31,13 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { trainingTitle, useTrainingNames } from '@/features/exercise/training';
 import { TrainingChip } from '@/features/exercise/TrainingChips';
 import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
+import { StepsRefreshButton } from '@/features/steps/StepsRefreshButton';
 import { StepsRow } from '@/features/steps/StepsRow';
 import { useCurrentWeight, useDayExercises } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
+import { useStepsRefreshAvailable } from '@/lib/steps';
 import { cn } from '@/lib/utils';
 
 /**
@@ -50,7 +52,6 @@ export function ExerciseCard({
   exercises,
   credited,
   stepsCredited,
-  stepsRefresh,
   clipboard,
 }: {
   date: ISODate;
@@ -58,8 +59,6 @@ export function ExerciseCard({
   credited: boolean;
   /** Setting "Schritte aufs Ziel anrechnen". */
   stepsCredited: boolean;
-  /** ↻ of the steps row (only where the shortcut can run). */
-  stepsRefresh?: ReactNode;
   /** Copied trainings: the paste icon stands before the "+". */
   clipboard: TrainingClipboard | null;
 }) {
@@ -69,6 +68,8 @@ export function ExerciseCard({
   const weightKg = useCurrentWeight(date) ?? DEFAULT_WEIGHT_KG;
   const yesterday = useDayExercises(addDays(date, -1));
   const { busy, run } = useSubmitting();
+  // ↻ only where the shortcut runs (an iPhone with the access set up).
+  const canFetchSteps = useStepsRefreshAvailable();
   /** Swipe right: copies a row (a training or a package). */
   const onCopy = (title: string, list: ExerciseEntry[]) =>
     void copyTrainingToClipboard(db, title, list).then(() => toast(`„${title}“ kopiert`));
@@ -154,7 +155,11 @@ export function ExerciseCard({
               label="Schritte löschen"
               onDelete={() => void removeTrainingsWithUndo(db, [steps], 'Schritte')}
             >
-              <StepsRow entry={steps} credited={stepsCredited} refresh={stepsRefresh} />
+              <StepsRow
+                entry={steps}
+                credited={stepsCredited}
+                refresh={canFetchSteps && <StepsRefreshButton />}
+              />
             </SwipeToDelete>
           </li>
         </ul>

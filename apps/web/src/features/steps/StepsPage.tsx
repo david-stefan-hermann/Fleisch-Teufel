@@ -28,6 +28,8 @@ import { useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDayLong, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
+import { fmtReceived, useStepsRefreshAvailable, useStepsStatus } from '@/lib/steps';
+import { StepsRefreshButton } from './StepsRefreshButton';
 import { fmtKm } from './StepsRow';
 
 /**
@@ -58,6 +60,8 @@ function StepsForm({ entry }: { entry: ExerciseEntry }) {
   const router = useRouter();
   const today = useToday();
   const settings = useSettings();
+  const status = useStepsStatus();
+  const canFetch = useStepsRefreshAvailable();
   const [own, setOwn] = useState<number | null>(isAutoTrainingKcal(entry) ? null : entry.kcal);
   const [confirm, setConfirm] = useState(false);
   const { busy, run } = useSubmitting();
@@ -130,6 +134,15 @@ function StepsForm({ entry }: { entry: ExerciseEntry }) {
             </dt>
           </div>
         </dl>
+        {status?.lastUsedAt && (
+          <div className="flex min-h-12 items-center justify-between gap-3 border-t border-border/70 pr-2 pl-4 text-sm">
+            <span>Zuletzt empfangen</span>
+            <span className="tabular flex items-center gap-1 text-muted-foreground">
+              {fmtReceived(status.lastUsedAt, today)}
+              {canFetch ? <StepsRefreshButton /> : <span className="w-2" />}
+            </span>
+          </div>
+        )}
       </Section>
       <TrainingKcal
         tone="steps"
