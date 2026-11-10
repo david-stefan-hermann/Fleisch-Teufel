@@ -223,15 +223,19 @@ function ShortcutGuide() {
   return (
     <ol className="list-decimal space-y-2.5 pr-4 pb-4 pl-9 text-sm marker:text-muted-foreground">
       <li className={item}>
+        <span className="font-medium">Einstellungen → Kurzbefehle → Erweitert</span>
+        <span className={sub}>Teilen großer Datenmengen erlauben</span>
+      </li>
+      <li className={item}>
         <span className="font-medium">Health-Messungen suchen</span>
         <span className={sub}>
-          Schritte · Startdatum in den letzten 7 Tagen · Einheit Anzahl · Gruppieren nach Tag
+          Steps · Startdatum in den letzten 7 Tagen · Einheit Anzahl · Gruppieren nach Tag
         </span>
       </li>
       <li className={item}>
         <span className="font-medium">Health-Messungen suchen</span>
         <span className={sub}>
-          Geh- und Laufstrecke · Startdatum in den letzten 7 Tagen · Einheit km · Gruppieren nach Tag
+          Strecke (Gehen und Laufen) · Startdatum in den letzten 7 Tagen · Einheit km · Gruppieren nach Tag
         </span>
       </li>
       <li className={item}>
@@ -239,7 +243,7 @@ function ShortcutGuide() {
         <span className={cn(sub, 'leading-relaxed')}>
           Adresse · Methode POST · Header <K>Authorization</K>: <K>Bearer</K>, Leerzeichen, Zugang ·
           Anfragetext JSON, Felder vom Typ Text: <K>stepDates</K> und <K>stepValues</K> (Startdatum und Wert
-          aus 1), <K>distanceDates</K> und <K>distanceValues</K> (aus 2), <K>now</K> (Aktuelles Datum) · jedes
+          aus 2), <K>distanceDates</K> und <K>distanceValues</K> (aus 3), <K>now</K> (Aktuelles Datum) · jedes
           Datum: Datumsformat Eigenes <K>yyyy-MM-dd</K>
         </span>
       </li>

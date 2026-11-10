@@ -161,8 +161,9 @@ und die Gewichte, rechnet und ruft `push(tx, …)` (Savepoint, die Sperre ist wi
 
 ## Kurzbefehl (baut der Nutzer einmal, Name fest „Fleisch-Teufel Schritte")
 
-1. Health-Messungen suchen: Typ „Schritte", Startdatum „in den letzten 7 Tagen".
-2. Health-Messungen suchen: Typ „Geh- und Laufstrecke", gleiches Fenster.
+0. Einmalig: Einstellungen → Kurzbefehle → Erweitert → „Teilen großer Datenmengen erlauben" (Nutzer, 2026-11-10).
+1. Health-Messungen suchen: Typ „Steps" (so heißt er in der Auswahl), Startdatum „in den letzten 7 Tagen".
+2. Health-Messungen suchen: Typ „Strecke (Gehen und Laufen)", gleiches Fenster.
 3. Inhalte von URL abrufen: `POST https://<host>/api/steps/import`, Header `Authorization: Bearer <Token>`,
    JSON mit Startdatum (ISO 8601) und Wert beider Ergebnisse und „Aktuelles Datum" (ISO 8601).
 
