@@ -44,7 +44,24 @@ export function toWire(row: Record<string, unknown>): AnySyncRecord {
   return rest as unknown as AnySyncRecord;
 }
 
-export async function push(db: Db, userId: string, req: PushRequest, now = Date.now()): Promise<PushResult> {
+/**
+ * Serializes the writes of one user until the transaction ends (pushes, the steps import). Re-entrant
+ * within one transaction, so a caller holding it can run `push` inside the same transaction.
+ */
+export async function lockUser(tx: Pick<Db, 'execute'>, userId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+}
+
+/**
+ * Applies a batch of records. `db` may also be an open transaction (the steps import): the writes
+ * then run in a savepoint of it.
+ */
+export async function push(
+  db: Pick<Db, 'transaction'>,
+  userId: string,
+  req: PushRequest,
+  now = Date.now(),
+): Promise<PushResult> {
   const result: PushResult = { applied: 0, stale: [], rejected: [], serverTime: now };
 
   // Validate and group; within one batch the winning version per id survives.
@@ -77,7 +94,7 @@ export async function push(db: Db, userId: string, req: PushRequest, now = Date.
   if (byTable.size === 0) return result;
 
   await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
+    await lockUser(tx, userId);
     for (const [name, records] of byTable) {
       const t = table(name) as unknown as PgTable & { userId: any; id: any };
       const ids = [...records.keys()];

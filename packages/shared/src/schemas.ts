@@ -415,6 +415,13 @@ export interface PublicUser {
   createdAt: string;
 }
 
+/** `GET /api/steps/status`: whether a steps access exists, when it was made and last used (epoch ms). */
+export interface StepsStatus {
+  configured: boolean;
+  createdAt: number | null;
+  lastUsedAt: number | null;
+}
+
 export interface ServerInfo {
   name: string;
   version: string;

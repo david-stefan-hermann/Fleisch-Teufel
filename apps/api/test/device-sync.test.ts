@@ -9,7 +9,7 @@ import { UserDb } from '../../web/src/db/dexie';
 import { loadPhoto, pruneLocalPhotos, storePhoto } from '../../web/src/db/photos';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
 import { SyncEngine } from '../../web/src/sync/syncEngine';
-import { createTestContext, registeredClient, type TestCtx } from './helpers.js';
+import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
 let ctx: TestCtx;
 let cookie: string;
@@ -167,6 +167,27 @@ describe('device ↔ server sync', () => {
     const s = await a.engine.sync();
     expect(s.pushed).toBe(1);
     expect(a.engine.getState().status).toBe('idle');
+  });
+
+  it('gets the steps the shortcut sent and keeps kcal typed on the device', async () => {
+    const phone = device('steps-phone');
+    const app = new TestClient(ctx.app, { cookie });
+    const token = (await app.post('/api/steps/token')).json.token as string;
+    const shortcut = new TestClient(ctx.app, { authorization: `Bearer ${token}` });
+    const send = (steps: string) =>
+      shortcut.post('/api/steps/import', { stepDates: '2026-10-08', stepValues: steps, now: '2026-10-08' });
+
+    expect((await send('8000')).json.days[0].written).toBe(true);
+    await phone.engine.sync();
+    const id = dayId.steps('2026-10-08');
+    const pulled = (await phone.db.exerciseEntries.get(id))!;
+    expect(pulled).toMatchObject({ typeKey: 'steps', steps: 8000 });
+
+    await patchRecord(phone.db, 'exerciseEntries', id, { kcal: 290 });
+    await phone.engine.sync();
+    await send('9500');
+    await phone.engine.sync();
+    expect(await phone.db.exerciseEntries.get(id)).toMatchObject({ steps: 9500, kcal: 290, minutes: 95 });
   });
 
   it('reports an expired session', async () => {
