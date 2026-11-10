@@ -7,7 +7,37 @@ wartet auf das „los" des Nutzers, vorher kein App-Code.**
 ## Status
 
 Geplant am 2026-11-10 (Fable). Mockup v1 bis v3 am 2026-11-10 (Opus 5.5):
-`docs/plans/2026-11-schritte-apple-health-mockup.html`. v3 wartet auf „los“. Umsetzung: offen.
+`docs/plans/2026-11-schritte-apple-health-mockup.html`, v3 am 2026-11-10 mit „los“ freigegeben. Umsetzung am
+2026-11-10 (Opus 5.5), Blöcke 1 bis 6 je ein Commit, nicht gepusht. `pnpm lint`, `pnpm typecheck`, `pnpm test`
+grün; E2E „steps from Apple Health“ grün; Sichtprüfung im Produktions-Build (iPhone 13, hell und dunkel).
+
+Abweichungen und Ergänzungen bei der Umsetzung:
+
+- `weightForDay` liegt in `forecast.ts` (neben `weightOn`), nicht in `exercise.ts`; `StepsStatus` in `schemas.ts`.
+- Die Verbrauchsschätzung aus eigenen Daten zieht Schritte nur ab, solange sie angerechnet werden (sonst gehören
+  sie zur Alltagsbewegung, die die Schätzung schon enthält). Trainings wie bisher immer.
+- „Zugang ersetzen“ fragt in einem Dialog nach (der alte Zugang gilt sofort nicht mehr); im Mockup ohne Dialog.
+- Löschen auf der Schritte-Seite: Dialog wie im Mockup, danach zusätzlich Rückgängig im Toast.
+- Der Papierkorb zeigt den Abschnitt „Schritte“ nur, wenn es gelöschte Schritte gibt (kein leerer Abschnitt
+  für alle, die den Import nicht nutzen).
+- `share-day.spec.ts` ist nicht erweitert (der Test bräuchte einen Zugang); die Schritte-Zeile im Tagebild prüft
+  ein Komponententest. `seed-demo.ts` hat keine Schritte bekommen.
+- Das Feld „Eintragen ab“ zeigt „1000“ ohne Tausenderpunkt (Verhalten von `NumberField`).
+- ↻ verlängert die 30 s, solange die App unsichtbar ist (der Kurzbefehl läuft), und synchronisiert am Ende
+  auch dann einmal, wenn der Server den Abruf nicht gemeldet hat.
+- Eine kcal-Änderung, die ein Gerät noch nicht hochgeladen hat, verliert gegen einen neueren Import
+  (Last-Write-Wins, im E2E-Test gesehen). In der Praxis selten, weil die App 0,8 s nach einer Änderung hochlädt.
+
+Nur am iPhone prüfbar (offen):
+
+- Kurzbefehl nach der Anleitung auf Mehr → Schritte gegen `https://fleisch-teufel.avernus.cloud` bauen; die
+  Antwort zeigt `{"ok":true,"days":[…]}`.
+- An einem Tag mit Apple Watch: Wert für den Tag gleich der Health-App (Gruppieren nach Tag soll Uhr und iPhone
+  nicht doppelt zählen).
+- Datumsformat `yyyy-MM-dd` greift für alle drei Datumsfelder (sonst nimmt der Server auch „03/11/2026, 02:41“).
+- Automation läuft ohne Nachfrage (bei gesperrtem iPhone liest Health nichts).
+- ↻ aus der installierten PWA öffnet den Kurzbefehl, nach der Rückkehr dreht es, bis der Wert da ist. Öffnet
+  `shortcuts://` aus der PWA nicht, ↻ ausblenden und nur „Jetzt abrufen“ in Safari lassen.
 
 Entscheidungen nach v1 (Nutzer, 2026-11-10), gehen den Abschnitten unten vor:
 

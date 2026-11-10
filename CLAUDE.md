@@ -246,7 +246,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
     `returnFromInto`. Switch "Anpinnen", "Verbrauch beim aktuellen Gewicht". Saving closes (`goBackOr`), the
     blocker lets the way to the search through. Renaming renames old entries; their values never change.
   - `/trainings`: "Neues Training", pinned first then by name (`sortTrainings`), swipe deletes into the trash
-    (trash rows use `trainingSummary`). Trash covers weights, meals and saved trainings.
+    (trash rows use `trainingSummary`). Trash covers weights, steps, meals and saved trainings.
   - Diary `ExerciseCard`: `groupTrainingEntries` (shared; a group needs two live entries) renders a package as one
     row (title: the saved training's current name, else its sports, `trainingGroupTitle`; "N Aktivitäten · 75 Min."
     opens the parts, each a link to `/exercise-entry/$id` with its own swipe); swipe left deletes a row or package
@@ -416,6 +416,28 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `foodFromMeal`). The meal editor has the field under "Rezept" and a header icon "Als Lebensmittel
   speichern" (`saveMealAsFood`: own food per 100 g cooked with the portion "Ganzes Rezept"); `MealLogView`
   takes "Gegessen (gekocht)" in grams when the weight is known.
+- Steps from Apple Health (plan `docs/plans/2026-11-schritte-apple-health.md`, mockup v3): an iOS shortcut sends
+  the last 7 days of steps and walking distance (grouped by day, dates `yyyy-MM-dd`) with a personal token to
+  `POST /api/steps/import` (`apps/api/src/routes/steps.ts`; table `api_tokens`, server only, kind `steps`,
+  sha256 like sessions; a session is refused there, the token everywhere else). Parsing is pure and tolerant
+  (`steps/parse.ts`: text or arrays, day-first dates, decimal commas, units; `steps/import.ts`: today and the six
+  days before, `stepsRecord`). The server writes one `exerciseEntries` record per day, id `s:<date>`
+  (`dayId.steps`, enforced by `requiredId` for `typeKey: 'steps'`), through `push(tx, …)` under `lockUser`, with
+  `nextVersion`: new days only from `settings.stepsMinimum` (null = `DEFAULT_STEPS_MINIMUM` 1 000), existing
+  ones always updated, tombstones never revived, typed kcal and notes kept (`isAutoTrainingKcal`), unchanged
+  days not written. Values via shared `stepsValues` (distance at 4,8 km/h, else 100 steps a minute; MET 3,5).
+  The app: `isStepsEntry` keeps steps out of suggestions, clipboard, "Wie gestern", the week strip dot and the
+  report minutes; `settings.addStepsCalories` (null = on, switch under Mehr) credits them apart from trainings
+  (`creditOf`, `creditedTrainingKcal`, `DaySummary.creditedKcal`, `dayBudget(r, exercise, steps)`; the
+  expenditure estimate subtracts steps only while they are credited). Diary: `StepsRow` first in the training
+  card (green `--steps`, swipe left deletes, no copy; `StepsRowBody` also in the day image), page
+  `/steps/$date` (`features/steps/StepsPage.tsx`: data, kcal via `TrainingKcal tone="steps"`, delete asks),
+  `/exercise-entry` of a steps entry redirects there, trash section "Schritte" (`trashedSteps`), daily CSV
+  columns "Schritte" and "Distanz (m)". Mehr → Schritte (`StepsSettingsPage`): token shown once, replace and
+  delete with a dialog, the shortcut's actions as numbered steps, "Eintragen ab". ↻ (`lib/steps.ts`
+  `runStepsShortcut`, iPhone with a configured access only, status cached in `kv` `steps.status`): opens
+  `shortcuts://run-shortcut?name=Fleisch-Teufel%20Schritte`, polls `GET /api/steps/status` every 2 s up to 30 s
+  after the app is visible again until `lastUsedAt` is after the tap, then syncs once.
 - Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
   notification a day at a chosen local time, only when nothing is logged that day, per device
   (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/

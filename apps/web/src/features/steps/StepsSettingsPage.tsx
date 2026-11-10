@@ -217,10 +217,11 @@ const K = ({ children }: { children: string }) => (
 
 /** The shortcut's actions and the automation: steps iOS makes everyone do by hand. */
 function ShortcutGuide() {
-  const item = 'grid gap-0.5';
-  const sub = 'text-xs text-muted-foreground';
+  // No grid on the items: a grid list item loses its number.
+  const item = 'pl-1 [&>span]:block';
+  const sub = 'mt-0.5 text-xs text-muted-foreground';
   return (
-    <ol className="grid list-decimal gap-2.5 pr-4 pb-4 pl-9 text-sm marker:text-muted-foreground">
+    <ol className="list-decimal space-y-2.5 pr-4 pb-4 pl-9 text-sm marker:text-muted-foreground">
       <li className={item}>
         <span className="font-medium">Health-Messungen suchen</span>
         <span className={sub}>

@@ -8,15 +8,15 @@ später mit dem Server abgeglichen. Der Abgleich ist ein einfacher **Last-Write-
 
 Jeder synchronisierte Datensatz (Tabellen siehe `SYNC_SCHEMAS` in `packages/shared/src/schemas.ts`) hat:
 
-| Feld                    | Bedeutung                                                                                                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                    | auf dem Gerät erzeugt (UUID v7) oder **deterministisch** bei „einmal pro Tag“: `w:2026-10-07` (Gewicht), `n:…` (Notiz), `g:…` (Ziel ab Datum), `profile` (Einstellungen) |
-| `updatedAt`             | Epoch-ms der letzten lokalen Änderung, streng monoton je Datensatz (`nextVersion`)                                                                                       |
-| `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                              |
-| `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                       |
+| Feld                    | Bedeutung                                                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`                    | auf dem Gerät erzeugt (UUID v7) oder **deterministisch** bei „einmal pro Tag“: `w:2026-10-07` (Gewicht), `n:…` (Notiz), `g:…` (Ziel ab Datum), `s:…` (Schritte), `profile` (Einstellungen) |
+| `updatedAt`             | Epoch-ms der letzten lokalen Änderung, streng monoton je Datensatz (`nextVersion`)                                                                                                         |
+| `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                                                |
+| `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                                         |
 
 Grabsteine werden nie entfernt. Darauf baut der **Papierkorb** (Mehr → Papierkorb, `apps/web/src/db/trash.ts`)
-auf: er zeigt gelöschte Gewichtseinträge, Meals und gespeicherte Trainings (`exerciseTemplates`), „Wiederherstellen“ ist ein normaler Schreibvorgang
+auf: er zeigt gelöschte Gewichtseinträge, Schritte, Meals und gespeicherte Trainings (`exerciseTemplates`), „Wiederherstellen“ ist ein normaler Schreibvorgang
 (`restoreRecord`: `deleted: false` mit neuer Version) und erreicht so alle Geräte. Endgültiges Löschen gibt
 es bewusst nicht, weil das Protokoll kein Purge kennt. Gewicht hat die deterministische ID `w:<Datum>`: ein
 neues Gewicht am selben Tag überschreibt den Grabstein, der Eintrag verschwindet dann aus dem Papierkorb.
@@ -51,6 +51,18 @@ Aktivität 1 und sieht ein Paket als Training mit seiner ersten Aktivität), `ex
 (angepinnt, `null` = nicht) und
 `meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
 wie sie sind).
+
+`exerciseEntries.steps` und `exerciseEntries.distanceM` (Schritte und Geh-/Laufstrecke in Metern eines
+Schritte-Eintrags, sonst `null`), `settings.stepsMinimum` (ab wie vielen Schritten ein Tag einen Eintrag bekommt,
+`null` = 1 000) und `settings.addStepsCalories` (Schritte aufs Ziel anrechnen, `null` = ja).
+
+**Der Server schreibt selbst**: Der Schritte-Import (`POST /api/steps/import`, iOS-Kurzbefehl mit eigenem Zugang)
+legt je Tag einen Trainingseintrag mit der festen ID `s:<Datum>` an und aktualisiert ihn. Er schreibt über
+dasselbe `push` wie ein Gerät, in einer Transaktion unter der Sperre des Nutzers und mit
+`nextVersion(gespeichert, jetzt)`, damit er auch gegen eine Version gewinnt, die ein vorgehendes Gerät
+gestempelt hat. Ein Grabstein bleibt liegen (gelöscht bleibt gelöscht), getippte kcal und die Notiz bleiben,
+unveränderte Tage werden nicht geschrieben (kein neuer `change_seq`). Ein Gerät, das seine Änderung an diesem
+Eintrag noch nicht hochgeladen hat, verliert sie gegen einen neueren Import (Last-Write-Wins).
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.

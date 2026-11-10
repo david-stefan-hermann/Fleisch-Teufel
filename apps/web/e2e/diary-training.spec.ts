@@ -800,3 +800,73 @@ test('saved meals delete by swipe, with undo', async ({ page }) => {
   await page.goto('/meals');
   await expect(page.getByRole('link', { name: /Müsli-Frühstück/ })).toBeVisible();
 });
+
+test('steps from Apple Health: access, import by the shortcut, typed kcal stay, trash', async ({ page }) => {
+  await register(page);
+  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+
+  // Mehr → Schritte: the access is shown once, with the address to send to.
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Schritte.*Nicht eingerichtet/ })).toBeVisible();
+  await page.getByRole('link', { name: /^Schritte/ }).click();
+  await expect(page.getByRole('heading', { name: 'Kurzbefehl' })).toBeVisible();
+  await expect(page.getByText('Gruppieren nach Tag').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Zugang erstellen' }).click();
+  const token = (await page.locator('code', { hasText: /^ftst_/ }).textContent())!;
+  await expect(page.getByText('Nur jetzt sichtbar.')).toBeVisible();
+  await expect(page.locator('code', { hasText: /\/api\/steps\/import$/ })).toBeVisible();
+
+  // The shortcut: day-first lists as text, like an iPhone without a date format sends them.
+  const send = (steps: string) =>
+    page.request.post('/api/steps/import', {
+      headers: { authorization: `Bearer ${token}` },
+      data: {
+        stepDates: today,
+        stepValues: steps,
+        distanceDates: today,
+        distanceValues: '6,1 km',
+        now: today,
+      },
+    });
+  expect((await send('8432')).ok()).toBe(true);
+
+  // The diary pulls it on start: the steps row stands first, with ↻ on an iPhone.
+  await page.goto('/');
+  const row = page.getByRole('link', { name: '8.432 Schritte' });
+  await expect(row).toBeVisible();
+  await expect(page.getByText('6,1 km', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Schritte abrufen' })).toBeVisible();
+  // No "training" for the week strip and no suggestion of steps.
+  await expect(page.getByRole('link', { name: /Training eingetragen$/ })).toHaveCount(0);
+
+  // Typed kcal (from the watch) stay when the next import raises the steps.
+  await row.click();
+  await expect(page).toHaveURL(new RegExp(`/steps/${today}$`));
+  await page.getByLabel('Verbrauch').fill('290');
+  // The change must reach the server before the shortcut sends again (else the newer import wins).
+  const pushed = page.waitForResponse((r) => r.url().includes('/api/sync/push'));
+  await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page.getByText('+290', { exact: true })).toBeVisible();
+  await pushed;
+  expect((await send('9000')).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByRole('link', { name: '9.000 Schritte' })).toBeVisible();
+  await expect(page.getByText('+290', { exact: true })).toBeVisible();
+
+  // Deleting asks first; the next import leaves the day alone; the trash brings it back.
+  await page.getByRole('link', { name: '9.000 Schritte' }).click();
+  await page.getByRole('button', { name: 'Schritte löschen' }).click();
+  const deleted = page.waitForResponse((r) => r.url().includes('/api/sync/push'));
+  await page.getByRole('dialog').getByRole('button', { name: 'Löschen' }).click();
+  await expect(page.getByRole('link', { name: /Schritte$/ })).toHaveCount(0);
+  await deleted;
+  expect((await send('9500')).ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: /^Training/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Schritte$/ })).toHaveCount(0);
+  await page.goto('/settings/trash');
+  await page.getByRole('button', { name: /^Schritte vom .* wiederherstellen$/ }).click();
+  await expect(page.getByText(/^Schritte vom .* wiederhergestellt$/)).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('link', { name: '9.000 Schritte' })).toBeVisible();
+});
