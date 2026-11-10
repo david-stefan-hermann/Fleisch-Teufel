@@ -2,6 +2,7 @@ import {
   get,
   groupDiaryEntries,
   groupTrainingEntries,
+  isStepsEntry,
   MEAL_COUNT,
   N,
   type DaySummary,
@@ -15,6 +16,7 @@ import { Section } from '@/components/Page';
 import { fmt0, fmtDayLongYear, fmtIngredients } from '@/lib/format';
 import { CalorieOverview } from '../CalorieCard';
 import { trainingTitle } from '@/features/exercise/training';
+import { StepsRowBody } from '@/features/steps/StepsRow';
 import { ExerciseRowBody, TrainingGroupRowBody, trainingGroupTitle } from '../ExerciseCard';
 import { EntryRowBody, GroupRowBody } from '../MealCard';
 
@@ -28,6 +30,7 @@ export interface DayShareData {
   date: ISODate;
   summary: DaySummary;
   exerciseCredited: boolean;
+  stepsCredited?: boolean;
   mealNames: string[];
   entries: FoodEntry[];
   exercises: ExerciseEntry[];
@@ -52,6 +55,8 @@ const ROW = 'flex min-h-14 items-center gap-3 px-4 py-2';
 export function DayShareImage({ data }: { data: DayShareData }) {
   const { date, summary, entries, exercises, note, parts } = data;
   const trainingKcal = exercises.reduce((s, e) => s + e.kcal, 0);
+  const steps = exercises.find(isStepsEntry);
+  const trainings = exercises.filter((e) => !isStepsEntry(e));
   return (
     <div className="w-[390px] bg-background p-4 text-foreground">
       <h1 className="mt-1 mb-3.5 text-xl font-semibold tracking-tight">{fmtDayLongYear(date)}</h1>
@@ -78,7 +83,12 @@ export function DayShareImage({ data }: { data: DayShareData }) {
       {parts.training && exercises.length > 0 && (
         <Section title={<Title name="Training" kcal={trainingKcal} />}>
           <ul className="divide-y divide-border/70">
-            {groupTrainingEntries(exercises).map((row) =>
+            {steps && (
+              <li className={ROW}>
+                <StepsRowBody entry={steps} credited={data.stepsCredited !== false} />
+              </li>
+            )}
+            {groupTrainingEntries(trainings).map((row) =>
               row.kind === 'entry' ? (
                 <li key={row.entry.id} className={ROW}>
                   <ExerciseRowBody entry={row.entry} {...trainingTitle(row.entry, data.savedTrainings)} />

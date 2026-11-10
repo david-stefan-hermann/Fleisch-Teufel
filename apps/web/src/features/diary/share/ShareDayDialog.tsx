@@ -30,6 +30,8 @@ export interface ShareDayDialogProps {
   date: ISODate;
   summary: DaySummary;
   exerciseCredited: boolean;
+  /** Setting "Schritte aufs Ziel anrechnen" (the steps row says "nicht angerechnet" when off). */
+  stepsCredited?: boolean;
   mealNames: string[];
   entries: FoodEntry[];
   exercises: ExerciseEntry[];

@@ -1,5 +1,6 @@
 import {
   dayId,
+  dailyRows,
   groupDiaryEntries,
   rescaleItem,
   uuidv7,
@@ -56,7 +57,7 @@ import {
   pasteClipboard,
   readClipboard,
 } from '@/db/clipboard';
-import { trashCount, trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
+import { trashCount, trashedMeals, trashedSteps, trashedTrainings, trashedWeights } from '@/db/trash';
 import {
   addActivityToTraining,
   isTrainingDirty,
@@ -69,7 +70,7 @@ import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
 import { saveOnboarding } from '@/features/goals/saveOnboarding';
-import { entriesCsv, exerciseCsv } from '@/features/reports/export';
+import { dailyCsv, entriesCsv, exerciseCsv } from '@/features/reports/export';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -827,6 +828,84 @@ describe('local writes', () => {
       { templateId: template },
       { templateId: null },
     ]);
+  });
+
+  it('puts steps and distance at the end of the daily CSV', () => {
+    const rows = dailyRows({
+      from: '2026-11-09',
+      to: '2026-11-10',
+      entries: [],
+      exercises: [
+        {
+          id: 's:2026-11-10',
+          updatedAt: 1,
+          deleted: false,
+          date: '2026-11-10',
+          typeKey: 'steps',
+          name: 'Schritte',
+          minutes: 76,
+          intensity: 'moderate',
+          met: 3.5,
+          weightKg: 80,
+          kcal: 253,
+          loggedAt: 1,
+          note: null,
+          templateId: null,
+          groupId: null,
+          steps: 8432,
+          distanceM: 6100,
+        },
+      ],
+      weights: [],
+      goals: [],
+    });
+    const [header, monday, tuesday] = dailyCsv(rows, 'excel-de').trim().split(/\r?\n/);
+    expect(header!.split(';').slice(-2)).toEqual(['Schritte', 'Distanz (m)']);
+    expect(monday!.split(';').slice(-2)).toEqual(['', '']);
+    expect(tuesday!.split(';').slice(-2)).toEqual(['8432', '6100']);
+  });
+
+  it('keeps deleted steps in the trash until restored', async () => {
+    const d = db();
+    const steps = {
+      id: 's:2026-11-09',
+      date: '2026-11-09',
+      typeKey: 'steps',
+      name: 'Schritte',
+      minutes: 104,
+      intensity: 'moderate' as const,
+      met: 3.5,
+      weightKg: 80,
+      kcal: 347,
+      loggedAt: 1,
+      note: null,
+      templateId: null,
+      groupId: null,
+      steps: 11204,
+      distanceM: 8340,
+    };
+    await saveRecord(d, 'exerciseEntries', steps);
+    await logTrainings(d, '2026-11-09', [
+      {
+        typeKey: 'running',
+        name: 'Laufen',
+        minutes: 30,
+        intensity: 'moderate',
+        met: 9.8,
+        weightKg: 80,
+        kcal: 300,
+        note: null,
+      },
+    ]);
+    const run = (await d.exerciseEntries.filter((e) => e.typeKey === 'running').first())!;
+    await deleteRecord(d, 'exerciseEntries', steps.id);
+    // A deleted training is no trash item (it comes back with undo only), deleted steps are.
+    await deleteRecord(d, 'exerciseEntries', run.id);
+    expect((await trashedSteps(d)).map((e) => e.id)).toEqual(['s:2026-11-09']);
+    expect(await trashCount(d)).toBe(1);
+    await restoreRecord(d, 'exerciseEntries', steps.id);
+    expect(await trashedSteps(d)).toEqual([]);
+    expect(await d.exerciseEntries.get(steps.id)).toMatchObject({ deleted: false, steps: 11204 });
   });
 
   it('logs several trainings at once, in order, each queued for the server', async () => {

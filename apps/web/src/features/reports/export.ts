@@ -115,6 +115,8 @@ export function dailyCsv(rows: DailyRow[], dialect: CsvDialect): string {
       { header: 'Ges. Fettsäuren (g)', value: (r) => (r.logged ? get(r.nutrients, N.satFat) : null) },
       { header: 'Salz (g)', value: (r) => (r.logged ? get(r.nutrients, N.salt) : null) },
       { header: 'Gewicht (kg)', value: (r) => r.weightKg },
+      { header: 'Schritte', value: (r) => r.steps },
+      { header: 'Distanz (m)', value: (r) => r.distanceM },
     ],
     dialect,
   );

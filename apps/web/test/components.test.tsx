@@ -1947,6 +1947,27 @@ describe('DayShareImage', () => {
     expect(screen.queryByText('Abendessen')).toBeNull();
   });
 
+  it('shows the steps first, green, without ↻, and says when they do not count', () => {
+    const base = data({ food: false, training: true, note: false });
+    const steps: ExerciseEntry = {
+      ...base.exercises[0]!,
+      id: 's:2026-11-02',
+      typeKey: 'steps',
+      name: 'Schritte',
+      minutes: 76,
+      met: 3.5,
+      kcal: 253,
+      loggedAt: 99,
+      steps: 8432,
+      distanceM: 6100,
+    };
+    render(<DayShareImage data={{ ...base, exercises: [...base.exercises, steps], stepsCredited: false }} />);
+    const rows = screen.getAllByRole('listitem').map((li) => li.textContent);
+    expect(rows[0]).toBe('8.432 Schritte6,1 kmnicht angerechnet+253');
+    expect(screen.getByText('+253').className).toContain('text-steps');
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
   it('shows a logged saved training with several activities as one closed row', () => {
     const base = data({ food: false, training: true, note: false });
     const part = (id: string, name: string, minutes: number, kcal: number): ExerciseEntry => ({

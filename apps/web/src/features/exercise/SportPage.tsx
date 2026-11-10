@@ -2,13 +2,14 @@ import {
   DEFAULT_WEIGHT_KG,
   EXERCISE_TYPE_MAP,
   isAutoTrainingKcal,
+  isStepsEntry,
   metFor,
   trainingKcal,
   type ExerciseEntry,
   type Intensity,
   type ISODate,
 } from '@ft/shared';
-import { useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
+import { Navigate, useNavigate, useParams, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookmarkCheck, BookmarkPlus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
@@ -65,6 +66,9 @@ export function SportPage() {
         <EmptyState title="Eintrag nicht gefunden" />
       </Page>
     );
+  // The day's steps have their own page.
+  if (entry && isStepsEntry(entry))
+    return <Navigate to="/steps/$date" params={{ date: entry.date }} replace />;
   const typeKey = entry?.typeKey ?? params.typeKey;
   // An entry whose own sport was deleted keeps its name and MET.
   const builtIn = typeKey ? EXERCISE_TYPE_MAP.get(typeKey) : undefined;

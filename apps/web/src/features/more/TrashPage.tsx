@@ -1,4 +1,4 @@
-import type { ExerciseTemplate, Meal, WeightEntry } from '@ft/shared';
+import type { ExerciseEntry, ExerciseTemplate, Meal, WeightEntry } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dumbbell, Scale, UtensilsCrossed } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,10 +6,10 @@ import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { trashedMeals, trashedTrainings, trashedWeights } from '@/db/trash';
+import { trashedMeals, trashedSteps, trashedTrainings, trashedWeights } from '@/db/trash';
 import { restoreRecord } from '@/db/write';
 import { trainingItemsOf, trainingSummary } from '@ft/shared';
-import { fmt2, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
+import { fmt0, fmt2, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
 
 /** Rows shown per section; older tombstones stay in the database. */
 const LIMIT = 100;
@@ -19,10 +19,15 @@ export function TrashPage() {
   const weights = useLiveQuery(() => trashedWeights(db), [db]);
   const meals = useLiveQuery(() => trashedMeals(db), [db]);
   const trainings = useLiveQuery(() => trashedTrainings(db), [db]);
+  const steps = useLiveQuery(() => trashedSteps(db), [db]);
 
   async function restoreWeight(w: WeightEntry) {
     await restoreRecord(db, 'weightEntries', w.id);
     toast.success(`Gewicht vom ${fmtDate(w.date)} wiederhergestellt`);
+  }
+  async function restoreSteps(e: ExerciseEntry) {
+    await restoreRecord(db, 'exerciseEntries', e.id);
+    toast.success(`Schritte vom ${fmtDate(e.date)} wiederhergestellt`);
   }
   async function restoreMeal(m: Meal) {
     await restoreRecord(db, 'meals', m.id);
@@ -59,6 +64,31 @@ export function TrashPage() {
           </ul>
         )}
       </Section>
+
+      {/* Only for people who use the steps import: no empty section for everybody else. */}
+      {steps && steps.length > 0 && (
+        <Section title="Schritte">
+          <ul className="divide-y divide-border/70 pb-1">
+            {steps.slice(0, LIMIT).map((e) => (
+              <li key={e.id} className="flex min-h-14 items-center gap-3 px-4 py-2">
+                <div className="tabular min-w-0 flex-1">
+                  <div className="font-medium">
+                    {fmtDate(e.date)} · {fmt0(e.steps ?? 0)}&nbsp;Schritte
+                  </div>
+                  <div className="text-xs text-muted-foreground">gelöscht am {fmtDateOf(e.updatedAt)}</div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => void restoreSteps(e)}
+                  aria-label={`Schritte vom ${fmtDate(e.date)} wiederherstellen`}
+                >
+                  Wiederherstellen
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Meals">
         {meals?.length === 0 && <EmptyState icon={<UtensilsCrossed />} title="Keine gelöschten Meals" />}

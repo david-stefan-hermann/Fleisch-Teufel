@@ -31,6 +31,7 @@ import { deleteRecord, restoreRecord } from '@/db/write';
 import { trainingTitle, useTrainingNames } from '@/features/exercise/training';
 import { TrainingChip } from '@/features/exercise/TrainingChips';
 import { TrainingSuggestions } from '@/features/exercise/TrainingSuggestions';
+import { StepsRow } from '@/features/steps/StepsRow';
 import { useCurrentWeight, useDayExercises } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
@@ -38,19 +39,27 @@ import { useRememberLogStart } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
 
 /**
- * The diary's training card, like a diary meal: header with the total, rows (a single training, or
- * the activities of a saved training logged together as one row that opens), swipe left deletes
- * (a package as a whole), "Zuletzt & häufig" below. A tap on a training opens it on its sport page.
+ * The diary's training card, like a diary meal: header with the total, the day's steps first (from
+ * Apple Health, own row, never copied), then rows (a single training, or the activities of a saved
+ * training logged together as one row that opens), swipe left deletes (a package as a whole),
+ * "Zuletzt & häufig" below. A tap on a training opens it on its sport page. For the empty state and
+ * the chips only the trainings count, not the steps.
  */
 export function ExerciseCard({
   date,
   exercises,
   credited,
+  stepsCredited,
+  stepsRefresh,
   clipboard,
 }: {
   date: ISODate;
   exercises: ExerciseEntry[];
   credited: boolean;
+  /** Setting "Schritte aufs Ziel anrechnen". */
+  stepsCredited: boolean;
+  /** ↻ of the steps row (only where the shortcut can run). */
+  stepsRefresh?: ReactNode;
   /** Copied trainings: the paste icon stands before the "+". */
   clipboard: TrainingClipboard | null;
 }) {
@@ -74,9 +83,11 @@ export function ExerciseCard({
         },
       });
     });
+  const steps = exercises.find(isStepsEntry);
+  const trainings = exercises.filter((e) => !isStepsEntry(e));
   const yesterdayTrainings = yesterday?.filter((e) => !isStepsEntry(e));
   const yesterdayRows =
-    yesterdayTrainings && exercises.length === 0 ? groupTrainingEntries(yesterdayTrainings).length : 0;
+    yesterdayTrainings && trainings.length === 0 ? groupTrainingEntries(yesterdayTrainings).length : 0;
   const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterdayTrainings!) : [];
   const yesterdayDetail = `${fmt0(yesterdayRows)} ${yesterdayRows === 1 ? 'Training' : 'Trainings'} · ${fmt0(
     trainingPartsKcal(yesterdayParts, weightKg),
@@ -104,7 +115,7 @@ export function ExerciseCard({
     </li>
   );
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
-  const rows = groupTrainingEntries(exercises);
+  const rows = groupTrainingEntries(trainings);
   return (
     <Section
       title={
@@ -113,7 +124,7 @@ export function ExerciseCard({
           {total > 0 && (
             <span className="tabular text-sm font-normal text-muted-foreground">{fmt0(total)} kcal</span>
           )}
-          {!credited && exercises.length > 0 && (
+          {!credited && trainings.length > 0 && (
             <Badge variant="secondary" className="self-center px-1.5 py-0 text-[11px] font-normal">
               nicht angerechnet
             </Badge>
@@ -136,8 +147,20 @@ export function ExerciseCard({
         </div>
       }
     >
-      {exercises.length === 0 ? (
-        <>
+      {steps && (
+        <ul>
+          <li data-row={steps.id}>
+            <SwipeToDelete
+              label="Schritte löschen"
+              onDelete={() => void removeTrainingsWithUndo(db, [steps], 'Schritte')}
+            >
+              <StepsRow entry={steps} credited={stepsCredited} refresh={stepsRefresh} />
+            </SwipeToDelete>
+          </li>
+        </ul>
+      )}
+      {trainings.length === 0 ? (
+        <div className={cn(steps && 'border-t border-border/70 pt-3')}>
           <Link
             to="/exercise"
             search={{ date }}
@@ -147,9 +170,9 @@ export function ExerciseCard({
             <Dumbbell className="size-4" aria-hidden /> Training eintragen
           </Link>
           <TrainingSuggestions date={date} leading={leadingChips} />
-        </>
+        </div>
       ) : (
-        <ul className="divide-y divide-border/70">
+        <ul className={cn('divide-y divide-border/70', steps && 'border-t border-border/70')}>
           {rows.map((row) => {
             if (row.kind === 'entry') {
               const e = row.entry;
@@ -186,7 +209,7 @@ export function ExerciseCard({
           })}
         </ul>
       )}
-      {exercises.length > 0 && <TrainingSuggestions date={date} className="border-t border-border/70 pt-3" />}
+      {trainings.length > 0 && <TrainingSuggestions date={date} className="border-t border-border/70 pt-3" />}
     </Section>
   );
 }

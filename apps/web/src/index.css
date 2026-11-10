@@ -70,6 +70,8 @@
      --protein so the two are not the same. >= 5:1 as text on card and muted; checked against
      --primary (the food dot next to it) with the dataviz palette checker. */
   --exercise: oklch(0.5 0.12 230);
+  /* Steps from Apple Health: green, so the everyday walking stands apart from the blue trainings. */
+  --steps: oklch(0.52 0.13 155);
   /* Report bar of a day without macros (absence, so grey); >= 3:1 against the card. */
   --bar-neutral: oklch(0.64 0.01 50);
 
@@ -110,6 +112,7 @@
   --over-2: oklch(0.48 0.16 27);
   --over-good: oklch(0.6 0.13 155);
   --exercise: oklch(0.67 0.12 230);
+  --steps: oklch(0.74 0.13 155);
   --bar-neutral: oklch(0.53 0.008 50);
 }
 
@@ -148,6 +151,7 @@
   --color-over-2: var(--over-2);
   --color-over-good: var(--over-good);
   --color-exercise: var(--exercise);
+  --color-steps: var(--steps);
 }
 
 @layer base {

@@ -164,6 +164,7 @@ export function DiaryPage() {
             date={date}
             exercises={exercises}
             credited={settings.addExerciseCalories}
+            stepsCredited={settings.addStepsCalories !== false}
             clipboard={trainingClipboard(clipboard)}
           />
           <NoteCard key={date} date={date} />
@@ -177,6 +178,7 @@ export function DiaryPage() {
               date={date}
               summary={summary}
               exerciseCredited={settings.addExerciseCalories}
+              stepsCredited={settings.addStepsCalories !== false}
               mealNames={settings.mealNames}
               entries={entries}
               exercises={exercises}

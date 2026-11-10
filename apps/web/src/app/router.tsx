@@ -274,6 +274,12 @@ export const routes = {
     }),
     component: lazyRouteComponent(() => import('@/features/exercise/SportPage'), 'SportPage'),
   }),
+  steps: createRoute({
+    ...r('/steps/$date'),
+    // A malformed date in the URL would crash the date formatter: back to today instead.
+    params: { parse: (p) => ({ date: isISODate(p.date) ? p.date : today() }), stringify: (p) => p },
+    component: lazyRouteComponent(() => import('@/features/steps/StepsPage'), 'StepsPage'),
+  }),
   exerciseEntry: createRoute({
     ...r('/exercise-entry/$entryId'),
     component: lazyRouteComponent(() => import('@/features/exercise/SportPage'), 'SportPage'),

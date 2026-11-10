@@ -181,6 +181,7 @@ export function TrainingKcal({
   weightKg,
   minutes,
   marks = [],
+  tone = 'exercise',
 }: {
   label?: string;
   computed: number;
@@ -190,9 +191,12 @@ export function TrainingKcal({
   weightKg: number;
   minutes: number | null;
   marks?: string[];
+  /** Blue for trainings, green for the steps from Apple Health. */
+  tone?: 'exercise' | 'steps';
 }) {
   const id = useId();
   const typed = own !== null;
+  const color = tone === 'steps' ? 'text-steps' : 'text-exercise';
   return (
     <div className="grid gap-2 rounded-xl border border-border/70 bg-card p-3">
       <div className="flex items-center justify-between gap-3">
@@ -215,8 +219,12 @@ export function TrainingKcal({
             id={id}
             className="w-36 shrink-0"
             inputClassName={cn(
-              'text-lg font-bold text-exercise',
-              typed && 'border-exercise ring-[3px] ring-exercise/25',
+              'text-lg font-bold',
+              color,
+              typed &&
+                (tone === 'steps'
+                  ? 'border-steps ring-[3px] ring-steps/25'
+                  : 'border-exercise ring-[3px] ring-exercise/25'),
             )}
             value={typed ? own : computed}
             unit="kcal"
@@ -228,7 +236,7 @@ export function TrainingKcal({
             error={validOwnKcal(own) ? null : `0 bis ${fmt0(MAX_TRAINING_KCAL)} kcal.`}
           />
         ) : (
-          <span className="tabular shrink-0 text-2xl font-bold text-exercise">{fmt0(computed)} kcal</span>
+          <span className={cn('tabular shrink-0 text-2xl font-bold', color)}>{fmt0(computed)} kcal</span>
         )}
       </div>
       {typed ? (
