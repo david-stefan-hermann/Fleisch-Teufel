@@ -165,6 +165,26 @@ describe('food service', () => {
     expect(await lookupBarcode(db, '1111111111116')).toEqual({ status: 'not_found' });
   });
 
+  it('reports a barcode lookup the server did not answer in time', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const fetch = vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_, reject) =>
+            init.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))),
+          ),
+      );
+      vi.stubGlobal('fetch', fetch);
+      const result = lookupBarcode(db, '1111111111116');
+      // The local lookups (IndexedDB) run first; the request's timer starts with the fetch.
+      while (fetch.mock.calls.length === 0) await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(await result).toEqual({ status: 'timeout' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('derives recent and frequent foods from the diary', async () => {
     const base = {
       meal: 0,

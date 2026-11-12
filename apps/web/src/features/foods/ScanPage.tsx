@@ -1,7 +1,6 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Keyboard, LoaderCircle, PackageSearch, ScanText } from 'lucide-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
 import { Page } from '@/components/Page';
@@ -24,6 +23,7 @@ type State =
   | { kind: 'looking'; code: string }
   | { kind: 'notfound'; code: string }
   | { kind: 'offline'; code: string }
+  | { kind: 'timeout'; code: string }
   | { kind: 'error'; code: string };
 
 export function ScanPage() {
@@ -32,7 +32,7 @@ export function ScanPage() {
   const ai = useAiStatus();
   /** New custom food with the scanned code; `label`: open the label camera right away. */
   const create = useCallback(
-    (code: string, label: boolean, replace = false) =>
+    (code: string, label: boolean) =>
       void navigate({
         to: '/custom-food/$id',
         params: { id: 'new' },
@@ -43,7 +43,6 @@ export function ScanPage() {
           ...(into ? { into } : {}),
           ...(label ? { label: '1' as const } : {}),
         },
-        replace,
       }),
     [navigate, date, meal, into],
   );
@@ -72,17 +71,11 @@ export function ScanPage() {
           search: { date, meal, ...(into ? { into } : {}) },
           replace: true,
         });
-      else if (r.status === 'not_found') {
-        // Unknown product and the AI is there: straight on to the label camera (the editor opens with the
-        // code filled in; closing the camera leaves the empty form). Without AI the panel below offers the editor.
-        if (ai === 'on') {
-          toast(`Produkt ${code} ist unbekannt. Fotografiere das Etikett.`);
-          create(code, true, true);
-        } else setState({ kind: 'notfound', code });
-      } else if (r.status === 'offline') setState({ kind: 'offline', code });
+      else if (r.status === 'not_found' || r.status === 'offline' || r.status === 'timeout')
+        setState({ kind: r.status === 'not_found' ? 'notfound' : r.status, code });
       else setState({ kind: 'error', code });
     },
-    [navigate, date, meal, into, ai, create],
+    [navigate, date, meal, into],
   );
   // State changes only happen once the lookup resolves (keeps the effect below free of sync setState).
   const lookup = useCallback(
@@ -162,17 +155,24 @@ export function ScanPage() {
             )}
           </div>
         )}
-        {(state.kind === 'offline' || state.kind === 'error') && (
+        {(state.kind === 'offline' || state.kind === 'timeout' || state.kind === 'error') && (
           <div className="grid gap-3 rounded-xl border p-4">
             <p className="text-sm">
               {state.kind === 'offline'
                 ? `Offline: ${state.code} ist noch nicht auf dem Gerät. Prüfe die Verbindung (WireGuard) oder lege das Produkt selbst an.`
-                : 'Open Food Facts antwortet gerade nicht. Versuche es gleich noch einmal.'}
+                : state.kind === 'timeout'
+                  ? 'Open Food Facts hat nicht rechtzeitig geantwortet.'
+                  : 'Open Food Facts antwortet gerade nicht. Versuche es gleich noch einmal.'}
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button className="flex-1" onClick={() => void handle(state.code)}>
                 Erneut versuchen
               </Button>
+              {state.kind === 'offline' && (
+                <Button variant="outline" onClick={() => create(state.code, false)}>
+                  Selbst anlegen
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setState({ kind: 'scanning' })}>
                 Weiter scannen
               </Button>

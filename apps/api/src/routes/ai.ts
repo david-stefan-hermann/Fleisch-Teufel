@@ -7,6 +7,7 @@ import {
   kcalFromMacrosEu,
   MAX_ANALYSIS_PHOTOS,
   MAX_HINT_LENGTH,
+  MAX_LABEL_PHOTOS,
   N,
   normalize,
   type AiAnalysisResult,
@@ -55,8 +56,6 @@ function typedValues(field: unknown) {
 
 const MEDIA_TYPES: ImageMediaType[] = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Claude API limit per image
-/** Front, nutrition table and barcode: one call for all of them. */
-export const MAX_LABEL_PHOTOS = 3;
 
 /** Estimated kcal further than this from the macro formula are replaced by the formula's value. */
 const KCAL_TOLERANCE = 0.2;
@@ -483,7 +482,7 @@ export function aiRoutes(deps: Deps) {
   });
 
   /**
-   * Food label photos (1 to 3, field `image` repeated) → the values printed on it. The barcode is
+   * Food label photos (1 to `MAX_LABEL_PHOTOS`, field `image` repeated) → the values printed on it. The barcode is
    * kept only with a valid check digit. Shares the budget and the rate limit with the meal analysis.
    */
   app.post(

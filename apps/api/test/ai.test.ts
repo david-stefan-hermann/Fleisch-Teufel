@@ -1,4 +1,4 @@
-import { indexItem, MAX_ANALYSIS_PHOTOS, search, type AiItem } from '@ft/shared';
+import { indexItem, MAX_ANALYSIS_PHOTOS, MAX_LABEL_PHOTOS, search, type AiItem } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AiCallError,
@@ -752,7 +752,7 @@ describe('POST /api/ai/label', () => {
     return form;
   };
 
-  it('reads 1 to 3 photos in one call and logs it as a label', async () => {
+  it('reads 1 to 5 photos in one call and logs it as a label', async () => {
     nextLabel = proteinBar();
     const r = await c.req('POST', '/api/ai/label', labelForm(2));
     expect(r.status).toBe(200);
@@ -774,14 +774,15 @@ describe('POST /api/ai/label', () => {
     expect(row!.input_tokens).toBe(5000);
     expect(row!.result).toMatchObject({ kind: 'label', photos: 2, barcode: '4006040123453' });
     const calls = labels.length;
-    expect((await c.req('POST', '/api/ai/label', labelForm(3))).status).toBe(200);
+    expect(MAX_LABEL_PHOTOS).toBe(5);
+    expect((await c.req('POST', '/api/ai/label', labelForm(5))).status).toBe(200);
     expect(labels).toHaveLength(calls + 1);
-    expect(labels.at(-1)!.images).toHaveLength(3);
+    expect(labels.at(-1)!.images).toHaveLength(5);
   });
 
-  it('refuses a fourth photo, other files and missing photos without calling Claude', async () => {
+  it('refuses a sixth photo, other files and missing photos without calling Claude', async () => {
     const calls = labels.length;
-    expect((await c.req('POST', '/api/ai/label', labelForm(4))).json).toEqual({ error: 'too_many_images' });
+    expect((await c.req('POST', '/api/ai/label', labelForm(6))).json).toEqual({ error: 'too_many_images' });
     expect((await c.req('POST', '/api/ai/label', labelForm(0))).status).toBe(400);
     expect((await c.req('POST', '/api/ai/label', labelForm(1, 'image/heic'))).status).toBe(415);
     expect((await new TestClient(ctx.app).req('POST', '/api/ai/label', labelForm(1))).status).toBe(401);

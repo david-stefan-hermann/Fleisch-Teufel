@@ -346,7 +346,7 @@ test('own food from a label photo: two photos, one call, form filled and highlig
   await page.goto('/custom-food/new');
   await page.getByRole('button', { name: /^Etikett fotografieren/ }).click();
   const sheet = page.getByRole('dialog', { name: 'Etikett fotografieren' });
-  await expect(sheet.getByText('Nährwerttabelle, Name und Barcode, bis zu 3 Fotos')).toBeVisible();
+  await expect(sheet.getByText('Nährwerttabelle, Name und Barcode, bis zu 5 Fotos')).toBeVisible();
   const analyze = sheet.getByRole('button', { name: /^Analysieren/ });
   await expect(analyze).toBeDisabled();
   // No camera in the test browser: the photo library is the way in (several at once).
@@ -386,15 +386,18 @@ test('own food from a label photo: two photos, one call, form filled and highlig
   await page.getByRole('button', { name: 'Anlegen', exact: true }).click();
   await expect(page.getByText('Lebensmittel angelegt')).toBeVisible();
 
-  // Scan page, unknown product with the AI available: straight to the editor with the code and the
-  // label camera open (no panel in between); closing the camera leaves the prefilled form.
+  // Scan page, unknown product with the AI available: the panel names the code and offers the label
+  // camera, the empty editor and scanning on; only a tap opens the editor (code filled in, camera open).
+  // Closing the camera leaves the prefilled form.
   await page.route('**/api/foods/barcode/**', (r) =>
     r.fulfill({ status: 404, json: { error: 'not_found' } }),
   );
   await page.goto('/scan?meal=0&code=4006040123460');
-  await expect(
-    page.getByText('Produkt 4006040123460 ist unbekannt. Fotografiere das Etikett.'),
-  ).toBeVisible();
+  await expect(page.getByText('Produkt 4006040123460 unbekannt')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Selbst anlegen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Weiter scannen' })).toBeVisible();
+  await expect(page).toHaveURL(/\/scan\?/);
+  await page.getByRole('button', { name: 'Etikett fotografieren' }).click();
   await expect(page.getByRole('dialog', { name: 'Etikett fotografieren' })).toBeVisible();
   await expect(page).toHaveURL(/\/custom-food\/new\?(?!.*label=)/);
   await page.getByRole('button', { name: 'Schließen' }).click();

@@ -4,6 +4,8 @@ import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BarcodeScanner, TorchButton, type TorchState } from '@/components/BarcodeScanner';
 import { CalorieRing } from '@/components/CalorieRing';
+import { labelErrorMessage } from '@/components/LabelCaptureSheet';
+import { ApiError } from '@/lib/api';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MacroSummary } from '@/features/diary/MacroSummary';
@@ -2060,5 +2062,11 @@ describe('DayShareImage', () => {
     expect(screen.getByText('2 Aktivitäten · 1 Std. 15 Min.')).toBeTruthy();
     expect(screen.getByText('+430')).toBeTruthy();
     expect(screen.queryByText('Krafttraining')).toBeNull();
+  });
+});
+
+describe('labelErrorMessage', () => {
+  it('names the label limit for too many photos', () => {
+    expect(labelErrorMessage(new ApiError(400, 'too_many_images'))).toBe('Höchstens 5 Fotos je Etikett.');
   });
 });

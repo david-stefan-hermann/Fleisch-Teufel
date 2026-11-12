@@ -396,8 +396,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - AI review: while no ingredient is a fat (`isFatFood`, `features/ai/fatSuggestion.ts`) the review offers
   "+ Öl 10 g" / "+ Butter 10 g" (photo apps miss about 30 g fat per meal); candidates show "N× gegessen".
   The prompt lists invisible fats as own rows by default unless the hint rules them out.
-- Barcode without a hit (`ScanPage`): with AI on, straight to `/custom-food/new?barcode=&label=1` (label
-  camera open). An Open Food Facts food has a pencil "Werte korrigieren": `/custom-food/new?copy=<foodId>`
+- Barcode without a hit (`ScanPage`): always the panel with the code (no jump, no toast): with AI on "Etikett
+  fotografieren" (`/custom-food/new?barcode=&label=1`, label camera open), "Selbst anlegen", "Weiter scannen";
+  without AI "Produkt anlegen", "Weiter scannen". Offline, timeout (`TimeoutError`) and errors have their own
+  panels with "Erneut versuchen" (offline also "Selbst anlegen"). A label reading takes up to `MAX_LABEL_PHOTOS`
+  (5, shared `schemas.ts`, same limit in the API). An Open Food Facts food has a pencil "Werte korrigieren": `/custom-food/new?copy=<foodId>`
   prefills an own food with the same barcode; search and online results hide the OFF twin of an own barcode
   (`ownBarcodes`, `shadowedByOwn` in `foods/foodService.ts`), the barcode lookup prefers own foods anyway.
 - Complete days (`isCompleteDay(row, { today })`, shared `reports.ts`): closed with "Tag abschließen" or at least

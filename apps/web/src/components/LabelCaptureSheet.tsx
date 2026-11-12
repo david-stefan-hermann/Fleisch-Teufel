@@ -1,4 +1,4 @@
-import type { AiLabelResult } from '@ft/shared';
+import { MAX_LABEL_PHOTOS, type AiLabelResult } from '@ft/shared';
 import { Check } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -8,9 +8,6 @@ import { PhotoCaptureSheet, type CapturedShot } from '@/components/PhotoCaptureS
 import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { ApiError, endpoints, errorMessage, OfflineError } from '@/lib/api';
 
-/** Front, nutrition table and barcode: all go to Claude in one call. */
-export const MAX_LABEL_PHOTOS = 3;
-
 const LABEL_STEPS = ['Suche die Nährwerttabelle', 'Lese die Werte ab', 'Prüfe den Barcode'] as const;
 
 const UNREADABLE =
@@ -19,6 +16,8 @@ const UNREADABLE =
 /** Error toast of the label call (I7); offline and limits get the texts of the meal analysis. */
 export function labelErrorMessage(e: unknown): string {
   if (e instanceof ApiError && ['no_label', 'no_result', 'refused'].includes(e.code)) return UNREADABLE;
+  if (e instanceof ApiError && e.code === 'too_many_images')
+    return `Höchstens ${MAX_LABEL_PHOTOS} Fotos je Etikett.`;
   if (e instanceof ApiError && e.code === 'too_many_requests')
     return 'Zu viele Analysen in kurzer Zeit. Versuche es in ein paar Minuten erneut.';
   return errorMessage(e);
@@ -26,7 +25,7 @@ export function labelErrorMessage(e: unknown): string {
 
 /**
  * "Etikett fotografieren" above the custom food editor: live camera (or the photo library) for up
- * to three photos of one package (`PhotoCaptureSheet`), then one Claude call reads name, brand,
+ * to `MAX_LABEL_PHOTOS` photos of one package (`PhotoCaptureSheet`), then one Claude call reads name, brand,
  * barcode and nutrients. The barcode is read locally first (live scanner and every photo, check
  * digit included) and shown as a chip; it wins over the model's reading. Nothing is stored: the
  * photos only live in memory while this layer is open. X during the analysis cancels it (the server

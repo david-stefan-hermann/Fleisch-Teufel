@@ -18,8 +18,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 5     | erledigt | 81ef7ef |
 | 6     | erledigt | 7b4f0d0 |
 | 7     | erledigt | 23db23d |
-| 8     | erledigt |         |
-| 9     | offen    |         |
+| 8     | erledigt | b4f880e |
+| 9     | erledigt |         |
 | 10    | offen    |         |
 | 11    | offen    |         |
 | 12    | offen    |         |
@@ -156,6 +156,12 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 - Block 8: E2E „⋯ Kopieren“ nutzt zwei einzelne Trainings (Radfahren, Yoga); Pakete prüft der Unit-Test
   (`trainingClipboard.test.ts`). Zusätzlich `components.test.tsx` für `TrainingCardMenu` und `steps.test.ts` für die
   Ergebnisse von `runStepsShortcut`.
+
+- Block 9: Die Etikett-Lesung hat eine eigene Meldung für `too_many_images`: `labelErrorMessage` sagt „Höchstens 5
+  Fotos je Etikett.“ (Fehlercode bleibt derselbe, die Unterscheidung macht der Aufrufer); die Analyse behält „Höchstens
+  5 Fotos je Analyse.“. Der Systemprompt der Etikett-Lesung nennt „1 bis 5 Fotos“ aus derselben Konstante. Der
+  `error`-Zustand (Open Food Facts antwortet mit einem Fehler) bleibt neben dem neuen `timeout`; nur `offline` hat
+  „Selbst anlegen“. Neuer Unit-Test für `lookupBarcode` → `timeout`.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

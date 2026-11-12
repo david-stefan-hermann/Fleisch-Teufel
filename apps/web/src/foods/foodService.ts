@@ -25,7 +25,7 @@ import {
   suggestQuery,
 } from '@ft/shared';
 import type { CachedFood, UserDb } from '@/db/dexie';
-import { endpoints, OfflineError, ApiError } from '@/lib/api';
+import { endpoints, OfflineError, ApiError, TimeoutError } from '@/lib/api';
 import { fmt2, fmtGrams } from '@/lib/format';
 import { loadBls } from './bls';
 
@@ -324,6 +324,7 @@ export type BarcodeResult =
   | { status: 'found'; food: Food }
   | { status: 'not_found' }
   | { status: 'offline' }
+  | { status: 'timeout' }
   | { status: 'error'; message: string };
 
 export async function lookupBarcode(db: UserDb, raw: string): Promise<BarcodeResult> {
@@ -351,6 +352,7 @@ export async function lookupBarcode(db: UserDb, raw: string): Promise<BarcodeRes
     return { status: 'found', food };
   } catch (e) {
     if (e instanceof OfflineError) return { status: 'offline' };
+    if (e instanceof TimeoutError) return { status: 'timeout' };
     if (e instanceof ApiError && e.status === 404) return { status: 'not_found' };
     return { status: 'error', message: e instanceof ApiError ? e.code : 'unknown' };
   }

@@ -532,6 +532,9 @@ export type AiItem = z.infer<typeof aiItemSchema>;
 /** Most photos one meal analysis takes (plates, courses, a label or ingredient list). */
 export const MAX_ANALYSIS_PHOTOS = 5;
 
+/** Most photos one label reading takes (front, nutrition table, barcode, ingredients): one call for all. */
+export const MAX_LABEL_PHOTOS = 5;
+
 /**
  * Values the person typed next to the description of a meal ("Eingeben": calories and macros of
  * the whole meal). They go to the analysis as a clue for the amounts, never as its result. A value

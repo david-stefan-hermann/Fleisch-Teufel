@@ -1,9 +1,9 @@
 /**
- * Reading a food label from 1 to 3 photos (front, nutrition table, barcode). Unlike the meal
+ * Reading a food label from 1 to `MAX_LABEL_PHOTOS` photos (front, nutrition table, barcode). Unlike the meal
  * analysis, the nutrients here come from the model: it copies what is printed, never estimates,
  * and the person checks the filled form before saving.
  */
-import { LABEL_NUTRIENT_KEYS, type LabelNutrientKey } from '@ft/shared';
+import { LABEL_NUTRIENT_KEYS, MAX_LABEL_PHOTOS, type LabelNutrientKey } from '@ft/shared';
 import { z } from 'zod';
 
 // One schema per field (a shared instance would become a $ref in the JSON schema sent to Claude).
@@ -27,7 +27,7 @@ export const labelSchema = z.object({
 });
 export type LabelReading = z.infer<typeof labelSchema>;
 
-export const LABEL_SYSTEM_PROMPT = `Du liest Etiketten verpackter Lebensmittel für eine deutsche Kalorienzähler-App ab. Du bekommst 1 bis 3 Fotos derselben Packung (z. B. Vorderseite, Nährwerttabelle, Barcode) und optional eine Notiz der Person. Aus deinen Angaben füllt die App das Formular „Eigenes Lebensmittel“; die Person prüft es vor dem Speichern.
+export const LABEL_SYSTEM_PROMPT = `Du liest Etiketten verpackter Lebensmittel für eine deutsche Kalorienzähler-App ab. Du bekommst 1 bis ${MAX_LABEL_PHOTOS} Fotos derselben Packung (z. B. Vorderseite, Nährwerttabelle, Barcode) und optional eine Notiz der Person. Aus deinen Angaben füllt die App das Formular „Eigenes Lebensmittel“; die Person prüft es vor dem Speichern.
 
 Grundregel: Schreibe nur ab, was aufgedruckt und lesbar ist. Schätze nichts, rechne nichts um, ergänze nichts aus Erfahrung. Was fehlt oder nicht sicher lesbar ist, bleibt null und kommt kurz in notes.
 
