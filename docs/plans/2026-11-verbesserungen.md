@@ -12,8 +12,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | ----- | -------- | ------- |
 | 0     | erledigt | 72a29f0 |
 | 1     | erledigt | 2759a17 |
-| 2     | erledigt |         |
-| 3     | offen    |         |
+| 2     | erledigt | da72de6 |
+| 3     | erledigt |         |
 | 4     | offen    |         |
 | 5     | offen    |         |
 | 6     | offen    |         |
@@ -54,6 +54,30 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 - Block 2, F10: es gibt keine Quelle `estimate`; KI-Einträge (`ai`) heißen „KI-Analyse“, ohne `foodId` (geschätztes
   Lebensmittel) „KI-Schätzung“.
 - Block 2, U11: der Zustand „Daten nicht schlüssig“ zeigt darunter die Zahl der vollständigen Tage und Wiegungen.
+- Block 3: Schema, Fehlerklasse und Migration nach der Ausarbeitung, nicht nach der Kurzfassung: `status` ist
+  `'ok' | 'failed'` (Zeitüberschreitung steht in `error = 'ai_timeout'`), die Klasse heißt `AiCallError` (mit `cause`,
+  `usage`, `model`, `rounds`), die Migration `0015_ai-analyses-status-request`. Fehler, die nicht vom Claude-Aufruf
+  kommen (Programmfehler, Datenbank), werden mit `error = 'internal'` protokolliert und bleiben 500.
+- Block 3, K1: Antworten aus dem Speicher (gleiche `requestId`) kosten nichts und laufen deshalb auch bei
+  aufgebrauchtem Budget. Budget und Stundenlimit werden geprüft, nachdem eine laufende Analyse mit demselben
+  Schlüssel gefunden wurde (sonst würde der zweite Aufruf das Stundenlimit zählen). Die Budgetmeldung nennt auch
+  beim Etikett „Foto-Analyse“.
+- Block 3, K3: `analysisId` wird vor dem Speichern erzeugt (`randomUUID`), damit die gespeicherte Antwort sie und die
+  `est:`-Kennungen schon enthält. Der Server nimmt als `requestId` 1 bis 64 Zeichen aus Buchstaben, Ziffern, `_`
+  und `-`, sonst wird sie ignoriert (Analyse wie bisher).
+- Block 3, K4: `maxRetries` bleibt 2. Das `AbortSignal` des Gesamtbudgets (100 s) beendet auch die Wiederholungen
+  des SDK, die Summe bleibt so unter den 120 s des Geräts.
+- Block 3, K5: Cache-Lesepreise je Modell (Opus 5.5 0,20 $, Fable 5.1 0,25 $, sonst 0,1 × Eingabe); für
+  `claude-haiku-5-5` (0,10 $ / 0,50 $) ist der Cache-Lesepreis als 0,1 × angenommen (im `claude-api`-Skill nicht
+  genannt). Haiku 5.5 bekommt Denken und `effort`, aber keine Server-Ausweichmodelle (gibt es dort nicht); nur
+  Haiku 4.5 läuft ganz ohne. Ein Modell wird nur noch exakt oder als datierter Snapshot (`-JJJJMMTT`) erkannt.
+- Block 3, U14: `too_many_images` sagt „Höchstens 5 Fotos je Analyse.“ auch beim Etikett (die App schickt dort nie
+  mehr als 3). Neu sind außerdem `no_result` („Die Analyse hat kein verwertbares Ergebnis geliefert. Versuche es
+  erneut.“), `unsupported_image_type` („Dieses Bildformat wird nicht unterstützt.“) und `push_disabled`
+  („Erinnerungen sind auf dem Server nicht eingerichtet.“). Bei `ai_budget` bricht der Lauf der Warteschlange ab: der
+  Eintrag wird `failed` mit dem Grund (kein automatisches Wiederholen), die übrigen bleiben wartend und gehen beim
+  nächsten Lauf (App sichtbar, online) los; ist das Budget dann noch aufgebraucht, wird je Lauf einer davon
+  `failed`.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

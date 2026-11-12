@@ -178,6 +178,21 @@ describe('labels', () => {
     expect(errorMessage(new ApiError(401, 'invalid_credentials'))).toBe('E-Mail oder Passwort stimmt nicht.');
     expect(errorMessage(new ApiError(500, 'x'))).toMatch(/500/);
   });
+
+  it('names the AI budget, timeout and upload errors in German', () => {
+    expect(errorMessage(new ApiError(429, 'ai_budget', { error: 'ai_budget', scope: 'day' }))).toMatch(
+      /Tagesbudget/,
+    );
+    expect(errorMessage(new ApiError(429, 'ai_budget', { error: 'ai_budget', scope: 'month' }))).toMatch(
+      /Monatsbudget/,
+    );
+    expect(errorMessage(new ApiError(504, 'ai_timeout'))).toBe(
+      'Die Analyse hat zu lange gedauert und wurde abgebrochen.',
+    );
+    expect(errorMessage(new ApiError(400, 'too_many_images'))).toBe('Höchstens 5 Fotos je Analyse.');
+    for (const code of ['unsupported_image_type', 'push_disabled', 'no_result'])
+      expect(errorMessage(new ApiError(400, code))).not.toMatch(/Fehler \(/);
+  });
 });
 
 describe('expanded diary groups', () => {

@@ -80,6 +80,12 @@ export interface AiQueueItem {
    * analysis of this item as a clue for the amounts. The review shows what the AI found.
    */
   typed?: AiTypedValues;
+  /**
+   * Idempotency key of the analysis request (uuidv7, not `localId`, which repeats across devices):
+   * the server answers a repeated request with the stored result instead of a second paid call. Kept
+   * by "Wiederholen" and after a lost connection, new for every ↻.
+   */
+  requestId?: string;
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */

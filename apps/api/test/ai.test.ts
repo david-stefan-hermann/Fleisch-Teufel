@@ -1,12 +1,20 @@
 import { indexItem, MAX_ANALYSIS_PHOTOS, search, type AiItem } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AiRefusalError, type AnalyzeInput, type FoodAnalyzer, type LabelInput } from '../src/ai/analyze.js';
+import {
+  AiCallError,
+  AiOutputError,
+  AiRefusalError,
+  type AnalyzeInput,
+  type FoodAnalyzer,
+  type LabelInput,
+} from '../src/ai/analyze.js';
+import { budgetExceeded, DAY_MS } from '../src/ai/budget.js';
 import type { LabelReading } from '../src/ai/label.js';
 import { matchItem, type LocalSearch } from '../src/ai/match.js';
-import { customFoods } from '../src/db/schema.js';
+import { aiAnalyses, customFoods } from '../src/db/schema.js';
 import { candidatesFor, estimatedFood } from '../src/routes/ai.js';
 import { blsToFood, loadBls } from '../src/foods/catalog.js';
-import { costUsd } from '../src/ai/pricing.js';
+import { costUsd, knownModel } from '../src/ai/pricing.js';
 import { userPrompt } from '../src/ai/prompt.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
@@ -27,7 +35,12 @@ let ctx: TestCtx;
 let c: TestClient;
 const received: AnalyzeInput[] = [];
 const labels: LabelInput[] = [];
+const labelSignals: (AbortSignal | undefined)[] = [];
 let refuse = false;
+/** Thrown by the next fake call (then cleared), e.g. an `AiCallError` with the usage spent so far. */
+let nextError: unknown = null;
+/** While set, the fake analysis waits for it (parallel requests with the same key). */
+let gate: Promise<void> | null = null;
 /** What the fake model searches for, and what it then answers (null: the default dish). */
 let queries: string[] = [];
 let nextItems: AiItem[] | null = null;
@@ -62,6 +75,12 @@ const fakeAnalyzer: FoodAnalyzer = {
   async analyze(input, searchFoods) {
     received.push(input);
     if (refuse) throw new AiRefusalError('general_harms');
+    if (gate) await gate;
+    if (nextError) {
+      const e = nextError;
+      nextError = null;
+      throw e;
+    }
     searchResults = [];
     for (const q of queries) searchResults.push(await searchFoods(q));
     return {
@@ -86,9 +105,15 @@ const fakeAnalyzer: FoodAnalyzer = {
       },
     };
   },
-  async readLabel(input) {
+  async readLabel(input, signal) {
     labels.push(input);
+    labelSignals.push(signal);
     if (refuse) throw new AiRefusalError('general_harms');
+    if (nextError) {
+      const e = nextError;
+      nextError = null;
+      throw e;
+    }
     return {
       reading: nextLabel,
       model: 'claude-opus-5-5',
@@ -121,6 +146,24 @@ describe('pricing', () => {
     expect(costUsd('claude-opus-5-5', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBe(24);
     expect(costUsd('claude-sonnet-5-5', { inputTokens: 3000, outputTokens: 1500 })).toBeCloseTo(0.021);
     expect(costUsd('claude-haiku-4-5-20251001', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBe(6);
+    expect(costUsd('claude-haiku-5-5', { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBeCloseTo(0.6);
+  });
+
+  it('prices cache reads and writes per model', () => {
+    const cached = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 1_000_000 };
+    expect(costUsd('claude-opus-5-5', cached)).toBeCloseTo(0.2);
+    expect(costUsd('claude-fable-5-1', cached)).toBeCloseTo(0.25);
+    expect(costUsd('claude-sonnet-5-5', cached)).toBeCloseTo(0.2);
+    expect(
+      costUsd('claude-opus-5-5', { inputTokens: 0, outputTokens: 0, cacheWriteTokens: 1_000_000 }),
+    ).toBeCloseTo(5);
+  });
+
+  it('recognizes a model by its id or a dated snapshot, not by a prefix', () => {
+    expect(knownModel('claude-opus-5-5')).toBe('claude-opus-5-5');
+    expect(knownModel('claude-opus-5-20260301')).toBe('claude-opus-5');
+    expect(knownModel('claude-haiku-5-5')).toBe('claude-haiku-5-5');
+    expect(knownModel('claude-opus-5-6')).toBeNull();
   });
 });
 
@@ -504,6 +547,34 @@ describe('POST /api/ai/analyze', () => {
     refuse = false;
     expect(r.status).toBe(422);
     expect(r.json).toEqual({ error: 'refused', category: 'general_harms' });
+    const [row] = await ctx.db
+      .$client`select status, error, cost_usd from ai_analyses order by created_at desc limit 1`;
+    expect(row).toMatchObject({ status: 'failed', error: 'refused', cost_usd: 0 });
+  });
+
+  it('logs a failed analysis with what its rounds cost', async () => {
+    nextError = new AiCallError(
+      new AiOutputError('timeout'),
+      { inputTokens: 2000, outputTokens: 10, costUsd: 0.02 },
+      'claude-opus-5-5',
+      3,
+    );
+    const r = await c.req('POST', '/api/ai/analyze', photo());
+    expect(r.status).toBe(504);
+    expect(r.json).toEqual({ error: 'ai_timeout' });
+    const [row] = await ctx.db.$client`
+      select status, error, cost_usd, input_tokens, result from ai_analyses order by created_at desc limit 1`;
+    expect(row).toMatchObject({ status: 'failed', error: 'ai_timeout', cost_usd: 0.02, input_tokens: 2000 });
+    expect(row!.result).toMatchObject({ photos: 1, failed: 'ai_timeout' });
+
+    nextError = new AiCallError(
+      new AiRefusalError('cyber'),
+      { inputTokens: 900, outputTokens: 5, costUsd: 0.004 },
+      'claude-opus-5-5',
+      1,
+    );
+    const refused = await c.req('POST', '/api/ai/analyze', photo());
+    expect(refused.json).toEqual({ error: 'refused', category: 'cyber' });
   });
 
   it('is disabled without an analyzer', async () => {
@@ -514,6 +585,157 @@ describe('POST /api/ai/analyze', () => {
       expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(503);
     } finally {
       await off.close();
+    }
+  });
+});
+
+describe('idempotent analyses (requestId)', () => {
+  const keyed = (requestId: string) => {
+    const form = photo();
+    form.set('requestId', requestId);
+    return form;
+  };
+
+  it('answers a repeated request from the stored result without calling Claude again', async () => {
+    const calls = received.length;
+    const first = await c.req('POST', '/api/ai/analyze', keyed('r1'));
+    expect(first.status).toBe(200);
+    const again = await c.req('POST', '/api/ai/analyze', keyed('r1'));
+    expect(again.status).toBe(200);
+    expect(again.json).toEqual(first.json);
+    expect(received).toHaveLength(calls + 1);
+    const [row] = await ctx.db
+      .$client`select request_id, response from ai_analyses where id = ${first.json.analysisId}`;
+    expect(row!.request_id).toBe('r1');
+    expect(row!.response.items[0].candidates.length).toBeGreaterThan(0);
+  });
+
+  it('analyzes again after a failed first attempt', async () => {
+    nextError = new AiCallError(
+      new AiOutputError('no response'),
+      { inputTokens: 1, outputTokens: 1, costUsd: 0.001 },
+      null,
+      1,
+    );
+    const calls = received.length;
+    expect((await c.req('POST', '/api/ai/analyze', keyed('r2'))).status).toBe(502);
+    const r = await c.req('POST', '/api/ai/analyze', keyed('r2'));
+    expect(r.status).toBe(200);
+    expect(received).toHaveLength(calls + 2);
+  });
+
+  it('keeps keys apart per account, and requests without a key as before', async () => {
+    const other = await registeredClient(ctx, 'other@example.com');
+    const calls = received.length;
+    const mine = await c.req('POST', '/api/ai/analyze', keyed('r1'));
+    const theirs = await other.req('POST', '/api/ai/analyze', keyed('r1'));
+    expect(theirs.status).toBe(200);
+    expect(theirs.json.analysisId).not.toBe(mine.json.analysisId);
+    expect((await c.req('POST', '/api/ai/analyze', photo())).status).toBe(200);
+    expect((await c.req('POST', '/api/ai/analyze', photo())).status).toBe(200);
+    expect(received).toHaveLength(calls + 3);
+  });
+
+  it('lets a parallel request with the same key wait for the running analysis', async () => {
+    let open!: () => void;
+    gate = new Promise((resolve) => (open = resolve));
+    const calls = received.length;
+    const a = c.req('POST', '/api/ai/analyze', keyed('r3'));
+    // The second request arrives while the first one is still with the model.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const b = c.req('POST', '/api/ai/analyze', keyed('r3'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    gate = null;
+    open();
+    const [ra, rb] = await Promise.all([a, b]);
+    expect(ra.status).toBe(200);
+    expect(rb.json.analysisId).toBe(ra.json.analysisId);
+    expect(received).toHaveLength(calls + 1);
+  });
+});
+
+describe('AI budget', () => {
+  it('answers 429 ai_budget once the day budget is used up, failed calls included', async () => {
+    const b = await createTestContext({
+      analyzer: fakeAnalyzer,
+      env: { ALLOW_REGISTRATION: 'true', AI_BUDGET_DAY_USD: '0.04' },
+    });
+    try {
+      const u = await registeredClient(b);
+      nextError = new AiCallError(
+        new AiOutputError('timeout'),
+        { inputTokens: 2000, outputTokens: 10, costUsd: 0.02 },
+        'claude-opus-5-5',
+        2,
+      );
+      expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(504);
+      expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(200);
+      const calls = received.length;
+      const labelCalls = labels.length;
+      const over = await u.req('POST', '/api/ai/analyze', photo());
+      expect(over.status).toBe(429);
+      expect(over.json).toEqual({ error: 'ai_budget', scope: 'day' });
+      const form = photo();
+      form.set('text', 'Etikett');
+      expect((await u.req('POST', '/api/ai/label', form)).json).toEqual({ error: 'ai_budget', scope: 'day' });
+      expect(received).toHaveLength(calls);
+      expect(labels).toHaveLength(labelCalls);
+    } finally {
+      await b.close();
+    }
+  });
+
+  it('answers 429 with scope month for the 30-day budget, and 0 turns a limit off', async () => {
+    const b = await createTestContext({
+      analyzer: fakeAnalyzer,
+      env: { ALLOW_REGISTRATION: 'true', AI_BUDGET_DAY_USD: '0', AI_BUDGET_MONTH_USD: '0.04' },
+    });
+    try {
+      const u = await registeredClient(b);
+      expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(200);
+      expect((await u.req('POST', '/api/ai/analyze', photo())).json).toEqual({
+        error: 'ai_budget',
+        scope: 'month',
+      });
+    } finally {
+      await b.close();
+    }
+    const off = await createTestContext({
+      analyzer: fakeAnalyzer,
+      env: { ALLOW_REGISTRATION: 'true', AI_BUDGET_DAY_USD: '0', AI_BUDGET_MONTH_USD: '0' },
+    });
+    try {
+      const u = await registeredClient(off);
+      for (let i = 0; i < 3; i++) expect((await u.req('POST', '/api/ai/analyze', photo())).status).toBe(200);
+    } finally {
+      await off.close();
+    }
+  });
+
+  it('sums rolling windows of 24 hours and 30 days', async () => {
+    const userId = (await c.get('/api/auth/me')).json.user.id as string;
+    const b = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const u = await registeredClient(b);
+      const id = (await u.get('/api/auth/me')).json.user.id as string;
+      const now = Date.now();
+      const row = (ago: number, cost: number) => ({
+        userId: id,
+        createdAt: new Date(now - ago),
+        model: 'claude-opus-5-5',
+        inputTokens: 0,
+        outputTokens: 0,
+        costUsd: cost,
+        durationMs: 0,
+        result: {},
+      });
+      await b.db.insert(aiAnalyses).values([row(DAY_MS + 60_000, 3), row(60_000, 1), row(31 * DAY_MS, 100)]);
+      expect(await budgetExceeded(b.db, id, { dayUsd: 1.5, monthUsd: 5 }, now)).toBeNull();
+      expect(await budgetExceeded(b.db, id, { dayUsd: 1, monthUsd: 5 }, now)).toBe('day');
+      expect(await budgetExceeded(b.db, id, { dayUsd: 0, monthUsd: 4 }, now)).toBe('month');
+      expect(await budgetExceeded(b.db, userId, { dayUsd: 1, monthUsd: 4 }, now)).toBeNull();
+    } finally {
+      await b.close();
     }
   });
 });
@@ -536,6 +758,8 @@ describe('POST /api/ai/label', () => {
     expect(r.status).toBe(200);
     expect(labels.at(-1)!.images.map((i) => i.mediaType)).toEqual(['image/jpeg', 'image/jpeg']);
     expect(labels.at(-1)!.text).toBe('Riegel');
+    // The label reading runs within the same time budget as the analysis.
+    expect(labelSignals.at(-1)).toBeInstanceOf(AbortSignal);
     expect(r.json).toMatchObject({
       name: 'Proteinriegel Schoko',
       brand: 'Bergkorn',
@@ -595,6 +819,22 @@ describe('POST /api/ai/label', () => {
     refuse = false;
     expect(refused.status).toBe(422);
     expect(refused.json.error).toBe('refused');
+  });
+
+  it('maps a label timeout to 504 and logs it', async () => {
+    nextError = new AiCallError(
+      new AiOutputError('timeout'),
+      { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      null,
+      1,
+    );
+    const r = await c.req('POST', '/api/ai/label', labelForm(1));
+    expect(r.status).toBe(504);
+    expect(r.json).toEqual({ error: 'ai_timeout' });
+    const [row] = await ctx.db
+      .$client`select status, error, model, result from ai_analyses order by created_at desc limit 1`;
+    expect(row).toMatchObject({ status: 'failed', error: 'ai_timeout', model: 'claude-opus-5-5' });
+    expect(row!.result).toMatchObject({ kind: 'label', failed: 'ai_timeout' });
   });
 
   it('is disabled without an analyzer', async () => {

@@ -102,7 +102,10 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 3. Im **.env-Editor** des Stacks die Variablen aus [`deploy/.env.example`](deploy/.env.example) setzen:
    mindestens `POSTGRES_PASSWORD` (lang, zufällig), `ANTHROPIC_API_KEY` (optional) und `OFF_CONTACT_EMAIL`.
    `AI_LABEL_MODEL` (z. B. `claude-sonnet-5-5`) nimmt ein günstigeres Modell fürs Abschreiben von
-   Nährwerttabellen; Tellerfotos bleiben bei `AI_MODEL`.
+   Nährwerttabellen; Tellerfotos bleiben bei `AI_MODEL`. `AI_BUDGET_DAY_USD` (Standard 5) und
+   `AI_BUDGET_MONTH_USD` (Standard 50) begrenzen die KI-Kosten je Konto über die letzten 24 Stunden bzw.
+   30 Tage (`0` schaltet eine Grenze ab). Setze zusätzlich in der Anthropic Console ein Ausgabenlimit für
+   den API-Schlüssel, damit auch ein Fehler im Server die Kosten nicht unbegrenzt treiben kann.
 4. **Deploy**. Nach ~30 s liefert `http://<nas>:30300/health` `{"ok":true,…}`.
 5. Reverse Proxy (Nginx Proxy Manager): Host → `http://<nas-ip>:30300`, SSL erzwingen, Websockets an,
    Zugriffsliste nach Wunsch (z. B. nur LAN/VPN). Die App wertet `X-Forwarded-Proto` aus und setzt das

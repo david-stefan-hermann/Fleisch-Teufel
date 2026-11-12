@@ -373,7 +373,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (changes in the diary group editor and offline are not learned). The food label reading works differently
   (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
-  form before saving.
+  form before saving. Every Claude call, failed ones too (`AiCallError` carries the usage spent), is a row in `ai_analyses`
+  (`status`, `error`); `ai/budget.ts` answers 429 `ai_budget` above `AI_BUDGET_DAY_USD`/`AI_BUDGET_MONTH_USD`
+  (rolling 24 hours / 30 days, before the hourly rate limit). Queue items send `requestId` (uuidv7): the server
+  answers a repeated key with the stored `response` (or waits for the running call) instead of paying again;
+  ↻ gets a new key, "Wiederholen" keeps it. Cache prices per model live in `ai/pricing.ts`.
 - Diary meal suggestions: `MealSuggestions` ("Zuletzt hier", `src/db/suggestions.ts`) under every diary meal
   (and on `/diary-meal`), below its entries: foods and groups of this meal index in the last 60 days, scored by
   frequency and recency (same weekday higher), without what the meal already has that day (cut to 4 after

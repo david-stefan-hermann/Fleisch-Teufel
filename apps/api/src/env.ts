@@ -26,6 +26,12 @@ const envSchema = z.object({
   AI_LABEL_MODEL: z.string().optional(),
   AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
   /**
+   * AI spending limit per account in USD over the last 24 hours and the last 30 days (all calls,
+   * failed ones included); 0 turns a limit off. Above it the AI routes answer 429 `ai_budget`.
+   */
+  AI_BUDGET_DAY_USD: z.coerce.number().min(0).default(5),
+  AI_BUDGET_MONTH_USD: z.coerce.number().min(0).default(50),
+  /**
    * Web Push (daily reminder): VAPID key pair (`pnpm --filter @ft/api push:keys` prints one) and the
    * contact the push services may use. Without keys the reminder is simply not offered.
    */

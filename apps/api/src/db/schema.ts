@@ -10,6 +10,7 @@
  *   change_seq     server-assigned value from the global `sync_seq` sequence: the pull cursor.
  */
 import type {
+  AiAnalysisResult,
   DayTarget,
   MacroPlan,
   MealItem,
@@ -289,8 +290,24 @@ export const aiAnalyses = pgTable(
     costUsd: doublePrecision().notNull(),
     durationMs: integer().notNull(),
     result: jsonb().notNull(),
+    /** A failed call is logged too: its rounds were paid for and count towards the budget. */
+    status: text({ enum: ['ok', 'failed'] })
+      .notNull()
+      .default('ok'),
+    /** Error code of a failed call (ai_timeout, refused, upstream_error, no_result, upstream_rate_limited). */
+    error: text(),
+    /** Idempotency key of the device's queue item (meal analysis only). */
+    requestId: text(),
+    /** The complete answer sent to the device (items with candidates); null for labels, failed calls and older rows. */
+    response: jsonb().$type<AiAnalysisResult>(),
   },
-  (t) => [index().on(t.userId, t.createdAt)],
+  (t) => [
+    index().on(t.userId, t.createdAt),
+    // A failed call must not block the repetition with the same key.
+    uniqueIndex()
+      .on(t.userId, t.requestId)
+      .where(sql`status = 'ok' and request_id is not null`),
+  ],
 );
 
 /**

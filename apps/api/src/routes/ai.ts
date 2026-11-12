@@ -17,11 +17,20 @@ import {
   type NutrientMap,
 } from '@ft/shared';
 import Anthropic from '@anthropic-ai/sdk';
+import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { z } from 'zod';
-import { AiOutputError, AiRefusalError, type ImageMediaType } from '../ai/analyze.js';
+import {
+  AiCallError,
+  AiOutputError,
+  AiRefusalError,
+  type AiUsage,
+  type ImageMediaType,
+} from '../ai/analyze.js';
+import { budgetExceeded } from '../ai/budget.js';
 import { readingHasContent, sanitizeReading } from '../ai/label.js';
 import { createFoodSearch } from '../ai/foodSearch.js';
 import { matchItem, type LocalSearch } from '../ai/match.js';
@@ -117,7 +126,6 @@ export function candidatesFor(
   return matchItem(item, searchLocal, maxCandidates);
 }
 
-/** Maps the errors of a Claude call to responses (shared by meal photos and labels). */
 /**
  * Whole budget of one analysis over all tool rounds and retries. Below the device's 120 s, so the
  * person gets a clear answer instead of a client timeout while the server still pays for rounds.
@@ -136,29 +144,145 @@ async function readImages(files: File[]): Promise<{ base64: string; mediaType: I
   return out;
 }
 
+export interface AiErrorInfo {
+  status: ContentfulStatusCode;
+  code: string;
+  /** Refusals only: the category the safety classifier named. */
+  category?: string | null;
+}
+
+/**
+ * Status and error code of a failed Claude call (shared by meal photos and labels); null for errors
+ * that are not about the call (a bug, the database).
+ */
+export function classifyAiError(e: unknown): AiErrorInfo | null {
+  const cause = e instanceof AiCallError ? e.cause : e;
+  if (cause instanceof AiRefusalError) return { status: 422, code: 'refused', category: cause.category };
+  if (cause instanceof AiOutputError && cause.message === 'timeout')
+    return { status: 504, code: 'ai_timeout' };
+  if (cause instanceof AiOutputError) return { status: 502, code: 'no_result' };
+  if (
+    cause instanceof Anthropic.APIUserAbortError ||
+    (cause instanceof DOMException && cause.name === 'TimeoutError')
+  )
+    return { status: 504, code: 'ai_timeout' };
+  if (cause instanceof Anthropic.RateLimitError) return { status: 503, code: 'upstream_rate_limited' };
+  if (cause instanceof Anthropic.AuthenticationError) return { status: 503, code: 'ai_misconfigured' };
+  if (cause instanceof Anthropic.APIError) return { status: 502, code: 'upstream_error' };
+  return null;
+}
+
+/** A request the route turns down before calling Claude (budget, rate limit). */
+class AiRouteRefusal extends Error {
+  constructor(
+    public readonly status: ContentfulStatusCode,
+    public readonly body: Record<string, unknown>,
+  ) {
+    super(String(body.error));
+  }
+}
+
 function aiError(c: Context<AppEnv>, e: unknown) {
-  if (e instanceof AiRefusalError) return c.json({ error: 'refused', category: e.category }, 422);
-  if (e instanceof AiOutputError && e.message === 'timeout') return c.json({ error: 'ai_timeout' }, 504);
-  if (e instanceof AiOutputError) return c.json({ error: 'no_result' }, 502);
-  if (e instanceof Anthropic.APIUserAbortError || (e instanceof DOMException && e.name === 'TimeoutError'))
-    return c.json({ error: 'ai_timeout' }, 504);
-  if (e instanceof Anthropic.RateLimitError) return c.json({ error: 'upstream_rate_limited' }, 503);
-  if (e instanceof Anthropic.AuthenticationError) {
-    log.error('Anthropic API key rejected');
-    return c.json({ error: 'ai_misconfigured' }, 503);
-  }
-  if (e instanceof Anthropic.APIError) {
-    log.error('Anthropic API error', { status: e.status, message: e.message });
-    return c.json({ error: 'upstream_error' }, 502);
-  }
-  throw e;
+  if (e instanceof AiRouteRefusal) return c.json(e.body, e.status);
+  const info = classifyAiError(e);
+  if (!info) throw e;
+  const cause = e instanceof AiCallError ? e.cause : e;
+  if (info.code === 'ai_misconfigured') log.error('Anthropic API key rejected');
+  else if (cause instanceof Anthropic.APIError && info.code === 'upstream_error')
+    log.error('Anthropic API error', { status: cause.status, message: cause.message });
+  return c.json(
+    info.category !== undefined ? { error: info.code, category: info.category } : { error: info.code },
+    info.status,
+  );
+}
+
+const NO_USAGE: AiUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+
+/** The device's idempotency key of a meal analysis (field `requestId`), or null. */
+function requestIdOf(field: unknown): string | null {
+  return typeof field === 'string' && /^[\w-]{1,64}$/.test(field) ? field : null;
+}
+
+function isUniqueViolation(e: unknown): boolean {
+  const code = (x: unknown) => (x && typeof x === 'object' && 'code' in x ? x.code : undefined);
+  return code(e) === '23505' || (e instanceof Error && code(e.cause) === '23505');
 }
 
 export function aiRoutes(deps: Deps) {
   const { db, analyzer, catalog } = deps;
   const limiter = new RateLimiter(60, 60 * 60_000);
+  const budget = { dayUsd: deps.env.AI_BUDGET_DAY_USD, monthUsd: deps.env.AI_BUDGET_MONTH_USD };
+  /** Meal analyses running in this process, by `<user>:<requestId>`: a repeated request waits for the same one. */
+  const inflight = new Map<string, Promise<AiAnalysisResult>>();
   const app = new Hono<AppEnv>();
   app.use('*', requireUser(db));
+
+  /**
+   * The checks right before a paid call: the spending limit of the account (`ai/budget.ts`), then
+   * the hourly rate limit as a second brake. Throws `AiRouteRefusal`.
+   */
+  const admit = async (userId: string) => {
+    const over = await budgetExceeded(db, userId, budget);
+    if (over) {
+      log.warn('ai budget exceeded', { user: userId, scope: over });
+      throw new AiRouteRefusal(429, { error: 'ai_budget', scope: over });
+    }
+    // Counted only for a request that is actually analysed (an invalid one costs nothing).
+    if (limiter.take(userId) > 0) throw new AiRouteRefusal(429, { error: 'too_many_requests' });
+  };
+
+  /** Logs a failed call with what it cost (its rounds were paid for and count towards the budget). */
+  const logFailure = async (
+    e: unknown,
+    row: {
+      userId: string;
+      model: string;
+      userText: string | null;
+      requestId?: string | null;
+      started: number;
+    },
+    result: Record<string, unknown>,
+  ) => {
+    const usage = e instanceof AiCallError ? e.usage : NO_USAGE;
+    const code = classifyAiError(e)?.code ?? 'internal';
+    const model = (e instanceof AiCallError && e.model) || row.model;
+    log.warn('ai call failed', {
+      user: row.userId,
+      model,
+      code,
+      ...usage,
+      rounds: e instanceof AiCallError ? e.rounds : undefined,
+      ms: Date.now() - row.started,
+    });
+    try {
+      await db.insert(aiAnalyses).values({
+        userId: row.userId,
+        model,
+        userText: row.userText,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        costUsd: usage.costUsd,
+        durationMs: Date.now() - row.started,
+        status: 'failed',
+        error: code,
+        requestId: row.requestId ?? null,
+        result: { ...result, failed: code },
+      });
+    } catch (err) {
+      log.error('could not log a failed ai call', { error: String(err) });
+    }
+  };
+
+  /** The answer an earlier successful analysis with this key gave (replayed without a Claude call). */
+  const storedResponse = async (userId: string, requestId: string) => {
+    const [prev] = await db
+      .select({ response: aiAnalyses.response })
+      .from(aiAnalyses)
+      .where(
+        and(eq(aiAnalyses.userId, userId), eq(aiAnalyses.requestId, requestId), eq(aiAnalyses.status, 'ok')),
+      );
+    return prev?.response ?? null;
+  };
 
   // Own foods carry their record id (no prefix); catalog ids are "bls:…" or "off:…".
   const foodExists = async (foodId: string, userId: string): Promise<boolean> => {
@@ -207,20 +331,61 @@ export function aiRoutes(deps: Deps) {
       if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);
       const read = await readImages(files);
       if (!read) return c.json({ error: 'unsupported_image_type' }, 415);
-      // Counted only for a request that is actually analysed (an invalid one costs nothing).
-      if (limiter.take(user.id) > 0) return c.json({ error: 'too_many_requests' }, 429);
+      // The queue item's key: a repeated request (connection lost while the server analysed) gets the
+      // stored answer, or waits for the analysis still running, instead of paying for a second one.
+      const requestId = requestIdOf(form.get('requestId'));
+      const key = requestId ? `${user.id}:${requestId}` : null;
+      if (requestId) {
+        const prev = await storedResponse(user.id, requestId);
+        if (prev) return c.json(prev);
+      }
+      const running = key ? inflight.get(key) : undefined;
+      if (running) {
+        try {
+          return c.json(await running);
+        } catch (e) {
+          return aiError(c, e);
+        }
+      }
 
-      const started = Date.now();
-      try {
+      const run = async (): Promise<AiAnalysisResult> => {
+        await admit(user.id);
+        const started = Date.now();
         const foodSearch = await createFoodSearch(deps, user.id);
-        const out = await analyzer.analyze(
-          { images: read, text: text?.trim() || null, ...(typed && { typed }) },
-          foodSearch.search,
-          AbortSignal.timeout(ANALYSIS_BUDGET_MS),
-        );
-        const [row] = await db
-          .insert(aiAnalyses)
-          .values({
+        let out;
+        try {
+          out = await analyzer.analyze(
+            { images: read, text: text?.trim() || null, ...(typed && { typed }) },
+            foodSearch.search,
+            AbortSignal.timeout(ANALYSIS_BUDGET_MS),
+          );
+        } catch (e) {
+          await logFailure(
+            e,
+            { userId: user.id, model: deps.env.AI_MODEL, userText: text, requestId, started },
+            { photos: files.length },
+          );
+          throw e;
+        }
+        // The id is known before the insert: the stored answer contains it (and the estimate ids).
+        const id = randomUUID();
+        const items = out.items.map((item, i) => ({
+          ...item,
+          candidates: candidatesFor(item, foodSearch.seen, `${ESTIMATED_ID_PREFIX}${id}:${i}`, (q, n) =>
+            catalog.searchLocal(q, n),
+          ),
+        }));
+        const result: AiAnalysisResult = {
+          analysisId: id,
+          dishName: out.dishName,
+          items,
+          notes: out.notes,
+          model: out.model,
+          usage: out.usage,
+        };
+        try {
+          await db.insert(aiAnalyses).values({
+            id,
             userId: user.id,
             model: out.model,
             userText: text,
@@ -230,14 +395,15 @@ export function aiRoutes(deps: Deps) {
             durationMs: Date.now() - started,
             // Only the number of photos is kept (no images), like the label reading.
             result: { dishName: out.dishName, items: out.items, notes: out.notes, photos: files.length },
-          })
-          .returning({ id: aiAnalyses.id });
-        const items = out.items.map((item, i) => ({
-          ...item,
-          candidates: candidatesFor(item, foodSearch.seen, `${ESTIMATED_ID_PREFIX}${row!.id}:${i}`, (q, n) =>
-            catalog.searchLocal(q, n),
-          ),
-        }));
+            requestId,
+            response: result,
+          });
+        } catch (e) {
+          // The same key finished in another process (a restart between two requests): its answer counts.
+          const prev = requestId && isUniqueViolation(e) ? await storedResponse(user.id, requestId) : null;
+          if (prev) return prev;
+          throw e;
+        }
         log.info('ai analysis', {
           user: user.id,
           model: out.model,
@@ -250,15 +416,19 @@ export function aiRoutes(deps: Deps) {
           estimated: items.filter((it) => it.candidates[0]?.food.estimated).length,
           unmatched: items.filter((it) => it.candidates.length === 0).length,
         });
-        const result: AiAnalysisResult = {
-          analysisId: row!.id,
-          dishName: out.dishName,
-          items,
-          notes: out.notes,
-          model: out.model,
-          usage: out.usage,
-        };
-        return c.json(result);
+        return result;
+      };
+
+      const job = run();
+      if (key) {
+        inflight.set(key, job);
+        job.then(
+          () => inflight.delete(key),
+          () => inflight.delete(key),
+        );
+      }
+      try {
+        return c.json(await job);
       } catch (e) {
         return aiError(c, e);
       }
@@ -314,7 +484,7 @@ export function aiRoutes(deps: Deps) {
 
   /**
    * Food label photos (1 to 3, field `image` repeated) → the values printed on it. The barcode is
-   * kept only with a valid check digit. Shares the rate limit with the meal analysis.
+   * kept only with a valid check digit. Shares the budget and the rate limit with the meal analysis.
    */
   app.post(
     '/label',
@@ -341,14 +511,24 @@ export function aiRoutes(deps: Deps) {
       if (files.some((f) => f.size > MAX_IMAGE_BYTES)) return c.json({ error: 'too_large' }, 413);
       const read = await readImages(files);
       if (!read) return c.json({ error: 'unsupported_image_type' }, 415);
-      if (limiter.take(user.id) > 0) return c.json({ error: 'too_many_requests' }, 429);
 
       const started = Date.now();
       try {
-        const out = await analyzer.readLabel({
-          images: read,
-          text: text?.trim() || null,
-        });
+        await admit(user.id);
+        let out;
+        try {
+          out = await analyzer.readLabel(
+            { images: read, text: text?.trim() || null },
+            AbortSignal.timeout(ANALYSIS_BUDGET_MS),
+          );
+        } catch (e) {
+          await logFailure(
+            e,
+            { userId: user.id, model: deps.env.AI_LABEL_MODEL ?? deps.env.AI_MODEL, userText: text, started },
+            { kind: 'label', photos: files.length },
+          );
+          throw e;
+        }
         const reading = sanitizeReading(out.reading);
         const barcode = cleanGtin(reading.barcode);
         const [row] = await db

@@ -1,4 +1,11 @@
-import type { AiLabelResult, Food, PublicUser, ServerInfo, SessionInfo } from '@ft/shared';
+import {
+  MAX_ANALYSIS_PHOTOS,
+  type AiLabelResult,
+  type Food,
+  type PublicUser,
+  type ServerInfo,
+  type SessionInfo,
+} from '@ft/shared';
 
 export class ApiError extends Error {
   constructor(
@@ -118,6 +125,10 @@ export const endpoints = {
   },
 };
 
+function budgetScope(body: unknown): unknown {
+  return typeof body === 'object' && body && 'scope' in body ? body.scope : null;
+}
+
 /** German user-facing message for an error, including the next step. */
 export function errorMessage(e: unknown): string {
   if (e instanceof OfflineError)
@@ -148,6 +159,20 @@ export function errorMessage(e: unknown): string {
         return 'Das Foto konnte nicht analysiert werden. Versuche ein anderes Foto oder trage das Essen manuell ein.';
       case 'too_large':
         return 'Das Foto ist zu groß.';
+      case 'ai_budget':
+        return budgetScope(e.body) === 'month'
+          ? 'Das Monatsbudget für die Foto-Analyse ist aufgebraucht.'
+          : 'Das Tagesbudget für die Foto-Analyse ist aufgebraucht. Morgen geht es weiter.';
+      case 'ai_timeout':
+        return 'Die Analyse hat zu lange gedauert und wurde abgebrochen.';
+      case 'no_result':
+        return 'Die Analyse hat kein verwertbares Ergebnis geliefert. Versuche es erneut.';
+      case 'too_many_images':
+        return `Höchstens ${MAX_ANALYSIS_PHOTOS} Fotos je Analyse.`;
+      case 'unsupported_image_type':
+        return 'Dieses Bildformat wird nicht unterstützt.';
+      case 'push_disabled':
+        return 'Erinnerungen sind auf dem Server nicht eingerichtet.';
       default:
         return `Fehler (${e.status}). Versuche es erneut.`;
     }

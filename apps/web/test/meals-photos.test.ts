@@ -527,14 +527,16 @@ describe('AI review: re-analyze with the hint', () => {
   const server = (...answers: (AiAnalysisResult | Response)[]) => {
     const hints: string[] = [];
     const images: number[] = [];
+    const requestIds: string[] = [];
     const fetchFn = vi.fn(async (_path: string, init?: RequestInit) => {
       hints.push(String((init?.body as FormData).get('text') ?? ''));
+      requestIds.push(String((init?.body as FormData).get('requestId') ?? ''));
       images.push((init?.body as FormData).getAll('image').length);
       const next = answers.shift()!;
       return next instanceof Response ? next : new Response(JSON.stringify(next), { status: 200 });
     });
     vi.stubGlobal('fetch', fetchFn);
-    return { fetchFn, hints, images };
+    return { fetchFn, hints, images, requestIds };
   };
   async function analyzed(d: UserDb) {
     const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: 'mit Butter' }, [jpeg()]);
@@ -570,6 +572,38 @@ describe('AI review: re-analyze with the hint', () => {
     expect(currentDraft(item).meal).toBe(2);
     // Only one queue item: the analysis is replaced, not duplicated.
     expect(await d.aiQueue.count()).toBe(1);
+  });
+
+  it('sends a request key that a re-analysis renews and a retry keeps', async () => {
+    const d = db();
+    const { requestIds } = server(
+      analysis('Nudeln', 200),
+      new Response(JSON.stringify({ error: 'upstream_error' }), { status: 502 }),
+      analysis('Reis', 150),
+    );
+    const id = await analyzed(d);
+    expect(await reanalyze(d, id, 'mehr Reis')).toBe('failed');
+    await retryQueueItem(d, id);
+    await vi.waitFor(async () => expect((await d.aiQueue.get(id))!.status).toBe('done'));
+    expect(requestIds[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(requestIds[1]).not.toBe(requestIds[0]);
+    expect(requestIds[2]).toBe(requestIds[1]);
+  });
+
+  it('fails on a used-up AI budget with its reason and leaves the next items waiting', async () => {
+    const d = db();
+    const { fetchFn } = server(
+      new Response(JSON.stringify({ error: 'ai_budget', scope: 'day' }), { status: 429 }),
+    );
+    const first = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '' }, [jpeg()]);
+    const second = await enqueuePhotos(d, { date: '2026-10-07', meal: 2, text: '' }, [jpeg()]);
+    await processQueue(d);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(await d.aiQueue.get(first)).toMatchObject({
+      status: 'failed',
+      error: 'Das Tagesbudget für die Foto-Analyse ist aufgebraucht. Morgen geht es weiter.',
+    });
+    expect((await d.aiQueue.get(second))!.status).toBe('pending');
   });
 
   it('sends all photos, also ones added in the review, and records which went into the result', async () => {

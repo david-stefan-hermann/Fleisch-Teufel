@@ -8,7 +8,13 @@
  * item itself: the item is rewritten on every status change and review edit, which on WebKit made an
  * inline Blob read earlier unreadable (see `AiImage` in `db/dexie.ts`).
  */
-import { cleanTypedValues, MAX_ANALYSIS_PHOTOS, type AiAnalysisResult, type AiTypedValues } from '@ft/shared';
+import {
+  cleanTypedValues,
+  MAX_ANALYSIS_PHOTOS,
+  uuidv7,
+  type AiAnalysisResult,
+  type AiTypedValues,
+} from '@ft/shared';
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
@@ -19,11 +25,13 @@ import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/a
 /**
  * One meal analysis: all photos in one request (field `image` repeated), with the optional hint and
  * the values the person typed for the whole meal (field `typed`, JSON; a clue for the amounts).
+ * `requestId` makes a repeated request free: the server answers it with the stored result.
  */
 export async function analyzePhotos(
   images: readonly Blob[],
   text: string,
   typed?: AiTypedValues | null,
+  requestId?: string,
 ): Promise<AiAnalysisResult> {
   const form = new FormData();
   images.forEach((image, i) =>
@@ -32,6 +40,7 @@ export async function analyzePhotos(
   if (text.trim()) form.set('text', text.trim());
   const values = cleanTypedValues(typed);
   if (values) form.set('typed', JSON.stringify(values));
+  if (requestId) form.set('requestId', requestId);
   return api<AiAnalysisResult>('/api/ai/analyze', { method: 'POST', body: form, timeoutMs: 120_000 });
 }
 
@@ -223,6 +232,11 @@ async function runQueue(db: UserDb): Promise<void> {
   for (;;) {
     const item = (await db.aiQueue.toArray()).find((i) => i.status === 'pending');
     if (!item) break;
+    // Items of older app versions get their key here, stored before the request is sent.
+    if (!item.requestId) {
+      item.requestId = uuidv7();
+      await db.aiQueue.update(item.localId!, { requestId: item.requestId });
+    }
     const photos = await loadQueuePhotos(db, item);
     // A described meal has no photos on purpose; anything else without them cannot be analysed.
     if (photos.length === 0 && !(item.textOnly && item.text.trim())) {
@@ -235,6 +249,7 @@ async function runQueue(db: UserDb): Promise<void> {
         photos.map((p) => p.blob),
         item.text,
         item.typed,
+        item.requestId,
       );
       await db.transaction('rw', db.aiQueue, async () => {
         const now = await db.aiQueue.get(item.localId!);
@@ -275,7 +290,9 @@ async function runQueue(db: UserDb): Promise<void> {
             ? 'Die Analyse hat zu lange gedauert. Die Fotos sind noch da: Wiederholen.'
             : errorMessage(e),
       });
-      if (e instanceof ApiError && e.status === 401) break;
+      // Without session or budget the next items would fail the same way; they wait (budget: until
+      // "Wiederholen", never by themselves).
+      if (e instanceof ApiError && (e.status === 401 || e.code === 'ai_budget')) break;
     }
   }
 }
@@ -294,7 +311,13 @@ export async function reanalyze(
     const item = await db.aiQueue.get(localId);
     if (!item) return 'missing' as const;
     if (item.status === 'pending' || item.status === 'analyzing') return 'busy' as const;
-    await db.aiQueue.update(localId, { text: text.trim(), status: 'pending', error: undefined });
+    // A new question (hint, photos): a new key, so the server does not answer with the last result.
+    await db.aiQueue.update(localId, {
+      text: text.trim(),
+      status: 'pending',
+      error: undefined,
+      requestId: uuidv7(),
+    });
     return 'started' as const;
   });
   if (started !== 'started') return started;
@@ -318,12 +341,17 @@ async function photoRows(localId: number, images: readonly Blob[]): Promise<AiPh
 /** Queues the photos of one meal for analysis; returns the new item's `localId`. */
 export async function enqueuePhotos(
   db: UserDb,
-  item: Omit<AiQueueItem, 'localId' | 'status' | 'createdAt' | 'image'>,
+  item: Omit<AiQueueItem, 'localId' | 'status' | 'createdAt' | 'image' | 'requestId'>,
   images: readonly Blob[],
 ): Promise<number> {
   const rows = await photoRows(0, images);
   return db.transaction('rw', [db.aiQueue, db.aiPhotos], async () => {
-    const localId = (await db.aiQueue.add({ ...item, status: 'pending', createdAt: Date.now() })) as number;
+    const localId = (await db.aiQueue.add({
+      ...item,
+      status: 'pending',
+      createdAt: Date.now(),
+      requestId: uuidv7(),
+    })) as number;
     await db.aiPhotos.bulkAdd(rows.map((r) => ({ ...r, localId })));
     return localId;
   });
@@ -347,6 +375,7 @@ export async function enqueueDescription(
     textOnly: true,
     status: 'pending',
     createdAt: Date.now(),
+    requestId: uuidv7(),
   })) as number;
 }
 
