@@ -8,6 +8,9 @@
  *         starts from cursor 0, so the server's valid version of it comes back.
  *   pull: fetch changes after the stored cursor and apply them with the shared LWW rule.
  *         A local version that is newer than the incoming one (pending upload) is kept.
+ *   epoch: the server names its database epoch in every pull. A new epoch or a `reset` answer (cursor
+ *         above anything the server handed out) means the database was restored from a backup: every
+ *         own record goes into the outbox again, photos are uploaded again, then the pull starts at 0.
  *
  * Runs on start, when the app becomes visible, when the device comes online, shortly after
  * local writes and on demand. iOS has no Background Sync, so there is no service-worker sync.
@@ -20,6 +23,7 @@ import {
   incomingWins,
   MAX_PUSH_RECORDS,
   SYNC_SCHEMAS,
+  SYNC_TABLES,
   type AnySyncRecord,
   type PullResult,
   type PushResult,
@@ -62,6 +66,11 @@ export interface SyncEngineOptions {
    * stored with this version; after an app update the next pull loads everything again.
    */
   appVersion?: string;
+  /**
+   * Called after the device noticed a restored server database and queued all its records again
+   * (`reason`: `reset` = cursor above the server's sequence, `epoch` = another epoch than stored).
+   */
+  onReset?: (info: { epoch: string; records: number; reason: 'reset' | 'epoch' }) => void;
 }
 
 /** A record the server refused, as listed under "Daten & Sync" (`sync.rejected`, the last 50). */
@@ -80,6 +89,8 @@ const REJECTED_KEY = 'sync.rejected';
 const CLOCK_OFFSET_KEY = 'sync.clockOffset';
 /** `{ version }`: the app version that skipped unknown changes (see `SyncEngineOptions.appVersion`). */
 const NEEDS_UPDATE_KEY = 'sync.needsUpdate';
+/** Epoch of the server database this device last synced with (see `resetForEpoch`). */
+const EPOCH_KEY = 'sync.epoch';
 const MAX_REJECTED = 50;
 
 class HttpError extends Error {
@@ -374,6 +385,13 @@ export class SyncEngine {
     for (;;) {
       const since = ((await this.db.kv.get(CURSOR_KEY))?.value as number) ?? 0;
       const page = await this.request<PullResult>(`/api/sync/pull?since=${since}&limit=${pageSize}`);
+      const stored = (await this.db.kv.get(EPOCH_KEY))?.value as string | undefined;
+      if (page.reset || (page.epoch && stored && page.epoch !== stored)) {
+        await this.resetForEpoch(page.epoch ?? stored!, page.reset ? 'reset' : 'epoch');
+        // sync() runs push and pull again: everything goes up first (LWW decides), then a pull from 0.
+        return applied;
+      }
+      if (page.epoch && !stored) await this.db.kv.put({ key: EPOCH_KEY, value: page.epoch });
       // Changes this app version cannot store (a table or a shape added by a newer version) are
       // skipped, not fatal: the cursor still moves, so an outdated device keeps syncing the rest.
       const changes = page.changes.filter(({ table, data }) => {
@@ -413,6 +431,35 @@ export class SyncEngine {
       if (this.state.needsUpdate) this.set({ needsUpdate: false });
     }
     return applied;
+  }
+
+  /**
+   * The server database was restored: what this device wrote after the backup exists only here. Queues
+   * every own record (tombstones too) and every uploaded photo again and forgets the cursor, in one
+   * transaction; the server keeps whichever version is newer.
+   */
+  private async resetForEpoch(epoch: string, reason: 'reset' | 'epoch'): Promise<void> {
+    const tables = SYNC_TABLES.filter((t) => this.db.tables.some((x) => x.name === t));
+    let records = 0;
+    await this.db.transaction(
+      'rw',
+      [this.db.outbox, this.db.kv, this.db.photos, ...tables.map((t) => this.db.syncTable(t))],
+      async () => {
+        await this.db.kv.delete(CURSOR_KEY);
+        await this.db.kv.put({ key: EPOCH_KEY, value: epoch });
+        for (const t of tables) {
+          const rows = await this.db.syncTable(t).toArray();
+          await this.db.outbox.bulkPut(
+            rows.map((r) => ({ key: `${t}:${r.id}`, table: t, id: r.id, updatedAt: r.updatedAt })),
+          );
+          records += rows.length;
+        }
+        // Photos the server refused for good (2) stay refused.
+        await this.db.photos.where('uploaded').equals(1).modify({ uploaded: 0 });
+      },
+    );
+    this.again = true;
+    this.opts.onReset?.({ epoch, records, reason });
   }
 
   /** Empties the list of records the server rejected ("Daten & Sync"). */

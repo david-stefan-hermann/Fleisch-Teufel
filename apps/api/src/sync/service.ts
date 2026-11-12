@@ -9,6 +9,11 @@
  *
  * Pull: returns records with change_seq > cursor across all tables, merged in sequence order. All
  * tables are read in one repeatable-read transaction (one snapshot).
+ *
+ * Epoch: every pull answer carries the database's sync epoch (`app_meta` key `sync_epoch`). After a
+ * restore the devices hold cursors above `sync_seq`; a pull with such a cursor rotates the epoch and
+ * answers `reset`. A device that sees `reset` or another epoch than the one it stored uploads all its
+ * records again and pulls from 0 (see docs/sync.md).
  */
 import {
   CLOCK_AHEAD,
@@ -27,7 +32,7 @@ import {
 import { and, asc, eq, getTableColumns, gt, inArray, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { Db } from '../db/client.js';
-import { syncTables } from '../db/schema.js';
+import { appMeta, syncTables } from '../db/schema.js';
 import { log } from '../log.js';
 
 /** Column name as created by Drizzle's `casing: 'snake_case'` (keys carry no explicit names). */
@@ -135,6 +140,41 @@ export async function push(
   return result;
 }
 
+const EPOCH_KEY = 'sync_epoch';
+
+/** The current sync epoch; created on first use (a fresh database or one from before epochs). */
+export async function syncEpoch(db: Pick<Db, 'select' | 'insert'>): Promise<string> {
+  const read = async () =>
+    (await db.select().from(appMeta).where(eq(appMeta.key, EPOCH_KEY)))[0]?.value ?? null;
+  const current = await read();
+  if (current) return current;
+  await db.insert(appMeta).values({ key: EPOCH_KEY, value: crypto.randomUUID() }).onConflictDoNothing();
+  return (await read())!;
+}
+
+/**
+ * Replaces the epoch `seen` by a new one and returns the epoch now in force. When another request
+ * rotated it meanwhile, that one stays (one rotation per restore, not one per device).
+ */
+export async function rotateEpoch(
+  db: Pick<Db, 'select' | 'update'>,
+  seen: string,
+  context: Record<string, unknown> = {},
+): Promise<string> {
+  const next = crypto.randomUUID();
+  const rows = await db
+    .update(appMeta)
+    .set({ value: next })
+    .where(and(eq(appMeta.key, EPOCH_KEY), eq(appMeta.value, seen)))
+    .returning();
+  if (rows.length === 0) {
+    const [row] = await db.select().from(appMeta).where(eq(appMeta.key, EPOCH_KEY));
+    return row?.value ?? seen;
+  }
+  log.warn('sync epoch rotated: cursor beyond sequence', context);
+  return next;
+}
+
 export async function pull(
   db: Db,
   userId: string,
@@ -143,9 +183,14 @@ export async function pull(
 ): Promise<PullResult> {
   // One snapshot for all tables: a push committing between two table reads would otherwise show
   // its higher sequence (in a later table) but not its lower one, and the cursor would skip it.
-  const perTable = await db.transaction(
-    (tx) =>
-      Promise.all(
+  const epoch = await syncEpoch(db);
+  const { perTable, last } = await db.transaction(
+    async (tx) => {
+      // Highest sequence value ever handed out (global over all users), so no cursor can be above it.
+      const [seq] = (await tx.execute(
+        sql`select case when is_called then last_value else last_value - 1 end as last from sync_seq`,
+      )) as unknown as { last: string | number }[];
+      const tables = await Promise.all(
         SYNC_TABLES.map(async (name) => {
           const t = table(name) as unknown as PgTable & { userId: any; changeSeq: any };
           const rows = (await tx
@@ -156,9 +201,16 @@ export async function pull(
             .limit(limit + 1)) as Record<string, unknown>[];
           return rows.map((r) => ({ table: name, seq: r.changeSeq as number, data: toWire(r) }));
         }),
-      ),
+      );
+      return { perTable: tables, last: Number(seq?.last ?? 0) };
+    },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
   );
+  if (since > last) {
+    // The database is older than what this device has seen: it was restored from a backup.
+    const rotated = await rotateEpoch(db, epoch, { userId, since, last });
+    return { changes: [], cursor: 0, hasMore: false, serverTime: Date.now(), epoch: rotated, reset: true };
+  }
   const all = perTable.flat().sort((a, b) => a.seq - b.seq);
   // Each table returned its first limit+1 rows, so the first `limit` of the merge are complete.
   const page = all.slice(0, limit);
@@ -169,5 +221,6 @@ export async function pull(
     cursor,
     hasMore,
     serverTime: Date.now(),
+    epoch,
   };
 }

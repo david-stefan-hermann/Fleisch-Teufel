@@ -115,12 +115,28 @@ Smoke-Test gegen PostgreSQL bestanden hat.
 7. **Updates**: in Dockge „Update“ drücken. Das zieht das neue `:latest` und startet neu; Migrationen laufen
    automatisch.
 
-**Backup**: Das PostgreSQL-Verzeichnis per ZFS-Snapshot sichern (ein Snapshot eines laufenden Postgres ist
-konsistent, weil Postgres beim Start das WAL nachspielt). Zusätzlich lohnt ein logisches Backup, das sich
-ohne ZFS zurückspielen lässt: `docker exec fleisch-teufel-db pg_dump -U fleisch_teufel -Fc fleisch_teufel >
-/mnt/tank/applications/fleisch-teufel/backup/ft-$(date +%F).dump` als täglicher Cron auf dem NAS, die
-letzten 7 Dateien behalten; Rückspielen mit `pg_restore -U fleisch_teufel -d fleisch_teufel --clean <datei>`. Jedes Gerät
-kann außerdem unter „Mehr → Daten & Sync“ eine JSON-Sicherung teilen oder herunterladen.
+**Backup**: Das NAS macht täglich um 0:00 einen rekursiven ZFS-Snapshot von `tank/applications` und behält ihn
+zwei Wochen; darin das Dataset `tank/applications/fleisch-teufel` mit dem PostgreSQL-Verzeichnis (ein Snapshot eines laufenden
+Postgres ist konsistent, weil Postgres beim Start das WAL nachspielt). Jedes Gerät kann außerdem unter
+„Mehr → Daten & Sync“ eine JSON-Sicherung teilen oder herunterladen.
+
+**Restore** (Datenbank auf einen Snapshot zurücksetzen):
+
+1. In Dockge den Stack `fleisch-teufel` stoppen.
+2. Auf dem NAS nur das eigene Dataset zurückrollen (nie `tank/applications` selbst, das träfe alle Apps):
+   `zfs rollback -r tank/applications/fleisch-teufel@<snapshot>` oder in TrueNAS unter Datasets → Snapshots.
+3. Den Stack wieder starten.
+4. Die Sync-Epoche von Hand neu setzen:
+   `docker exec fleisch-teufel-db psql -U fleisch_teufel -d fleisch_teufel -c "UPDATE app_meta SET value = gen_random_uuid()::text WHERE key = 'sync_epoch'"`.
+   Meist erkennt der Server den Restore auch selbst (ein Gerät meldet einen Stand, den die Datenbank nie
+   vergeben hat); der Befehl deckt den Fall ab, dass der Snapshot so jung ist, dass noch kein Gerät darüber liegt.
+5. Nichts weiter: Jedes Gerät merkt beim nächsten Sync die neue Epoche, lädt alle seine Datensätze und Fotos
+   erneut hoch (bei Konflikten gewinnt wie immer die neuere Version) und holt danach alles neu. Im
+   Fehlerprotokoll unter „Daten & Sync“ steht dazu ein Eintrag.
+
+**Rückweg nach einer fehlgeschlagenen Migration**: in Dockge im Compose-File `image:` auf
+`ghcr.io/david-stefan-hermann/fleisch-teufel:sha-<vorheriger Commit>` setzen und neu deployen; hat die
+Migration die Datenbank schon verändert, vorher wie oben den Snapshot zurückrollen.
 
 **Passwort vergessen**: Es gibt keinen E-Mail-Weg. Auf dem Server setzt
 `pnpm --filter @ft/api user:reset-password <email>` (mit `DATABASE_URL` der Produktion, z. B. in einem

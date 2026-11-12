@@ -10,6 +10,7 @@ import { UserDb, userDbName } from '@/db/dexie';
 import { SyncEngine } from '@/sync/syncEngine';
 import { startQueueProcessing } from '@/features/ai/queue';
 import { disableReminder } from '@/lib/reminder';
+import { recordError } from '@/lib/errorLog';
 
 const USER_KEY = 'ft.user';
 
@@ -41,7 +42,18 @@ function readStoredUser(): PublicUser | null {
 
 function open(user: PublicUser, onUnauthorized: () => void): Session {
   const db = new UserDb(userDbName(user.id));
-  const sync = new SyncEngine(db, { onUnauthorized, appVersion: __APP_VERSION__ });
+  const sync = new SyncEngine(db, {
+    onUnauthorized,
+    appVersion: __APP_VERSION__,
+    // The engine stays free of `@/` imports (API tests run it), so the error log is wired here.
+    onReset: (i) =>
+      recordError(
+        new Error(
+          `Server-Datenbank zurückgesetzt (${i.reason}): ${i.records} Datensätze werden erneut hochgeladen`,
+        ),
+        'sync',
+      ),
+  });
   return { user, db, sync };
 }
 

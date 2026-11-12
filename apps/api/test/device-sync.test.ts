@@ -3,13 +3,15 @@
  * SyncEngine and write helpers) talk to the real API backed by PostgreSQL.
  */
 import 'fake-indexeddb/auto';
-import { dayId, uuidv7, type ExerciseEntry, type FoodEntry } from '@ft/shared';
+import { dayId, SYNC_TABLES, uuidv7, type ExerciseEntry, type FoodEntry } from '@ft/shared';
+import { gt, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { photos as photoRows, syncTables } from '../src/db/schema.js';
 import { UserDb } from '../../web/src/db/dexie';
 import { loadPhoto, pruneLocalPhotos, storePhoto } from '../../web/src/db/photos';
 import { createBackup, restoreBackup } from '../../web/src/db/backup';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
-import { SyncEngine } from '../../web/src/sync/syncEngine';
+import { SyncEngine, type SyncEngineOptions } from '../../web/src/sync/syncEngine';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
 
 let ctx: TestCtx;
@@ -31,12 +33,19 @@ async function server(path: string, init?: RequestInit): Promise<Response> {
 
 function device(
   name: string,
-  opts: { online?: () => boolean; appVersion?: string; db?: UserDb; calls?: string[] } = {},
+  opts: {
+    online?: () => boolean;
+    appVersion?: string;
+    db?: UserDb;
+    calls?: string[];
+    onReset?: SyncEngineOptions['onReset'];
+  } = {},
 ) {
   const db = opts.db ?? new UserDb(`${name}-${uuidv7()}`);
   const engine = new SyncEngine(db, {
     pullPageSize: 3,
     appVersion: opts.appVersion,
+    onReset: opts.onReset,
     fetch: async (path, init) => {
       if (opts.online && !opts.online()) throw new TypeError('Failed to fetch');
       opts.calls?.push(path);
@@ -511,5 +520,82 @@ describe('device ↔ server sync', () => {
       return Promise.resolve(ctx.app.request(path, { ...init, headers }));
     });
     expect(new Uint8Array(await new Response(blob).arrayBuffer())).toEqual(bytes);
+  });
+
+  it('re-uploads everything after the server database was rolled back', async () => {
+    type ResetInfo = Parameters<NonNullable<SyncEngineOptions['onReset']>>[0];
+    const resets: Record<string, ResetInfo[]> = { a: [], b: [] };
+    const a = device('restore-a', { onReset: (i) => resets.a!.push(i) });
+    const b = device('restore-b', { onReset: (i) => resets.b!.push(i) });
+    await a.engine.sync();
+    await b.engine.sync();
+    // The backup: everything up to here.
+    const [{ last: snapshot } = { last: 0 }] = (await ctx.db.execute(
+      sql`select last_value as last from sync_seq`,
+    )) as unknown as { last: number }[];
+
+    const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 9, 8, 7]);
+    const photoId = await storePhoto(a.db, new Blob([bytes], { type: 'image/jpeg' }));
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      const e = entry({ meal: 2, photoId: i === 0 ? photoId : null, photoIds: i === 0 ? [photoId] : null });
+      ids.push(e.id);
+      await saveRecord(a.db, 'foodEntries', e);
+    }
+    await a.engine.sync();
+    await b.engine.sync();
+    expect(await b.db.foodEntries.where('id').anyOf(ids).count()).toBe(3);
+
+    // Restore the backup: the rows written after it are gone, the sequence is back.
+    for (const t of Object.values(syncTables))
+      await ctx.db.delete(t).where(gt(t.changeSeq, Number(snapshot)));
+    await ctx.db.delete(photoRows).where(sql`${photoRows.id} = ${photoId}`);
+    await ctx.db.execute(sql`select setval('sync_seq', ${Number(snapshot)})`);
+    const lost = await server('/api/sync/pull?since=0&limit=1000').then((r) => r.json());
+    expect(lost.changes.filter((c: { data: { id: string } }) => ids.includes(c.data.id))).toHaveLength(0);
+
+    await a.engine.sync();
+    expect(resets.a).toHaveLength(1);
+    expect(resets.a![0]!.reason).toBe('reset');
+    let local = 0;
+    for (const t of SYNC_TABLES) local += await a.db.syncTable(t).count();
+    expect(resets.a![0]!.records).toBe(local);
+    expect(await a.db.outbox.count()).toBe(0);
+    expect((await a.db.photos.get(photoId))?.uploaded).toBe(1);
+    const back = await server('/api/sync/pull?since=0&limit=1000').then((r) => r.json());
+    expect(back.changes.filter((c: { data: { id: string } }) => ids.includes(c.data.id))).toHaveLength(3);
+    expect((await server(`/api/photos/${photoId}`)).status).toBe(200);
+
+    // The other device learns of the restore by the new epoch and ends with the same records.
+    await b.engine.sync();
+    expect(resets.b).toHaveLength(1);
+    expect(await b.db.outbox.count()).toBe(0);
+    expect(await b.db.foodEntries.where('id').anyOf(ids).count()).toBe(3);
+    expect((await a.engine.sync()).pulled).toBe(0);
+    expect(resets.a).toHaveLength(1);
+  });
+
+  it('resets when the epoch changed although the cursor is still valid', async () => {
+    const resets: { reason: string; records: number }[] = [];
+    const a = device('epoch-a', { onReset: (i) => resets.push(i) });
+    await saveRecord(a.db, 'foodEntries', entry({ meal: 3 }));
+    await a.engine.sync();
+    expect(resets).toHaveLength(0);
+    const before = await a.db.foodEntries.toArray();
+    await a.db.kv.put({ key: 'sync.epoch', value: 'old' });
+
+    // Pull only, so the queued records stay visible.
+    await a.engine.pull();
+    expect(resets).toHaveLength(1);
+    expect(resets[0]!.reason).toBe('epoch');
+    expect(await a.db.outbox.count()).toBe(resets[0]!.records);
+    expect(resets[0]!.records).toBeGreaterThanOrEqual(before.length);
+    expect((await a.db.kv.get('sync.epoch'))?.value).not.toBe('old');
+    expect(await a.db.kv.get('sync.cursor')).toBeUndefined();
+
+    await a.engine.sync();
+    expect(await a.db.outbox.count()).toBe(0);
+    expect(await a.db.foodEntries.toArray()).toEqual(before);
+    expect(resets).toHaveLength(1);
   });
 });

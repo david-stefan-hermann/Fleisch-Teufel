@@ -499,6 +499,35 @@ describe('sync', () => {
     expect(changes.find((c) => c.data.id === e.id)!.data.quantity).toBe(3);
   });
 
+  it('names the database epoch in every pull, the same for every account', async () => {
+    const a = await alice.get('/api/sync/pull?since=0');
+    const b = await bob.get('/api/sync/pull?since=0');
+    expect(typeof a.json.epoch).toBe('string');
+    expect(a.json.epoch.length).toBeGreaterThan(10);
+    expect(b.json.epoch).toBe(a.json.epoch);
+    expect(a.json.reset).toBeUndefined();
+    // Stable while nothing is restored.
+    expect((await alice.get(`/api/sync/pull?since=${a.json.cursor}`)).json.epoch).toBe(a.json.epoch);
+  });
+
+  it('answers reset with a new epoch to a cursor above the sequence (restored database)', async () => {
+    await alice.post('/api/sync/push', { records: [{ table: 'foodEntries', data: entry() }] });
+    const before = await pullAll(alice);
+    const e1 = (await alice.get('/api/sync/pull?since=0')).json.epoch as string;
+
+    const r = await alice.get(`/api/sync/pull?since=${before.cursor + 1_000_000}`);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ changes: [], cursor: 0, hasMore: false, reset: true });
+    expect(r.json.epoch).not.toBe(e1);
+
+    const again = await alice.get('/api/sync/pull?since=0');
+    expect(again.json.epoch).toBe(r.json.epoch);
+    expect(again.json.reset).toBeUndefined();
+    expect(again.json.changes.length).toBeGreaterThan(0);
+    // Every account sees the new epoch.
+    expect((await bob.get('/api/sync/pull?since=0')).json.epoch).toBe(r.json.epoch);
+  });
+
   it('validates the cursor', async () => {
     expect((await alice.get('/api/sync/pull?since=-1')).status).toBe(400);
     expect((await alice.get('/api/sync/pull?since=abc')).status).toBe(400);

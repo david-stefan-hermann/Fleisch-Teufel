@@ -15,8 +15,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 2     | erledigt | da72de6 |
 | 3     | erledigt | fa705c3 |
 | 4     | erledigt | 41cf459 |
-| 5     | erledigt |         |
-| 6     | offen    |         |
+| 5     | erledigt | 81ef7ef |
+| 6     | erledigt |         |
 | 7     | offen    |         |
 | 8     | offen    |         |
 | 9     | offen    |         |
@@ -120,6 +120,12 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   Datensatz, gelesen in der Schreibtransaktion, immer lebend danach), genutzt in `CustomFoodPage`,
   `CompleteDayPage`, `GoalsPage` und den drei Stellen in `db/notes.ts`. `CLAUDE.md` beschreibt das Wiederherstellen
   jetzt mit `importRecord`.
+- Block 6: `pull` liest die Epoche vor der Read-only-Transaktion (`syncEpoch` legt sie bei Fehlen an, das geht in
+  einer Read-only-Transaktion nicht); `sync_seq` wird in der Transaktion gelesen. Eine Rotation zwischen beiden
+  Lesungen kostet höchstens einen weiteren Reset auf dem Gerät.
+- Block 6: README „Backup“ nennt nur noch den ZFS-Snapshot (der pg_dump-Cron und `pg_restore` sind entfallen, wie B2);
+  der Restore rollt nur das eigene Dataset `tank/applications/fleisch-teufel` zurück (per Zariel geprüft, dass es
+  eines ist), nie `tank/applications`. Damit ist der Restore-Teil von B2 (Block 13) schon erledigt.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

@@ -126,6 +126,20 @@ LWW anwenden, Cursor speichern, bis hasMore = false
   kaputt bearbeiteten Datensatzes zurückkommt. Die Wolke zeigt „N Datensätze vom Server abgelehnt“ mit
   Warnsymbol, bis die Liste unter „Daten & Sync“ geleert wird; der Server protokolliert Ablehnungen als
   `warn`. Schritte zählen je Tag nur unter `s:<Datum>` (`stepsEntryOf`, `isStraySteps`).
+- **Epoche (Server-Restore):** Jede Pull-Antwort nennt die Epoche der Server-Datenbank (`epoch`, eine
+  zufällige ID in `app_meta`, Schlüssel `sync_epoch`, beim ersten Pull angelegt). Wird die Datenbank auf ein
+  Backup zurückgesetzt, fehlt dort, was die Geräte danach geschrieben haben, und `sync_seq` steht wieder
+  tiefer als die Cursor der Geräte. Liegt der Cursor eines Pulls über dem höchsten je vergebenen Wert von
+  `sync_seq` (global über alle Konten), rotiert der Server die Epoche selbst (nur wenn sie noch die gelesene
+  ist, so bleibt es bei einer Rotation je Restore) und antwortet `{ changes: [], cursor: 0, reset: true }`.
+  Ist das Backup so jung, dass kein Cursor darüber liegt, wird die Epoche von Hand rotiert (README,
+  „Restore“). Das Gerät merkt sich die Epoche (`kv` `sync.epoch`); bei `reset` oder einer anderen Epoche
+  legt es in **einer** Transaktion alle eigenen Datensätze (Grabsteine eingeschlossen) in die Outbox,
+  setzt hochgeladene Fotos auf „wartend“ (endgültig abgelehnte bleiben abgelehnt), vergisst den Cursor und
+  speichert die neue Epoche. Danach läuft der Sync weiter: erst alles hoch (LWW entscheidet, gleiche
+  Versionen sind „stale“), dann ein Pull ab 0. Ohne Dialog; die App schreibt einen Eintrag ins
+  Fehlerprotokoll (`onReset` in `app/session.tsx`). Kosten: ein voller Upload je Gerät und Konto, auch
+  wenn ein kaputter Client mit einem absurden Cursor die Rotation auslöst.
 - **Veraltete Datensätze** (Server hat Neueres) verlassen die Outbox und kommen mit dem nächsten Pull.
 
 ## Auslöser
@@ -162,9 +176,9 @@ Lauf wiederholt. Andere Geräte laden ein Foto beim ersten Anzeigen und behalten
 
 - `packages/shared/test/sync.test.ts`: LWW-Regel, Gleichstand, Grabsteine
 - `apps/api/test/sync.test.ts`: Server: Round-Trip aller Tabellen, Nutzer-Isolation, LWW, Paging über
-  Tabellen, ungültige Datensätze, deterministische IDs
+  Tabellen, ungültige Datensätze, deterministische IDs, Epoche und `reset`
 - `apps/api/test/device-sync.test.ts`: **Ende-zu-Ende**: zwei Dexie-„Geräte“ mit der echten
   `SyncEngine` gegen die echte API und PostgreSQL (Konflikte, Löschungen, Offline-Phase, 401, abgelehnte Datensätze,
-  App-Update nach übersprungenen Änderungen, JSON-Wiederherstellung gegen neuere Serverdaten)
+  App-Update nach übersprungenen Änderungen, JSON-Wiederherstellung gegen neuere Serverdaten, Neu-Hochladen nach einem Server-Restore)
 - `apps/web/e2e/smoke.spec.ts`: Browser: Offline-Neuladen über den Service Worker, Offline-Eintrag,
   Sync, zweites Gerät

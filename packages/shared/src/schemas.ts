@@ -386,6 +386,10 @@ export interface PullResult {
   cursor: number;
   hasMore: boolean;
   serverTime?: number;
+  /** Sync epoch of the server database; a new one means it was restored (optional for older servers). */
+  epoch?: string;
+  /** The cursor was above anything the server ever handed out: upload everything, pull from 0. */
+  reset?: true;
 }
 
 // ---------------------------------------------------------------- auth
