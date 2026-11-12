@@ -80,10 +80,6 @@ export function AppearancePage() {
             </div>
             <MacroSummary nutrients={PREVIEW} variant={a.diaryMacros} />
           </div>
-          <p className="text-xs text-muted-foreground text-pretty">
-            Protein, Kohlenhydrate und Fett jeder Zeile als Zahlen oder farbig mit einem Balken der
-            Energieverteilung.
-          </p>
         </div>
       </Section>
 

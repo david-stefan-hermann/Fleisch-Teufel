@@ -20,6 +20,7 @@ import {
   Images,
   Keyboard,
   LoaderCircle,
+  PencilLine,
   Plus,
   RotateCcw,
   Save,
@@ -990,11 +991,7 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
     const choices = draftChoices(item, draft);
     if (choices.length > 0) void endpoints.aiChoices(result.analysisId, choices).catch(() => {});
     await discardQueueItem(db, item.localId!);
-    if (savedMealId)
-      toast.success(`„${name}“ eingetragen`, {
-        description: 'Unter „Gespeicherte Meals“ kannst du es jederzeit wieder eintragen und bearbeiten.',
-      });
-    else toast.success(`„${name}“ eingetragen`);
+    toast.success(`„${name}“ eingetragen`);
     // "Back" from the diary must not reopen the review of a logged analysis.
     await returnToDiary({ date: item.date, focus: { rows: ids, meal } });
   }
@@ -1107,7 +1104,25 @@ function ResultEditor({ item, busy, onClose }: { item: AiQueueItem; busy: boolea
         {result.notes && <p className="mb-4 rounded-xl bg-muted p-3 text-sm text-pretty">{result.notes}</p>}
         {rows.length === 0 && (
           <EmptyState title="Kein Essen erkannt">
-            Versuche ein Foto von schräg oben bei gutem Licht oder füge die Zutaten selbst hinzu.
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                disabled={busy || (photos?.length ?? 0) >= MAX_ANALYSIS_PHOTOS}
+                onClick={() => {
+                  warmUpCamera();
+                  setSheet(true);
+                }}
+              >
+                <Camera aria-hidden /> Neues Foto
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy}
+                onClick={() => document.getElementById('review-hint')?.focus()}
+              >
+                <PencilLine aria-hidden /> Hinweis ergänzen
+              </Button>
+            </div>
           </EmptyState>
         )}
         <div className="mb-4 grid gap-1.5">

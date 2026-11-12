@@ -1086,7 +1086,7 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
   await expect(redo).toContainText('die 4 Fotos');
   await redo.getByRole('button', { name: 'Analysieren' }).click();
   await expect.poll(() => sent).toEqual([2, 3, 4]);
-  await expect(page.getByText('Neu analysiert', { exact: true })).toBeVisible();
+  await expect(page.getByText('Analyse fertig', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Änderungen übernehmen' }).click();
   await expect(lunch.getByLabel('4 Fotos')).toBeVisible();
 

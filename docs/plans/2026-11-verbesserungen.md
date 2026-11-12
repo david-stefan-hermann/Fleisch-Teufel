@@ -19,8 +19,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 6     | erledigt | 7b4f0d0 |
 | 7     | erledigt | 23db23d |
 | 8     | erledigt | b4f880e |
-| 9     | erledigt |         |
-| 10    | offen    |         |
+| 9     | erledigt | b0a3606 |
+| 10    | erledigt |         |
 | 11    | offen    |         |
 | 12    | offen    |         |
 | 13    | offen    |         |
@@ -162,6 +162,22 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   5 Fotos je Analyse.“. Der Systemprompt der Etikett-Lesung nennt „1 bis 5 Fotos“ aus derselben Konstante. Der
   `error`-Zustand (Open Food Facts antwortet mit einem Fehler) bleibt neben dem neuen `timeout`; nur `offline` hat
   „Selbst anlegen“. Neuer Unit-Test für `lookupBarcode` → `timeout`.
+
+- Block 10, Zeile 2: Der Toast beim Eintragen einer gespeicherten Analyse heißt nur noch „„Name“ eingetragen“ (die
+  Beschreibung fällt weg), nicht „Als „Name“ gespeichert“: in diesem Moment wird eingetragen, nicht gespeichert, und
+  das Speichern selbst meldet schon „„Name“ gespeichert“ (wie überall in der App, auch in den E2E-Tests).
+- Block 10, Zeile 4: Die Toast-Beschreibung „Makros nach deinem Plan.“ bleibt (Information über die Daten), nur der
+  Satz über „Ziele“ fällt weg. Zeile 6: „X ist leer. Nichts gegessen, oder nur nicht eingetragen?“ mit dem Link
+  „Schnell schätzen“ bleibt, nur die Begründung fällt weg.
+- Block 10, Zeile 8: „Neues Foto“ öffnet dieselbe Fotoaufnahme wie „+“ am Fotostreifen (das Foto kommt dazu, mit
+  „Neu“ markiert, ↻ analysiert neu), ausgegraut bei 5 Fotos; „Hinweis ergänzen“ setzt den Fokus ins Hinweisfeld.
+- Block 10, weitere Sätze derselben Art (nicht entfernt, zum Abhaken): `ScanPage.tsx` Kamerafehler „… oder gib den
+  Code unten ein.“ / „Gib den Code unten ein.“ und offline „Prüfe die Verbindung (WireGuard) oder lege das Produkt
+  selbst an.“ (der Knopf „Selbst anlegen“ steht jetzt daneben); `PhotoCaptureSheet.tsx` „Wähle die Fotos aus der
+  Mediathek.“; `PhotoPage.tsx` Kamerafehler „Du kannst stattdessen ein Foto mit der Kamera-App aufnehmen oder aus
+  der Mediathek wählen.“; `MealEditor.tsx` Toast-Beschreibung „Unter „Eigene Lebensmittel“ und in der Suche, pro
+  100 g.“ (wie Zeile 2); `DiaryPage.tsx` Karte „Ziele einrichten“: „Berechne deinen Kalorienbedarf und deine
+  Makroziele in einer Minute.“; `lib/api.ts` `refused`-Meldung „… oder trage das Essen manuell ein.“
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

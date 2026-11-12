@@ -105,8 +105,7 @@ export function CompleteDayPage() {
             {maybeMissing.length === 1
               ? `${settings.mealNames[maybeMissing[0]!]} ist leer.`
               : `${maybeMissing.map((i) => settings.mealNames[i]).join(', ')} sind leer.`}{' '}
-            Nichts gegessen, oder nur nicht eingetragen? Eine grobe Schätzung ist besser als eine Lücke: so
-            stimmen Durchschnitte und Bedarf.{' '}
+            Nichts gegessen, oder nur nicht eingetragen?{' '}
             <Link
               to="/photo"
               search={{ date, meal: maybeMissing[0]!, form: true }}

@@ -64,7 +64,7 @@ export function ExpenditureCard({
     if (suggested === null || weightKg === null) return;
     await applyTargetKcal(db, { kcal: suggested, weightKg, settings, goals, today });
     toast.success(`Ziel ab heute ${fmt0(suggested)} kcal`, {
-      description: 'Makros nach deinem Plan. Unter „Ziele“ kannst du alles nachjustieren.',
+      description: 'Makros nach deinem Plan.',
     });
   }
 

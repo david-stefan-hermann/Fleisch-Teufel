@@ -125,9 +125,6 @@ function GoalsForm({
         <div className="flex items-center justify-between gap-3 p-4">
           <Label htmlFor="per-day" className="flex-1">
             Unterschiedliche Ziele je Wochentag
-            <span className="block text-xs font-normal text-muted-foreground">
-              z. B. mehr Kalorien an Trainings- oder Wochenendtagen
-            </span>
           </Label>
           <Switch
             id="per-day"

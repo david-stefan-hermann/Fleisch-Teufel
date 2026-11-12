@@ -326,9 +326,7 @@ function DiaryGroupForm({
       setScale(1);
       setScaleBase(next.draft.items);
       for (const food of next.foods) if (!food.estimated) await rememberFood(db, food);
-      toast.success('Neu analysiert', {
-        description: 'Prüfe die Zutaten und tippe auf „Änderungen übernehmen“.',
-      });
+      toast.success('Analyse fertig');
     } catch (e) {
       toast.error(
         e instanceof OfflineError ? 'Offline. Neu analysieren geht nur mit Verbindung.' : errorMessage(e),

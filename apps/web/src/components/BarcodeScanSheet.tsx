@@ -23,26 +23,21 @@ export function BarcodeScanSheet({
       {error ? (
         <div className="grid gap-4">
           <p role="alert" className="rounded-xl bg-muted p-4 text-sm">
-            {CAM_ERRORS[error]} Du kannst den Code im Feld eintippen.
+            {CAM_ERRORS[error]}
           </p>
           <Button variant="outline" size="lg" onClick={onClose}>
             Schließen
           </Button>
         </div>
       ) : (
-        <>
-          <BarcodeScanner
-            onError={onError}
-            onDetected={(code) => {
-              if (done.current) return;
-              done.current = true;
-              onDetected(code);
-            }}
-          />
-          <p className="mt-4 text-center text-sm text-muted-foreground" aria-live="polite">
-            Halte den Barcode in den Rahmen.
-          </p>
-        </>
+        <BarcodeScanner
+          onError={onError}
+          onDetected={(code) => {
+            if (done.current) return;
+            done.current = true;
+            onDetected(code);
+          }}
+        />
       )}
     </FullscreenOverlay>
   );

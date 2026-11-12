@@ -110,9 +110,6 @@ export function ScanPage() {
       )}
 
       <div className="mt-4 min-h-24" aria-live="polite">
-        {state.kind === 'scanning' && !camError && (
-          <p className="text-center text-sm text-muted-foreground">Halte den Barcode in den Rahmen.</p>
-        )}
         {state.kind === 'looking' && (
           <p className="flex items-center justify-center gap-2 text-sm">
             <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> Suche{' '}
