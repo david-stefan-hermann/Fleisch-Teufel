@@ -23,7 +23,7 @@ Geplant am 2026-11-12 (Fable). Umgesetzt am 2026-11-12 (Opus 5.5).
 | 10    | erledigt | ba64060 |
 | 11    | erledigt | a5fd7e7 |
 | 12    | erledigt | 4f5c938 |
-| 13    | erledigt |         |
+| 13    | erledigt | 49df44d |
 
 **Abweichungen:** (hier eintragen, nie still entscheiden)
 
