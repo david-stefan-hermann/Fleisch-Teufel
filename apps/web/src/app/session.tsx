@@ -41,7 +41,7 @@ function readStoredUser(): PublicUser | null {
 
 function open(user: PublicUser, onUnauthorized: () => void): Session {
   const db = new UserDb(userDbName(user.id));
-  const sync = new SyncEngine(db, { onUnauthorized });
+  const sync = new SyncEngine(db, { onUnauthorized, appVersion: __APP_VERSION__ });
   return { user, db, sync };
 }
 

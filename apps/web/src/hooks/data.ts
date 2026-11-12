@@ -1,5 +1,6 @@
 import {
   isStepsEntry,
+  isStraySteps,
   SETTINGS_ID,
   summarizeDay,
   today as todayOf,
@@ -70,7 +71,8 @@ export function useDayExercises(date: ISODate): ExerciseEntry[] | undefined {
       db.exerciseEntries
         .where('date')
         .equals(date)
-        .filter((e) => !e.deleted)
+        // A stray steps copy (refused by the server, dropped by the next sync) never shows.
+        .filter((e) => !e.deleted && !isStraySteps(e))
         .sortBy('loggedAt'),
     [db, date],
   );

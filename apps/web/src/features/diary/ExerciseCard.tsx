@@ -5,6 +5,7 @@ import {
   groupTrainingEntries,
   INTENSITY_LABELS_DE,
   isStepsEntry,
+  stepsEntryOf,
   shortSportName,
 } from '@ft/shared';
 import type { ExerciseEntry, ISODate } from '@ft/shared';
@@ -84,7 +85,7 @@ export function ExerciseCard({
         },
       });
     });
-  const steps = exercises.find(isStepsEntry);
+  const steps = stepsEntryOf(exercises, date);
   const trainings = exercises.filter((e) => !isStepsEntry(e));
   const yesterdayTrainings = yesterday?.filter((e) => !isStepsEntry(e));
   const yesterdayRows =

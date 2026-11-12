@@ -30,6 +30,15 @@ deterministic id and add it to `requiredId()` so offline devices converge.
   They bump `updatedAt` monotonically, validate with Zod and enqueue the outbox **in one transaction**.
   Never `db.<table>.put()` a synced record directly — it would never upload.
 - Deletes are soft (`deleted: true`); all queries filter `!deleted`. Offer undo via `restoreRecord`.
+- **Never rebuild a stored record from form fields when saving.** A device with an older app version
+  does not know fields a newer version added; a record rebuilt from its form sets them to `null` on the
+  server (the upsert writes every column). Change fields with `patchRecord`, or save a form with
+  `upsertRecord(db, table, id, (prev) => fields)`, which writes the fields over the record as stored
+  (read in the write transaction). `saveRecord` only for records that are new or wholly replaced.
+- The write helpers check what the server's push checks (Zod schema and the fixed id of one-per-day
+  records, `requiredId`): a wrong id throws `id must be <expected>` before it reaches the outbox.
+- A JSON backup comes back through `importRecord` (keeps the backup's `updatedAt`, LWW decides), never
+  `saveRecord` (a fresh version would beat newer changes and deletions on the server).
 - Read with `useLiveQuery` (dexie-react-hooks) so pulls from other devices re-render automatically.
 - Keep `apps/web/src/db/*` and `apps/web/src/sync/*` free of `@/` imports: the API test suite imports
   them to run real device ↔ server tests.

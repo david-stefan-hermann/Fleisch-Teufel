@@ -68,7 +68,10 @@ import {
 import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { completeDays, openDays, openPastDays, reopenDays, saveDayNote } from '@/db/notes';
 import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
-import { deleteRecord, patchRecord, restoreRecord, saveRecord } from '@/db/write';
+import { deleteRecord, patchRecord, restoreRecord, saveRecord, upsertRecord } from '@/db/write';
+import { localOnlyData } from '@/db/localOnly';
+import { storePhoto } from '@/db/photos';
+import { wipeWarning } from '@/features/more/wipeWarning';
 import { saveOnboarding } from '@/features/goals/saveOnboarding';
 import { dailyCsv, entriesCsv, exerciseCsv } from '@/features/reports/export';
 
@@ -87,6 +90,50 @@ describe('local writes', () => {
     const w2 = await patchRecord(d, 'weightEntries', w.id, { kg: 79.5 });
     expect(w2!.updatedAt).toBeGreaterThan(w.updatedAt);
     expect(await d.outbox.count()).toBe(1);
+  });
+
+  it('refuses a one-per-day record under another id before it reaches the outbox', async () => {
+    const d = db();
+    const steps = {
+      id: uuidv7(),
+      date: '2026-11-10',
+      loggedAt: 1,
+      typeKey: 'steps',
+      name: 'Schritte',
+      minutes: 76,
+      intensity: 'moderate' as const,
+      met: 3.5,
+      weightKg: 80,
+      kcal: 234,
+      note: null,
+      templateId: null,
+      groupId: null,
+      steps: 8432,
+      distanceM: 6100,
+    };
+    await expect(saveRecord(d, 'exerciseEntries', steps)).rejects.toThrow('id must be s:2026-11-10');
+    await expect(
+      saveRecord(d, 'weightEntries', { id: dayId.weight('2026-11-09'), date: '2026-11-10', kg: 80 }),
+    ).rejects.toThrow('id must be w:2026-11-10');
+    expect(await d.outbox.count()).toBe(0);
+    expect(await d.exerciseEntries.count()).toBe(0);
+    await saveRecord(d, 'exerciseEntries', { ...steps, id: dayId.steps('2026-11-10') });
+    expect(await d.outbox.count()).toBe(1);
+  });
+
+  it('pages that build a record from their fields keep fields a newer app version added', async () => {
+    const d = db();
+    const id = dayId.note('2026-10-07');
+    await saveRecord(d, 'dayNotes', { id, date: '2026-10-07', note: 'alt', completedAt: null });
+    // As pulled from a device with a newer app version.
+    await d.dayNotes.update(id, { mood: 'gut' } as never);
+    await saveDayNote(d, '2026-10-07', 'neu');
+    await completeDays(d, ['2026-10-07'], 7);
+    expect(await d.dayNotes.get(id)).toMatchObject({ note: 'neu', completedAt: 7, mood: 'gut' });
+    // A tombstone written over becomes a live record again.
+    await deleteRecord(d, 'dayNotes', id);
+    await upsertRecord(d, 'dayNotes', id, () => ({ id, date: '2026-10-07', note: 'x', completedAt: null }));
+    expect(await d.dayNotes.get(id)).toMatchObject({ deleted: false, note: 'x', mood: 'gut' });
   });
 
   it('patches read the current version inside the transaction (no lost update)', async () => {
@@ -1419,7 +1466,7 @@ describe('settings, notes and onboarding writes', () => {
 });
 
 describe('JSON backup', () => {
-  it('restores records that are newer than the device has, skips the rest and invalid ones', async () => {
+  it('restores only what the device lacks, with the version of the backup', async () => {
     const a = db();
     const w = await saveRecord(a, 'weightEntries', {
       id: dayId.weight('2026-10-07'),
@@ -1439,10 +1486,18 @@ describe('JSON backup', () => {
     const b = db();
     await saveRecord(b, 'dayNotes', { id: n.id, date: '2026-10-07', note: 'neu', completedAt: null });
     (backup.customFoods as unknown[]).push({ id: 'x', updatedAt: 1, deleted: false, name: 7 });
+    // A record deleted before the backup was taken, and a weight under a wrong id.
+    (backup.weightEntries as unknown[]).push(
+      { id: dayId.weight('2026-10-01'), updatedAt: 1, deleted: true, date: '2026-10-01', kg: 79 },
+      { id: dayId.weight('2026-10-02'), updatedAt: 1, deleted: false, date: '2026-10-03', kg: 79 },
+    );
     const r = await restoreBackup(b, backup);
-    expect(r).toEqual({ restored: 1, unchanged: 1, invalid: { customFoods: 1 } });
+    expect(r).toEqual({ restored: 1, unchanged: 2, invalid: { customFoods: 1, weightEntries: 1 } });
     expect(await b.weightEntries.get(w.id)).toMatchObject({ kg: 80 });
-    expect((await b.weightEntries.get(w.id))!.updatedAt).toBeGreaterThan(w.updatedAt);
+    // The backup's version: last write wins decides against the server, not a fresh stamp.
+    expect((await b.weightEntries.get(w.id))!.updatedAt).toBe(w.updatedAt);
+    expect(await b.outbox.get(`weightEntries:${w.id}`)).toMatchObject({ updatedAt: w.updatedAt });
+    expect(await b.weightEntries.get(dayId.weight('2026-10-01'))).toBeUndefined();
     expect(await b.dayNotes.get(n.id)).toMatchObject({ note: 'neu' });
     expect(await b.outbox.count()).toBe(2);
     expect(() => parseBackup('{"app":"other"}')).toThrow();
@@ -1773,5 +1828,30 @@ describe('saved training editor draft', () => {
     await deleteRecord(d, 'exerciseTemplates', id);
     expect(await addActivityToTraining(d, id, run)).toBe(false);
     expect(await addActivityToTraining(d, 'missing', run)).toBe(false);
+  });
+});
+
+describe('"Gerätedaten löschen": what is only on this device', () => {
+  it('counts changes, photos waiting for upload, analyses and drafts', async () => {
+    const d = db();
+    expect(wipeWarning(await localOnlyData(d))).toBe(
+      'Alle Daten bleiben auf dem Server und kommen nach der nächsten Anmeldung zurück.',
+    );
+    await saveRecord(d, 'weightEntries', { id: dayId.weight('2026-10-07'), date: '2026-10-07', kg: 80 });
+    await d.outbox.clear();
+    const uploaded = await storePhoto(d, new Blob([new Uint8Array([0xff, 0xd8, 0xff])]));
+    await d.photos.update(uploaded, { uploaded: 1 });
+    await storePhoto(d, new Blob([new Uint8Array([0xff, 0xd8, 0xff])]));
+    await storePhoto(d, new Blob([new Uint8Array([0xff, 0xd8, 0xff])]));
+    await d.aiQueue.add({ createdAt: 1, date: '2026-10-07', meal: 1, text: '', status: 'pending' });
+    await d.kv.put({ key: 'mealDraft:m1', value: {} });
+    await d.kv.put({ key: 'mealDraftPhoto:m1', value: {} });
+    await d.kv.put({ key: 'clipboard', value: {} });
+    const local = await localOnlyData(d);
+    expect(local).toEqual({ changes: 0, photos: 2, analyses: 1, drafts: 1 });
+    expect(wipeWarning(local)).toBe(
+      'Noch nicht hochgeladen: 2 Fotos. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; ' +
+        'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf.',
+    );
   });
 });

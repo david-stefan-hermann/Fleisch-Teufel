@@ -3,10 +3,11 @@
  * SyncEngine and write helpers) talk to the real API backed by PostgreSQL.
  */
 import 'fake-indexeddb/auto';
-import { dayId, uuidv7, type FoodEntry } from '@ft/shared';
+import { dayId, uuidv7, type ExerciseEntry, type FoodEntry } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UserDb } from '../../web/src/db/dexie';
 import { loadPhoto, pruneLocalPhotos, storePhoto } from '../../web/src/db/photos';
+import { createBackup, restoreBackup } from '../../web/src/db/backup';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
 import { SyncEngine } from '../../web/src/sync/syncEngine';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
@@ -21,19 +22,50 @@ beforeAll(async () => {
 });
 afterAll(() => ctx.close());
 
-function device(name: string, opts: { online?: () => boolean } = {}) {
-  const db = new UserDb(`${name}-${uuidv7()}`);
+/** The test API with the account's cookie. */
+async function server(path: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  headers.set('cookie', cookie);
+  return ctx.app.request(path, { ...init, headers });
+}
+
+function device(
+  name: string,
+  opts: { online?: () => boolean; appVersion?: string; db?: UserDb; calls?: string[] } = {},
+) {
+  const db = opts.db ?? new UserDb(`${name}-${uuidv7()}`);
   const engine = new SyncEngine(db, {
     pullPageSize: 3,
+    appVersion: opts.appVersion,
     fetch: async (path, init) => {
       if (opts.online && !opts.online()) throw new TypeError('Failed to fetch');
-      const headers = new Headers(init?.headers);
-      headers.set('cookie', cookie);
-      return ctx.app.request(path, { ...init, headers });
+      opts.calls?.push(path);
+      return server(path, init);
     },
   });
   return { db, engine };
 }
+
+/** A training as an app version before the steps import wrote it: steps copied under a fresh id. */
+const strayStepsCopy = (): ExerciseEntry => ({
+  id: uuidv7(),
+  updatedAt: Date.now(),
+  deleted: false,
+  date: '2026-10-08',
+  loggedAt: 1,
+  typeKey: 'steps',
+  name: 'Schritte',
+  minutes: 76,
+  intensity: 'moderate',
+  met: 3.5,
+  weightKg: 80,
+  kcal: 333,
+  note: null,
+  templateId: null,
+  groupId: null,
+  steps: 8432,
+  distanceM: 6100,
+});
 
 const entry = (over: Partial<FoodEntry> = {}): Omit<FoodEntry, 'updatedAt' | 'deleted'> => ({
   id: uuidv7(),
@@ -229,6 +261,140 @@ describe('device ↔ server sync', () => {
     expect(await b.db.weightEntries.get('w:1999-01-01')).toBeUndefined();
     expect(engine.getState()).toMatchObject({ status: 'idle', needsUpdate: true });
     expect((await b.db.kv.get('sync.cursor'))?.value).toBeGreaterThan(0);
+  });
+
+  it('keeps "update the app" across starts and loads everything again after an update', async () => {
+    const a = device('update-writer');
+    const e = entry({ name: 'Neues Feld' });
+    await saveRecord(a.db, 'foodEntries', e);
+    await a.engine.sync();
+    // Version 1 of the app cannot read this record (as if it had a shape only a newer version knows).
+    const db = new UserDb(`update-reader-${uuidv7()}`);
+    const old = new SyncEngine(db, {
+      appVersion: '1',
+      fetch: async (path, init) => {
+        const res = await server(path, init);
+        if (!path.startsWith('/api/sync/pull')) return res;
+        const body = (await res.json()) as { changes: { data: { id: string; grams: unknown } }[] };
+        for (const c of body.changes) if (c.data.id === e.id) c.data.grams = 'viel';
+        return new Response(JSON.stringify(body), { status: 200 });
+      },
+    });
+    await old.sync();
+    expect(old.getState().needsUpdate).toBe(true);
+    expect(await db.foodEntries.get(e.id)).toBeUndefined();
+    expect((await db.kv.get('sync.needsUpdate'))?.value).toEqual({ version: '1' });
+
+    // Restarted with the same version: the flag is back, the cursor stays.
+    const calls: string[] = [];
+    const again = device('update-reader', { db, appVersion: '1', calls });
+    await again.engine.sync();
+    expect(again.engine.getState().needsUpdate).toBe(true);
+    expect(calls.find((p) => p.startsWith('/api/sync/pull'))).not.toContain('since=0&');
+    expect(await db.foodEntries.get(e.id)).toBeUndefined();
+
+    // Updated: the first pull starts at 0, the skipped record arrives and the flag is gone.
+    calls.length = 0;
+    const updated = device('update-reader', { db, appVersion: '2', calls });
+    await updated.engine.sync();
+    expect(calls.find((p) => p.startsWith('/api/sync/pull'))).toContain('since=0&');
+    expect(await db.foodEntries.get(e.id)).toMatchObject({ grams: 60 });
+    expect(updated.engine.getState().needsUpdate).toBe(false);
+    expect(await db.kv.get('sync.needsUpdate')).toBeUndefined();
+  });
+
+  it('drops a record the server rejected, keeps it in the list and reloads from the server', async () => {
+    const calls: string[] = [];
+    const a = device('rejected', { calls });
+    const e = entry({ name: 'Gültig' });
+    await saveRecord(a.db, 'foodEntries', e);
+    await a.engine.sync();
+    expect((await a.db.kv.get('sync.cursor'))?.value).toBeGreaterThan(0);
+    // Broken on the device, bypassing the write checks: an invalid edit and a stray steps copy.
+    const broken = { ...(await a.db.foodEntries.get(e.id))!, meal: 9, updatedAt: Date.now() + 1000 };
+    const stray = strayStepsCopy();
+    await a.db.foodEntries.put(broken);
+    await a.db.exerciseEntries.put(stray);
+    await a.db.outbox.bulkPut([
+      { key: `foodEntries:${e.id}`, table: 'foodEntries', id: e.id, updatedAt: broken.updatedAt },
+      {
+        key: `exerciseEntries:${stray.id}`,
+        table: 'exerciseEntries',
+        id: stray.id,
+        updatedAt: stray.updatedAt,
+      },
+    ]);
+    calls.length = 0;
+    const s = await a.engine.sync();
+    expect(s.rejected).toBe(2);
+    expect(a.engine.getState()).toMatchObject({ status: 'idle', rejected: 2 });
+    expect(await a.db.outbox.count()).toBe(0);
+    // Gone from the device (no tombstone), the server's valid version is back.
+    expect(await a.db.exerciseEntries.get(stray.id)).toBeUndefined();
+    expect(await a.db.foodEntries.get(e.id)).toMatchObject({ meal: 1, name: 'Gültig' });
+    expect(calls.find((p) => p.startsWith('/api/sync/pull'))).toContain('since=0&');
+    const list = (await a.db.kv.get('sync.rejected'))?.value as {
+      table: string;
+      id: string;
+      error: string;
+      record: { id: string; kcal?: number };
+    }[];
+    expect(list.map((r) => r.record.id).sort()).toEqual([e.id, stray.id].sort());
+    expect(list.find((r) => r.id === stray.id)).toMatchObject({
+      table: 'exerciseEntries',
+      error: `id must be ${dayId.steps('2026-10-08')}`,
+      record: { kcal: 333 },
+    });
+    // A second run sends nothing again and pulls from where it stopped.
+    calls.length = 0;
+    expect((await a.engine.sync()).rejected).toBe(0);
+    expect(calls.find((p) => p.startsWith('/api/sync/pull'))).not.toContain('since=0&');
+  });
+
+  it('a restored backup never undoes newer server changes or deletions', async () => {
+    const a = device('backup-source');
+    const kept = entry({ name: 'Bleibt' });
+    const gone = entry({ name: 'Später gelöscht' });
+    const food = {
+      id: uuidv7(),
+      name: 'Alter Name',
+      brand: null,
+      barcode: null,
+      unit: 'g' as const,
+      nutrients: {},
+      portions: [],
+    };
+    await saveRecord(a.db, 'foodEntries', kept);
+    await saveRecord(a.db, 'foodEntries', gone);
+    await saveRecord(a.db, 'customFoods', food);
+    await a.engine.sync();
+    const backup = await createBackup(a.db, 'test');
+    // Only in the backup: a record that never reached the server.
+    const lost = { ...entry({ name: 'Nur in der Sicherung' }), updatedAt: 1_000, deleted: false };
+    (backup.foodEntries as unknown[]).push(lost);
+    // After the backup: one deletion, one rename.
+    await deleteRecord(a.db, 'foodEntries', gone.id);
+    await patchRecord(a.db, 'customFoods', food.id, { name: 'Neuer Name' });
+    await a.engine.sync();
+
+    // A device that syncs first (as "Daten & Sync" does), and one that restores without it.
+    for (const syncFirst of [true, false]) {
+      const b = device(`backup-target-${syncFirst}`);
+      if (syncFirst) await b.engine.sync();
+      const r = await restoreBackup(b.db, backup);
+      if (syncFirst) expect(r.restored).toBe(1);
+      await b.engine.sync();
+      expect(await b.db.foodEntries.get(gone.id)).toMatchObject({ deleted: true });
+      expect(await b.db.customFoods.get(food.id)).toMatchObject({ name: 'Neuer Name' });
+      expect(await b.db.foodEntries.get(kept.id)).toMatchObject({ deleted: false });
+      expect(await b.db.foodEntries.get(lost.id)).toMatchObject({ name: 'Nur in der Sicherung' });
+    }
+    // The server agrees: another device sees the deletion, the new name and the missing record.
+    const c = device('backup-check');
+    await c.engine.sync();
+    expect(await c.db.foodEntries.get(gone.id)).toMatchObject({ deleted: true });
+    expect(await c.db.customFoods.get(food.id)).toMatchObject({ name: 'Neuer Name' });
+    expect(await c.db.foodEntries.get(lost.id)).toMatchObject({ updatedAt: 1_000, deleted: false });
   });
 
   it('reports a storage error as an error, not as offline', async () => {

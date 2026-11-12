@@ -3,7 +3,14 @@
  * (`updatedAt`, strictly increasing) and is queued in the outbox in the same transaction,
  * so a crash can never leave a change that is not scheduled for upload.
  */
-import { nextVersion, SYNC_SCHEMAS, type SyncRecordMap, type SyncTable } from '@ft/shared';
+import {
+  incomingWins,
+  nextVersion,
+  requiredId,
+  SYNC_SCHEMAS,
+  type SyncRecordMap,
+  type SyncTable,
+} from '@ft/shared';
 import type { UserDb } from './dexie';
 
 type Input<T extends SyncTable> = Omit<SyncRecordMap[T], 'updatedAt' | 'deleted'> & { deleted?: boolean };
@@ -14,6 +21,24 @@ export async function saveRecord<T extends SyncTable>(
   input: Input<T>,
 ): Promise<SyncRecordMap[T]> {
   return (await writeRecord(db, table, input.id, () => input))!;
+}
+
+/**
+ * Saves a record over the stored one: fields the input does not name keep their stored value. Use it
+ * wherever a page builds a record from its form fields, so a field added by a newer app version
+ * (synced in, unknown to this code) survives the save instead of being dropped. `build` gets the
+ * record as stored right now (read in the write transaction). Always a live record afterwards.
+ */
+export async function upsertRecord<T extends SyncTable>(
+  db: UserDb,
+  table: T,
+  id: string,
+  build: (prev: SyncRecordMap[T] | undefined) => Input<T>,
+): Promise<SyncRecordMap[T]> {
+  return (await writeRecord(db, table, id, (prev) => {
+    const input = build(prev);
+    return { ...prev, ...input, deleted: input.deleted ?? false } as Input<T>;
+  }))!;
 }
 
 /**
@@ -47,10 +72,37 @@ async function writeRecord<T extends SyncTable>(
       updatedAt: nextVersion(prev?.updatedAt, Date.now() + db.clockOffset),
     } as SyncRecordMap[T];
     // Validate before it can ever reach the server (a rejected record would be dropped there).
-    SYNC_SCHEMAS[table].parse(record);
+    validate(table, record);
     await t.put(record);
     await db.outbox.put({ key: `${table}:${record.id}`, table, id: record.id, updatedAt: record.updatedAt });
     return record;
+  });
+}
+
+/** The checks of the server's push: the schema and the fixed id of one-per-day records. */
+function validate(table: SyncTable, record: SyncRecordMap[SyncTable]): void {
+  SYNC_SCHEMAS[table].parse(record);
+  const expected = requiredId(table, record as unknown as Record<string, unknown>);
+  if (expected !== null && record.id !== expected) throw new Error(`id must be ${expected}`);
+}
+
+/**
+ * Takes a record from a JSON backup as it is, with the version it had (`updatedAt` is kept), so the
+ * last-write-wins rule decides against the device and later the server: a newer change or deletion
+ * there always beats the backup. Returns false when the device's record wins (nothing written).
+ */
+export async function importRecord<T extends SyncTable>(
+  db: UserDb,
+  table: T,
+  record: SyncRecordMap[T],
+): Promise<boolean> {
+  validate(table, record);
+  return db.transaction('rw', [db.syncTable(table), db.outbox], async () => {
+    const t = db.syncTable(table);
+    if (!incomingWins(await t.get(record.id), record)) return false;
+    await t.put(record);
+    await db.outbox.put({ key: `${table}:${record.id}`, table, id: record.id, updatedAt: record.updatedAt });
+    return true;
   });
 }
 

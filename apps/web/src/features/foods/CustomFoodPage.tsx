@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { deleteRecord, restoreRecord, upsertRecord } from '@/db/write';
 import { getFood } from '@/foods/foodService';
 import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
@@ -159,8 +159,10 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
     if (mode === 'perPortion' && servingGrams && !allPortions.some((p) => p.grams === servingGrams)) {
       allPortions.unshift({ label: `Portion (${servingGrams} ${unit})`, grams: servingGrams });
     }
-    const record = await saveRecord(db, 'customFoods', {
-      id: existing?.id ?? uuidv7(),
+    const id = existing?.id ?? uuidv7();
+    // Over the stored record: fields this form does not know (newer app version) stay.
+    const record = await upsertRecord(db, 'customFoods', id, () => ({
+      id,
       name: name.trim(),
       brand: brand.trim() || null,
       barcode: barcodeClean || null,
@@ -168,7 +170,7 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
       // All ten values; kJ and sodium are already derived where they were not typed.
       nutrients: toNutrients(nutrients, factor),
       portions: allPortions,
-    });
+    }));
     toast.success(isNew ? 'Lebensmittel angelegt' : 'Gespeichert');
     // "Anlegen und eintragen" opens the new food's page; everything else closes the editor.
     if (isNew && search.date !== undefined) {

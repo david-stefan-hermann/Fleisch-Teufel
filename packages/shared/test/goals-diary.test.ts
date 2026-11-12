@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { goalForDate, microTarget, targetsForDate, uniformWeek } from '../src/goals.js';
 import { microStatus, QUICK_TITLE_MAX, quickEntryTitle, summarizeDay } from '../src/diary.js';
 import { dailyRows, dayBudget, periodStats } from '../src/reports.js';
+import { isStraySteps, stepsEntryOf } from '../src/exercise.js';
 import type { ExerciseEntry, FoodEntry, Goal } from '../src/schemas.js';
 
 const goal = (validFrom: string, kcal: number, weekend?: number): Goal => ({
@@ -164,6 +165,42 @@ describe('day summary & reports', () => {
     });
     expect(dayBudget(row!, true, false)).toBe(2300);
     expect(periodStats([row!], { creditSteps: false }).daysUnderGoal).toBe(1);
+  });
+
+  it('counts steps once, only s:<date>', () => {
+    const steps = (id: string, kcal: number): ExerciseEntry => ({
+      ...exercise('2026-10-07', kcal),
+      id,
+      typeKey: 'steps',
+      name: 'Schritte',
+      minutes: 76,
+      steps: 8432,
+      distanceM: 6100,
+    });
+    // An older app copied yesterday's steps as a training under a fresh id (the server refuses it).
+    const exercises = [steps('s:2026-10-07', 234), steps('0192-stray', 333), exercise('2026-10-07', 300)];
+    expect(isStraySteps(exercises[1]!)).toBe(true);
+    expect(isStraySteps(exercises[0]!)).toBe(false);
+    expect(stepsEntryOf(exercises, '2026-10-07')?.id).toBe('s:2026-10-07');
+    expect(stepsEntryOf([steps('0192-stray', 333)], '2026-10-07')).toBeUndefined();
+    expect(
+      summarizeDay({
+        date: '2026-10-07',
+        entries,
+        exercises,
+        goals,
+        settings: { addExerciseCalories: true },
+      }),
+    ).toMatchObject({ exerciseKcal: 534, stepsKcal: 234 });
+    const [row] = dailyRows({
+      from: '2026-10-07',
+      to: '2026-10-07',
+      entries,
+      exercises,
+      weights: [],
+      goals,
+    });
+    expect(row).toMatchObject({ exerciseKcal: 534, stepsKcal: 234, exerciseMinutes: 30 });
   });
 
   it('aggregates periods over logged days only', () => {

@@ -15,6 +15,12 @@ Jeder synchronisierte Datensatz (Tabellen siehe `SYNC_SCHEMAS` in `packages/shar
 | `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                                                |
 | `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                                         |
 
+**JSON-Sicherung** („Daten & Sync“, `apps/web/src/db/backup.ts`): „Wiederherstellen“ holt nur Fehlendes
+zurück. Die Seite synchronisiert vorher (ohne Server kein Einspielen), dann geht jeder Datensatz der
+Sicherung über `importRecord` mit seinem alten `updatedAt` in die Outbox, sofern er gegen den Stand des
+Geräts gewinnt. Gegen den Server entscheidet dieselbe LWW-Regel: eine Änderung oder Löschung nach der
+Sicherung ist neuer und gewinnt, Gelöschtes bleibt gelöscht. Grabsteine der Sicherung werden übersprungen.
+
 Grabsteine werden nie entfernt. Darauf baut der **Papierkorb** (Mehr → Papierkorb, `apps/web/src/db/trash.ts`)
 auf: er zeigt gelöschte Gewichtseinträge, Schritte, Meals und gespeicherte Trainings (`exerciseTemplates`), „Wiederherstellen“ ist ein normaler Schreibvorgang
 (`restoreRecord`: `deleted: false` mit neuer Version) und erreicht so alle Geräte. Endgültiges Löschen gibt
@@ -105,11 +111,22 @@ LWW anwenden, Cursor speichern, bis hasMore = false
   ab einer Minute Abweichung.
 - **Unbekannte Tabellen und Formen:** Änderungen, die eine ältere App-Version nicht kennt (neue
   Tabelle, Datensatz fällt durch das Schema), überspringt der Pull; der Cursor rückt trotzdem vor,
-  der Sync-Status zeigt „App-Update nötig“. Nach dem Update holt „Alles neu vom Server laden“ sie nach.
+  der Sync-Status zeigt „App-Update nötig“. Der Merker liegt mit der App-Version in `kv`
+  (`sync.needsUpdate`) und überlebt einen Neustart. Startet eine andere App-Version (Update), beginnt
+  der nächste Pull bei Cursor 0 und holt das Übersprungene nach; passt dabei alles, verschwindet der
+  Merker. „Alles neu vom Server laden“ macht dasselbe von Hand.
 - **Paging:** Jede Tabelle liefert ihre ersten `limit + 1` Zeilen; nach dem Zusammenführen sind die
   ersten `limit` Änderungen garantiert lückenlos.
-- **Abgelehnte Datensätze** (Validierung) werden aus der Outbox entfernt und unter „Daten & Sync“
-  angezeigt; „veraltete“ (Server hat Neueres) kommen mit dem nächsten Pull.
+- **Abgelehnte Datensätze:** Das Gerät prüft beim Schreiben dasselbe wie der Server (Zod-Schema und
+  feste ID der Tagesdatensätze, `requiredId`), eine Ablehnung bleibt so die Ausnahme (z. B. ein Datensatz
+  einer älteren App-Version). Lehnt der Server einen Datensatz ab, löscht das Gerät ihn **hart** (kein
+  Grabstein, der würde wieder gesendet; sonst zählte er nur auf diesem Gerät, etwa eine zweite
+  Schritte-Zeile), legt eine Momentaufnahme in die Liste `kv` `sync.rejected` (die letzten 50: Tabelle,
+  ID, Grund, Datensatz) und zieht danach einmal alles ab Cursor 0, damit die gültige Serverversion eines
+  kaputt bearbeiteten Datensatzes zurückkommt. Die Wolke zeigt „N Datensätze vom Server abgelehnt“ mit
+  Warnsymbol, bis die Liste unter „Daten & Sync“ geleert wird; der Server protokolliert Ablehnungen als
+  `warn`. Schritte zählen je Tag nur unter `s:<Datum>` (`stepsEntryOf`, `isStraySteps`).
+- **Veraltete Datensätze** (Server hat Neueres) verlassen die Outbox und kommen mit dem nächsten Pull.
 
 ## Auslöser
 
@@ -147,6 +164,7 @@ Lauf wiederholt. Andere Geräte laden ein Foto beim ersten Anzeigen und behalten
 - `apps/api/test/sync.test.ts`: Server: Round-Trip aller Tabellen, Nutzer-Isolation, LWW, Paging über
   Tabellen, ungültige Datensätze, deterministische IDs
 - `apps/api/test/device-sync.test.ts`: **Ende-zu-Ende**: zwei Dexie-„Geräte“ mit der echten
-  `SyncEngine` gegen die echte API und PostgreSQL (Konflikte, Löschungen, Offline-Phase, 401)
+  `SyncEngine` gegen die echte API und PostgreSQL (Konflikte, Löschungen, Offline-Phase, 401, abgelehnte Datensätze,
+  App-Update nach übersprungenen Änderungen, JSON-Wiederherstellung gegen neuere Serverdaten)
 - `apps/web/e2e/smoke.spec.ts`: Browser: Offline-Neuladen über den Service Worker, Offline-Eintrag,
   Sync, zweites Gerät

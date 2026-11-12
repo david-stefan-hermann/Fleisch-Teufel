@@ -1,5 +1,5 @@
 import type { ISODate } from './dates.js';
-import { isStepsEntry } from './exercise.js';
+import { isStepsEntry, isStraySteps } from './exercise.js';
 import { targetsForDate, type ResolvedTargets } from './goals.js';
 import { MICRO_NUTRIENTS, N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, scaleNutrients, sumNutrients } from './nutrition.js';
@@ -158,7 +158,8 @@ export function summarizeDay(params: {
   const { date } = params;
   const mealCount = params.mealCount ?? 4;
   const entries = params.entries.filter((e) => !e.deleted && e.date === date);
-  const exercises = params.exercises.filter((e) => !e.deleted && e.date === date);
+  // Steps count once per day, only under their fixed id (`isStraySteps`).
+  const exercises = params.exercises.filter((e) => !e.deleted && e.date === date && !isStraySteps(e));
   const perMeal = Array.from({ length: mealCount }, (_, m) =>
     sumNutrients(entries.filter((e) => e.meal === m).map((e) => e.nutrients)),
   );

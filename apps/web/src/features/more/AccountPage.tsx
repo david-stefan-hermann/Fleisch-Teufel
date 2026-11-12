@@ -1,5 +1,6 @@
 import { credentialsSchema, type SessionInfo } from '@ft/shared';
 import { useNavigate } from '@tanstack/react-router';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -18,6 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useSyncState } from '@/components/SyncIndicator';
+import { hasUploads, localOnlyData } from '@/db/localOnly';
+import { wipeWarning } from '@/features/more/wipeWarning';
 import { endpoints, errorMessage } from '@/lib/api';
 import { fmtAgo, fmtDate } from '@/lib/format';
 
@@ -31,6 +34,7 @@ export function AccountPage() {
   const [confirm, setConfirm] = useState<null | 'logout' | 'wipe'>(null);
   const [leaving, setLeaving] = useState(false);
   const engine = session?.sync;
+  const local = useLiveQuery(async () => (session ? localOnlyData(session.db) : undefined), [session]);
   // Signed-in devices (online only; the list is informational and loaded once per visit).
   const [devices, setDevices] = useState<SessionInfo[] | null | 'offline'>(null);
   useEffect(() => {
@@ -229,9 +233,7 @@ export function AccountPage() {
             <DialogTitle>{confirm === 'wipe' ? 'Gerätedaten löschen?' : 'Abmelden?'}</DialogTitle>
             <DialogDescription>
               {confirm === 'wipe'
-                ? sync.pending > 0
-                  ? `Achtung: ${sync.pending} Änderung(en) sind noch nicht synchronisiert. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; gelingt das nicht, gehen sie verloren.`
-                  : 'Alle Daten bleiben auf dem Server und kommen nach der nächsten Anmeldung zurück.'
+                ? wipeWarning(local)
                 : sync.pending > 0
                   ? `Deine Daten bleiben auf diesem Gerät; ${sync.pending} Änderung(en) werden nach der nächsten Anmeldung hochgeladen.`
                   : 'Deine Daten bleiben auf diesem Gerät.'}
@@ -247,8 +249,9 @@ export function AccountPage() {
               onClick={async () => {
                 setLeaving(true);
                 try {
-                  // Wiping with pending changes: one last upload attempt; the person decides on failure.
-                  if (confirm === 'wipe' && sync.pending > 0) {
+                  // Wiping with changes or photos not uploaded: one last upload attempt; the person
+                  // decides on failure.
+                  if (confirm === 'wipe' && local && hasUploads(local)) {
                     const ok = await (engine?.sync() ?? Promise.reject(new Error('no session'))).then(
                       () => true,
                       () => false,

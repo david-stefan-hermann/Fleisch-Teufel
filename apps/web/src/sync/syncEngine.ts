@@ -2,8 +2,10 @@
  * Device side of the last-write-wins sync (see docs/sync.md).
  *
  *   push: send outbox records (≤ 500 per request); afterwards drop outbox entries whose record
- *         did not change meanwhile. Records the server rejects or already has newer are dropped
- *         from the outbox too; the newer server version arrives with the next pull.
+ *         did not change meanwhile. Records the server already has newer are dropped from the
+ *         outbox too; the newer server version arrives with the next pull. A record the server
+ *         rejects is deleted on the device (kept as a snapshot in `sync.rejected`) and the next pull
+ *         starts from cursor 0, so the server's valid version of it comes back.
  *   pull: fetch changes after the stored cursor and apply them with the shared LWW rule.
  *         A local version that is newer than the incoming one (pending upload) is kept.
  *
@@ -55,12 +57,30 @@ export interface SyncEngineOptions {
   /** Debounce after local writes (ms). */
   writeDebounceMs?: number;
   pullPageSize?: number;
+  /**
+   * Version of the running app. When changes were skipped as unknown (`needsUpdate`), the flag is
+   * stored with this version; after an app update the next pull loads everything again.
+   */
+  appVersion?: string;
+}
+
+/** A record the server refused, as listed under "Daten & Sync" (`sync.rejected`, the last 50). */
+export interface RejectedRecord {
+  table: string;
+  id: string | null;
+  error: string;
+  at: number;
+  /** The record as it was on the device before it was dropped (`null` in older list entries). */
+  record?: AnySyncRecord | null;
 }
 
 const CURSOR_KEY = 'sync.cursor';
 const LAST_SYNC_KEY = 'sync.lastSyncAt';
 const REJECTED_KEY = 'sync.rejected';
 const CLOCK_OFFSET_KEY = 'sync.clockOffset';
+/** `{ version }`: the app version that skipped unknown changes (see `SyncEngineOptions.appVersion`). */
+const NEEDS_UPDATE_KEY = 'sync.needsUpdate';
+const MAX_REJECTED = 50;
 
 class HttpError extends Error {
   constructor(public readonly status: number) {
@@ -97,6 +117,9 @@ export class SyncEngine {
   private subs: Subscription[] = [];
   private cleanup: (() => void)[] = [];
   private readonly doFetch: (path: string, init?: RequestInit) => Promise<Response>;
+  /** The next pull starts at cursor 0 (after a rejected record, an app update or on request). */
+  private fullPull = false;
+  private loaded: Promise<void> | null = null;
 
   constructor(
     private readonly db: UserDb,
@@ -120,8 +143,26 @@ export class SyncEngine {
     for (const l of this.listeners) l(this.state);
   }
 
+  /**
+   * Restores what a previous start left: the "update the app" flag, or, when the app was updated since
+   * it was set, a full pull that loads the skipped changes. Once per engine, before the first sync.
+   */
+  private load(): Promise<void> {
+    this.loaded ??= (async () => {
+      const stored = (await this.db.kv.get(NEEDS_UPDATE_KEY))?.value as { version?: unknown } | undefined;
+      if (!stored) return;
+      if (stored.version === (this.opts.appVersion ?? null)) this.set({ needsUpdate: true });
+      else this.fullPull = true;
+    })().catch((e: unknown) => {
+      this.loaded = null; // a storage error now must not block every later sync
+      throw e;
+    });
+    return this.loaded;
+  }
+
   /** Wires automatic triggers (browser only). */
   start(): void {
+    void this.load().catch(() => {});
     void this.db.kv.get(LAST_SYNC_KEY).then((v) => this.set({ lastSyncAt: (v?.value as number) ?? null }));
     void this.db.kv
       .get(REJECTED_KEY)
@@ -186,6 +227,7 @@ export class SyncEngine {
       const total: SyncSummary = { pushed: 0, pulled: 0, rejected: 0 };
       let photoError: Error | null = null;
       try {
+        await this.load();
         do {
           this.again = false;
           this.set({ status: 'syncing', error: null });
@@ -276,8 +318,14 @@ export class SyncEngine {
           const ahead = new Set(
             result.rejected.filter((r) => r.error === CLOCK_AHEAD).map((r) => `${r.table}:${r.id}`),
           );
+          const rejected = result.rejected.filter((r) => r.error !== CLOCK_AHEAD);
+          const refused = new Map(rejected.map((r) => [`${r.table}:${r.id}`, r]));
+          const listed: RejectedRecord[] = rejected
+            .filter((r) => r.id === null)
+            .map((r) => ({ ...r, at: Date.now(), record: null }));
           for (const item of items) {
-            const current = await this.db.syncTable(item.table).get(item.id);
+            const t = this.db.syncTable(item.table);
+            const current = await t.get(item.id);
             if (!current) {
               await this.db.outbox.delete(item.key);
               continue;
@@ -286,17 +334,24 @@ export class SyncEngine {
             if (current.updatedAt !== item.updatedAt) continue;
             if (ahead.has(item.key) && result.serverTime) {
               const fixed = { ...current, updatedAt: Math.min(current.updatedAt, result.serverTime) };
-              await this.db.syncTable(item.table).put(fixed);
+              await t.put(fixed);
               await this.db.outbox.put({ ...item, updatedAt: fixed.updatedAt });
               this.again = true;
               continue;
             }
+            const refusal = refused.get(item.key);
+            if (refusal) {
+              // The server never takes this version. Kept here it would count on this device only
+              // (a tombstone would be sent again), so it goes; the full pull brings the server's.
+              await t.delete(item.id);
+              listed.push({ ...refusal, at: Date.now(), record: current });
+              this.fullPull = true;
+            }
             await this.db.outbox.delete(item.key);
           }
-          const rejected = result.rejected.filter((r) => r.error !== CLOCK_AHEAD);
-          if (rejected.length) {
-            const prev = ((await this.db.kv.get(REJECTED_KEY))?.value as unknown[]) ?? [];
-            const next = [...prev, ...rejected.map((r) => ({ ...r, at: Date.now() }))].slice(-50);
+          if (listed.length) {
+            const prev = ((await this.db.kv.get(REJECTED_KEY))?.value as RejectedRecord[]) ?? [];
+            const next = [...prev, ...listed].slice(-MAX_REJECTED);
             await this.db.kv.put({ key: REJECTED_KEY, value: next });
             this.set({ rejected: next.length });
           }
@@ -313,6 +368,9 @@ export class SyncEngine {
     let applied = 0;
     let unknown = 0;
     const pageSize = this.opts.pullPageSize ?? 1000;
+    // The flag is cleared only after the last page: a pull cut off halfway starts at 0 again.
+    const full = this.fullPull;
+    if (full) await this.db.kv.delete(CURSOR_KEY);
     for (;;) {
       const since = ((await this.db.kv.get(CURSOR_KEY))?.value as number) ?? 0;
       const page = await this.request<PullResult>(`/api/sync/pull?since=${since}&limit=${pageSize}`);
@@ -344,7 +402,16 @@ export class SyncEngine {
       );
       if (!page.hasMore) break;
     }
-    if (unknown > 0 && !this.state.needsUpdate) this.set({ needsUpdate: true });
+    if (full) this.fullPull = false;
+    if (unknown > 0) {
+      // Kept across starts; after an app update `load()` turns it into a full pull.
+      await this.db.kv.put({ key: NEEDS_UPDATE_KEY, value: { version: this.opts.appVersion ?? null } });
+      if (!this.state.needsUpdate) this.set({ needsUpdate: true });
+    } else if (full) {
+      // Everything from cursor 0 fitted this version: nothing is missing any more.
+      await this.db.kv.delete(NEEDS_UPDATE_KEY);
+      if (this.state.needsUpdate) this.set({ needsUpdate: false });
+    }
     return applied;
   }
 
@@ -356,7 +423,7 @@ export class SyncEngine {
 
   /** Forget the cursor and re-download everything (repair tool in settings). */
   async resetAndPull(): Promise<number> {
-    await this.db.kv.delete(CURSOR_KEY);
+    this.fullPull = true;
     return this.pull();
   }
 }

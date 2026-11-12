@@ -14,8 +14,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 1     | erledigt | 2759a17 |
 | 2     | erledigt | da72de6 |
 | 3     | erledigt | fa705c3 |
-| 4     | erledigt |         |
-| 5     | offen    |         |
+| 4     | erledigt | 41cf459 |
+| 5     | erledigt |         |
 | 6     | offen    |         |
 | 7     | offen    |         |
 | 8     | offen    |         |
@@ -94,6 +94,32 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 - Block 4, B5: zod 4.6.7 (neueste). `pnpm audit --prod` zeigte danach noch `seroval` (über TanStack Router, zwei
   neue Meldungen „moderate“): per `pnpm up seroval seroval-plugins` im erlaubten Bereich auf 1.8.0 gehoben. Übrig
   bleibt `uuid` in `tools/bls-import` (exceljs), kein Laufzeitpaket.
+- Block 5, D2: verworfen wird nur ein Datensatz, der sich während des Pushs nicht geändert hat (sonst bleibt er in
+  der Outbox und geht beim nächsten Lauf erneut hinaus). Der `fullPull`-Merker wird erst nach der letzten Seite
+  gelöscht: ein abgebrochener Pull beginnt wieder bei 0. Schritte: neben `stepsEntryOf` gibt es `isStraySteps`
+  (Schritte-Datensatz unter fremder ID); `summarizeDay`, `dailyRows` (also CSV, Berichte, Wochenkarte) und
+  `useDayExercises` (Trainingskarte, Tag teilen) lassen solche Datensätze weg. `StepsPage` las schon nur `s:<Datum>`.
+  Die Liste unter „Daten & Sync“ zeigt je Eintrag „Art · Name · Datum“ (z. B. „Training · Schritte · 10.11.2026“) und
+  darunter den Grund; Zod-Gründe werden zu „Ungültige Werte (Feld, Feld)“. Die Tabellen-Namen liegen jetzt in
+  `features/more/rejectedRecords.ts`.
+- Block 5, D3: zusätzlich zählen Datensätze der Sicherung mit falscher Tages-ID als ungültig, und eingespielt wird der
+  Datensatz so, wie er in der Datei steht (Felder einer neueren App-Version bleiben, Zod würde sie entfernen). Der
+  Satz unter dem Knopf lautet jetzt „Spielt nur ein, was weder hier noch auf dem Server neuer ist; Gelöschtes bleibt
+  gelöscht. Fotos sind nicht Teil der Sicherung.“ (vorher „… die neuer sind als die auf diesem Gerät …“). Auch ein
+  Fehler beim Foto-Upload im Sync davor bricht das Wiederherstellen ab.
+- Block 5, D4: `SyncState.pending` bleibt die Zahl der Outbox-Einträge (sie steuert den Sync nach lokalen Änderungen
+  und die Wolke). Der Dialog zählt über `localOnlyData` (`db/localOnly.ts`): Outbox, Fotos mit `uploaded === 0`,
+  **alle** `aiQueue`-Einträge (auch eine fertige Analyse, die noch auf die Prüfung wartet, ist nur auf dem Gerät)
+  und Entwürfe (`mealDraft:`, `groupDraft:`, `trainingDraft:`). Text: „Noch nicht hochgeladen: 3 Änderungen, 2
+  Fotos. Vor dem Löschen wird noch einmal versucht, …“ und „Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1
+  Entwurf.“ Der letzte Upload-Versuch läuft bei Änderungen oder Fotos.
+- Block 5, D6: der `kv`-Wert ist `{ version }` (Schlüssel `sync.needsUpdate`); der Merker wird beim ersten `sync()`
+  einer Engine gelesen (nicht nur in `start()`), damit der erste Lauf schon voll zieht. „Alles neu vom Server laden“
+  (`resetAndPull`) nutzt denselben Merker und löscht „App-Update nötig“, wenn danach alles passt.
+- Block 5, D7: neue Hilfe `upsertRecord(db, table, id, (prev) => felder)` in `write.ts` (Felder über den gespeicherten
+  Datensatz, gelesen in der Schreibtransaktion, immer lebend danach), genutzt in `CustomFoodPage`,
+  `CompleteDayPage`, `GoalsPage` und den drei Stellen in `db/notes.ts`. `CLAUDE.md` beschreibt das Wiederherstellen
+  jetzt mit `importRecord`.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

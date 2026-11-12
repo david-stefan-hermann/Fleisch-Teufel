@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MIN_SPIN_MS, SyncIndicator } from '@/components/SyncIndicator';
+import { MIN_SPIN_MS, SyncIndicator, syncLabel } from '@/components/SyncIndicator';
+import { rejectedReason, rejectedTitle } from '@/features/more/rejectedRecords';
 import type { SyncState } from '@/sync/syncEngine';
 
 /** A sync engine as the indicator sees it: a state to subscribe to and `sync()`. */
@@ -91,6 +92,23 @@ describe('SyncIndicator', () => {
     expect(spinning()).toBe(false);
   });
 
+  it('names records the server refused and shows the warning icon while the list is not empty', () => {
+    sync = fakeSync({ lastSyncAt: Date.now(), rejected: 2 });
+    render(<SyncIndicator />);
+    const button = screen.getByRole('button', { name: '2 Datensätze vom Server abgelehnt' });
+    expect(button.className).toContain('text-warn-text');
+    expect(document.querySelector('svg.lucide-triangle-alert')).toBeTruthy();
+    act(() => sync.set({ rejected: 1 }));
+    expect(screen.getByRole('button', { name: '1 Datensatz vom Server abgelehnt' })).toBeTruthy();
+    act(() => sync.set({ rejected: 0 }));
+    expect(screen.getByRole('button').getAttribute('aria-label')).toMatch(/^Synchronisiert/);
+    expect(document.querySelector('svg.lucide-cloud')).toBeTruthy();
+    // Offline wins: the rejected records wait for the next look at "Daten & Sync".
+    expect(syncLabel({ ...sync.getState(), status: 'offline', rejected: 3 })).toBe(
+      'Offline. Daten sind auf dem Gerät',
+    );
+  });
+
   it('does not touch its state after it is gone', async () => {
     sync = fakeSync();
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -100,5 +118,27 @@ describe('SyncIndicator', () => {
     await pass(MIN_SPIN_MS);
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
+  });
+});
+
+describe('rejected records under "Daten & Sync"', () => {
+  it('names the record and the reason in German', () => {
+    expect(rejectedReason('id must be s:2026-11-10')).toBe('Doppelter Tageseintrag, gehört zu s:2026-11-10');
+    expect(rejectedReason('kcal: Too big: expected number to be <=20000; nutrients.ENERCC: x; kcal: y')).toBe(
+      'Ungültige Werte (kcal, nutrients)',
+    );
+    expect(rejectedReason('something else')).toBe('Ungültige Werte');
+    expect(
+      rejectedTitle({
+        table: 'exerciseEntries',
+        id: 'x',
+        error: '',
+        at: 1,
+        record: { id: 'x', typeName: 'Schritte', date: '2026-11-10' } as never,
+      }),
+    ).toBe('Training · Schritte · 10.11.2026');
+    expect(rejectedTitle({ table: 'settings', id: 'profile', error: '', at: 1 })).toBe(
+      'Einstellungen · profile',
+    );
   });
 });

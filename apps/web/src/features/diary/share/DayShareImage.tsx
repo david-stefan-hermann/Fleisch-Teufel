@@ -3,6 +3,7 @@ import {
   groupDiaryEntries,
   groupTrainingEntries,
   isStepsEntry,
+  stepsEntryOf,
   MEAL_COUNT,
   N,
   type DaySummary,
@@ -55,7 +56,7 @@ const ROW = 'flex min-h-14 items-center gap-3 px-4 py-2';
 export function DayShareImage({ data }: { data: DayShareData }) {
   const { date, summary, entries, exercises, note, parts } = data;
   const trainingKcal = exercises.reduce((s, e) => s + e.kcal, 0);
-  const steps = exercises.find(isStepsEntry);
+  const steps = stepsEntryOf(exercises, date);
   const trainings = exercises.filter((e) => !isStepsEntry(e));
   return (
     <div className="w-[390px] bg-background p-4 text-foreground">

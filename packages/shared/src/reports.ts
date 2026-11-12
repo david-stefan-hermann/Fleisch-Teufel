@@ -1,6 +1,6 @@
 import { dateRange, diffDays, type ISODate } from './dates.js';
 import { creditedTrainingKcal } from './diary.js';
-import { isStepsEntry } from './exercise.js';
+import { isStepsEntry, isStraySteps, stepsEntryOf } from './exercise.js';
 import { linearTrend, type WeightPoint } from './forecast.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
@@ -58,7 +58,7 @@ export function dailyRows(params: {
   }
   const exByDate = new Map<ISODate, ExerciseEntry[]>();
   for (const e of params.exercises) {
-    if (e.deleted || e.date < params.from || e.date > params.to) continue;
+    if (e.deleted || e.date < params.from || e.date > params.to || isStraySteps(e)) continue;
     (exByDate.get(e.date) ?? exByDate.set(e.date, []).get(e.date)!).push(e);
   }
   const wByDate = new Map<ISODate, number>();
@@ -68,7 +68,7 @@ export function dailyRows(params: {
     const es = byDate.get(date) ?? [];
     const xs = exByDate.get(date) ?? [];
     const t = targetsForDate(params.goals, date);
-    const walk = xs.find(isStepsEntry);
+    const walk = stepsEntryOf(xs, date);
     return {
       date,
       logged: es.length > 0,

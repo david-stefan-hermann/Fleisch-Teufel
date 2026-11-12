@@ -46,8 +46,8 @@ Serve the production web build through the API (same origin, service worker acti
   behalten"). A deletion is never undone from a draft.
 - `api()` throws `TimeoutError` (not `OfflineError`) when the server did not answer in time: the request
   may have been processed (and paid for), so callers must not repeat it by themselves.
-- "Daten & Sync" also restores a JSON backup (`src/db/backup.ts`: only records newer than the device's, via
-  `saveRecord`) and shows the device error log (`src/lib/errorLog.ts`, localStorage, unhandled errors and
+- "Daten & Sync" also restores a JSON backup (`src/db/backup.ts`: syncs first, then `importRecord` keeps each
+  record's `updatedAt` so LWW against device and server brings back only what is missing) and shows the device error log (`src/lib/errorLog.ts`, localStorage, unhandled errors and
   rejections; `recordError(e, source)` for anything worth keeping). The account page lists the signed-in
   devices (`GET/DELETE /api/auth/sessions`) and deletes the account (`DELETE /api/auth/account`, password).
 - React lint uses the React Compiler rules: no `setState` in effects, no refs/impure calls during render.

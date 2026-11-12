@@ -28,7 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { saveSettings } from '@/db/settings';
-import { saveRecord } from '@/db/write';
+import { upsertRecord } from '@/db/write';
 import { useCurrentWeight, useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDate } from '@/lib/format';
@@ -99,12 +99,12 @@ function GoalsForm({
   const { busy: saving, run } = useSubmitting();
   async function save() {
     await saveSettings(db, { macroPlan: plan });
-    await saveRecord(db, 'goals', {
+    await upsertRecord(db, 'goals', dayId.goal(today), () => ({
       id: dayId.goal(today),
       validFrom: today,
       days: perDay ? days : uniformWeek(days[0]!),
       micros,
-    });
+    }));
     toast.success('Ziele gespeichert, gelten ab heute');
   }
 

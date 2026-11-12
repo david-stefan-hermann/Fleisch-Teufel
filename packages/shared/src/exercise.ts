@@ -11,7 +11,13 @@
  * double counting; that is what gets added to the day's budget.
  */
 
-import { STEPS_TYPE_KEY, type ExerciseEntry, type ExerciseTemplate, type TrainingItem } from './schemas.js';
+import {
+  dayId,
+  STEPS_TYPE_KEY,
+  type ExerciseEntry,
+  type ExerciseTemplate,
+  type TrainingItem,
+} from './schemas.js';
 
 export { STEPS_TYPE_KEY };
 
@@ -445,6 +451,23 @@ const STEP_LENGTH_M = { min: 0.3, max: 1.5 };
 /** Whether a training is the day's steps (shown and counted apart from the other trainings). */
 export function isStepsEntry(e: Pick<ExerciseEntry, 'typeKey'>): boolean {
   return e.typeKey === STEPS_TYPE_KEY;
+}
+
+/**
+ * A steps record under any other id than `dayId.steps(date)`: the server refuses it (an older app
+ * copied one as a training), so it is never shown or counted, also before the sync drops it.
+ */
+export function isStraySteps(e: Pick<ExerciseEntry, 'id' | 'typeKey' | 'date'>): boolean {
+  return isStepsEntry(e) && e.id !== dayId.steps(e.date);
+}
+
+/** The day's steps entry: only the one with the fixed id `s:<date>`, never a stray copy. */
+export function stepsEntryOf<T extends Pick<ExerciseEntry, 'id' | 'typeKey' | 'date' | 'deleted'>>(
+  entries: readonly T[],
+  date: string,
+): T | undefined {
+  const id = dayId.steps(date);
+  return entries.find((e) => e.id === id && !e.deleted && isStepsEntry(e));
 }
 
 /**

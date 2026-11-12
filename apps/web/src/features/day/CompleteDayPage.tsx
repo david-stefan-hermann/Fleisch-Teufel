@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { saveRecord } from '@/db/write';
+import { upsertRecord } from '@/db/write';
 import { useCurrentWeight, useDayNote, useDaySummary, useSettings } from '@/hooks/data';
 import { useExpenditure } from '@/hooks/useExpenditure';
 import { useSubmitting } from '@/hooks/useSubmitting';
@@ -65,12 +65,12 @@ export function CompleteDayPage() {
   const empty = summary.entryCount === 0;
 
   async function complete(done: boolean) {
-    await saveRecord(db, 'dayNotes', {
+    await upsertRecord(db, 'dayNotes', dayId.note(date), (prev) => ({
       id: dayId.note(date),
       date,
-      note: note?.note ?? '',
+      note: prev && !prev.deleted ? prev.note : '',
       completedAt: done ? Date.now() : null,
-    });
+    }));
     if (done) toast.success('Tag abgeschlossen');
     // Back to the diary the page was opened from, not a second diary on top of it.
     goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date }, replace: true }));

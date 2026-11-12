@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { useSession } from '@/app/session';
 import { Button } from '@/components/ui/button';
 import type { SyncState } from '@/sync/syncEngine';
-import { fmtAgo } from '@/lib/format';
+import { fmt0, fmtAgo } from '@/lib/format';
 
 export function useSyncState(): SyncState {
   const { sync } = useSession();
@@ -23,6 +23,10 @@ export function syncLabel(s: SyncState): string {
       return 'Bitte neu anmelden, um zu synchronisieren';
     default:
       if (s.needsUpdate) return 'App-Update nötig: neuere Daten konnten nicht geladen werden';
+      if (s.rejected > 0)
+        return s.rejected === 1
+          ? '1 Datensatz vom Server abgelehnt'
+          : `${fmt0(s.rejected)} Datensätze vom Server abgelehnt`;
       return s.lastSyncAt ? `Synchronisiert ${fmtAgo(s.lastSyncAt)}` : 'Noch nicht synchronisiert';
   }
 }
@@ -56,15 +60,16 @@ export function SyncIndicator() {
   };
   const spinning = tapped || s.status === 'syncing';
   const label = spinning ? 'Synchronisiere…' : syncLabel(s);
+  const warn = s.status === 'error' || s.status === 'unauthorized' || (s.status === 'idle' && s.rejected > 0);
   const Icon = spinning
     ? LoaderCircle
     : s.status === 'offline'
       ? CloudOff
-      : s.status === 'idle'
-        ? s.pending
+      : warn
+        ? TriangleAlert
+        : s.pending
           ? RefreshCw
-          : Cloud
-        : TriangleAlert;
+          : Cloud;
   return (
     <Button
       variant="ghost"
@@ -72,11 +77,7 @@ export function SyncIndicator() {
       aria-label={label}
       title={label}
       onClick={syncNow}
-      className={
-        !spinning && (s.status === 'error' || s.status === 'unauthorized')
-          ? 'text-warn-text'
-          : 'text-muted-foreground'
-      }
+      className={!spinning && warn ? 'text-warn-text' : 'text-muted-foreground'}
     >
       <Icon className={`size-6 ${spinning ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden />
     </Button>

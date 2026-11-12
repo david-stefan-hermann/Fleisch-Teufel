@@ -11,10 +11,12 @@ import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
 import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { countRejectedPhotos } from '@/db/photos';
+import { rejectedReason, rejectedTitle, TABLE_LABELS } from '@/features/more/rejectedRecords';
 import { canShareFiles, shareOrDownloadText } from '@/features/reports/export';
 import { clearErrorLog, errorLogText, useErrorLog } from '@/lib/errorLog';
 import { errorMessage } from '@/lib/api';
 import { fmtAgo, fmt0, fmt1, fmtTime, fmtDate } from '@/lib/format';
+import type { RejectedRecord } from '@/sync/syncEngine';
 
 export function DataPage() {
   const { db, sync } = useSession();
@@ -39,6 +41,15 @@ export function DataPage() {
     setRestoring(true);
     try {
       const backup = parseBackup(await file.text());
+      // The device must know every newer change and deletion first, or the backup would undo them.
+      const synced = await sync.sync().then(
+        () => true,
+        () => false,
+      );
+      if (!synced) {
+        toast.error('Wiederherstellen braucht eine Verbindung zum Server');
+        return;
+      }
       const r = await restoreBackup(db, backup);
       const invalid = Object.values(r.invalid).reduce((a, b) => a + b, 0);
       toast.success(`${r.restored} Datensätze wiederhergestellt`, {
@@ -51,9 +62,7 @@ export function DataPage() {
     }
   }
   const rejected = useLiveQuery(
-    async () =>
-      ((await db.kv.get('sync.rejected'))?.value as
-        { table: string; id: string | null; error: string }[] | undefined) ?? [],
+    async () => ((await db.kv.get('sync.rejected'))?.value as RejectedRecord[] | undefined) ?? [],
     [db],
   );
 
@@ -62,19 +71,6 @@ export function DataPage() {
     void navigator.storage?.estimate?.().then((e) => setUsage({ usage: e.usage ?? 0, quota: e.quota ?? 0 }));
   }, []);
 
-  const labels: Record<string, string> = {
-    foodEntries: 'Tagebuch-Einträge',
-    weightEntries: 'Gewichtseinträge',
-    exerciseEntries: 'Trainings',
-    customFoods: 'Eigene Lebensmittel',
-    meals: 'Gespeicherte Meals',
-    goals: 'Ziel-Versionen',
-    dayNotes: 'Tagesnotizen',
-    foodPortions: 'Eigene Portionen',
-    exerciseTypes: 'Eigene Sportarten',
-    exerciseTemplates: 'Gespeicherte Trainings',
-    settings: 'Einstellungen',
-  };
   const clockMinutes = Math.round(Math.abs(state.clockOffset) / 60_000);
 
   return (
@@ -137,7 +133,9 @@ export function DataPage() {
               <ul className="mt-2 grid gap-1 text-xs">
                 {rejected.map((r, i) => (
                   <li key={i}>
-                    {r.table} {r.id}: {r.error}
+                    <span className="font-medium">{rejectedTitle(r)}</span>
+                    <br />
+                    {rejectedReason(r.error)}
                   </li>
                 ))}
               </ul>
@@ -153,7 +151,7 @@ export function DataPage() {
           {counts &&
             Object.entries(counts).map(([t, n]) => (
               <div key={t} className="contents">
-                <dt className="text-muted-foreground">{labels[t] ?? t}</dt>
+                <dt className="text-muted-foreground">{TABLE_LABELS[t] ?? t}</dt>
                 <dd className="text-right">{n}</dd>
               </div>
             ))}
@@ -218,7 +216,7 @@ export function DataPage() {
             <Upload aria-hidden /> Aus JSON-Sicherung wiederherstellen
           </Button>
           <p className="text-xs text-muted-foreground">
-            Spielt nur Datensätze ein, die neuer sind als die auf diesem Gerät; nichts wird gelöscht. Fotos
+            Spielt nur ein, was weder hier noch auf dem Server neuer ist; Gelöschtes bleibt gelöscht. Fotos
             sind nicht Teil der Sicherung.
           </p>
         </div>

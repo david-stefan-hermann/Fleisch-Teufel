@@ -1,6 +1,6 @@
 import { dayId, type DayNote, type ISODate } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { saveRecord } from './write';
+import { upsertRecord } from './write';
 
 /**
  * Writes the text of a day's note, keeping its "Tag abgeschlossen" state (read in the transaction).
@@ -10,12 +10,12 @@ export async function saveDayNote(db: UserDb, date: ISODate, note: string): Prom
   await db.transaction('rw', [db.dayNotes, db.outbox], async () => {
     const prev = await db.dayNotes.get(dayId.note(date));
     if ((prev && !prev.deleted ? prev.note : '') === note) return;
-    await saveRecord(db, 'dayNotes', {
+    await upsertRecord(db, 'dayNotes', dayId.note(date), () => ({
       id: dayId.note(date),
       date,
       note,
       completedAt: prev?.completedAt ?? null,
-    });
+    }));
   });
 }
 
@@ -67,12 +67,12 @@ export async function completeDays(
     for (const date of dates) {
       const prev = await db.dayNotes.get(dayId.note(date));
       if (prev?.completedAt && !prev.deleted) continue;
-      await saveRecord(db, 'dayNotes', {
+      await upsertRecord(db, 'dayNotes', dayId.note(date), () => ({
         id: dayId.note(date),
         date,
         note: prev?.note ?? '',
         completedAt: now,
-      });
+      }));
       closed.push(date);
     }
   });
@@ -85,7 +85,12 @@ export async function reopenDays(db: UserDb, dates: readonly ISODate[]): Promise
     for (const date of dates) {
       const prev = await db.dayNotes.get(dayId.note(date));
       if (!prev?.completedAt) continue;
-      await saveRecord(db, 'dayNotes', { id: dayId.note(date), date, note: prev.note, completedAt: null });
+      await upsertRecord(db, 'dayNotes', dayId.note(date), () => ({
+        id: dayId.note(date),
+        date,
+        note: prev.note,
+        completedAt: null,
+      }));
     }
   });
 }

@@ -1,14 +1,15 @@
 /**
  * The JSON backup ("Daten & Sync"): a dump of every synced table, and the way back in. Restoring
- * writes every record through `saveRecord`, so it gets a fresh version, lands in the outbox and
- * reaches the server and the other devices like any edit. Records a device knows in a newer state are
- * skipped (a backup never undoes what happened after it was taken); tombstones stay tombstones.
+ * brings back only what is missing: every record keeps the version it had in the backup
+ * (`importRecord`), so the last-write-wins rule decides against the device and the server, and a
+ * change or deletion made after the backup was taken always wins. The page syncs first, so the device
+ * knows those newer versions before anything is imported. Records deleted in the backup are skipped.
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
-import { SYNC_SCHEMAS, SYNC_TABLES, type AnySyncRecord, type SyncTable } from '@ft/shared';
+import { requiredId, SYNC_SCHEMAS, SYNC_TABLES, type AnySyncRecord, type SyncTable } from '@ft/shared';
 import type { UserDb } from './dexie';
-import { saveRecord } from './write';
+import { importRecord } from './write';
 
 export interface Backup {
   app: 'fleisch-teufel';
@@ -19,7 +20,7 @@ export interface Backup {
 
 export interface RestoreResult {
   restored: number;
-  /** Records the device already had in the same or a newer version. */
+  /** Records the device already had in the same or a newer version, and deleted ones. */
   unchanged: number;
   /** Records that do not match the schema of this app version (listed by table). */
   invalid: Record<string, number>;
@@ -50,18 +51,17 @@ export async function restoreBackup(db: UserDb, backup: Backup): Promise<Restore
     if (!Array.isArray(rows)) continue;
     for (const raw of rows) {
       const parsed = SYNC_SCHEMAS[table].safeParse(raw);
-      if (!parsed.success) {
+      const expected = parsed.success ? requiredId(table, raw as Record<string, unknown>) : null;
+      if (!parsed.success || (expected !== null && parsed.data.id !== expected)) {
         result.invalid[table] = (result.invalid[table] ?? 0) + 1;
         continue;
       }
-      const rec = parsed.data as AnySyncRecord;
-      const current = await db.syncTable(table as SyncTable).get(rec.id);
-      if (current && current.updatedAt >= rec.updatedAt) {
+      // As written in the backup: fields of a newer app version stay (Zod would strip them).
+      const rec = raw as AnySyncRecord;
+      if (rec.deleted || !(await importRecord(db, table as SyncTable, rec as never))) {
         result.unchanged++;
         continue;
       }
-      const { updatedAt: _u, ...rest } = rec;
-      await saveRecord(db, table as SyncTable, rest as never);
       result.restored++;
     }
   }
