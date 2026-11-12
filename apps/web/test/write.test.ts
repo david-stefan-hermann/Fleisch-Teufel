@@ -20,6 +20,7 @@ import {
   logItems,
   logQuickEntry,
   moveEntriesToMeal,
+  readPhotoBytes,
   reorderTrainings,
   logTrainings,
   quickEntryText,
@@ -541,7 +542,7 @@ describe('local writes', () => {
       {
         analysisId: 'a5',
       },
-      [photo, side],
+      await readPhotoBytes([photo, side]),
     );
     const [later] = await d.foodEntries.where('date').equals('2026-10-08').toArray();
     expect(later!.photoIds).toHaveLength(2);

@@ -21,8 +21,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 8     | erledigt | b4f880e |
 | 9     | erledigt | b0a3606 |
 | 10    | erledigt | ba64060 |
-| 11    | erledigt |         |
-| 12    | offen    |         |
+| 11    | erledigt | a5fd7e7 |
+| 12    | erledigt |         |
 | 13    | offen    |         |
 
 **Abweichungen:** (hier eintragen, nie still entscheiden)
@@ -204,6 +204,18 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   Server nicht erreichte (`useOffline`), sonst „Gespeichert, wird analysiert". Skeleton über `PageSkeleton`.
 - Block 11, B9: der share-day-Test schreibt einen Schritte-Datensatz per Sync-Push und prüft, dass das Bild die
   Schritte-Zeile enthält.
+
+- Block 12, H1: „Offene Analysen" ist eine eigene Komponente `QueueList` mit ihrem Auf/Zu-Zustand (vorher Zustand
+  der Seite); `readQueueOpen`/`writeQueueOpen` bleiben in `QueueList.tsx`, Schlüssel unverändert. `types.ts` hält
+  neben `CapturedShot` auch `HINT_CHIPS`, `addLabel`, `CONFIDENCE`, `BUSY` (wie Ausarbeitung).
+- Block 12, D5: `logAiMeal` nimmt die Fotos als Bytes (`PhotoBytes[]`, statt `Blob[]`) und läuft auch allein in
+  einer eigenen Transaktion (Meal, Einträge, Fotos), auch ohne `logReview`. Das unbenutzte `storePhotos` fällt weg.
+  `logDeferred` nutzt `logReview`; ist der Eintrag inzwischen verworfen (`null`), gibt es keinen Toast
+  „analysiert und eingetragen" und kein `rememberFood` mehr (vorher kamen beide trotzdem). Der neue Unit-Test steht
+  in `meals-photos.test.ts` (dort liegen die Queue-Tests), nicht in `write.test.ts`.
+- Block 12, U14: `RouteError` zeigt die rohe Fehlermeldung nicht mehr (sie steht jetzt im Fehlerprotokoll unter
+  „Daten & Sync", Quelle `route`); der Satz „Meist steckt ein App-Update dahinter. Neu laden hilft; deine Daten
+  liegen sicher auf dem Gerät." und „Zum Tagebuch" bleiben (Block 10 hat ihn nicht gestrichen).
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

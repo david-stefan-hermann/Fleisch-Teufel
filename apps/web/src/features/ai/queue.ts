@@ -18,7 +18,7 @@ import {
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
-import { aiMealItems, logItems, readPhotoBytes, storePhotoRows } from '@/db/entries';
+import { logAiItemsRows, logAiMeal, readPhotoBytes } from '@/db/entries';
 import { rememberFood } from '@/foods/foodService';
 import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/api';
 
@@ -162,6 +162,36 @@ export async function processQueue(db: UserDb): Promise<void> {
 }
 
 /**
+ * "Meal eintragen" of a review: the entries (and the saved meal), their photos and the removal of the
+ * queue item in one transaction, so the app being killed in between can never log an analysis twice
+ * or leave a meal without its entries. With `savedMealId` the meal takes over the ingredients and
+ * the entries are attached to it (`logAiMeal`), otherwise they are one named group (`logAiItemsRows`).
+ * Null when the item is gone (logged already, discarded): the caller then shows nothing twice.
+ */
+export async function logReview(
+  db: UserDb,
+  args: { item: AiQueueItem; name: string; items: AiItem[]; meal: number; savedMealId: string | null },
+): Promise<string[] | null> {
+  const { item, name, items, meal, savedMealId } = args;
+  // Bytes first: the transaction would close while it waits for `arrayBuffer()`.
+  const photos = await readPhotoBytes(await loadQueueImages(db, item));
+  const target = { date: item.date, meal };
+  const analysis = { analysisId: item.result!.analysisId };
+  return db.transaction(
+    'rw',
+    [db.foodEntries, db.meals, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
+    async () => {
+      if (!(await db.aiQueue.get(item.localId!))) return null;
+      const ids = savedMealId
+        ? await logAiMeal(db, savedMealId, name, items, target, analysis, photos)
+        : await logAiItemsRows(db, name, items, target, analysis, photos);
+      await discardQueueItem(db, item.localId!);
+      return ids;
+    },
+  );
+}
+
+/**
  * Logs the analyses that had to wait for a connection or were left on the photo page (`deferred`)
  * into the diary, as a named group with all photos, exactly like "Meal eintragen" of an unchanged
  * review: first candidate of every item, the model's grams. The diary row leads to the group editor
@@ -184,27 +214,16 @@ async function logDeferred(db: UserDb): Promise<void> {
       continue;
     }
     try {
-      const photos = await readPhotoBytes(await loadQueueImages(db, item));
       // Entries, photos and the removal of the queue item in one transaction: the app being killed
       // in between can never log the analysis twice.
-      await db.transaction(
-        'rw',
-        [db.foodEntries, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
-        async () => {
-          if (!(await db.aiQueue.get(item.localId!))) return; // discarded meanwhile
-          await logItems(
-            db,
-            aiMealItems(items),
-            { date: item.date, meal: draft.meal },
-            {
-              groupName: draft.mealName.trim() || 'Meal vom Foto',
-              aiAnalysisId: item.result!.analysisId,
-              photoIds: await storePhotoRows(db, photos),
-            },
-          );
-          await discardQueueItem(db, item.localId!);
-        },
-      );
+      const ids = await logReview(db, {
+        item,
+        name: draft.mealName,
+        items,
+        meal: draft.meal,
+        savedMealId: null,
+      });
+      if (ids === null) continue; // discarded meanwhile
       for (const i of items) await rememberFood(db, i.food);
       toast.success(`„${draft.mealName}“ analysiert und eingetragen`);
     } catch (e) {

@@ -448,6 +448,9 @@ export async function createAiMeal(
  * ingredients and name (it always matches what gets logged; a meal deleted meanwhile comes back),
  * then the items are logged as a group attached to it. The entries keep the analysed photos (stored
  * and uploaded); without any, the meal's photo of this moment. Returns the ids of the logged entries.
+ *
+ * Takes the photos as bytes (`readPhotoBytes` before), so it awaits only IndexedDB and runs inside
+ * the caller's transaction (`logReview`) or its own.
  */
 export async function logAiMeal(
   db: UserDb,
@@ -457,25 +460,28 @@ export async function logAiMeal(
   target: { date: string; meal: number },
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photos (already compressed by the AI queue), in order. */
-  photos: readonly Blob[] = [],
+  photos: readonly PhotoBytes[] = [],
 ): Promise<string[]> {
   const mealItems = aiMealItems(items);
-  const existing = await db.meals.get(mealId);
-  if (existing?.deleted) await restoreRecord(db, 'meals', mealId);
-  if (existing) await patchRecord(db, 'meals', mealId, { name: name.trim().slice(0, 120), items: mealItems });
-  else
-    await saveRecord(db, 'meals', {
-      id: mealId,
-      name: name.trim().slice(0, 120),
-      items: mealItems,
-      photoId: null,
-      cookedGrams: null,
+  return db.transaction('rw', [db.meals, db.foodEntries, db.outbox, db.photos], async () => {
+    const existing = await db.meals.get(mealId);
+    if (existing?.deleted) await restoreRecord(db, 'meals', mealId);
+    if (existing)
+      await patchRecord(db, 'meals', mealId, { name: name.trim().slice(0, 120), items: mealItems });
+    else
+      await saveRecord(db, 'meals', {
+        id: mealId,
+        name: name.trim().slice(0, 120),
+        items: mealItems,
+        photoId: null,
+        cookedGrams: null,
+      });
+    const photoIds = await storePhotoRows(db, photos);
+    return logItems(db, mealItems, target, {
+      mealId,
+      aiAnalysisId: analysis.analysisId,
+      photoIds: photoIds.length ? photoIds : existing?.photoId ? [existing.photoId] : null,
     });
-  const photoIds = await storePhotos(db, photos);
-  return logItems(db, mealItems, target, {
-    mealId,
-    aiAnalysisId: analysis.analysisId,
-    photoIds: photoIds.length ? photoIds : existing?.photoId ? [existing.photoId] : null,
   });
 }
 
@@ -495,12 +501,26 @@ export async function logAiItems(
 ): Promise<string[]> {
   // Bytes first (not an IndexedDB promise), then photos and entries in one transaction: the app
   // being killed in between can neither leave orphaned photos nor a group without its photos.
-  const bytes = await readPhotoBytes(photos);
+  return logAiItemsRows(db, name, items, target, analysis, await readPhotoBytes(photos));
+}
+
+/**
+ * The transactional core of `logAiItems`: photos already read as bytes, so it awaits only IndexedDB
+ * and runs inside the caller's transaction (`logReview`) or its own.
+ */
+export async function logAiItemsRows(
+  db: UserDb,
+  name: string,
+  items: AiItem[],
+  target: { date: string; meal: number },
+  analysis: Pick<AiAnalysisResult, 'analysisId'>,
+  photos: readonly PhotoBytes[] = [],
+): Promise<string[]> {
   return db.transaction('rw', [db.foodEntries, db.outbox, db.photos], async () =>
     logItems(db, aiMealItems(items), target, {
       groupName: name.trim() || 'Meal vom Foto',
       aiAnalysisId: analysis.analysisId,
-      photoIds: await storePhotoRows(db, bytes),
+      photoIds: await storePhotoRows(db, photos),
     }),
   );
 }
@@ -520,11 +540,6 @@ export async function storePhotoRows(db: UserDb, photos: readonly PhotoBytes[]):
   const ids: string[] = [];
   for (const p of photos) ids.push(await storePhotoBytes(db, p.bytes, p.type));
   return ids;
-}
-
-/** Stores photos on the device (uploaded with the next sync) and returns their ids in order. */
-async function storePhotos(db: UserDb, photos: readonly Blob[]): Promise<string[]> {
-  return storePhotoRows(db, await readPhotoBytes(photos));
 }
 
 /**

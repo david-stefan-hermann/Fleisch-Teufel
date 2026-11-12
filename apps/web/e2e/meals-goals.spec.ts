@@ -658,11 +658,14 @@ test('a double tap on "Meal eintragen" logs the analysis once', async ({ page })
   await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
   await page.getByRole('button', { name: 'Analysieren' }).click();
   await expect(page.getByRole('heading', { name: 'Ergebnis prüfen' })).toBeVisible();
-  // Two taps in one go (the second lands while the first still writes): dispatched directly, because
-  // Playwright's click would wait for the button to be enabled again.
+  // Two taps in one go (the second lands while the first still writes): both in the same task, because
+  // Playwright's click would wait for the button to be enabled again, and a second separate dispatch can
+  // come after the logged review is gone (no button left to click).
   const log = page.getByRole('button', { name: 'Meal eintragen' });
-  await log.dispatchEvent('click');
-  await log.dispatchEvent('click');
+  await log.evaluate((b: HTMLElement) => {
+    b.click();
+    b.click();
+  });
   await expect(page.getByText('„Nudeln mit Pesto“ eingetragen')).toHaveCount(1);
   await expect(page.getByRole('button', { name: /Nudeln mit Pesto/ })).toHaveCount(1);
   await expect

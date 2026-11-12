@@ -4,7 +4,8 @@ import { useCallback, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { detectBarcodeInImage } from '@/components/BarcodeScanner';
-import { PhotoCaptureSheet, type CapturedShot } from '@/components/PhotoCaptureSheet';
+import { PhotoCaptureSheet } from '@/components/PhotoCaptureSheet';
+import type { CapturedShot } from '@/features/ai/types';
 import { compressImage, IMAGE_PRESETS } from '@/features/ai/image';
 import { ApiError, endpoints, errorMessage, OfflineError } from '@/lib/api';
 

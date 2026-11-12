@@ -13,12 +13,7 @@ import { FullscreenOverlay } from '@/components/FullscreenOverlay';
 import { useObjectUrl } from '@/components/MealPhoto';
 import { Button } from '@/components/ui/button';
 import { compressImage, type ImagePreset } from '@/features/ai/image';
-
-/** A photo taken or picked in the sheet; `id` is its identity while the sheet is open. */
-export interface CapturedShot {
-  id: number;
-  blob: Blob;
-}
+import type { CapturedShot } from '@/features/ai/types';
 
 const ignoreCode = () => {};
 

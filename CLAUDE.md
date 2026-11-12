@@ -170,14 +170,19 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   edits a quick entry (same fields, full text, "Änderungen übernehmen", no analysis; the entry stays in its meal); without `entryId` it
   redirects to `/photo?form=1`. Copies of a quick entry keep the note (`entryToItem`: clipboard, "Wie gestern",
   suggestions), ingredients of a meal or group never carry one. "Offene Analysen (N)" below the buttons is
-  collapsible (closed by default, `ft:photo:queueOpen`): rows are discarded by swipe with undo, a failed one has
-  the text link "Wiederholen". Plate photos show a preview (`PhotoPreview`: `PhotoStrip`,
+  collapsible (closed by default, `ft:photo:queueOpen`, `features/ai/QueueList.tsx`): rows are discarded by swipe with undo, a failed one has
+  the text link "Wiederholen". Plate photos show a preview (`PhotoPreview` in `PreviewStep.tsx`: `PhotoStrip`,
   "+" opens `PhotoCaptureSheet` for further plates, courses or a label, up to `MAX_ANALYSIS_PHOTOS`; the library
   takes several files) and go to the AI only on "Analysieren (N Fotos)", in one call (`analyzePhotos`). The header
   back button in the preview drops the photos and shows the camera again (`Page onBack`); browser or iOS swipe
   back leaves the page and loses them (accepted). While the analysis runs, back goes to the diary and any way out
   calls `leaveAnalysis`: the item becomes `deferred` and is logged by itself; the review opens only while the
-  person waits on the page (refs `waiting`/`gone` in `PhotoPage`, never navigate after an await otherwise). The "+" of a diary meal links straight to `/photo` for that meal.
+  person waits on the page (refs `waiting`/`gone` in `usePhotoFlow`, never navigate after an await otherwise). The "+" of a diary meal links straight to `/photo` for that meal.
+  Files of the food page (`features/ai`): `PhotoPage.tsx` (route: search params, header meal, step switch, footer),
+  `usePhotoFlow.ts` (shots, form entry, waiting for an analysis), `CameraStep.tsx`, `PreviewStep.tsx`,
+  `QueueList.tsx`, `ReviewStep.tsx` (`ResultEditor`, `ReviewRow`), `types.ts` (`CapturedShot`, hint chips).
+  "Meal eintragen" of the review is `logReview` (`queue.ts`): entries, saved meal, photos and the removal of the
+  queue item in one transaction (also used by `logDeferred`); null when the item is gone.
 - Wording: **eintragen** = into the diary, **speichern** = keep for reuse, "hinzufügen" only for ingredients of a
   meal or an AI review and activities of a saved training ("Aktivität", never "Übung"/"Teil" in the UI),
   "Änderungen übernehmen" when editing an entry.

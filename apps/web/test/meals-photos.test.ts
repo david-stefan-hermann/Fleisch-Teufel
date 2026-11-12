@@ -44,6 +44,7 @@ import {
   enqueuePhotos,
   leaveAnalysis,
   loadQueueImages,
+  logReview,
   loadQueuePhotos,
   migrateLegacyImages,
   processQueue,
@@ -670,6 +671,32 @@ describe('AI review: re-analyze with the hint', () => {
     await processQueue(d);
     expect(await d.aiQueue.count()).toBe(0);
     expect(await d.foodEntries.count()).toBe(1);
+  });
+
+  it('logReview logs once: a second call returns null and writes nothing', async () => {
+    const d = db();
+    server(analysis('Nudeln', 250));
+    const id = await analyzed(d);
+    const queued = (await d.aiQueue.get(id))!;
+    const items = [{ food: food('bls:Nudeln', 'Nudeln', 150), grams: 250 }];
+    // Saved as a meal in the review: the meal takes over the ingredients, the entries are attached.
+    const mealId = uuidv7();
+    const args = { item: queued, name: 'Nudeln', items, meal: 2, savedMealId: mealId };
+    const ids = await logReview(d, args);
+    expect(ids).toHaveLength(1);
+    expect(await d.aiQueue.count()).toBe(0);
+    expect(await d.aiPhotos.count()).toBe(0);
+    const [entry] = await d.foodEntries.toArray();
+    expect(entry).toMatchObject({ id: ids![0], mealId, meal: 2, aiAnalysisId: 'a-Nudeln' });
+    expect(entry!.photoIds).toHaveLength(1);
+    const counts = () =>
+      Promise.all([d.foodEntries.count(), d.meals.count(), d.photos.count(), d.outbox.count()]);
+    const before = await counts();
+    // A second tap (or a deferred run) on the same item: nothing more is written.
+    expect(await logReview(d, args)).toBeNull();
+    expect(await logReview(d, { ...args, savedMealId: null })).toBeNull();
+    expect(await counts()).toEqual(before);
+    expect(before).toEqual([1, 1, 1, 2]);
   });
 
   it('keeps a review saved as a meal linked to it (with its name)', async () => {

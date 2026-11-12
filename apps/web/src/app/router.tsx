@@ -9,9 +9,11 @@ import {
   Outlet,
   useRouterState,
 } from '@tanstack/react-router';
+import { useEffect } from 'react';
 import { AddSheetProvider } from '@/components/AddSheet';
 import { TabBar } from '@/components/TabBar';
 import { ViewportVars } from '@/hooks/useVisualViewport';
+import { recordError } from '@/lib/errorLog';
 import { intoParam, trainingIntoParam } from '@/lib/into';
 import { useSessionContext } from './session';
 import { AppBanners } from './AppBanners';
@@ -338,17 +340,18 @@ export const router = createRouter({
 
 /**
  * A page failed to render or load (typically a chunk of an older build after an update): a plain
- * message with "Neu laden" instead of the router's raw error page.
+ * message with "Neu laden" instead of the router's raw error page. The error itself goes into the
+ * device error log ("Daten & Sync").
  */
 function RouteError({ error }: { error: unknown }) {
+  useEffect(() => {
+    recordError(error, 'route');
+  }, [error]);
   return (
     <div className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-4 p-6 text-center">
-      <h1 className="text-lg font-semibold">Diese Seite konnte nicht geladen werden</h1>
+      <h1 className="text-lg font-semibold">Die Seite konnte nicht geladen werden</h1>
       <p className="text-sm text-muted-foreground">
         Meist steckt ein App-Update dahinter. Neu laden hilft; deine Daten liegen sicher auf dem Gerät.
-      </p>
-      <p className="text-xs break-all text-muted-foreground">
-        {error instanceof Error ? error.message : String(error)}
       </p>
       <div className="flex gap-2">
         <Button onClick={() => window.location.reload()}>Neu laden</Button>
