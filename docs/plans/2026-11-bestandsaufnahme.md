@@ -2,6 +2,10 @@
 
 Stand: 2026-11-11, Commit bdbba3a (main, gleich origin/main). Auftrag: `docs/plans/2026-11-bestandsaufnahme-auftrag.md`.
 
+**Status:** Alle Befunde sind in `docs/plans/2026-11-verbesserungen.md` (Blöcke 0 bis 13) eingeplant und am
+2026-11-12 umgesetzt; Stand, Commits und Abweichungen stehen dort im Statusblock. Dieses Dokument bleibt der Befund
+zum Stand bdbba3a (Zeilenangaben veraltet).
+
 Geprüft in sieben Blickwinkeln (Daten und Sync, Zahlen, Server und KI, Web-Code gegen die Regeln aus `CLAUDE.md`,
 Abläufe live im Browser, Betrieb, Tests und altes Review). Jeder Befund unten ist an der genannten Stelle im Code
 nachgelesen; „nachgestellt“ heißt, ein Wegwerf-Skript, ein curl oder ein Playwright-Lauf hat den Fehler gezeigt.

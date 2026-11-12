@@ -34,7 +34,13 @@ Serve the production web build through the API (same origin, service worker acti
 
 - Synced data: read `.claude/skills/offline-sync/SKILL.md` and `docs/sync.md` before touching schemas,
   Dexie, the sync engine or the service worker. Write synced records only via `saveRecord`/`patchRecord`/
-  `deleteRecord`. Keep `apps/web/src/db` and `apps/web/src/sync` free of `@/` imports (API tests import them).
+  `deleteRecord` (forms over a stored record: `upsertRecord`). Keep `apps/web/src/db` and `apps/web/src/sync`
+  free of `@/` imports (API tests import them). Records the server refuses for good are listed under "Daten &
+  Sync" (`features/more/rejectedRecords.ts`, cloud warning). A server restore is detected by the sync epoch
+  (`docs/sync.md`): devices re-upload everything by themselves, no dialog.
+- A URL record this device does not have (unknown id, deleted, not synced yet) shows `NotFoundPage`
+  (`components/NotFoundPage.tsx`, offline text by sync state), never an editor that would revive it. Route
+  errors: `RouteError` (`app/router.tsx`) records the error (`recordError`, source `route`) and offers "Neu laden".
 - Settings are written only through `saveSettings(db, patch)` (`src/db/settings.ts`): the fields of the saving
   page on top of the current record (or `DEFAULT_SETTINGS`), never a copy loaded at mount.
 - Every "eintragen"/"speichern" button runs through `useSubmitting()` (`src/hooks/useSubmitting.ts`):
@@ -219,6 +225,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   a name and an ingredient; left without input it is dropped). `/meals/$mealId` with `date`+`meal` logs (`MealLogView`, swipe leaves an ingredient out of this
   entry only), without them edits (`MealEditor`). The editor writes a device draft (`db/mealDraft.ts`, `kv`) and
   only `saveMealDraft` touches the synced record; `addItemToMeal` (food search `into=meal:`) appends to the draft.
+- Naming: "Trainings" and "Meals" (never "Gespeicherte Trainings"/"Gespeicherte Meals" in the UI).
 - Trainings run like food (plan `docs/plans/2026-11-gespeicherte-trainings.md`, mockup `2026-11-trainings-neu-mockup.html`):
   a sport is a food, a saved training (`exerciseTemplates`, never "Vorlage" in the UI) is a meal, its parts are
   "Aktivitäten". Data: the flat fields of a saved training are activity 1 (what older app versions read and edit),
@@ -493,5 +500,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 
 ## Deployment
 
-GitHub Actions (`.github/workflows/docker.yml`) builds `ghcr.io/david-stefan-hermann/fleisch-teufel` on push to
-`main`; the user deploys `deploy/docker-compose.yml` in Dockge (port 30300 → 3000). No Docker inside this container.
+On push to `main` (or a manual run), `.github/workflows/ci.yml` runs check and E2E; only then its job `image` calls
+the reusable `.github/workflows/docker.yml`: build, push `ghcr.io/david-stefan-hermann/fleisch-teufel:sha-<7>`,
+smoke-test that tag (PostgreSQL, `/health`, `/`, `/api/info`, `reset-password.js`), then
+`docker buildx imagetools create` tags `:latest`. Watch one run: `gh run watch` on the CI run. The user deploys
+`deploy/docker-compose.yml` in Dockge (port 30300 → 3000); rollback = `image: …:sha-<commit>`, restore = ZFS
+snapshot of the own dataset plus epoch rotation (README). `apps/api/build.mjs` also bundles
+`scripts/reset-password.ts` (`docker exec -it fleisch-teufel node reset-password.js <email>`; `BUILD_OUT` for the
+build test). Dependabot (`.github/dependabot.yml`) opens weekly grouped PRs; the Dockerfile reads the
+`@node-rs/argon2` version from the lockfile install. No Docker inside this container.

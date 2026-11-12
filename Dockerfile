@@ -19,13 +19,18 @@ COPY . .
 ARG APP_VERSION=dev
 ENV APP_VERSION=${APP_VERSION}
 RUN pnpm --filter @ft/web build && pnpm --filter @ft/api build
+# The runtime stage installs the native Argon2 binding on its own: take its version from the lockfile install.
+RUN node -p "JSON.parse(require('fs').readFileSync('apps/api/node_modules/@node-rs/argon2/package.json', 'utf8')).version" > /app/argon2-version
 
 # ---------------------------------------------------------------- runtime
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
 WORKDIR /app
-# The only runtime dependency not bundled by esbuild: the native Argon2 binding (musl build).
-RUN npm install --omit=dev --no-audit --no-fund --no-save @node-rs/argon2@2.2.2 && npm cache clean --force
+# The only runtime dependency not bundled by esbuild: the native Argon2 binding (musl build), in the version
+# of pnpm-lock.yaml (written by the build stage, so a Dependabot update cannot drift from it).
+COPY --from=build /app/argon2-version /tmp/argon2-version
+RUN npm install --omit=dev --no-audit --no-fund --no-save "@node-rs/argon2@$(cat /tmp/argon2-version)" \
+  && npm cache clean --force && rm /tmp/argon2-version
 COPY --from=build /app/apps/api/dist ./
 COPY --from=build /app/apps/web/dist ./public
 ARG APP_VERSION=dev

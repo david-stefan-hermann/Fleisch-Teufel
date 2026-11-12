@@ -165,10 +165,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      web-push:
-        specifier: ^3.6.7
-        version: 3.6.7
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1

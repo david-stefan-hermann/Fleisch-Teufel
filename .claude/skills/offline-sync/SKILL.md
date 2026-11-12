@@ -48,6 +48,18 @@ deterministic id and add it to `requiredId()` so offline devices converge.
 - Keep `apps/web/src/db/*` and `apps/web/src/sync/*` free of `@/` imports: the API test suite imports
   them to run real device ↔ server tests.
 
+## Sync engine: rejections and server restores
+
+- A record the server refuses for good (Zod, wrong id) leaves the outbox only when it did not change during
+  the push; it lands in the device list of rejected records ("Daten & Sync", cloud warning) and the server
+  logs it as `warn`. Never drop outbox rows silently elsewhere.
+- Every pull answers the server's `epoch` (`app_meta` `sync_epoch`). On `reset: true` or an epoch the device
+  has not seen (`kv` `sync.epoch`), the device puts all its own records (tombstones too) back into the outbox,
+  marks uploaded photos as waiting and pulls from cursor 0, all without a dialog. Any change that bypasses
+  `write.ts` would be missing from that re-upload. Details in `docs/sync.md` ("Epoche").
+- Pulled changes an older app cannot parse are skipped and flagged (`kv` `sync.needsUpdate` with the app
+  version); the next app version pulls from 0 again and fetches them.
+
 ## Service worker / PWA
 
 - `apps/web/src/sw.ts` (Workbox injectManifest) precaches the shell, `/data/bls-compact.json` and the

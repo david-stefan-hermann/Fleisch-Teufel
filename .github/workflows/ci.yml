@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A manual run on main rebuilds and publishes the image, after the same checks.
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -51,3 +56,12 @@ jobs:
           name: playwright-traces
           path: apps/web/test-results
           retention-days: 7
+
+  # Publishes the image only for main and only after every check above is green (see docker.yml).
+  image:
+    needs: [check, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker.yml

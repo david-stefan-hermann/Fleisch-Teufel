@@ -1,10 +1,10 @@
 /**
  * Sets a new password for an account and ends all its sessions (the person forgot the password; there
- * is no e-mail flow on a private server). Runs against the database directly, so it needs DATABASE_URL
- * (in production: inside the container, `docker exec -it fleisch-teufel node dist/reset-password.js`,
- * or through pnpm in a checkout with the production URL).
+ * is no e-mail flow on a private server). Runs against the database directly, so it needs DATABASE_URL.
+ * build.mjs bundles it next to server.js, so in production it runs inside the app container:
  *
- *   pnpm --filter @ft/api user:reset-password <email> [new password]
+ *   docker exec -it fleisch-teufel node reset-password.js <email> [new password]
+ *   pnpm --filter @ft/api user:reset-password <email> [new password]   (development)
  *
  * Without a password a random one is generated and printed once.
  */
@@ -17,7 +17,7 @@ import { loadEnv } from '../src/env.js';
 
 const email = process.argv[2]?.trim().toLowerCase();
 if (!email) {
-  console.error('usage: user:reset-password <email> [new password]');
+  console.error('usage: reset-password <email> [new password]');
   process.exit(2);
 }
 const password = process.argv[3] ?? randomBytes(9).toString('base64url');

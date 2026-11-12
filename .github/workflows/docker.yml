@@ -1,23 +1,21 @@
+# Builds and publishes the image. Called by ci.yml only after lint, typecheck, tests, build and E2E are green,
+# so `:latest` (what Dockge pulls) is always tested code: the image goes out as `:sha-<commit>` first, is
+# smoke-tested from the registry against PostgreSQL, and only then gets the `:latest` tag.
 name: Docker image
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
-  workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
   packages: write
 
-concurrency:
-  group: docker-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   image:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/fleisch-teufel
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
@@ -29,33 +27,43 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository_owner }}/fleisch-teufel
+          images: ${{ env.IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
-            type=semver,pattern={{version}}
       - id: version
-        run: echo "value=$(node -p "require('./package.json').version")+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v7
+        run: |
+          echo "value=$(node -p "require('./package.json').version")+${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "tag=${IMAGE}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Build and push :sha-<commit>
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.version.outputs.tag }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: APP_VERSION=${{ steps.version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Smoke-test the image
+      - name: Smoke-test :sha-<commit>
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
           docker network create ft
           docker run -d --name db --network ft -e POSTGRES_PASSWORD=pw -e POSTGRES_USER=ft -e POSTGRES_DB=ft postgres:17-alpine
           for i in $(seq 1 30); do docker exec db pg_isready -U ft -d ft && break; sleep 1; done
-          docker run -d --name app --network ft -p 3000:3000 -e DATABASE_URL=postgres://ft:pw@db:5432/ft ghcr.io/${{ github.repository_owner }}/fleisch-teufel:sha-${GITHUB_SHA::7}
+          docker run -d --name app --network ft -p 3000:3000 -e DATABASE_URL=postgres://ft:pw@db:5432/ft "$TAG"
           for i in $(seq 1 60); do curl -sf localhost:3000/health && break; sleep 2; done
           curl -sf localhost:3000/health
           curl -sf localhost:3000/ | grep -q Fleisch-Teufel
           curl -sf localhost:3000/api/info
+          # The bundled password reset script starts and reaches the database (it finds no such account).
+          docker exec app node reset-password.js smoke-test@example.invalid 2>&1 | tee reset.log || true
+          grep -q 'no account with e-mail smoke-test@example.invalid' reset.log
         shell: bash
       - if: failure()
         run: docker logs app || true
+      - name: Tag :latest
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: docker buildx imagetools create -t "${IMAGE}:latest" "$TAG"

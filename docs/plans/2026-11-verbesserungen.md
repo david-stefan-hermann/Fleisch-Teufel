@@ -6,7 +6,7 @@ aus der Sammelsitzung vom 2026-11-09 bis 2026-11-11. Kein Mockup-Schritt (Entsch
 
 ## Status
 
-Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
+Geplant am 2026-11-12 (Fable). Umgesetzt am 2026-11-12 (Opus 5.5).
 
 | Block | Stand    | Commit  |
 | ----- | -------- | ------- |
@@ -22,8 +22,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 9     | erledigt | b0a3606 |
 | 10    | erledigt | ba64060 |
 | 11    | erledigt | a5fd7e7 |
-| 12    | erledigt |         |
-| 13    | offen    |         |
+| 12    | erledigt | 4f5c938 |
+| 13    | erledigt |         |
 
 **Abweichungen:** (hier eintragen, nie still entscheiden)
 
@@ -217,7 +217,34 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   „Daten & Sync", Quelle `route`); der Satz „Meist steckt ein App-Update dahinter. Neu laden hilft; deine Daten
   liegen sicher auf dem Gerät." und „Zum Tagebuch" bleiben (Block 10 hat ihn nicht gestrichen).
 
-**Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
+- Block 13, B1: kein `workflow_run`, sondern ein Workflow: `ci.yml` bekommt den Job `image` (`needs: [check, e2e]`,
+  nur `main`, nicht für Pull Requests), der `docker.yml` als wiederverwendbaren Workflow (`workflow_call`) aufruft.
+  `docker.yml` hat keine eigenen Auslöser mehr (auch keine `v*`-Tags und kein Semver-Tag; es gab keine Tags);
+  ein manueller Neubau ist „Run workflow“ der CI auf `main` (`workflow_dispatch`, läuft auch durch alle Prüfungen).
+  `ci.yml` setzt oben `permissions: contents: read`, nur der Job `image` bekommt `packages: write`. Der Smoke-Test
+  ruft zusätzlich `node reset-password.js` mit einer unbekannten Adresse im Container auf (Skript
+  startet und erreicht die Datenbank: Meldung „no account …“).
+- Block 13, B3: Das Image kopiert `dist` nach `/app`, der Befehl heißt deshalb `docker exec -it fleisch-teufel node
+reset-password.js <mail>` (ohne `dist/`, wie in der Bestandsaufnahme). `build.mjs` nimmt `BUILD_OUT` für einen
+  anderen Ausgabeordner; `apps/api/test/build.test.ts` baut dorthin, prüft die Dateien und setzt mit dem gebauten
+  Skript ein Passwort gegen die Testdatenbank (alte Sitzung 401, neues Passwort meldet an).
+- Block 13, B7: Dependabot gruppiert auch die GitHub Actions (Minor und Patch zusammen, Majors einzeln). Die
+  argon2-Version im Dockerfile kommt aus der Installation der Build-Stufe (`apps/api/node_modules/@node-rs/argon2`,
+  also aus `pnpm-lock.yaml`), kein `pnpm deploy`. `web-push` ist aus dem Root-`package.json` entfernt.
+- Block 13, B4: README nennt zusätzlich den Barcode-Zwischenschritt, 5 Etikettenfotos, den Papierkorb mit Suche und
+  Endgültig-Löschen und streicht „Rezepte“ aus „Bewusst nicht enthalten“ (der Rezeptmodus existiert).
+- Block 13, T1: schon in Block 12 erledigt (beide Klicks in einem `evaluate`).
+
+**Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme (dort ist ↻ an der Schritte-Zeile durch das
+Fußabdruck-Symbol im Kartenkopf ersetzt), die Liste unter „Verifikation“ am Ende dieses Plans und aus den
+Abweichungen oben:
+
+- Block 1: nach dem Löschen auf Food-, Sport-, Schnelleintrag-Seite und im Lebensmittel-Editor blitzt vor dem
+  Zurückspringen kein „nicht gefunden“ auf (oder nur kaum sichtbar).
+- Block 8: nach dem Sortieren der Trainings springt die Zeile nicht kurz an den alten Platz; mit „Bewegung
+  reduzieren“ pulsiert der Fußabdruck nicht; „Keine neuen Schritte empfangen“ kommt, wenn der Kurzbefehl nichts
+  Neues schickt.
+- Block 11: das Datum im Tagebuchkopf wechselt auf die kurze Form, sobald es nicht zwischen die Pfeile passt.
 
 ## Kontext
 
