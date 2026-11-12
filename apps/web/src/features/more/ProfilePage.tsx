@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtFixed } from '@/lib/format';
 
 export function ProfilePage() {
@@ -36,6 +37,7 @@ function ProfileForm({ initial }: { initial: Settings }) {
   const [s, setS] = useState<Settings>(initial);
   const set = (patch: Partial<Settings>) => setS({ ...s, ...patch });
   const today = useToday();
+  const { run, busy } = useSubmitting();
   const age = s.birthDate ? ageOn(s.birthDate, today) : null;
 
   return (
@@ -165,20 +167,23 @@ function ProfileForm({ initial }: { initial: Settings }) {
       <Button
         size="lg"
         className="w-full"
-        onClick={async () => {
-          // Only the profile fields: meal names or the plan changed elsewhere stay as they are.
-          await saveSettings(db, {
-            sex: s.sex,
-            birthDate: s.birthDate,
-            heightCm: s.heightCm,
-            activityLevel: s.activityLevel,
-            targetWeightKg: s.targetWeightKg,
-            weeklyRateKg: s.weeklyRateKg,
-            weightStepKg: s.weightStepKg,
-            weightRangeKg: s.weightRangeKg,
-          });
-          toast.success('Profil gespeichert');
-        }}
+        disabled={busy}
+        onClick={() =>
+          void run(async () => {
+            // Only the profile fields: meal names or the plan changed elsewhere stay as they are.
+            await saveSettings(db, {
+              sex: s.sex,
+              birthDate: s.birthDate,
+              heightCm: s.heightCm,
+              activityLevel: s.activityLevel,
+              targetWeightKg: s.targetWeightKg,
+              weeklyRateKg: s.weeklyRateKg,
+              weightStepKg: s.weightStepKg,
+              weightRangeKg: s.weightRangeKg,
+            });
+            toast.success('Profil gespeichert');
+          })
+        }
       >
         Speichern
       </Button>

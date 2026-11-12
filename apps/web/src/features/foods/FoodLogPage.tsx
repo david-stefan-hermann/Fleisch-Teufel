@@ -17,9 +17,10 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { AmountEditor, type Amount } from '@/components/AmountEditor';
 import { DayNote } from '@/components/DayNote';
+import { NotFoundPage } from '@/components/NotFoundPage';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
-import { EmptyState, Page, Section } from '@/components/Page';
+import { Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +39,7 @@ import { addFoodToDraft } from '@/db/aiDraft';
 import { addItemToMeal, logFoodEntry } from '@/db/entries';
 import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/db/groupDraft';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
-import { getFood, rememberFood, userPortions } from '@/foods/foodService';
+import { findFood, rememberFood, userPortions, type FoodMiss } from '@/foods/foodService';
 import { useGoals, useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
@@ -52,12 +53,14 @@ export function FoodLogPage() {
   const params = useParams({ strict: false }) as { foodId?: string; entryId?: string };
   const search = useSearch({ strict: false }) as { date?: string; meal?: number; into?: string };
   const db = useDb();
-  const entry = useLiveQuery(
-    async () => (params.entryId ? ((await db.foodEntries.get(params.entryId)) ?? null) : null),
-    [db, params.entryId],
-  );
+  // A deleted entry counts as not found: never edit (and so revive) it, e.g. back from the diary.
+  const entry = useLiveQuery(async () => {
+    if (!params.entryId) return null;
+    const e = await db.foodEntries.get(params.entryId);
+    return e && !e.deleted ? e : null;
+  }, [db, params.entryId]);
   const foodId = params.foodId ?? entry?.foodId ?? null;
-  const [loaded, setLoaded] = useState<{ id: string; food: Food | null } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; food: Food | null; miss: FoodMiss | null } | null>(null);
   const waitingForEntry = !!params.entryId && entry === undefined;
   const food: Food | null | undefined = waitingForEntry
     ? undefined
@@ -70,7 +73,7 @@ export function FoodLogPage() {
   useEffect(() => {
     if (waitingForEntry || !foodId) return;
     let cancelled = false;
-    getFood(db, foodId).then((f) => !cancelled && setLoaded({ id: foodId, food: f }));
+    void findFood(db, foodId).then((r) => !cancelled && setLoaded({ id: foodId, ...r }));
     return () => {
       cancelled = true;
     };
@@ -84,15 +87,7 @@ export function FoodLogPage() {
       </Page>
     );
   }
-  if (params.entryId && entry === null) {
-    return (
-      <Page title="Eintrag" back withTabBar={false}>
-        <EmptyState title="Eintrag nicht gefunden">
-          Er wurde vermutlich auf einem anderen Gerät gelöscht.
-        </EmptyState>
-      </Page>
-    );
-  }
+  if (params.entryId && entry === null) return <NotFoundPage title="Eintrag" what="Eintrag nicht gefunden" />;
   // Edit of an entry whose food is gone (deleted custom food, AI estimate): fall back to its stored
   // values. `id: ''` marks this stub: no own portions, no editor link, the entry keeps its `foodId`.
   const effective: Food | null =
@@ -115,13 +110,15 @@ export function FoodLogPage() {
         }
       : null);
   if (!effective) {
+    // The server's 404 is "nicht gefunden" also while the sync is offline; an own food the device
+    // lacks follows the sync state (it may not have arrived yet).
+    const miss = loaded?.id === foodId ? loaded.miss : null;
     return (
-      <Page title="Lebensmittel" back withTabBar={false}>
-        <EmptyState title="Lebensmittel nicht verfügbar">
-          Es ist nicht auf diesem Gerät gespeichert und der Server ist nicht erreichbar. Versuche es online
-          erneut.
-        </EmptyState>
-      </Page>
+      <NotFoundPage
+        title="Lebensmittel"
+        what="Lebensmittel nicht gefunden"
+        offline={miss === 'offline' ? true : miss === 'not_on_device' ? undefined : false}
+      />
     );
   }
   return (
@@ -386,7 +383,13 @@ function FoodLogEditor({
               </Button>
             )}
             {entry && (
-              <Button variant="ghost" size="icon" onClick={() => void remove()} aria-label="Eintrag löschen">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={saving}
+                onClick={() => void run(remove)}
+                aria-label="Eintrag löschen"
+              >
                 <Trash2 className="text-destructive" aria-hidden />
               </Button>
             )}

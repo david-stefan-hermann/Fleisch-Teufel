@@ -8,6 +8,7 @@ import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -196,16 +197,18 @@ export function AccountPage() {
               lässt sich nicht rückgängig machen. Lade vorher unter „Daten & Sync“ eine Sicherung herunter.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-1.5">
-            <Label htmlFor="delete-pw">Passwort zur Bestätigung</Label>
-            <Input
-              id="delete-pw"
-              type="password"
-              autoComplete="current-password"
-              value={deletePassword}
-              onChange={(e) => setDeletePassword(e.target.value)}
-            />
-          </div>
+          <DialogBody>
+            <div className="grid gap-1.5">
+              <Label htmlFor="delete-pw">Passwort zur Bestätigung</Label>
+              <Input
+                id="delete-pw"
+                type="password"
+                autoComplete="current-password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+              />
+            </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Abbrechen

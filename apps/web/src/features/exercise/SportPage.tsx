@@ -17,7 +17,8 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { DayNote } from '@/components/DayNote';
 import { NameDialog } from '@/components/NameDialog';
-import { EmptyState, Page, Section } from '@/components/Page';
+import { NotFoundPage } from '@/components/NotFoundPage';
+import { Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { logTrainings, saveExercise, saveTraining } from '@/db/entries';
@@ -59,13 +60,11 @@ export function SportPage() {
   const customTypes = useLiveQuery(() => db.exerciseTypes.filter((t) => !t.deleted).toArray(), [db]);
   const date = entry?.date ?? search.date;
   const history = useTrainingHistory(date ?? '2000-01-01', true);
-  if (entry === undefined || history === undefined || customTypes === undefined || !date) return null;
+  if (entry === undefined || customTypes === undefined) return null;
+  // Before the date check: an unknown entry has no date and would leave the page blank.
   if (params.entryId && (!entry || entry.deleted))
-    return (
-      <Page title="Training" back withTabBar={false}>
-        <EmptyState title="Eintrag nicht gefunden" />
-      </Page>
-    );
+    return <NotFoundPage title="Training" what="Eintrag nicht gefunden" />;
+  if (history === undefined || !date) return null;
   // The day's steps have their own page.
   if (entry && isStepsEntry(entry))
     return <Navigate to="/steps/$date" params={{ date: entry.date }} replace />;
@@ -77,12 +76,7 @@ export function SportPage() {
     (builtIn && { key: builtIn.key, name: builtIn.name, met: builtIn.met, custom: false }) ??
     (own && { key: own.id, name: own.name, met: { moderate: own.met }, custom: true }) ??
     (entry ? { key: entry.typeKey, name: entry.name, met: { moderate: entry.met }, custom: true } : null);
-  if (!type)
-    return (
-      <Page title="Sportart" back withTabBar={false}>
-        <EmptyState title="Sportart nicht gefunden" />
-      </Page>
-    );
+  if (!type) return <NotFoundPage title="Sportart" what="Sportart nicht gefunden" />;
   return (
     <SportForm
       key={`${type.key}:${entry?.id ?? 'new'}`}

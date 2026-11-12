@@ -5,6 +5,7 @@ import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { NotFoundPage } from '@/components/NotFoundPage';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { quickEntryText, saveQuickEntry } from '@/db/entries';
@@ -32,7 +33,9 @@ export function QuickAddPage() {
     [db, entryId],
   );
   if (entry === undefined) return null;
-  if (!entry) return <Navigate to="/photo" search={{ date, meal, form: true }} replace />;
+  if (!entryId) return <Navigate to="/photo" search={{ date, meal, form: true }} replace />;
+  // Like the food page: an unknown or deleted entry is never edited (and so revived).
+  if (!entry || entry.deleted) return <NotFoundPage title="Schnelleintrag" what="Eintrag nicht gefunden" />;
   return <QuickEntryEditor key={entry.id} entry={entry} />;
 }
 
@@ -79,16 +82,19 @@ function QuickEntryEditor({ entry }: { entry: FoodEntry }) {
           variant="ghost"
           size="icon"
           aria-label="Eintrag löschen"
-          onClick={async () => {
-            await deleteRecord(db, 'foodEntries', entry.id);
-            toast('Eintrag gelöscht', {
-              action: {
-                label: 'Rückgängig',
-                onClick: () => void restoreRecord(db, 'foodEntries', entry.id),
-              },
-            });
-            leave();
-          }}
+          disabled={saving}
+          onClick={() =>
+            void run(async () => {
+              await deleteRecord(db, 'foodEntries', entry.id);
+              toast('Eintrag gelöscht', {
+                action: {
+                  label: 'Rückgängig',
+                  onClick: () => void restoreRecord(db, 'foodEntries', entry.id),
+                },
+              });
+              leave();
+            })
+          }
         >
           <Trash2 className="text-destructive" aria-hidden />
         </Button>

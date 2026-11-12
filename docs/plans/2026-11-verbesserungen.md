@@ -6,13 +6,38 @@ aus der Sammelsitzung vom 2026-11-09 bis 2026-11-11. Kein Mockup-Schritt (Entsch
 
 ## Status
 
-Geplant am 2026-11-12 (Fable). Noch nicht umgesetzt.
+Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 
-| Block    | Stand | Commit |
-| -------- | ----- | ------ |
-| 0 bis 13 | offen |        |
+| Block | Stand    | Commit  |
+| ----- | -------- | ------- |
+| 0     | erledigt | 72a29f0 |
+| 1     | erledigt |         |
+| 2     | offen    |         |
+| 3     | offen    |         |
+| 4     | offen    |         |
+| 5     | offen    |         |
+| 6     | offen    |         |
+| 7     | offen    |         |
+| 8     | offen    |         |
+| 9     | offen    |         |
+| 10    | offen    |         |
+| 11    | offen    |         |
+| 12    | offen    |         |
+| 13    | offen    |         |
 
 **Abweichungen:** (hier eintragen, nie still entscheiden)
+
+- Block 1, U9: `QuickAddPage` (`/quick-add?entryId=`) zeigt für einen unbekannten oder gelöschten Eintrag ebenfalls
+  `NotFoundPage` (vorher Weiterleitung zum Formular bzw. Bearbeiten und Wiederbeleben des gelöschten Eintrags, wie U8).
+  Ohne `entryId` bleibt die Weiterleitung nach `/photo?form=1`.
+- Block 1, U9: `NotFoundPage` zeigt den Offline-Text („Nicht auf diesem Gerät, online erneut öffnen“) nach dem
+  Sync-Zustand (`status === 'offline'`); auf der Food-Seite entscheidet die Server-Antwort (`findFood` in
+  `foods/foodService.ts`: 404 = nicht gefunden, kein Server = offline, eigenes Lebensmittel nicht auf dem Gerät =
+  Sync-Zustand). Auch „Sportart nicht gefunden“ auf der Sport-Seite nutzt jetzt `NotFoundPage`.
+- Block 1, U4: zusätzlich zu `pending` leeren schreibt `saveDayNote` denselben Text nicht noch einmal (kein
+  Sync-Datensatz für eine unveränderte Notiz).
+- Block 1: Nach dem Löschen auf Seiten mit Live-Abfrage (Food-, Sport-, Schnelleintrag- und Lebensmittel-Editor)
+  kann vor dem Zurückspringen kurz „nicht gefunden“ aufblitzen (wie schon bisher auf der Sport-Seite). Am iPhone prüfen.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

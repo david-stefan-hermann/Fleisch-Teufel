@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { saveRecord } from '@/db/write';
 import { useCurrentWeight, useDayNote, useDaySummary, useSettings } from '@/hooks/data';
 import { useExpenditure } from '@/hooks/useExpenditure';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmt1, fmtDayLong } from '@/lib/format';
 import { goBackOr } from '@/lib/history';
 
@@ -26,6 +27,7 @@ export function CompleteDayPage() {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
+  const { run, busy } = useSubmitting();
   const summary = useDaySummary(date);
   const settings = useSettings();
   const note = useDayNote(date);
@@ -156,11 +158,17 @@ export function CompleteDayPage() {
       )}
 
       {note?.completedAt ? (
-        <Button variant="outline" size="lg" className="w-full" onClick={() => void complete(false)}>
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          disabled={busy}
+          onClick={() => void run(() => complete(false))}
+        >
           Tag wieder öffnen
         </Button>
       ) : (
-        <Button size="lg" className="w-full" onClick={() => void complete(true)}>
+        <Button size="lg" className="w-full" disabled={busy} onClick={() => void run(() => complete(true))}>
           <CheckCircle2 aria-hidden /> Tag abschließen
         </Button>
       )}

@@ -2,10 +2,14 @@ import { dayId, type DayNote, type ISODate } from '@ft/shared';
 import type { UserDb } from './dexie';
 import { saveRecord } from './write';
 
-/** Writes the text of a day's note, keeping its "Tag abgeschlossen" state (read in the transaction). */
+/**
+ * Writes the text of a day's note, keeping its "Tag abgeschlossen" state (read in the transaction).
+ * The same text as stored is not written again (a flush of text typed and taken back is a no-op).
+ */
 export async function saveDayNote(db: UserDb, date: ISODate, note: string): Promise<void> {
   await db.transaction('rw', [db.dayNotes, db.outbox], async () => {
     const prev = await db.dayNotes.get(dayId.note(date));
+    if ((prev && !prev.deleted ? prev.note : '') === note) return;
     await saveRecord(db, 'dayNotes', {
       id: dayId.note(date),
       date,

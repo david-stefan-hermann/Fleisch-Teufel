@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { saveSettings } from '@/db/settings';
 import { useSettings } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 
 /** Rename the four meals (feature #1). */
 export function MealNamesPage() {
@@ -19,6 +20,7 @@ export function MealNamesPage() {
 function MealNamesForm({ settings }: { settings: Settings }) {
   const db = useDb();
   const [names, setNames] = useState<string[]>(() => [...settings.mealNames]);
+  const { run, busy } = useSubmitting();
   const valid = names.every((n) => n.trim().length > 0 && n.trim().length <= 40);
   return (
     <Page title="Mahlzeiten" back="/more" withTabBar={false}>
@@ -43,11 +45,13 @@ function MealNamesForm({ settings }: { settings: Settings }) {
             </Button>
             <Button
               className="flex-1"
-              disabled={!valid}
-              onClick={async () => {
-                await saveSettings(db, { mealNames: names.map((n) => n.trim()) });
-                toast.success('Mahlzeiten umbenannt');
-              }}
+              disabled={!valid || busy}
+              onClick={() =>
+                void run(async () => {
+                  await saveSettings(db, { mealNames: names.map((n) => n.trim()) });
+                  toast.success('Mahlzeiten umbenannt');
+                })
+              }
             >
               Speichern
             </Button>

@@ -27,10 +27,11 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { moveEntriesToMeal } from '@/db/entries';
+import { errorMessage } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +61,7 @@ export function DiaryDnd({ mealNames, children }: { mealNames: string[]; childre
     useSensor(TouchSensor, { activationConstraint: DRAG_ACTIVATION }),
   );
   const [active, setActive] = useState<DragRowData | null>(null);
+  const moving = useRef(false);
   const mealName = (m: number) => mealNames[m] ?? `Mahlzeit ${m + 1}`;
   const rowOf = (data: unknown) => data as DragRowData | undefined;
   const mealOf = (data: unknown) => (data as { meal?: number } | undefined)?.meal;
@@ -69,10 +71,19 @@ export function DiaryDnd({ mealNames, children }: { mealNames: string[]; childre
     const row = rowOf(e.active.data.current);
     const target = mealOf(e.over?.data.current);
     if (!row || target === undefined || target === row.meal) return;
-    await moveEntriesToMeal(db, row.ids, target);
-    toast(`Nach ${mealName(target)} verschoben`, {
-      action: { label: 'Rückgängig', onClick: () => void moveEntriesToMeal(db, row.ids, row.meal) },
-    });
+    // One move at a time: a second drop while the first is written is ignored.
+    if (moving.current) return;
+    moving.current = true;
+    try {
+      await moveEntriesToMeal(db, row.ids, target);
+      toast(`Nach ${mealName(target)} verschoben`, {
+        action: { label: 'Rückgängig', onClick: () => void moveEntriesToMeal(db, row.ids, row.meal) },
+      });
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      moving.current = false;
+    }
   }
 
   // Screen reader announcements in German (dnd-kit's defaults are English).

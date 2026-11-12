@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Badge } from '@/components/ui/badge';
 import { saveRecord } from '@/db/write';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmt1, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -106,6 +107,7 @@ export function CustomTypeDialog({
   const db = useDb();
   const [name, setName] = useState(defaultName);
   const [met, setMet] = useState<number | null>(6);
+  const { run, busy } = useSubmitting();
   const valid = name.trim().length > 0 && met !== null && met >= 1 && met <= 25;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,14 +143,16 @@ export function CustomTypeDialog({
             Abbrechen
           </Button>
           <Button
-            disabled={!valid}
-            onClick={async () => {
-              const id = uuidv7();
-              await saveRecord(db, 'exerciseTypes', { id, name: name.trim(), met: met! });
-              onCreated(id);
-              setName('');
-              onOpenChange(false);
-            }}
+            disabled={!valid || busy}
+            onClick={() =>
+              void run(async () => {
+                const id = uuidv7();
+                await saveRecord(db, 'exerciseTypes', { id, name: name.trim(), met: met! });
+                onCreated(id);
+                setName('');
+                onOpenChange(false);
+              })
+            }
           >
             Anlegen
           </Button>

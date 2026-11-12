@@ -15,6 +15,7 @@ import { useDb } from '@/app/session';
 import { BarcodeScanSheet } from '@/components/BarcodeScanSheet';
 import { LabelCaptureSheet } from '@/components/LabelCaptureSheet';
 import { NumberField } from '@/components/NumberField';
+import { NotFoundPage } from '@/components/NotFoundPage';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { Page, Section } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +58,9 @@ export function CustomFoodPage() {
     [db, isNew, copy],
   );
   if (existing === undefined || template === undefined) return null;
+  // An unknown or deleted own food is not found (never an empty "Anlegen" form, never revived by saving).
+  if (!isNew && (!existing || existing.deleted))
+    return <NotFoundPage title="Eigenes Lebensmittel" what="Lebensmittel nicht gefunden" />;
   return <CustomFoodForm key={existing?.id ?? 'new'} existing={existing} template={template} />;
 }
 
@@ -195,17 +199,20 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
             variant="ghost"
             size="icon"
             aria-label="Lebensmittel löschen"
-            onClick={async () => {
-              await deleteRecord(db, 'customFoods', existing.id);
-              toast(`${existing.name} gelöscht`, {
-                action: {
-                  label: 'Rückgängig',
-                  onClick: () => void restoreRecord(db, 'customFoods', existing.id),
-                },
-              });
-              // From the food page back past it (it would show the deleted food), else to the list.
-              goBackOr(router.history, search.from === 'food' ? 2 : 1, toList);
-            }}
+            disabled={saving}
+            onClick={() =>
+              void run(async () => {
+                await deleteRecord(db, 'customFoods', existing.id);
+                toast(`${existing.name} gelöscht`, {
+                  action: {
+                    label: 'Rückgängig',
+                    onClick: () => void restoreRecord(db, 'customFoods', existing.id),
+                  },
+                });
+                // From the food page back past it (it would show the deleted food), else to the list.
+                goBackOr(router.history, search.from === 'food' ? 2 : 1, toList);
+              })
+            }
           >
             <Trash2 className="text-destructive" aria-hidden />
           </Button>

@@ -280,23 +280,43 @@ export async function searchOnline(
 
 /** Resolves a food by id from the device, enriching BLS/OFF data from the server if possible. */
 export async function getFood(db: UserDb, id: string, opts: { enrich?: boolean } = {}): Promise<Food | null> {
+  return (await findFood(db, id, opts)).food;
+}
+
+/**
+ * Why `findFood` found nothing: `not_found` it does not exist (the server said so, or an own food was
+ * deleted), `offline` the server could not be asked, `not_on_device` an own food this device does not
+ * have (it may not have synced yet).
+ */
+export type FoodMiss = 'not_found' | 'offline' | 'not_on_device';
+
+/** `getFood` that also says why a food is missing (for the "nicht gefunden" page). */
+export async function findFood(
+  db: UserDb,
+  id: string,
+  opts: { enrich?: boolean } = {},
+): Promise<{ food: Food; miss: null } | { food: null; miss: FoodMiss }> {
+  const found = (food: Food) => ({ food, miss: null }) as const;
+  const missing = (miss: FoodMiss) => ({ food: null, miss }) as const;
   if (!id.startsWith('bls:') && !id.startsWith('off:')) {
     const c = await db.customFoods.get(id);
-    return c && !c.deleted ? customToFood(c) : null;
+    if (!c) return missing('not_on_device');
+    return c.deleted ? missing('not_found') : found(customToFood(c));
   }
   const cached = await db.foodCache.get(id);
   // BLS foods are complete in the cache once enriched (more keys than the compact set).
-  if (cached && (id.startsWith('off:') || Object.keys(cached.nutrients).length > 15)) return cached;
+  if (cached && (id.startsWith('off:') || Object.keys(cached.nutrients).length > 15)) return found(cached);
   let local: Food | null = cached ?? null;
   // The catalog file can be missing offline before the first precache: then only the server knows.
   if (!local && id.startsWith('bls:')) local = (await loadBls().catch(() => null))?.foods.get(id) ?? null;
-  if (opts.enrich === false) return local;
+  if (opts.enrich === false) return local ? found(local) : missing('offline');
   try {
     const { food } = await endpoints.food(id, local ? 2500 : 8000);
     await db.foodCache.put({ ...food, lastUsedAt: cached?.lastUsedAt ?? 0 });
-    return food;
-  } catch {
-    return local;
+    return found(food);
+  } catch (e) {
+    if (local) return found(local);
+    return missing(e instanceof ApiError && e.status === 404 ? 'not_found' : 'offline');
   }
 }
 

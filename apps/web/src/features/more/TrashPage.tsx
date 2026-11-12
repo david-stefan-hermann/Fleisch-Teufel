@@ -8,6 +8,7 @@ import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { trashedMeals, trashedSteps, trashedTrainings, trashedWeights } from '@/db/trash';
 import { restoreRecord } from '@/db/write';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { trainingItemsOf, trainingSummary } from '@ft/shared';
 import { fmt0, fmt2, fmtDate, fmtDateOf, fmtIngredients } from '@/lib/format';
 
@@ -20,6 +21,7 @@ export function TrashPage() {
   const meals = useLiveQuery(() => trashedMeals(db), [db]);
   const trainings = useLiveQuery(() => trashedTrainings(db), [db]);
   const steps = useLiveQuery(() => trashedSteps(db), [db]);
+  const { run, busy } = useSubmitting();
 
   async function restoreWeight(w: WeightEntry) {
     await restoreRecord(db, 'weightEntries', w.id);
@@ -54,7 +56,8 @@ export function TrashPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => void restoreWeight(w)}
+                  disabled={busy}
+                  onClick={() => void run(() => restoreWeight(w))}
                   aria-label={`Gewicht vom ${fmtDate(w.date)} wiederherstellen`}
                 >
                   Wiederherstellen
@@ -79,7 +82,8 @@ export function TrashPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => void restoreSteps(e)}
+                  disabled={busy}
+                  onClick={() => void run(() => restoreSteps(e))}
                   aria-label={`Schritte vom ${fmtDate(e.date)} wiederherstellen`}
                 >
                   Wiederherstellen
@@ -105,7 +109,8 @@ export function TrashPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => void restoreMeal(m)}
+                  disabled={busy}
+                  onClick={() => void run(() => restoreMeal(m))}
                   aria-label={`${m.name} wiederherstellen`}
                 >
                   Wiederherstellen
@@ -132,7 +137,8 @@ export function TrashPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => void restoreTraining(t)}
+                  disabled={busy}
+                  onClick={() => void run(() => restoreTraining(t))}
                   aria-label={`${t.name} wiederherstellen`}
                 >
                   Wiederherstellen

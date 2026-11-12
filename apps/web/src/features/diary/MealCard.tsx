@@ -21,6 +21,7 @@ import type { AiQueueItem, UserDb } from '@/db/dexie';
 import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAppearance } from '@/lib/appearance';
 import { useRememberLogStart } from '@/lib/logFlow';
 import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
@@ -182,12 +183,15 @@ export function PasteButton({
   /** Icon size: 20 px in a card header; page headers pass '' and get their 24 px. */
   iconClassName?: string;
 }) {
+  // The clipboard stays after pasting: a second tap while the first runs would log it twice.
+  const { run, busy } = useSubmitting();
   return (
     <Button
       variant="ghost"
       size="icon"
       aria-label={`„${clipboard.name}“ in ${mealName} eintragen`}
-      onClick={() => void pasteWithToast(db, clipboard, { date, meal }, mealName)}
+      disabled={busy}
+      onClick={() => void run(() => pasteWithToast(db, clipboard, { date, meal }, mealName))}
     >
       <ClipboardPaste className={cn(iconClassName, 'text-primary')} aria-hidden />
     </Button>

@@ -40,7 +40,11 @@ function NoteForm({ date, note }: { date: ISODate; note: DayNote | null }) {
   const text = local ?? saved;
 
   useEffect(() => {
-    if (local === null) return;
+    // Back on the record's text (typed and taken back, or saved): nothing waits any more.
+    if (local === null) {
+      pending.current = null;
+      return;
+    }
     pending.current = local;
     const t = setTimeout(() => void flush(db, date, pending), SAVE_DELAY_MS);
     return () => clearTimeout(t);

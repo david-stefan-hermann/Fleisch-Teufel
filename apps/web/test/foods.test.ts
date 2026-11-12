@@ -23,6 +23,7 @@ import { saveRecord } from '@/db/write';
 import {
   filterOwn,
   filterRecent,
+  findFood,
   getFood,
   lookupBarcode,
   mergeOnline,
@@ -137,6 +138,27 @@ describe('food service', () => {
     );
     expect(await lookupBarcode(db, '4000417025005')).toMatchObject({ status: 'found' });
     expect(await lookupBarcode(db, '1111111111116')).toEqual({ status: 'offline' });
+  });
+
+  it('says why a food is missing: unknown, deleted, not on this device or offline', async () => {
+    expect(await findFood(db, 'off:1111111111116')).toEqual({ food: null, miss: 'offline' });
+    expect(await findFood(db, 'own-unknown')).toEqual({ food: null, miss: 'not_on_device' });
+    await saveRecord(db, 'customFoods', {
+      id: 'gone',
+      name: 'Weg',
+      brand: null,
+      barcode: null,
+      unit: 'g',
+      nutrients: { ENERCC: 1 },
+      portions: [],
+    });
+    await db.customFoods.update('gone', { deleted: true });
+    expect(await findFood(db, 'gone')).toEqual({ food: null, miss: 'not_found' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ error: 'not_found' }), { status: 404 })),
+    );
+    expect(await findFood(db, 'off:1111111111116')).toEqual({ food: null, miss: 'not_found' });
   });
 
   it('reports unknown barcodes', async () => {

@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveOnboarding } from './saveOnboarding';
 import { DEFAULT_SETTINGS, useSettings, useWeights } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmt1 } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +43,7 @@ export function OnboardingPage() {
 function OnboardingForm({ settings, weight: initialWeight }: { settings: Settings; weight: number | null }) {
   const db = useDb();
   const navigate = useNavigate();
+  const { run, busy } = useSubmitting();
   const today = todayOf();
   // Prefilled from an existing profile when the calculator is run again.
   const known = settings.updatedAt > 0;
@@ -120,7 +122,8 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
       today,
     });
     toast.success('Ziele gespeichert');
-    await navigate({ to: '/' });
+    // Never back into the finished form.
+    await navigate({ to: '/', replace: true });
   }
 
   const next = () => {
@@ -334,7 +337,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
             {step === 0 && profileHint && <p className="text-center text-xs text-warn-text">{profileHint}</p>}
           </div>
         ) : (
-          <Button size="lg" className="flex-1" onClick={() => void finish()}>
+          <Button size="lg" className="flex-1" disabled={busy} onClick={() => void run(finish)}>
             Ziele speichern
           </Button>
         )}

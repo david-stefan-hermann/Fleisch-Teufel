@@ -34,6 +34,7 @@ import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
+import { useSubmitting } from '@/hooks/useSubmitting';
 import { ExpenditureCard } from './ExpenditureCard';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
@@ -305,6 +306,7 @@ function WeightDialog({
   const settings = useSettings();
   const step = settings?.weightStepKg ?? DEFAULT_WEIGHT_STEP;
   const range = settings?.weightRangeKg ?? DEFAULT_WEIGHT_RANGE;
+  const { run, busy } = useSubmitting();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined}>
@@ -378,12 +380,14 @@ function WeightDialog({
             Abbrechen
           </Button>
           <Button
-            disabled={!valid}
-            onClick={async () => {
-              await saveRecord(db, 'weightEntries', { id: dayId.weight(date), date, kg: round(value!, 2) });
-              toast.success(`${fmt2(value!)} kg eingetragen`);
-              onOpenChange(false);
-            }}
+            disabled={!valid || busy}
+            onClick={() =>
+              void run(async () => {
+                await saveRecord(db, 'weightEntries', { id: dayId.weight(date), date, kg: round(value!, 2) });
+                toast.success(`${fmt2(value!)} kg eingetragen`);
+                onOpenChange(false);
+              })
+            }
           >
             {entry ? 'Änderungen übernehmen' : 'Eintragen'}
           </Button>
