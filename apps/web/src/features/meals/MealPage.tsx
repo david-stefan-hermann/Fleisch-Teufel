@@ -2,6 +2,7 @@ import { useParams, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useDb } from '@/app/session';
 import { EmptyState, Page } from '@/components/Page';
+import { PageSkeleton } from '@/components/PageSkeleton';
 import { newMealPlaceholder, readMealDraft } from '@/db/mealDraft';
 import { parseFoodInto } from '@/lib/into';
 import { MealEditor } from './MealEditor';
@@ -20,7 +21,7 @@ export function MealPage() {
   // "Neues Meal": no record yet, only the editor's draft.
   const isNew = useLiveQuery(async () => (await readMealDraft(db, mealId))?.isNew === true, [db, mealId]);
 
-  if (meal === undefined || isNew === undefined) return null;
+  if (meal === undefined || isNew === undefined) return <PageSkeleton title="Meal" />;
   if (!meal && isNew) return <MealEditor meal={newMealPlaceholder(mealId)} />;
   if (!meal || meal.deleted) {
     return (
@@ -30,10 +31,10 @@ export function MealPage() {
     );
   }
   if (search.date !== undefined && search.meal !== undefined)
-    // A new key after an edit ("Meal bearbeiten" and back) starts again with all ingredients.
+    // A change of the meal (sync) is taken over while nothing was changed here, else the view asks.
     return (
       <MealLogView
-        key={meal.updatedAt}
+        key={meal.id}
         meal={meal}
         date={search.date}
         mealIndex={search.meal}

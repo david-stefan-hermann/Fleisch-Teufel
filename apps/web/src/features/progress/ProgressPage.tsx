@@ -84,7 +84,7 @@ export function ProgressPage() {
   );
   const target = settings?.targetWeightKg ?? null;
 
-  const { data, series } = useMemo(() => {
+  const { data, series, yRange } = useMemo(() => {
     const xs = visible.map((w) => xOf(w.date));
     const avgByDate = new Map(avg.map((p) => [p.date, p.kg]));
     const s: ChartSeries[] = [
@@ -99,7 +99,11 @@ export function ProgressPage() {
       s.push({ label: 'Ziel', color: '--good', kind: 'line', dash: [6, 6], width: 1.5, format: kg });
       d.push(visible.map(() => target));
     }
-    return { data: [xs, ...d] as [number[], ...(number | null)[][]], series: s };
+    // All values equal (one weigh-in): uPlot would span 50 to 150 kg; ±2 kg around the value instead.
+    const values = d.flat().filter((v): v is number => v !== null);
+    const flat = values.length > 0 && Math.max(...values) - Math.min(...values) < 0.001;
+    const yRange: [number, number] | undefined = flat ? [values[0]! - 2, values[0]! + 2] : undefined;
+    return { data: [xs, ...d] as [number[], ...(number | null)[][]], series: s, yRange };
   }, [visible, avg, target]);
 
   const change = (days: number) => {
@@ -195,6 +199,7 @@ export function ProgressPage() {
                   xRange={[from, today]}
                   data={data}
                   series={series}
+                  yRange={yRange}
                   title={
                     range.days
                       ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`

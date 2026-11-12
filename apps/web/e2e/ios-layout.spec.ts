@@ -69,3 +69,84 @@ test('no zoom: viewport forbids scaling, html blocks pinch, inputs are at least 
   expect(sizes.length).toBeGreaterThan(0);
   for (const s of sizes) expect(s).toBeGreaterThanOrEqual(16);
 });
+
+test.describe('375 px (iPhone mini and SE)', () => {
+  test.use({ viewport: { width: 375, height: 667 } });
+
+  test('reports, goals, progress and the diary header fit without cutting numbers', async ({
+    page,
+  }, info) => {
+    await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+    await page.getByLabel('E-Mail').fill(`mini-${Date.now()}@example.com`);
+    await page.getByLabel('Passwort').fill('e2e-password-123');
+    await page.getByRole('button', { name: 'Konto erstellen' }).click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    const fitsScreen = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+    // A day with large macros (long numbers in the report rows) and a weight for the chart.
+    await page.goto('/photo?form=1&meal=0');
+    await page.getByLabel('Was hast du gegessen?').fill('Großes Frühstück');
+    await page.getByLabel('Kalorien').fill('1385');
+    await page.getByLabel('Protein').fill('104');
+    await page.getByLabel('Kohlenh.').fill('138');
+    await page.getByLabel('Fett').fill('47');
+    await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+    await expect(page.getByText('Großes Frühstück', { exact: true })).toBeVisible();
+    await page.evaluate(async () => {
+      const d = new Date();
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const r = await fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          records: [
+            {
+              table: 'weightEntries',
+              data: { id: `w:${date}`, updatedAt: Date.now() - 1_000, deleted: false, date, kg: 82.4 },
+            },
+          ],
+        }),
+      });
+      if (!r.ok) throw new Error(`push ${r.status}`);
+    });
+
+    // Reports: every macro row keeps its numbers inside the card (they may wrap).
+    await page.goto('/reports');
+    const rows = page.locator('li[data-macro]');
+    await expect(rows.first()).toBeVisible();
+    const cut = await rows.evaluateAll((lis) =>
+      lis.some((li) => {
+        const box = li.getBoundingClientRect();
+        return [...li.querySelectorAll('span')].some(
+          (s) => s.getBoundingClientRect().right > box.right + 0.5,
+        );
+      }),
+    );
+    expect(cut).toBe(false);
+    expect(await fitsScreen()).toBe(true);
+    await page.screenshot({ path: info.outputPath('reports-375.png'), fullPage: true });
+
+    // Goals: the macro fields show their whole number, the unit sits next to them.
+    await page.goto('/goals');
+    for (const label of ['Protein', 'Kohlenh.', 'Fett']) {
+      const field = page.getByLabel(label, { exact: true });
+      await field.fill('1500');
+      expect(await field.evaluate((i: HTMLInputElement) => i.scrollWidth <= i.clientWidth)).toBe(true);
+    }
+    expect(await fitsScreen()).toBe(true);
+    await page.screenshot({ path: info.outputPath('goals-375.png'), fullPage: true });
+
+    // Progress: the chart's table for screen readers does not widen the page.
+    await page.goto('/progress');
+    await expect(page.getByRole('img', { name: /^Gewicht/ })).toBeVisible();
+    expect(await fitsScreen()).toBe(true);
+
+    // Diary: a long date becomes the short one instead of being cut off.
+    await page.goto('/?date=2026-09-30');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Mi., 30. Sept.');
+    const date = page.getByRole('heading', { level: 1 }).locator('label > span').first();
+    expect(await date.evaluate((s) => s.scrollWidth <= s.clientWidth)).toBe(true);
+  });
+});

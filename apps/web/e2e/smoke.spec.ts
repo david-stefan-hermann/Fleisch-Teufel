@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 const email = `e2e-${Date.now()}@example.com`;
@@ -75,4 +76,36 @@ test('register, log food, survive offline reload, sync to a second device', asyn
   await phone2.getByRole('button', { name: 'Anmelden' }).click();
   await expect(phone2.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toContainText('348');
   await other.close();
+});
+
+test('accessibility: the diary has no critical or serious axe findings (light and dark)', async ({
+  page,
+  context,
+}) => {
+  await context.addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+  await page.getByLabel('E-Mail').fill(`axe-${Date.now()}@example.com`);
+  await page.getByLabel('Passwort').fill(password);
+  await page.getByRole('button', { name: 'Konto erstellen' }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+
+  // A day with an entry, so the meal rows and the calorie card have content.
+  await page.goto('/photo?form=1&meal=0');
+  await page.getByLabel('Was hast du gegessen?').fill('Croissant');
+  await page.getByLabel('Kalorien').fill('230');
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await expect(page.getByText('Croissant', { exact: true })).toBeVisible();
+
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((t) => localStorage.setItem('ft.theme', t), theme);
+    await page.reload();
+    await expect(page.getByText('Croissant', { exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toBeVisible();
+    const { violations } = await new AxeBuilder({ page }).analyze();
+    const severe = violations
+      .filter((v) => v.impact === 'critical' || v.impact === 'serious')
+      .map((v) => `${theme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
+    expect(severe).toEqual([]);
+  }
 });

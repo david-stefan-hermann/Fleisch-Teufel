@@ -103,17 +103,17 @@ describe('WeekStrip', () => {
     await waitFor(() => expect(dots(day(/^Dienstag, 6\. Oktober/))).toEqual(['food', 'training']), {
       timeout: 5000,
     });
-    expect(day(/^Dienstag/).getAttribute('aria-label')).toBe(
-      'Dienstag, 6. Oktober, Essen eingetragen, Training eingetragen',
-    );
+    expect(
+      screen.getByRole('link', { name: 'Dienstag, 6. Oktober, Essen eingetragen, Training eingetragen' }),
+    ).toBe(day(/^Dienstag/));
     expect(dots(day(/^Montag/))).toEqual(['food']);
-    expect(day(/^Montag/).getAttribute('aria-label')).toBe('Montag, 5. Oktober, Essen eingetragen');
+    expect(screen.getByRole('link', { name: 'Montag, 5. Oktober, Essen eingetragen' })).toBe(day(/^Montag/));
     // Training only: just the blue dot, in the training color.
     expect(dots(day(/^Mittwoch/))).toEqual(['training']);
     expect(day(/^Mittwoch/).querySelector('[data-dot=training]')!.className).toContain('bg-exercise');
     // A deleted training does not count, nor do steps.
     expect(dots(day(/^Donnerstag/))).toEqual([]);
-    expect(day(/^Donnerstag/).getAttribute('aria-label')).toBe('Donnerstag, 8. Oktober');
+    expect(screen.getByRole('link', { name: 'Donnerstag, 8. Oktober' })).toBe(day(/^Donnerstag/));
   });
 
   it('keeps the blue dot without a ring on the selected day', async () => {

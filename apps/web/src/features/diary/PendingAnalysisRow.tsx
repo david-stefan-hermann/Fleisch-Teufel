@@ -7,6 +7,7 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import type { AiQueueItem } from '@/db/dexie';
 import { restoreQueueItem, retryQueueItem, takeQueueItem } from '@/features/ai/queue';
 import { useAiImages } from '@/features/ai/useAiImage';
+import { useOffline } from '@/hooks/useOffline';
 import { NO_VALUE } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
 import { cn } from '@/lib/utils';
@@ -27,13 +28,16 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
   const { dragging } = useDiaryDrag();
   const rememberStart = useRememberLogStart();
   const failed = item.status === 'failed';
+  const offline = useOffline();
   const name = item.text.trim() || 'Foto-Analyse';
   const state =
     item.status === 'analyzing'
       ? 'Wird analysiert…'
       : failed
         ? (item.error ?? 'Analyse fehlgeschlagen')
-        : 'Gespeichert, wird analysiert sobald du online bist';
+        : offline
+          ? 'Gespeichert, wird analysiert, sobald du online bist'
+          : 'Gespeichert, wird analysiert';
 
   async function discard() {
     const taken = await takeQueueItem(db, item.localId!);

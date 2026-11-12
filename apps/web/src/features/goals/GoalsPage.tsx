@@ -21,6 +21,7 @@ import { Calculator, History } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { DiscardDialog } from '@/components/DiscardDialog';
 import { MacroPlanPicker } from '@/components/MacroPlanPicker';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
@@ -30,6 +31,7 @@ import { Switch } from '@/components/ui/switch';
 import { saveSettings } from '@/db/settings';
 import { upsertRecord } from '@/db/write';
 import { useCurrentWeight, useGoals, useSettings, useToday } from '@/hooks/data';
+import { useSettingsForm } from '@/hooks/useSettingsForm';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -40,6 +42,14 @@ const MICRO_ROWS: { key: MicroKey; label: string }[] = [
   { key: N.satFat, label: 'Ges. Fettsäuren (max.)' },
   { key: N.salt, label: 'Salz (max.)' },
 ];
+
+/** What saving writes, for the comparison with the stored state (empty micro fields count as unset). */
+function goalsKey(plan: MacroPlan, days: DayTarget[], micros: Partial<Record<MicroKey, number | null>>) {
+  const set = Object.entries(micros)
+    .filter(([, v]) => v != null)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify({ plan, days, micros: set });
+}
 
 /** Macro goals in grams, per weekday (feature #6), with history via `validFrom`. */
 export function GoalsPage() {
@@ -78,6 +88,11 @@ function GoalsForm({
   const [perDay, setPerDay] = useState(() => days.some((x) => JSON.stringify(x) !== JSON.stringify(days[0])));
   const [selected, setSelected] = useState(0);
   const [micros, setMicros] = useState<Partial<Record<MicroKey, number | null>>>(current?.micros ?? {});
+  const savedDays = (current?.days ?? uniformWeek(FALLBACK_TARGET)).map((x) => ({ ...x }));
+  const savedKey = goalsKey(initialPlan, savedDays, current?.micros ?? {});
+  const weekDays = perDay ? days : uniformWeek(days[0]!);
+  const dirty = goalsKey(plan, weekDays, micros) !== savedKey;
+  const { blocker, close } = useSettingsForm(dirty, '/more');
 
   const idx = perDay ? selected : 0;
   const day = days[idx]!;
@@ -102,7 +117,7 @@ function GoalsForm({
     await upsertRecord(db, 'goals', dayId.goal(today), () => ({
       id: dayId.goal(today),
       validFrom: today,
-      days: perDay ? days : uniformWeek(days[0]!),
+      days: weekDays,
       micros,
     }));
     toast.success('Ziele gespeichert, gelten ab heute');
@@ -113,6 +128,20 @@ function GoalsForm({
       title="Ziele"
       back="/more"
       withTabBar={false}
+      footer={
+        <Button
+          size="lg"
+          disabled={!dirty || saving}
+          onClick={() =>
+            void run(async () => {
+              await save();
+              close();
+            })
+          }
+        >
+          Ziele speichern
+        </Button>
+      }
       actions={
         <Button variant="ghost" size="icon" asChild>
           <Link to="/onboarding" aria-label="Neu berechnen">
@@ -175,6 +204,8 @@ function GoalsForm({
             <NumberField
               label="Protein"
               unit="g"
+              unitAfter
+              className="min-w-0"
               value={day.proteinG}
               onValueChange={(v) => setDay({ proteinG: v ?? 0 })}
               integer
@@ -182,6 +213,8 @@ function GoalsForm({
             <NumberField
               label="Kohlenh."
               unit="g"
+              unitAfter
+              className="min-w-0"
               value={day.carbsG}
               onValueChange={(v) => setDay({ carbsG: v ?? 0 })}
               integer
@@ -189,6 +222,8 @@ function GoalsForm({
             <NumberField
               label="Fett"
               unit="g"
+              unitAfter
+              className="min-w-0"
               value={day.fatG}
               onValueChange={(v) => setDay({ fatG: v ?? 0 })}
               integer
@@ -251,10 +286,6 @@ function GoalsForm({
         </div>
       </Section>
 
-      <Button size="lg" className="w-full" disabled={saving} onClick={() => void run(save)}>
-        Ziele speichern
-      </Button>
-
       {goals && goals.length > 0 && (
         <Section
           title={
@@ -262,7 +293,6 @@ function GoalsForm({
               <History className="size-4" aria-hidden /> Verlauf
             </span>
           }
-          className="mt-4"
         >
           <ul className="divide-y divide-border/70 pb-1">
             {[...goals].reverse().map((g) => (
@@ -278,6 +308,16 @@ function GoalsForm({
           </ul>
         </Section>
       )}
+      <DiscardDialog
+        open={blocker.status === 'blocked'}
+        name="die Ziele"
+        onKeepEditing={() => blocker.reset?.()}
+        onDiscard={() => blocker.proceed?.()}
+        onSave={async () => {
+          await save();
+          blocker.proceed?.();
+        }}
+      />
     </Page>
   );
 }

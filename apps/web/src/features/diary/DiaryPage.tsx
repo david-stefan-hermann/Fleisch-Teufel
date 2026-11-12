@@ -1,7 +1,7 @@
 import { addDays, MEAL_COUNT } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, Share, Target } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
@@ -56,11 +56,13 @@ export function DiaryPage() {
     !!summary && !!entries && !!exercises && !!settings && pending !== undefined && suggestions !== undefined,
   );
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
+  const longDate = fmtRelativeDay(date, today);
+  const { titleBox, dateText, dateProbe, fitsLong } = useFittingDate(longDate);
 
   return (
     <Page
       title={
-        <span className="flex items-center gap-1">
+        <span ref={titleBox} className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -74,7 +76,17 @@ export function DiaryPage() {
             the only way iOS Safari opens its picker (showPicker() on a hidden input does nothing there).
           */}
           <label className="relative min-w-0 cursor-pointer rounded-md px-1 hover:bg-accent focus-within:ring-[3px] focus-within:ring-ring/50">
-            <span className="block truncate">{fmtRelativeDay(date, today)}</span>
+            <span ref={dateText} className="block truncate">
+              {fitsLong ? longDate : fmtRelativeDay(date, today, true)}
+            </span>
+            {/* Measures the long date: the short one ("Do., 15. Okt.") shows when it would be cut off. */}
+            <span
+              ref={dateProbe}
+              aria-hidden
+              data-text={longDate}
+              // Generated content: the probe's text is no text of the page (searches, screen readers).
+              className="invisible absolute top-0 left-0 whitespace-nowrap before:content-[attr(data-text)]"
+            />
             <input
               type="date"
               aria-label="Datum wählen"
@@ -189,4 +201,36 @@ export function DiaryPage() {
       )}
     </Page>
   );
+}
+
+/**
+ * Whether the long date fits into the header between the arrows (measured, since the room depends on
+ * the screen and the header icons); the diary shows the short date otherwise.
+ */
+function useFittingDate(longDate: string) {
+  const titleBox = useRef<HTMLSpanElement>(null);
+  const dateText = useRef<HTMLSpanElement>(null);
+  const dateProbe = useRef<HTMLSpanElement>(null);
+  const [fitsLong, setFitsLong] = useState(true);
+  useEffect(() => {
+    const box = titleBox.current;
+    const text = dateText.current;
+    const probe = dateProbe.current;
+    const label = text?.parentElement;
+    if (!box || !text || !probe || !label) return;
+    const measure = () => {
+      const gap = parseFloat(getComputedStyle(box).columnGap) || 0;
+      let others = 0;
+      for (const child of box.children)
+        if (child !== label) others += (child as HTMLElement).offsetWidth + gap;
+      const padding = label.offsetWidth - text.offsetWidth;
+      setFitsLong(probe.offsetWidth <= box.clientWidth - others - padding);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(box);
+    // The probe changes size when the web font arrives.
+    ro.observe(probe);
+    return () => ro.disconnect();
+  }, [longDate]);
+  return { titleBox, dateText, dateProbe, fitsLong };
 }

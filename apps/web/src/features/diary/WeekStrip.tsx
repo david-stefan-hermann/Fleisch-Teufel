@@ -36,17 +36,24 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
                 to="/"
                 search={{ date: d === today ? undefined : d }}
                 aria-current={selected ? 'date' : undefined}
-                aria-label={[dayName, food && 'Essen eingetragen', training && 'Training eingetragen']
-                  .filter(Boolean)
-                  .join(', ')}
                 className={cn(
                   'flex h-14 touch-manipulation flex-col items-center justify-center rounded-xl text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                   selected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
                   !selected && isToday && 'font-semibold text-primary',
                 )}
               >
-                <span className={cn('opacity-80', selected && 'opacity-100')}>{WEEKDAYS_SHORT_DE[i]}</span>
-                <span className="tabular text-base font-semibold">{parseISODate(d).getDate()}</span>
+                {/* The name is the full text (an aria-label differing from the visible "Mo 9" is an axe finding). */}
+                <span className="sr-only">
+                  {[dayName, food && 'Essen eingetragen', training && 'Training eingetragen']
+                    .filter(Boolean)
+                    .join(', ')}
+                </span>
+                <span aria-hidden className={cn('opacity-80', selected && 'opacity-100')}>
+                  {WEEKDAYS_SHORT_DE[i]}
+                </span>
+                <span aria-hidden className="tabular text-base font-semibold">
+                  {parseISODate(d).getDate()}
+                </span>
                 <span aria-hidden className="mt-0.5 flex h-1 gap-[3px]">
                   {food && (
                     <span

@@ -14,6 +14,7 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { DiscardDialog } from '@/components/DiscardDialog';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
+import { useSettingsForm } from '@/hooks/useSettingsForm';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtFixed } from '@/lib/format';
 
@@ -32,6 +34,18 @@ export function ProfilePage() {
   return <ProfileForm initial={settings} />;
 }
 
+/** The fields this page owns; only these are saved (meal names or the plan changed elsewhere stay). */
+const profileFields = (s: Settings) => ({
+  sex: s.sex,
+  birthDate: s.birthDate,
+  heightCm: s.heightCm,
+  activityLevel: s.activityLevel,
+  targetWeightKg: s.targetWeightKg,
+  weeklyRateKg: s.weeklyRateKg,
+  weightStepKg: s.weightStepKg,
+  weightRangeKg: s.weightRangeKg,
+});
+
 function ProfileForm({ initial }: { initial: Settings }) {
   const db = useDb();
   const [s, setS] = useState<Settings>(initial);
@@ -39,9 +53,34 @@ function ProfileForm({ initial }: { initial: Settings }) {
   const today = useToday();
   const { run, busy } = useSubmitting();
   const age = s.birthDate ? ageOn(s.birthDate, today) : null;
+  const dirty = JSON.stringify(profileFields(s)) !== JSON.stringify(profileFields(initial));
+  const { blocker, close } = useSettingsForm(dirty, '/more');
+
+  async function save() {
+    await saveSettings(db, profileFields(s));
+    toast.success('Profil gespeichert');
+  }
 
   return (
-    <Page title="Profil" back="/more" withTabBar={false}>
+    <Page
+      title="Profil"
+      back="/more"
+      withTabBar={false}
+      footer={
+        <Button
+          size="lg"
+          disabled={!dirty || busy}
+          onClick={() =>
+            void run(async () => {
+              await save();
+              close();
+            })
+          }
+        >
+          Speichern
+        </Button>
+      }
+    >
       <Section>
         <div className="grid gap-4 p-4">
           <div className="grid gap-1.5">
@@ -164,34 +203,21 @@ function ProfileForm({ initial }: { initial: Settings }) {
           </div>
         </div>
       </Section>
-      <Button
-        size="lg"
-        className="w-full"
-        disabled={busy}
-        onClick={() =>
-          void run(async () => {
-            // Only the profile fields: meal names or the plan changed elsewhere stay as they are.
-            await saveSettings(db, {
-              sex: s.sex,
-              birthDate: s.birthDate,
-              heightCm: s.heightCm,
-              activityLevel: s.activityLevel,
-              targetWeightKg: s.targetWeightKg,
-              weeklyRateKg: s.weeklyRateKg,
-              weightStepKg: s.weightStepKg,
-              weightRangeKg: s.weightRangeKg,
-            });
-            toast.success('Profil gespeichert');
-          })
-        }
-      >
-        Speichern
-      </Button>
       <p className="mt-3 text-center text-sm text-muted-foreground">
         <Link to="/onboarding" className="text-primary underline">
           Ziele neu berechnen
         </Link>
       </p>
+      <DiscardDialog
+        open={blocker.status === 'blocked'}
+        name="das Profil"
+        onKeepEditing={() => blocker.reset?.()}
+        onDiscard={() => blocker.proceed?.()}
+        onSave={async () => {
+          await save();
+          blocker.proceed?.();
+        }}
+      />
     </Page>
   );
 }

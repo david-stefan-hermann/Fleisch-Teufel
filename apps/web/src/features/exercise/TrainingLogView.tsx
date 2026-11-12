@@ -194,7 +194,7 @@ function TrainingLogForm({
       footer={
         <Button size="lg" disabled={!valid || busy} onClick={() => void run(log)}>
           Eintragen
-          <span className="tabular font-normal opacity-80"> · {fmt0(total)} kcal</span>
+          <span className="tabular font-normal opacity-90"> · {fmt0(total)} kcal</span>
         </Button>
       }
     >
@@ -204,7 +204,7 @@ function TrainingLogForm({
           <span>{lastLoggedLabel(stats.lastDate, today)}</span>
           <Badge
             variant="secondary"
-            className="bg-exercise/15 px-1.5 py-0 text-[11px] font-normal text-exercise"
+            className="bg-exercise/15 px-1.5 py-0 text-[11px] font-normal text-exercise-text"
           >
             {fmt0(stats.count)}× eingetragen
           </Badge>

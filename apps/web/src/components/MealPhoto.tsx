@@ -156,8 +156,12 @@ export function MealPhoto({
   if (!placeholder) return null;
   return (
     <div
-      role="img"
-      aria-label={broken ? `${alt} (nicht lesbar)` : photoId ? `${alt} (wird geladen)` : alt}
+      // Without a name (a thumbnail next to its title) the placeholder is decoration, like an empty alt.
+      role={alt ? 'img' : undefined}
+      aria-label={
+        alt ? (broken ? `${alt} (nicht lesbar)` : photoId ? `${alt} (wird geladen)` : alt) : undefined
+      }
+      aria-hidden={alt ? undefined : true}
       className={cn('grid place-items-center bg-muted text-muted-foreground', className)}
     >
       {broken || (photoId && stored === null) ? (

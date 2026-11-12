@@ -213,7 +213,7 @@ function SportForm({
       footer={
         <Button size="lg" disabled={!valid || busy} onClick={() => void run(submit)}>
           {into ? 'Hinzufügen' : entry ? 'Änderungen übernehmen' : 'Eintragen'}
-          {!into && !entry && <span className="tabular font-normal opacity-80"> · {fmt0(kcal)} kcal</span>}
+          {!into && !entry && <span className="tabular font-normal opacity-90"> · {fmt0(kcal)} kcal</span>}
         </Button>
       }
     >
@@ -224,7 +224,7 @@ function SportForm({
           {stats && stats.count > 0 && (
             <Badge
               variant="secondary"
-              className="bg-exercise/15 px-1.5 py-0 text-[11px] font-normal text-exercise"
+              className="bg-exercise/15 px-1.5 py-0 text-[11px] font-normal text-exercise-text"
             >
               {fmt0(stats.count)}× eingetragen
             </Badge>

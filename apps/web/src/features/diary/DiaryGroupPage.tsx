@@ -224,8 +224,14 @@ function DiaryGroupForm({
   const totals = sumNutrients(draft.items.map((i) => i.nutrients));
   const targets = targetsForDate(goals ?? [], draft.date);
   // The group's photos (an older group may only have the saved meal's photo), then the new ones.
+  // Saved photos removed in the editor wait in the draft like the added ones.
   const own = photoIdsOf(first);
-  const stored = own.length ? own : meal?.photoId ? [meal.photoId] : [];
+  const removedPhotos = new Set(draft.removedPhotoIds ?? []);
+  const stored = own.length
+    ? own.filter((id) => !removedPhotos.has(id))
+    : meal?.photoId
+      ? [meal.photoId]
+      : [];
   const photoCount = stored.length + draftPhotos.length;
   const [sheet, setSheet] = useState(false);
   function openSheet() {
@@ -390,7 +396,8 @@ function DiaryGroupForm({
         <div className="mb-4">
           <PhotoStrip
             photos={[
-              ...stored.map((id) => ({ key: id, photoId: id })),
+              // The group's own photos can be removed; the saved meal's photo is the meal's.
+              ...stored.map((id) => ({ key: id, photoId: id, removable: own.includes(id) })),
               ...draftPhotos.map((p) => ({
                 key: `group:${draft.groupId}:${p.at}`,
                 blob: p.blob,
@@ -403,9 +410,11 @@ function DiaryGroupForm({
             busy={busy}
             addLabel="Foto aufnehmen oder wählen"
             onAdd={openSheet}
-            onRemove={(key) =>
-              void removeGroupDraftPhoto(db, draft.groupId, Number(key.slice(key.lastIndexOf(':') + 1)))
-            }
+            onRemove={(key) => {
+              if (key.startsWith('group:'))
+                void removeGroupDraftPhoto(db, draft.groupId, Number(key.slice(key.lastIndexOf(':') + 1)));
+              else commit({ ...draft, removedPhotoIds: [...removedPhotos, key] });
+            }}
           >
             {busy && <AnalyzingOverlay />}
           </PhotoStrip>

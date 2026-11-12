@@ -19,6 +19,8 @@ interface NumberFieldProps extends Omit<ComponentProps<typeof Input>, 'value' | 
   /** Classes of the input itself (`className` styles the wrapper). */
   inputClassName?: string;
   unitClassName?: string;
+  /** The unit next to the field instead of inside it (narrow fields: the number keeps the room). */
+  unitAfter?: boolean;
 }
 
 const LOOSE = { 0: fmt0, 1: fmt1, 2: fmt2 } as const;
@@ -40,6 +42,7 @@ export function NumberField({
   maxDecimals,
   inputClassName,
   unitClassName,
+  unitAfter,
   className,
   id,
   onBlur,
@@ -59,7 +62,7 @@ export function NumberField({
   return (
     <div className={cn('grid content-start gap-1.5', className)}>
       {label && <Label htmlFor={inputId}>{label}</Label>}
-      <div className="relative">
+      <div className={unitAfter ? 'flex min-w-0 items-center gap-1.5' : 'relative'}>
         <Input
           id={inputId}
           inputMode={integer ? 'numeric' : 'decimal'}
@@ -79,13 +82,15 @@ export function NumberField({
             if (decimals && value !== null && parseDecimal(text) === value) setText(display(value, decimals));
             onBlur?.(e);
           }}
-          className={cn('tabular', unit && 'pr-14', inputClassName)}
+          className={cn('tabular', unitAfter ? 'min-w-0 flex-1' : unit && 'pr-14', inputClassName)}
           {...rest}
         />
         {unit && (
           <span
             className={cn(
-              'pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground',
+              unitAfter
+                ? 'shrink-0 text-sm text-muted-foreground'
+                : 'pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground',
               unitClassName,
             )}
           >

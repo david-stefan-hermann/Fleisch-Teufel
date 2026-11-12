@@ -118,7 +118,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
           };
         if (cfg.kind === 'points') return { ...base, width: 0, paths: () => null };
         if (cfg.kind === 'legend') return { ...base, paths: () => null, points: { show: false } };
-        if (cfg.kind === 'step') return { ...base, paths: uPlot.paths.stepped!({ align: 1 }) };
+        if (cfg.kind === 'step') return { ...base, paths: centeredSteps };
         return base;
       }),
     ];
@@ -213,34 +213,68 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
   return (
     <figure className="ft-chart">
       <div ref={wrap} role="img" aria-label={title} className="w-full" />
-      <table className="sr-only">
-        <caption>{title}</caption>
-        <thead>
-          <tr>
-            <th>Datum</th>
-            {tableSeries.map(({ s }) => (
-              <th key={s.label}>{s.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {xs.slice(-60).map((x, i0) => {
-            const i = xs.length - Math.min(60, xs.length) + i0;
-            return (
-              <tr key={x}>
-                <td>{dateLong.format(new Date(x * 1000))}</td>
-                {tableSeries.map(({ s, si }) => {
-                  const v = (data[si + 1] as (number | null)[])[i];
-                  return <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v) ?? Math.round(v))}</td>;
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* sr-only alone still lets the wide table stretch the page sideways on a small screen. */}
+      <div className="relative max-w-full overflow-hidden">
+        <table className="sr-only">
+          <caption>{title}</caption>
+          <thead>
+            <tr>
+              <th>Datum</th>
+              {tableSeries.map(({ s }) => (
+                <th key={s.label}>{s.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {xs.slice(-60).map((x, i0) => {
+              const i = xs.length - Math.min(60, xs.length) + i0;
+              return (
+                <tr key={x}>
+                  <td>{dateLong.format(new Date(x * 1000))}</td>
+                  {tableSeries.map(({ s, si }) => {
+                    const v = (data[si + 1] as (number | null)[])[i];
+                    return <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v) ?? Math.round(v))}</td>;
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
+
+/** Half a day in x units (seconds): one day's step reaches from half a day before to half a day after. */
+const HALF_DAY = 43_200;
+
+/**
+ * Step line of a daily value (the target in the report): every day gets its own segment centred on its
+ * bar, from the middle between it and the day before to the middle to the next day, so the last day
+ * has one too. Days without a value leave a gap.
+ */
+const centeredSteps: Series.PathBuilder = (u, si, i0, i1) => {
+  const xs = u.data[0] as number[];
+  const ys = u.data[si] as (number | null | undefined)[];
+  const stroke = new Path2D();
+  let drawing = false;
+  for (let i = i0; i <= i1; i++) {
+    const y = ys[i];
+    if (y == null) {
+      drawing = false;
+      continue;
+    }
+    const left = u.valToPos(xs[i]! - HALF_DAY, 'x', true);
+    const right = u.valToPos(xs[i]! + HALF_DAY, 'x', true);
+    const top = u.valToPos(y, 'y', true);
+    // The next day starts where the previous one ended: a vertical line joins the two levels.
+    if (drawing) stroke.lineTo(left, top);
+    else stroke.moveTo(left, top);
+    stroke.lineTo(right, top);
+    drawing = true;
+  }
+  return { stroke, flags: 0 };
+};
 
 const BAR_FACTOR = 0.6;
 const BAR_MAX = 24;

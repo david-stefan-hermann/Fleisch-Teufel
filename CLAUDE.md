@@ -86,7 +86,8 @@ Serve the production web build through the API (same origin, service worker acti
   and add (`into=group:<id>`). Device draft in `db/groupDraft.ts` (`kv`); `saveGroupDraft` patches, soft-deletes
   and adds entries of the same group. A name equal to the meal's stays `groupName: null`. The editor shows all
   photos (`PhotoStrip`) and takes new ones ("Foto aufnehmen oder wählen", `PhotoCaptureSheet`): they wait as
-  bytes in `kv` (`groupDraftPhotos:<id>`, count as a change) and `saveGroupDraft` appends them to every entry. A
+  bytes in `kv` (`groupDraftPhotos:<id>`, count as a change) and `saveGroupDraft` appends them to every entry;
+  the group's saved photos have an X too (`removedPhotoIds` in the draft, dropped from every entry on saving). A
   group with photos has ↻ "Neu analysieren" with all of them (dialog with an optional hint, one more Claude call, online only):
   `groupDraftFromAnalysis` replaces the ingredients of the draft like an unchanged review (first candidate, the
   model's grams; the name follows the dish unless the group has a saved meal), written only on "Änderungen
@@ -188,7 +189,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   reuse is a header save icon that opens `NameDialog` (meal page, training, AI review; after saving the review
   shows a "Gespeichert" chip). Editors with explicit save (meal editor, saved training editor) block leaving
   with `useBlocker` (`shouldBlockFn` in `useCallback`) and show `DiscardDialog`; navigate with `ignoreBlocker`
-  after deleting.
+  after deleting. Settings forms (goals, profile, meal names) do the same through `useSettingsForm(dirty)`:
+  footer "Speichern" active only with changes, saving closes the form. `MealLogView` is not keyed by the
+  meal's `updatedAt`: a synced change is taken over while untouched, else `ConflictBanner` asks.
 - Navigation (round 11): back is the page before. Two exceptions: after logging or saving, never back into the
   finished form; after deleting, never onto the deleted page. A logging flow remembers the diary it started on
   (`lib/logFlow.ts`: `useRememberLogStart` on the taps that start one, `sessionStorage` `ft.logStart`);

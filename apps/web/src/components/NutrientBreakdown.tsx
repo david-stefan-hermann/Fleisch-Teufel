@@ -13,7 +13,7 @@ import {
 } from '@ft/shared';
 import catalog from '@ft/shared/nutrients-catalog.json';
 import { ChevronDown } from 'lucide-react';
-import { useId, useState, type ReactNode } from 'react';
+import { Fragment, useId, useState, type ReactNode } from 'react';
 import { isOverTarget, MACRO_BG, OVER_TEXT, overToneOf, TargetBar } from '@/components/MacroBars';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { fmt0, fmtGrams, fmtPercent, NO_VALUE } from '@/lib/format';
@@ -150,10 +150,15 @@ export function NutrientBreakdown({
                   <span className={cn('size-2 shrink-0 rounded-full', MACRO_BG[k])} aria-hidden />
                   <span className="truncate">{label}</span>
                 </span>
-                <span className="text-right whitespace-nowrap text-muted-foreground">
-                  {grams}
-                  {dayMode || relative ? ' ' : ' · '}
-                  {parts.join(' · ')}
+                {/* On a narrow screen the line breaks between the parts, never inside one. */}
+                <span className="min-w-0 text-right text-muted-foreground">
+                  <span className="whitespace-nowrap">{grams}</span>
+                  {parts.map((part, i) => (
+                    <Fragment key={i}>
+                      {i === 0 && (dayMode || relative) ? ' ' : ' · '}
+                      <span className="whitespace-nowrap">{part}</span>
+                    </Fragment>
+                  ))}
                 </span>
               </div>
               {relative ? (

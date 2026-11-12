@@ -67,13 +67,18 @@ export const fmtTime = (ms: number) => timeShort.format(new Date(ms));
 /** "Heute", "Gestern", "Morgen" or the long date. */
 const rtf = new Intl.RelativeTimeFormat('de-DE', { numeric: 'auto' });
 
-export function fmtRelativeDay(d: ISODate, today: ISODate): string {
+const dayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+/** "Do., 15. Okt." (narrow headers). */
+export const fmtDayShort = (d: ISODate) => dayShort.format(parseISODate(d));
+
+/** "Heute", "Gestern", "Morgen", else the long date (or the short one with `short`). */
+export function fmtRelativeDay(d: ISODate, today: ISODate, short = false): string {
   const diff = Math.round((parseISODate(d).getTime() - parseISODate(today).getTime()) / 86_400_000);
   if (Math.abs(diff) <= 1) {
     const s = rtf.format(diff, 'day');
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  return fmtDayLong(d);
+  return short ? fmtDayShort(d) : fmtDayLong(d);
 }
 
 export function fmtAgo(ms: number, now = Date.now()): string {

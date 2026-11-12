@@ -16,6 +16,7 @@ import { ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { ConflictBanner } from '@/components/ConflictBanner';
 import { MealPhoto } from '@/components/MealPhoto';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
@@ -82,6 +83,26 @@ export function MealLogView({
   // One ingredient row at a time shows its nutrients.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const targets = targetsForDate(goals ?? [], date);
+  // The meal version this view started from. A change of the meal (another device) is taken over
+  // while nothing was changed here; after a change the banner asks (like the editors).
+  const [base, setBase] = useState(meal.updatedAt);
+  const touched = excluded.size > 0 || factor !== 1 || eatenGrams !== null;
+  if (meal.updatedAt !== base && !touched) setBase(meal.updatedAt);
+  const conflict = meal.updatedAt !== base && touched;
+  function reload() {
+    setExcluded(new Set());
+    setFactor(1);
+    setEatenGrams(null);
+    setOpenIndex(null);
+    setBase(meal.updatedAt);
+  }
+  function keepChoices() {
+    // Left-out ingredients are kept by position; positions the meal no longer has are dropped, and
+    // at least one ingredient stays.
+    const left = [...excluded].filter((i) => i < meal.items.length);
+    setExcluded(new Set(left.length < meal.items.length ? left : []));
+    setBase(meal.updatedAt);
+  }
 
   const kept = meal.items.filter((_, i) => !excluded.has(i));
   // Same rounding as `logItems`, so the button shows what gets logged.
@@ -175,6 +196,11 @@ export function MealLogView({
       }
     >
       {!into && <DayNote date={date} />}
+      {conflict && (
+        <ConflictBanner onReload={reload} onKeep={keepChoices}>
+          Auf einem anderen Gerät geändert. Deine Auswahl hier stammt vom alten Stand.
+        </ConflictBanner>
+      )}
       {meal.photoId && (
         <div className="mb-4 overflow-hidden rounded-2xl border border-border/70">
           <MealPhoto photoId={meal.photoId} alt={`Foto von ${meal.name}`} className="aspect-[4/3] w-full" />

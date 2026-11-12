@@ -107,6 +107,10 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
     window.setTimeout(() => setFlash(new Set()), FLASH_MS);
   };
 
+  // Editing: "Speichern" is active once something differs from what the form opened with.
+  const formKey = JSON.stringify({ name, brand, barcode, unit, mode, servingGrams, nutrients, portions });
+  const [openedKey] = useState(formKey);
+  const changed = formKey !== openedKey;
   const factor = mode === 'perPortion' ? (servingGrams && servingGrams > 0 ? 100 / servingGrams : null) : 1;
   const barcodeClean = barcode.replace(/\D/g, '');
   // Another (not deleted) own food with this code: a hint only, saving stays allowed.
@@ -191,7 +195,7 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
       back="/custom-foods"
       withTabBar={false}
       footer={
-        <Button size="lg" type="submit" form="custom-food" disabled={saving}>
+        <Button size="lg" type="submit" form="custom-food" disabled={saving || (!isNew && !changed)}>
           {isNew ? (search.date !== undefined ? 'Anlegen und eintragen' : 'Anlegen') : 'Speichern'}
         </Button>
       }

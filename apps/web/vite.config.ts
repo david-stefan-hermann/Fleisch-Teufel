@@ -51,7 +51,7 @@ export default defineConfig({
         shortcuts: [
           {
             name: 'Essen eintragen',
-            url: '/add',
+            url: '/photo',
             icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }],
           },
           { name: 'Barcode scannen', url: '/scan', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },

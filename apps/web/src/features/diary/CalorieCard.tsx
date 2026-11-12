@@ -100,14 +100,13 @@ export function CalorieOverview({
             value={`+ ${fmt0(summary.creditedKcal)}`}
             muted={nothingCredited}
           />
-          <div className="border-t border-border pt-2">
-            <Row
-              label={over ? 'Zu viel' : 'Übrig'}
-              value={fmt0(Math.abs(summary.remainingKcal))}
-              strong
-              over={over}
-            />
-          </div>
+          <Row
+            label={over ? 'Zu viel' : 'Übrig'}
+            value={fmt0(Math.abs(summary.remainingKcal))}
+            strong
+            over={over}
+            className="border-t border-border pt-2"
+          />
         </dl>
       </div>
       {bars && (
@@ -149,15 +148,20 @@ function Row({
   strong,
   muted,
   over,
+  className = '',
 }: {
   label: string;
   value: string;
   strong?: boolean;
   muted?: boolean;
   over?: boolean;
+  className?: string;
 }) {
+  // One div per dt/dd pair, directly in the dl (the only wrapper a dl allows).
   return (
-    <div className={`flex items-baseline justify-between gap-2 ${muted ? 'text-muted-foreground' : ''}`}>
+    <div
+      className={`flex items-baseline justify-between gap-2 ${muted ? 'text-muted-foreground' : ''} ${className}`}
+    >
       <dt className={strong ? 'font-semibold' : 'text-muted-foreground'}>{label}</dt>
       <dd className={`${strong ? 'text-lg font-bold' : 'font-medium'} ${over ? 'text-over' : ''}`}>
         {value}

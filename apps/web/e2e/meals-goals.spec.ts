@@ -824,7 +824,7 @@ test('a photo taken offline shows in the diary right away and is logged once ana
   await expect(page).toHaveURL(/\/\?date=|\/$/);
   const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
   const waiting = lunch.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
-  await expect(waiting).toContainText('Gespeichert, wird analysiert sobald du online bist');
+  await expect(waiting).toContainText('Gespeichert, wird analysiert, sobald du online bist');
   await expect(waiting.getByLabel('noch keine Kalorien')).toBeVisible();
   await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).not.toContainText('kcal');
   await expect.poll(() => waiting.locator('img').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);

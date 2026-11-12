@@ -249,6 +249,8 @@ export function TrainingSearchPage() {
                   key={t.id}
                   value={t.id}
                   onClick={() => pickTab(t.id)}
+                  // Every tab filters the one result list below (Radix would point at panels that do not exist).
+                  aria-controls="training-search-results"
                   aria-label={t.id === filter ? `${t.label}, Filter aufheben` : undefined}
                   className="relative px-1 text-xs"
                 >
@@ -263,16 +265,18 @@ export function TrainingSearchPage() {
         </div>
       }
     >
-      {body}
-      <CustomTypeDialog
-        key={customName ?? ''}
-        open={customName !== null}
-        defaultName={customName ?? ''}
-        onOpenChange={(o) => !o && setCustomName(null)}
-        onCreated={(typeKey) =>
-          void navigate({ to: '/sport/$typeKey', params: { typeKey }, search: linkSearch })
-        }
-      />
+      <div id="training-search-results" role="tabpanel" aria-label="Ergebnisse">
+        {body}
+        <CustomTypeDialog
+          key={customName ?? ''}
+          open={customName !== null}
+          defaultName={customName ?? ''}
+          onOpenChange={(o) => !o && setCustomName(null)}
+          onCreated={(typeKey) =>
+            void navigate({ to: '/sport/$typeKey', params: { typeKey }, search: linkSearch })
+          }
+        />
+      </div>
     </Page>
   );
 }

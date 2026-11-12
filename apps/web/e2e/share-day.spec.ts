@@ -66,6 +66,57 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
   ]);
   expect((shared[0] as { size: number }).size).toBeGreaterThan(5_000);
 
+  // Steps from Apple Health count as training: with them the part can be chosen, and the picture
+  // carries the steps row (rendered off screen, watched while it is built).
+  await page.evaluate(async (date) => {
+    const r = await fetch('/api/sync/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        records: [
+          {
+            table: 'exerciseEntries',
+            data: {
+              id: `s:${date}`,
+              updatedAt: Date.now() - 1_000,
+              deleted: false,
+              date,
+              typeKey: 'steps',
+              name: 'Schritte',
+              minutes: 76,
+              intensity: 'moderate',
+              met: 3.5,
+              weightKg: 75,
+              kcal: 166,
+              loggedAt: Date.now() - 1_000,
+              steps: 7_654,
+              distanceM: 5_400,
+            },
+          },
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error(`push ${r.status}`);
+  }, today);
+  await page.reload();
+  await expect(page.getByRole('link', { name: '7.654 Schritte' })).toBeVisible();
+  await page.evaluate(() => {
+    const w = window as unknown as { __stepsInImage?: boolean };
+    w.__stepsInImage = false;
+    new MutationObserver(() => {
+      if (document.querySelector('body > div[style*="-10000px"]')?.textContent?.includes('7.654 Schritte'))
+        w.__stepsInImage = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  await page.getByRole('button', { name: 'Tag teilen' }).click();
+  await expect(dialog.getByRole('checkbox', { name: /Training/ })).toBeEnabled();
+  await dialog.getByRole('checkbox', { name: /Training/ }).click();
+  await dialog.getByRole('button', { name: 'Teilen' }).click();
+  await expect(dialog).toBeHidden({ timeout: 20_000 });
+  expect(await page.evaluate(() => (window as unknown as { __stepsInImage: boolean }).__stepsInImage)).toBe(
+    true,
+  );
+
   // Switching days keeps exactly one note card (the dialog once shared the note card's key, and
   // siblings with the same key left the cards of other days behind).
   await page.getByRole('button', { name: 'Vorheriger Tag' }).click();

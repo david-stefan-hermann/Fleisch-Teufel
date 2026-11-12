@@ -12,6 +12,9 @@ import {
   DEFAULT_MEAL_NAMES,
   EXERCISE_TYPE_MAP,
   metFor,
+  STEPS_MET,
+  STEPS_TYPE_KEY,
+  stepsValues,
   trainingKcal,
   round,
   today,
@@ -158,6 +161,29 @@ for (let d = 0; d <= 41; d++) {
       });
     }
   }
+  // Steps as the Apple Health shortcut sends them (one record per day under `s:<date>`).
+  const steps = Math.round(4_000 + rnd() * 8_000);
+  const distance = Math.round(steps * (0.68 + rnd() * 0.1));
+  const sv = stepsValues({ steps, distanceM: distance, weightKg: round(kg, 1) });
+  records.push({
+    table: 'exerciseEntries',
+    data: {
+      id: dayId.steps(date),
+      updatedAt: now,
+      deleted: false,
+      date,
+      typeKey: STEPS_TYPE_KEY,
+      name: 'Schritte',
+      minutes: sv.minutes,
+      intensity: 'moderate',
+      met: STEPS_MET,
+      weightKg: round(kg, 1),
+      kcal: sv.kcal,
+      loggedAt: now,
+      steps,
+      distanceM: sv.distanceM,
+    },
+  });
   if (d % 3 === 0) {
     const type = EXERCISE_TYPE_MAP.get(d % 6 === 0 ? 'running' : 'strength')!;
     const met = metFor(type, 'moderate');

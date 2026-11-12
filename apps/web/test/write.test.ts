@@ -1315,6 +1315,26 @@ describe('diary group editor (only these entries, never the saved meal)', () => 
     expect(await d.meals.get('m1')).toEqual(mealBefore);
   });
 
+  it('removes saved photos taken out in the editor from every entry of the group', async () => {
+    const { d, entries, groupId } = await setup();
+    const jpeg = new Blob([new Uint8Array([5])], { type: 'image/jpeg' });
+    await addGroupDraftPhotos(d, groupId, [jpeg]);
+    const draft = { ...draftFromEntries(entries, 'Bowl'), removedPhotoIds: ['p1'] };
+    expect(isGroupDirty(draft, entries, 'Bowl')).toBe(true);
+    expect(await saveGroupDraft(d, draft)).toBe(true);
+    const live = await groupEntries(d, groupId, '2026-10-09');
+    const ids = live[0]!.photoIds!;
+    expect(ids).toHaveLength(1);
+    expect(ids[0]).not.toBe('p1');
+    for (const e of live) expect(e).toMatchObject({ photoId: ids[0], photoIds: ids });
+
+    // The last photo removed: the entries have none left.
+    const again = { ...draftFromEntries(live, 'Bowl'), removedPhotoIds: ids };
+    expect(await saveGroupDraft(d, again)).toBe(true);
+    for (const e of await groupEntries(d, groupId, '2026-10-09'))
+      expect(e).toMatchObject({ photoId: null, photoIds: null });
+  });
+
   it('leaves the photos of the entries alone without added ones, and drops added ones with the draft', async () => {
     const { d, entries, groupId } = await setup();
     const draft = draftFromEntries(entries, 'Bowl');

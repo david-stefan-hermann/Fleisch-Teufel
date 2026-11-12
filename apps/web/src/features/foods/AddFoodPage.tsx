@@ -297,6 +297,8 @@ export function AddFoodPage() {
                   key={t.id}
                   value={t.id}
                   onClick={() => pickTab(t.id)}
+                  // Every tab filters the one result list below (Radix would point at panels that do not exist).
+                  aria-controls="food-search-results"
                   aria-label={t.id === filter ? `${t.label}, Filter aufheben` : undefined}
                   className="relative px-1 text-xs"
                 >
@@ -311,153 +313,157 @@ export function AddFoodPage() {
         </div>
       }
     >
-      {searching && (
-        <>
-          {local?.suggestion && (
-            <p className="mb-2 text-sm text-muted-foreground">
-              Meintest du{' '}
+      <div id="food-search-results" role="tabpanel" aria-label="Ergebnisse">
+        {searching && (
+          <>
+            {local?.suggestion && (
+              <p className="mb-2 text-sm text-muted-foreground">
+                Meintest du{' '}
+                <button
+                  type="button"
+                  className="min-h-10 font-medium text-primary underline underline-offset-2"
+                  onClick={() => setQuery(local.suggestion!)}
+                >
+                  „{local.suggestion}“
+                </button>
+                ?
+              </p>
+            )}
+            {rows && rows.length > 0 && (
+              <ul ref={listRef} data-q={q} className="-mx-4 divide-y divide-border/70">
+                {rows.map((r) => (
+                  <SearchResultRow
+                    key={r.id}
+                    row={r}
+                    usage={history?.usage}
+                    userPortions={userPortions}
+                    search={linkSearch}
+                  />
+                ))}
+              </ul>
+            )}
+            {rows && rows.length === 0 && onlineState !== 'loading' && (
+              <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
+                <Link
+                  to="/custom-food/$id"
+                  params={{ id: 'new' }}
+                  search={{ name: q, ...linkSearch }}
+                  className="text-primary underline"
+                >
+                  Eigenes Lebensmittel anlegen
+                </Link>
+              </EmptyState>
+            )}
+            <OnlineStatus state={onlineState} short={q.length < 3} />
+          </>
+        )}
+
+        {!typing && tab === 'recent' && (
+          <RecentList
+            items={history?.recent}
+            search={linkSearch}
+            onQuick={(r) => void run(() => quickRelog(r))}
+          />
+        )}
+        {!typing && tab === 'frequent' && (
+          <RecentList
+            items={history?.frequent}
+            search={linkSearch}
+            onQuick={(r) => void run(() => quickRelog(r))}
+            showCount
+            empty="Noch nichts mehrfach eingetragen"
+          />
+        )}
+
+        {filtered &&
+          (filtered.length > 0 ? (
+            <RecentList
+              items={filtered}
+              search={linkSearch}
+              onQuick={(r) => void run(() => quickRelog(r))}
+              showCount={filter === 'frequent'}
+            />
+          ) : (
+            <EmptyState
+              icon={<Search />}
+              title={`Nichts in „${TABS.find((t) => t.id === filter)?.label}“ für „${q}“`}
+            >
               <button
                 type="button"
                 className="min-h-10 font-medium text-primary underline underline-offset-2"
-                onClick={() => setQuery(local.suggestion!)}
+                onClick={searchEverywhere}
               >
-                „{local.suggestion}“
+                Überall suchen
               </button>
-              ?
-            </p>
-          )}
-          {rows && rows.length > 0 && (
-            <ul ref={listRef} data-q={q} className="-mx-4 divide-y divide-border/70">
-              {rows.map((r) => (
-                <SearchResultRow
-                  key={r.id}
-                  row={r}
-                  usage={history?.usage}
-                  userPortions={userPortions}
-                  search={linkSearch}
+            </EmptyState>
+          ))}
+
+        {own && filteringOwn && (
+          <>
+            {own.meals.length > 0 && (
+              <>
+                <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
+                  Meals ({own.meals.length})
+                </h2>
+                <div className="mb-4">
+                  <MealList meals={own.meals} search={linkSearch} />
+                </div>
+              </>
+            )}
+            {own.custom.length > 0 && (
+              <>
+                <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
+                <ul className="-mx-4 divide-y divide-border/70">
+                  {own.custom.map((c) => (
+                    <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
+                  ))}
+                </ul>
+              </>
+            )}
+            {own.meals.length === 0 && own.custom.length === 0 && (
+              <EmptyState icon={<Search />} title="Nichts Eigenes gefunden">
+                <Link
+                  to="/custom-food/$id"
+                  params={{ id: 'new' }}
+                  search={{ name: q, ...linkSearch }}
+                  className="text-primary underline"
+                >
+                  Eigenes Lebensmittel anlegen
+                </Link>
+              </EmptyState>
+            )}
+          </>
+        )}
+
+        {!typing && tab === 'mine' && (
+          <>
+            <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
+              <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
+                <span>Meals{meals ? ` (${meals.length})` : ''}</span>
+                <ChevronDown
+                  className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                  aria-hidden
                 />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <MealList meals={meals} search={linkSearch} />
+              </CollapsibleContent>
+            </Collapsible>
+            <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
+            <Button variant="outline" className="mb-3 w-full" asChild>
+              <Link to="/custom-food/$id" params={{ id: 'new' }} search={linkSearch}>
+                <Plus aria-hidden /> Eigenes Lebensmittel anlegen
+              </Link>
+            </Button>
+            {custom && custom.length === 0 && <EmptyState title="Noch keine eigenen Lebensmittel" />}
+            <ul className="-mx-4 divide-y divide-border/70">
+              {custom?.map((c) => (
+                <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
               ))}
             </ul>
-          )}
-          {rows && rows.length === 0 && onlineState !== 'loading' && (
-            <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
-              <Link
-                to="/custom-food/$id"
-                params={{ id: 'new' }}
-                search={{ name: q, ...linkSearch }}
-                className="text-primary underline"
-              >
-                Eigenes Lebensmittel anlegen
-              </Link>
-            </EmptyState>
-          )}
-          <OnlineStatus state={onlineState} short={q.length < 3} />
-        </>
-      )}
-
-      {!typing && tab === 'recent' && (
-        <RecentList
-          items={history?.recent}
-          search={linkSearch}
-          onQuick={(r) => void run(() => quickRelog(r))}
-        />
-      )}
-      {!typing && tab === 'frequent' && (
-        <RecentList
-          items={history?.frequent}
-          search={linkSearch}
-          onQuick={(r) => void run(() => quickRelog(r))}
-          showCount
-          empty="Noch nichts mehrfach eingetragen"
-        />
-      )}
-
-      {filtered &&
-        (filtered.length > 0 ? (
-          <RecentList
-            items={filtered}
-            search={linkSearch}
-            onQuick={(r) => void run(() => quickRelog(r))}
-            showCount={filter === 'frequent'}
-          />
-        ) : (
-          <EmptyState
-            icon={<Search />}
-            title={`Nichts in „${TABS.find((t) => t.id === filter)?.label}“ für „${q}“`}
-          >
-            <button
-              type="button"
-              className="min-h-10 font-medium text-primary underline underline-offset-2"
-              onClick={searchEverywhere}
-            >
-              Überall suchen
-            </button>
-          </EmptyState>
-        ))}
-
-      {own && filteringOwn && (
-        <>
-          {own.meals.length > 0 && (
-            <>
-              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Meals ({own.meals.length})</h2>
-              <div className="mb-4">
-                <MealList meals={own.meals} search={linkSearch} />
-              </div>
-            </>
-          )}
-          {own.custom.length > 0 && (
-            <>
-              <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
-              <ul className="-mx-4 divide-y divide-border/70">
-                {own.custom.map((c) => (
-                  <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
-                ))}
-              </ul>
-            </>
-          )}
-          {own.meals.length === 0 && own.custom.length === 0 && (
-            <EmptyState icon={<Search />} title="Nichts Eigenes gefunden">
-              <Link
-                to="/custom-food/$id"
-                params={{ id: 'new' }}
-                search={{ name: q, ...linkSearch }}
-                className="text-primary underline"
-              >
-                Eigenes Lebensmittel anlegen
-              </Link>
-            </EmptyState>
-          )}
-        </>
-      )}
-
-      {!typing && tab === 'mine' && (
-        <>
-          <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
-            <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
-              <span>Meals{meals ? ` (${meals.length})` : ''}</span>
-              <ChevronDown
-                className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                aria-hidden
-              />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <MealList meals={meals} search={linkSearch} />
-            </CollapsibleContent>
-          </Collapsible>
-          <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Eigene Lebensmittel</h2>
-          <Button variant="outline" className="mb-3 w-full" asChild>
-            <Link to="/custom-food/$id" params={{ id: 'new' }} search={linkSearch}>
-              <Plus aria-hidden /> Eigenes Lebensmittel anlegen
-            </Link>
-          </Button>
-          {custom && custom.length === 0 && <EmptyState title="Noch keine eigenen Lebensmittel" />}
-          <ul className="-mx-4 divide-y divide-border/70">
-            {custom?.map((c) => (
-              <FoodRow key={c.id} food={customToFood(c)} search={linkSearch} />
-            ))}
-          </ul>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </Page>
   );
 }

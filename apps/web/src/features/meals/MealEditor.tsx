@@ -1,4 +1,5 @@
 import {
+  uuidv7,
   mealPer100,
   mealRawGrams,
   N,
@@ -20,6 +21,7 @@ import { NameDialog } from '@/components/NameDialog';
 import { NumberField } from '@/components/NumberField';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
+import { PageSkeleton } from '@/components/PageSkeleton';
 import { ConflictBanner } from '@/components/ConflictBanner';
 import { ScalePresets } from '@/components/ScalePresets';
 import { Button } from '@/components/ui/button';
@@ -67,8 +69,8 @@ export function MealEditor({ meal, fromLog = false }: { meal: Meal; fromLog?: bo
     if (stale && !conflict) void clearMealDraft(db, meal.id);
   }, [stale, conflict, db, meal.id]);
   // Mount only once both answered, or the form would start from the saved meal and miss the draft.
-  if (draft === undefined || photo === undefined) return null;
-  if (stale && !conflict) return null;
+  if (draft === undefined || photo === undefined || (stale && !conflict))
+    return <PageSkeleton title={meal.name || 'Neues Meal'} />;
   return (
     <MealEditorForm
       // Without a draft the form follows the meal; with one it keeps its base until the person decides.
@@ -89,6 +91,9 @@ export function MealEditor({ meal, fromLog = false }: { meal: Meal; fromLog?: bo
   );
 }
 
+/** An ingredient in the form, with its React key (kept in the device draft, dropped on saving). */
+type KeyedItem = MealItem & { key?: string };
+
 function MealEditorForm({
   meal,
   initial,
@@ -106,7 +111,12 @@ function MealEditorForm({
   const navigate = useNavigate();
   const router = useRouter();
   const goals = useGoals();
-  const [draft, setDraft] = useState(initial);
+  // Every ingredient gets a stable key when the form loads (also the ones added through the search,
+  // which arrive in the draft while the editor is closed): removing one keeps the state of the others.
+  const [draft, setDraft] = useState<MealDraft>(() => ({
+    ...initial,
+    items: initial.items.map((it: KeyedItem) => ({ ...it, key: it.key ?? uuidv7() })),
+  }));
   /** Write-through: local state for smooth typing, the `kv` draft for surviving navigation. */
   const commit = (next: MealDraft) => {
     setDraft(next);
@@ -114,7 +124,7 @@ function MealEditorForm({
   };
   // "Gesamtmenge" scales the amounts of the last manual change (`scaleBase`), like the AI review.
   const [scale, setScale] = useState(1);
-  const [scaleBase, setScaleBase] = useState<MealItem[]>(initial.items);
+  const [scaleBase, setScaleBase] = useState<MealItem[]>(draft.items);
   const commitItems = (items: MealItem[]) => {
     commit({ ...draft, items });
     setScale(1);
@@ -255,16 +265,21 @@ function MealEditorForm({
           />
         </div>
       </Section>
-      {draft.items.map((item, i) => (
+      {draft.items.map((item: KeyedItem, i) => (
         <IngredientCard
-          key={i}
+          key={item.key ?? i}
           item={item}
           removable={draft.items.length > 1}
           targets={targets}
           onChange={(next) =>
-            setDraft({ ...draft, items: draft.items.map((it, j) => (j === i ? next : it)) })
+            setDraft({
+              ...draft,
+              items: draft.items.map((it, j) => (j === i ? { ...next, key: item.key } : it)),
+            })
           }
-          onCommit={(next) => commitItems(draft.items.map((it, j) => (j === i ? next : it)))}
+          onCommit={(next) =>
+            commitItems(draft.items.map((it, j) => (j === i ? { ...next, key: item.key } : it)))
+          }
           onRemove={() => commitItems(draft.items.filter((_, j) => j !== i))}
         />
       ))}

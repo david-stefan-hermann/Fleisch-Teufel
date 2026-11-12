@@ -465,7 +465,7 @@ export function PhotoPage() {
           {aiEnabled === false && (
             <p role="alert" className="mb-4 flex gap-2 rounded-xl bg-warn/10 p-3 text-sm">
               <TriangleAlert className="size-5 shrink-0 text-warn" aria-hidden />
-              Die Foto-Analyse ist auf dem Server nicht eingerichtet (ANTHROPIC_API_KEY fehlt).
+              KI-Analyse auf dem Server ausgeschaltet
             </p>
           )}
           <CameraCapture

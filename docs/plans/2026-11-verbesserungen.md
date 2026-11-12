@@ -20,8 +20,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 7     | erledigt | 23db23d |
 | 8     | erledigt | b4f880e |
 | 9     | erledigt | b0a3606 |
-| 10    | erledigt |         |
-| 11    | offen    |         |
+| 10    | erledigt | ba64060 |
+| 11    | erledigt |         |
 | 12    | offen    |         |
 | 13    | offen    |         |
 
@@ -178,6 +178,32 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   der Mediathek wählen.“; `MealEditor.tsx` Toast-Beschreibung „Unter „Eigene Lebensmittel“ und in der Suche, pro
   100 g.“ (wie Zeile 2); `DiaryPage.tsx` Karte „Ziele einrichten“: „Berechne deinen Kalorienbedarf und deine
   Makroziele in einer Minute.“; `lib/api.ts` `refused`-Meldung „… oder trage das Essen manuell ein.“
+
+- Block 11, F10: uPlot kennt kein `stepped({ align: 0 })` (nur 1 und -1). Die Zielstufenlinie zeichnet ein eigener
+  Pfad (`centeredSteps` in `Chart.tsx`): jeder Tag ein Segment von einem halben Tag davor bis einen halben Tag danach,
+  benachbarte Tage senkrecht verbunden; `chartData.ts` bleibt ohne zusätzlichen Punkt.
+- Block 11, F10: Ziele, Profil und Mahlzeiten schließen nach dem Speichern wie der Meal-Editor (zurück zur Seite davor,
+  sonst `/more`); „Speichern" ist nur mit Änderungen aktiv. Gemeinsamer Hook `useSettingsForm`. Der Satz im Toast
+  „Makros nach Vorlage berechnet. Speichern nicht vergessen" bleibt.
+- Block 11, U12: Die Suchreiter bleiben Tabs (die E2E-Tests fragen `role=tab` ab); alle zeigen per `aria-controls`
+  auf ein Ergebnis-Panel (`role="tabpanel"`) um die Trefferliste. Kontrast: neues Token `--exercise-text` für
+  „N× eingetragen", kcal im Hauptknopf mit `opacity-90`. Der axe-Test fand zusätzlich
+  `label-content-name-mismatch` im Wochenstreifen („Mo 9" sichtbar, „Montag, 9. November" als `aria-label`): der
+  volle Name steht jetzt als `sr-only`-Text im Link, die sichtbaren Teile sind `aria-hidden`.
+- Block 11, U5: Das kurze Datum im Tagebuchkopf wird gemessen (`useFittingDate` in `DiaryPage.tsx`), nicht per
+  Media Query: lang, solange es zwischen die Pfeile passt, sonst „Mi., 30. Sept.". Die Ziel-Makrofelder haben die
+  Einheit daneben (`NumberField unitAfter`).
+- Block 11, U15: Offline merkt sich das Gerät die letzte Antwort zur KI (`localStorage` `ft.aiEnabled`); war sie
+  aus, verschwindet „Etikett fotografieren · Nur online". Entfernbar sind nur die eigenen Fotos einer Gruppe, nicht
+  das Foto des gespeicherten Meals, das sie ersatzweise zeigt. Das Gewichtsdiagramm nimmt ±2 kg, sobald alle
+  Werte (auch Mittel und Ziel) gleich sind.
+- Block 11, E5: „Meine Änderungen behalten" behält ausgelassene Zutaten nach ihrer Position (Positionen, die das
+  Meal nicht mehr hat, fallen weg); Text des Banners dort: „Auf einem anderen Gerät geändert. Deine Auswahl hier
+  stammt vom alten Stand." (`ConflictBanner` nimmt dafür `children`).
+- Block 11, E7: „wird analysiert, sobald du online bist" nur, wenn das Gerät offline ist oder der letzte Sync den
+  Server nicht erreichte (`useOffline`), sonst „Gespeichert, wird analysiert". Skeleton über `PageSkeleton`.
+- Block 11, B9: der share-day-Test schreibt einen Schritte-Datensatz per Sync-Push und prüft, dass das Bild die
+  Schritte-Zeile enthält.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

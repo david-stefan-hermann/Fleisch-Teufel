@@ -37,6 +37,8 @@ export interface GroupDraft {
   aiAnalysisId?: string;
   /** `groupVersion` of the entries the draft started from (see `MealDraft.baseUpdatedAt`). */
   baseUpdatedAt?: number;
+  /** Saved photos of the group removed in the editor (the photo itself stays until the server cleanup). */
+  removedPhotoIds?: string[];
 }
 
 /**
@@ -178,7 +180,8 @@ export function isGroupDirty(draft: GroupDraft, entries: readonly FoodEntry[], n
   const saved = draftFromEntries(entries, name);
   return (
     (draft.name.trim() || name) !== name ||
-    JSON.stringify(comparable(draft)) !== JSON.stringify(comparable(saved))
+    JSON.stringify(comparable(draft)) !== JSON.stringify(comparable(saved)) ||
+    (draft.removedPhotoIds ?? []).some((id) => photoIdsOf(entries[0]!).includes(id))
   );
 }
 
@@ -228,7 +231,8 @@ export async function groupName(db: UserDb, entries: readonly FoodEntry[]): Prom
  * - removed ones are deleted (soft, like every delete),
  * - added ones become new entries of the same group (same meal and photos; the analysis of the draft
  *   after "Neu analysieren", else the group's), after the last one,
- * - photos added in the editor are stored (and uploaded) and appended to the photos of every entry.
+ * - photos added in the editor are stored (and uploaded) and appended to the photos of every entry;
+ *   saved photos removed in the editor leave every entry (`removedPhotoIds`).
  * The saved meal is never touched. A name equal to the saved meal's name stays unset (`groupName`
  * null), so the row keeps following the meal. Returns false when the group is gone.
  */
@@ -270,19 +274,25 @@ async function writeGroup(db: UserDb, draft: GroupDraft, asMeal: GroupAsMeal | n
     const meal = first.mealId ? await db.meals.get(first.mealId) : undefined;
     const typed = draft.name.trim().slice(0, 120);
 
-    // Photos: unchanged without added ones; else the group's (or the meal photo it showed) plus the new.
+    // Photos: unchanged without added or removed ones; else the group's (or the meal photo it showed)
+    // without the removed ones, plus the new.
     let photos: { photoId: string | null; photoIds: string[] | null } = {
       photoId: first.photoId,
       photoIds: first.photoIds ?? null,
     };
-    if (added.length > 0) {
-      const stored = photoIdsOf(first);
-      const base = stored.length ? stored : meal?.photoId ? [meal.photoId] : [];
+    const stored = photoIdsOf(first);
+    const removed = new Set((draft.removedPhotoIds ?? []).filter((id) => stored.includes(id)));
+    const photosChanged = added.length > 0 || removed.size > 0;
+    if (photosChanged) {
+      const base = stored.length
+        ? stored.filter((id) => !removed.has(id))
+        : meal?.photoId
+          ? [meal.photoId]
+          : [];
       const ids = [...base];
       for (const p of added) ids.push(await storePhotoBytes(db, p.bytes, p.type));
-      photos = { photoId: ids[0]!, photoIds: ids };
+      photos = ids.length ? { photoId: ids[0]!, photoIds: ids } : { photoId: null, photoIds: null };
     }
-    const photosChanged = added.length > 0;
 
     let mealId = first.mealId;
     let groupNameValue: string | null;
