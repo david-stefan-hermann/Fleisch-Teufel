@@ -2,6 +2,8 @@
 import {
   foodFromMeal,
   groupDiaryEntries,
+  groupTrainingEntries,
+  isStepsEntry,
   MAX_HINT_LENGTH,
   QUICK_ENTRY_DEFAULT_NAMES,
   QUICK_ENTRY_NAME,
@@ -17,6 +19,7 @@ import {
   type ISODate,
   type Meal,
   type MealItem,
+  type TrainingRow,
   photoIdsOf,
 } from '@ft/shared';
 import type { AiItem } from './aiDraft';
@@ -209,6 +212,48 @@ export async function logTrainings(
       ids.push(id);
     }
     return ids;
+  });
+}
+
+/** Key of a training card row: the entry id, or `group:<groupId>` for a package. */
+export const trainingRowKey = (row: TrainingRow<ExerciseEntry>) =>
+  row.kind === 'entry' ? row.entry.id : `group:${row.groupId}`;
+
+/**
+ * New order of the day's training rows (steps excluded; drag in the training card). Renumbers `loggedAt`
+ * of every live non-steps entry from the smallest existing value upwards, a package's activities together
+ * in their inner order; keys without a live row are ignored, rows missing from `orderedKeys` keep their
+ * relative place at the end. Only entries whose `loggedAt` changes are written. `loggedAt` is the only
+ * order key (card, day image, CSV); the training suggestions use it only as a tie-break within a day.
+ * Returns the previous key order (undo).
+ */
+export async function reorderTrainings(
+  db: UserDb,
+  date: ISODate,
+  orderedKeys: readonly string[],
+): Promise<string[]> {
+  return db.transaction('rw', [db.exerciseEntries, db.outbox], async () => {
+    const live = (await db.exerciseEntries.where('date').equals(date).toArray()).filter(
+      (e) => !e.deleted && !isStepsEntry(e),
+    );
+    const rows = groupTrainingEntries(live);
+    const previous = rows.map(trainingRowKey);
+    if (rows.length === 0) return previous;
+    const byKey = new Map(rows.map((r) => [trainingRowKey(r), r]));
+    const ordered: TrainingRow<ExerciseEntry>[] = [];
+    for (const key of orderedKeys) {
+      const row = byKey.get(key);
+      if (!row) continue;
+      ordered.push(row);
+      byKey.delete(key);
+    }
+    ordered.push(...byKey.values());
+    const base = Math.min(...live.map((e) => e.loggedAt));
+    const entries = ordered.flatMap((r) => (r.kind === 'entry' ? [r.entry] : r.entries));
+    for (const [i, e] of entries.entries()) {
+      if (e.loggedAt !== base + i) await patchRecord(db, 'exerciseEntries', e.id, { loggedAt: base + i });
+    }
+    return previous;
   });
 }
 

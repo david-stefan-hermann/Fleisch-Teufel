@@ -17,8 +17,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 4     | erledigt | 41cf459 |
 | 5     | erledigt | 81ef7ef |
 | 6     | erledigt | 7b4f0d0 |
-| 7     | erledigt |         |
-| 8     | offen    |         |
+| 7     | erledigt | 23db23d |
+| 8     | erledigt |         |
 | 9     | offen    |         |
 | 10    | offen    |         |
 | 11    | offen    |         |
@@ -138,6 +138,24 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   `food-search.spec.ts:120,125`) und in „Daten & Sync“ steht die Tabellenliste jetzt in `rejectedRecords.ts`
   (Block 5). Mit Suchtext zeigen leere Abschnitte „Keine Treffer“; der Schritte-Abschnitt erscheint weiter nur,
   wenn es gelöschte Schritte gibt.
+- Block 8: `reorderTrainings` nummeriert ab dem kleinsten `loggedAt` des Tages (Ausarbeitung), nicht ab
+  `Date.now()` minus n (Kurzfassung). Die Ziehmechanik liegt allgemein als `SortableRows`/`SortableRow` in
+  `features/diary/TrainingSortable.tsx` (dort auch `TrainingSortable` mit Schreiben und Rückgängig); `DiaryDnd.tsx`
+  exportiert dafür zusätzlich `useDragSensors` (die Sensoren mit `DRAG_ACTIVATION`) neben `DragStateProvider`. Ein
+  Klick bis 400 ms nach dem Loslassen wird geschluckt (sonst öffnete die Maus nach dem Ziehen die Zeile). Wer in einem
+  aufgeklappten Paket eine Aktivität lange drückt, zieht das ganze Paket. Bis die Live-Abfrage die neue Reihenfolge
+  liefert, kann die Zeile kurz an den alten Platz springen (am iPhone prüfen).
+- Block 8: „Wie gestern eintragen“ steht im ⋯-Menü, sobald gestern Trainings hat (auch wenn heute schon welche
+  da sind); der Chip „Wie gestern“ bleibt nur auf der leeren Karte. „Kopieren“ und „Alle Trainings löschen“ sind
+  ohne Trainings ausgegraut (wie bei den Mahlzeiten); das Menü steht immer im Kopf. Toast nach dem Löschen
+  „Alle Trainings gelöscht“.
+- Block 8: `runStepsShortcut` gibt `unavailable` zurück, wenn schon ein Abruf läuft (sonst gibt es keinen solchen
+  Fall). Den Toast „Keine neuen Schritte empfangen“ zeigt `fetchSteps` (`StepsRefreshButton.tsx`) für alle drei
+  Knöpfe: Fußabdruck im Kartenkopf, ↻ auf der Schritte-Seite und „Jetzt abrufen“ unter Mehr → Schritte. Mit
+  „Bewegung reduzieren“ pulsiert der Fußabdruck nicht.
+- Block 8: E2E „⋯ Kopieren“ nutzt zwei einzelne Trainings (Radfahren, Yoga); Pakete prüft der Unit-Test
+  (`trainingClipboard.test.ts`). Zusätzlich `components.test.tsx` für `TrainingCardMenu` und `steps.test.ts` für die
+  Ergebnisse von `runStepsShortcut`.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

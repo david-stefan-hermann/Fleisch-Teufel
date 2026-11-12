@@ -20,6 +20,7 @@ import {
   logItems,
   logQuickEntry,
   moveEntriesToMeal,
+  reorderTrainings,
   logTrainings,
   quickEntryText,
   saveExercise,
@@ -1913,5 +1914,79 @@ describe('"Gerätedaten löschen": what is only on this device', () => {
       'Noch nicht hochgeladen: 2 Fotos. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; ' +
         'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf.',
     );
+  });
+});
+
+describe('training order (drag in the training card)', () => {
+  const row = (typeKey: string, group?: string) => ({
+    typeKey,
+    name: typeKey,
+    minutes: 30,
+    intensity: 'moderate' as const,
+    met: 6,
+    weightKg: 80,
+    kcal: 200,
+    note: null,
+    ...(group !== undefined && { group, templateId: 't1' }),
+  });
+  const day = '2026-11-08';
+  const order = async (d: UserDb) =>
+    (await d.exerciseEntries.where('date').equals(day).sortBy('loggedAt'))
+      .filter((e) => !e.deleted)
+      .map((e) => e.typeKey);
+
+  it('moves a package as a whole, writes only entries whose place changed, undo restores the order', async () => {
+    const d = db();
+    const [run, strength, , cycling] = await logTrainings(d, day, [
+      row('running'),
+      row('strength', 'a'),
+      row('stretching', 'a'),
+      row('cycling'),
+    ]);
+    const groupId = (await d.exerciseEntries.get(strength!))!.groupId!;
+    const before = await d.exerciseEntries.where('date').equals(day).sortBy('loggedAt');
+    await d.outbox.clear();
+    const previous = await reorderTrainings(d, day, [cycling!, `group:${groupId}`, run!]);
+    expect(previous).toEqual([run, `group:${groupId}`, cycling]);
+    expect(await order(d)).toEqual(['cycling', 'strength', 'stretching', 'running']);
+    // The package keeps its places 1 and 2: its activities are not written again.
+    for (const e of before.filter((e) => e.groupId === groupId)) {
+      expect(await d.exerciseEntries.get(e.id)).toEqual(e);
+    }
+    expect((await d.outbox.toArray()).map((o) => o.id).sort()).toEqual([cycling, run].sort());
+    const after = await d.exerciseEntries.where('date').equals(day).sortBy('loggedAt');
+    expect(after.map((e) => e.loggedAt)).toEqual(before.map((e) => e.loggedAt));
+
+    await reorderTrainings(d, day, previous);
+    expect(await order(d)).toEqual(['running', 'strength', 'stretching', 'cycling']);
+  });
+
+  it('ignores unknown and deleted keys, appends rows left out, never touches the steps', async () => {
+    const d = db();
+    await saveRecord(d, 'exerciseEntries', {
+      ...row('steps'),
+      id: dayId.steps(day),
+      date: day,
+      name: 'Schritte',
+      loggedAt: 1,
+      templateId: null,
+      groupId: null,
+      steps: 8432,
+      distanceM: null,
+    });
+    const steps = await d.exerciseEntries.get(dayId.steps(day));
+    const [run, strength, , cycling] = await logTrainings(d, day, [
+      row('running'),
+      row('strength', 'a'),
+      row('stretching', 'a'),
+      row('cycling'),
+    ]);
+    const groupId = (await d.exerciseEntries.get(strength!))!.groupId!;
+    await deleteRecord(d, 'exerciseEntries', run!);
+    await reorderTrainings(d, day, [run!, 'nope', cycling!]);
+    expect(await order(d)).toEqual(['steps', 'cycling', 'strength', 'stretching']);
+    expect(await d.exerciseEntries.get(dayId.steps(day))).toEqual(steps);
+    expect(await reorderTrainings(d, day, [`group:${groupId}`])).toEqual([cycling, `group:${groupId}`]);
+    expect(await order(d)).toEqual(['steps', 'strength', 'stretching', 'cycling']);
   });
 });

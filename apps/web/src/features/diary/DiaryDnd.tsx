@@ -49,6 +49,17 @@ export interface DragRowData {
 
 const DragState = createContext<{ dragging: boolean }>({ dragging: false });
 
+/** Provides the drag state to rows outside `DiaryDnd` (the sortable training rows). */
+export const DragStateProvider = DragState.Provider;
+
+/** Mouse and touch sensors with the long press (see the top of this file). */
+export function useDragSensors() {
+  return useSensors(
+    useSensor(MouseSensor, { activationConstraint: DRAG_ACTIVATION }),
+    useSensor(TouchSensor, { activationConstraint: DRAG_ACTIVATION }),
+  );
+}
+
 /** Whether a diary row is being dragged right now (false outside the diary). */
 export function useDiaryDrag() {
   return useContext(DragState);
@@ -56,10 +67,7 @@ export function useDiaryDrag() {
 
 export function DiaryDnd({ mealNames, children }: { mealNames: string[]; children: ReactNode }) {
   const db = useDb();
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: DRAG_ACTIVATION }),
-    useSensor(TouchSensor, { activationConstraint: DRAG_ACTIVATION }),
-  );
+  const sensors = useDragSensors();
   const [active, setActive] = useState<DragRowData | null>(null);
   const moving = useRef(false);
   const mealName = (m: number) => mealNames[m] ?? `Mahlzeit ${m + 1}`;

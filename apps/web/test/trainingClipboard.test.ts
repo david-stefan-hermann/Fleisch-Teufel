@@ -11,6 +11,8 @@ import {
 import { UserDb } from '@/db/dexie';
 import { logTrainings } from '@/db/entries';
 import { saveRecord } from '@/db/write';
+import { trainingClipboardDetail } from '@/features/diary/ClipboardMenu';
+import { fmt0 } from '@/lib/format';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -87,5 +89,45 @@ describe('training clipboard (copy by swiping right, paste into the training car
     expect(pasted.map((e) => e.templateId)).toEqual(['gym', 'gym']);
     // The clipboard stays filled after pasting.
     expect(trainingClipboard(await readClipboard(d))).not.toBeNull();
+  });
+
+  it('copies a whole day: two packages and a single one paste as two new groups and one single', async () => {
+    const d = db();
+    await logTrainings(d, '2026-11-05', [
+      training('strength', 60, { group: 'a', templateId: 'gym' }),
+      training('stretching', 15, { group: 'a', templateId: 'gym' }),
+      training('running', 30),
+      training('cycling', 45, { group: 'b', templateId: 'bike' }),
+      training('yoga', 20, { group: 'b', templateId: 'bike' }),
+    ]);
+    const day = await d.exerciseEntries.where('date').equals('2026-11-05').sortBy('loggedAt');
+    const clip = await copyTrainingToClipboard(d, 'Training 05.11.2026', day);
+    expect(trainingClipboardDetail(clip)).toBe(
+      `${fmt0(clip.parts.reduce((s, p) => s + p.kcal, 0))} kcal · 3 Trainings`,
+    );
+    await logTrainings(d, '2026-11-06', copiesOf(clip.parts, 80));
+    const pasted = await d.exerciseEntries.where('date').equals('2026-11-06').sortBy('loggedAt');
+    expect(pasted.map((e) => e.typeKey)).toEqual(['strength', 'stretching', 'running', 'cycling', 'yoga']);
+    const [strength, stretching, running, cycling, yoga] = pasted;
+    expect(strength!.groupId).toBeTruthy();
+    expect(stretching!.groupId).toBe(strength!.groupId);
+    expect(running!.groupId).toBeNull();
+    expect(cycling!.groupId).toBeTruthy();
+    expect(yoga!.groupId).toBe(cycling!.groupId);
+    expect(cycling!.groupId).not.toBe(strength!.groupId);
+    expect(new Set(pasted.map((e) => e.groupId)).has(day[0]!.groupId)).toBe(false);
+  });
+
+  it('describes one package by its activities and one training by its values', async () => {
+    const d = db();
+    await logTrainings(d, '2026-11-05', [
+      training('strength', 60, { group: 'a', templateId: 'gym' }),
+      training('stretching', 15, { group: 'a', templateId: 'gym' }),
+    ]);
+    const day = await d.exerciseEntries.where('date').equals('2026-11-05').sortBy('loggedAt');
+    expect(trainingClipboardDetail(await copyTrainingToClipboard(d, 'Gym', day))).toMatch(/· 2 Aktivitäten$/);
+    expect(trainingClipboardDetail(await copyTrainingToClipboard(d, 'Kraft', day.slice(0, 1)))).toMatch(
+      /^\d+ kcal · [^·]+ · Mittel$/,
+    );
   });
 });

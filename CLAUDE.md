@@ -142,7 +142,9 @@ Serve the production web build through the API (same origin, service worker acti
 label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter wins; size math in `fitSize`). Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
-  Moves go through `moveEntriesToMeal` (`src/db/entries.ts`).
+  Moves go through `moveEntriesToMeal` (`src/db/entries.ts`). The training card sorts its rows with its own
+  `DndContext` (`features/diary/TrainingSortable.tsx`: generic `SortableRows`/`SortableRow` with `onReorder(keys)`,
+  same sensors via `useDragSensors`, `DragStateProvider` for `useDiaryDrag`); food has no order within a meal yet.
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
   "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". Without a chosen meal the sheet
   asks `logTargetFor` (`lib/meals.ts`) for day and meal: the meal of the youngest entry made today while it is
@@ -248,13 +250,19 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
     blocker lets the way to the search through. Renaming renames old entries; their values never change.
   - `/trainings`: "Neues Training", pinned first then by name (`sortTrainings`), swipe deletes into the trash
     (trash rows use `trainingSummary`). Trash covers weights, steps, meals and saved trainings.
-  - Diary `ExerciseCard`: `groupTrainingEntries` (shared; a group needs two live entries) renders a package as one
+  - Diary `ExerciseCard`: header [footprints `StepsRefreshButton icon="footprints"`, iPhone with a steps access
+    only] [paste] [⋯ `TrainingCardMenu`: Kopieren (all trainings of the day, name "Training <Datum>"), Wie gestern
+    eintragen (while yesterday has trainings), Alle Trainings löschen] [+]. A long press drags a row (package or
+    single, the steps row stays first and outside) into another order: `reorderTrainings` (`db/entries.ts`, keys
+    `trainingRowKey`) rewrites `loggedAt` from the day's smallest value, only changed entries, undo toast;
+    `loggedAt` is the only order key. `groupTrainingEntries` (shared; a group needs two live entries) renders a package as one
     row (title: the saved training's current name, else its sports, `trainingGroupTitle`; "N Aktivitäten · 75 Min."
     opens the parts, each a link to `/exercise-entry/$id` with its own swipe); swipe left deletes a row or package
     in one transaction with undo (`removeTrainingsWithUndo`), swipe right copies it (`copyTrainingToClipboard`,
     `TrainingClipboard` in the same `kv` key as food; `foodClipboard`/`trainingClipboard` narrow it: meals paste
-    only food, the card shows its paste icon only for trainings). Pasting and "Wie gestern" (first chip of an empty
-    card while the day before has trainings) log `copiesOf(parts, weight of the day)`: computed kcal again, typed
+    only food, the card shows its paste icon only for trainings; `trainingClipboardDetail` says "N Trainings" for
+    several rows). Pasting and "Wie gestern" (first chip of an empty card while the day before has trainings, and
+    the ⋯ menu) log `copiesOf(parts, weight of the day)` (`logCopiesWithUndo`): computed kcal again, typed
     kcal kept, a package as a new group. `TrainingSuggestions` ("Zuletzt & häufig", `TrainingChip`) below: pinned
     first; a sport logs the values of its last entry, a saved training its saved activities (all as one group,
     undo deletes all). `trainingHistory` (`db/trainingSuggestions.ts`, 60 days, frequency and recency, same weekday
@@ -441,10 +449,13 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `/steps/$date` (`features/steps/StepsPage.tsx`: data, kcal via `TrainingKcal tone="steps"`, delete asks),
   `/exercise-entry` of a steps entry redirects there, trash section "Schritte" (`trashedSteps`), daily CSV
   columns "Schritte" and "Distanz (m)". Mehr → Schritte (`StepsSettingsPage`): token shown once, replace and
-  delete with a dialog, the shortcut's actions as numbered steps, "Eintragen ab". ↻ (`lib/steps.ts`
-  `runStepsShortcut`, iPhone with a configured access only, status cached in `kv` `steps.status`): opens
-  `shortcuts://run-shortcut?name=Fleisch-Teufel%20Schritte`, polls `GET /api/steps/status` every 2 s up to 30 s
-  after the app is visible again until `lastUsedAt` is after the tap, then syncs once. Every call with a valid
+  delete with a dialog, the shortcut's actions as numbered steps, "Eintragen ab". Fetching (`lib/steps.ts`
+  `runStepsShortcut`, iPhone with a configured access only, status cached in `kv` `steps.status`; green footprints
+  in the training card header, pulsing while it waits, ↻ on the steps page, "Jetzt abrufen" in the settings; the
+  steps row has no button): opens `shortcuts://run-shortcut?name=Fleisch-Teufel%20Schritte`, polls
+  `GET /api/steps/status` every 2 s up to 30 s after the app is visible again until `lastUsedAt` is after the tap,
+  then syncs once; returns `received`/`timeout`/`unavailable` (already running), `fetchSteps` toasts "Keine neuen
+  Schritte empfangen" on a timeout. Every call with a valid
   token lands in `api_tokens.recent` (last `STEPS_LOG_SIZE`: days, written, with distance, error, warnings),
   shown as "Letzte Abrufe"; the import answers `warnings` (`stepsWarnings`: no distance at all, a distance that
   does not fit the steps; a day whose entry would be invalid is left out with a warning, the others are

@@ -27,7 +27,7 @@ import {
   type TrainingPart,
 } from '@/db/clipboard';
 import type { UserDb } from '@/db/dexie';
-import { logTrainings } from '@/db/entries';
+import { logTrainings, trainingRowKey } from '@/db/entries';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { trainingTitle, useTrainingNames } from '@/features/exercise/training';
 import { TrainingChip } from '@/features/exercise/TrainingChips';
@@ -40,11 +40,15 @@ import { fmt0 } from '@/lib/format';
 import { useRememberLogStart } from '@/lib/logFlow';
 import { useStepsRefreshAvailable } from '@/lib/steps';
 import { cn } from '@/lib/utils';
+import { useDiaryDrag } from './DiaryDnd';
+import { TrainingCardMenu } from './TrainingCardMenu';
+import { SortableRow, TrainingSortable } from './TrainingSortable';
 
 /**
- * The diary's training card, like a diary meal: header with the total, the day's steps first (from
- * Apple Health, own row, never copied), then rows (a single training, or the activities of a saved
- * training logged together as one row that opens), swipe left deletes (a package as a whole),
+ * The diary's training card, like a diary meal: header with the total and [footprints: fetch steps]
+ * [paste] [⋯ `TrainingCardMenu`] [+], the day's steps first (from Apple Health, own row, never copied),
+ * then rows (a single training, or the activities of a saved training logged together as one row that
+ * opens) that a long press drags into another order, swipe left deletes (a package as a whole),
  * "Zuletzt & häufig" below. A tap on a training opens it on its sport page. For the empty state and
  * the chips only the trainings count, not the steps.
  */
@@ -69,28 +73,20 @@ export function ExerciseCard({
   const weightKg = useCurrentWeight(date) ?? DEFAULT_WEIGHT_KG;
   const yesterday = useDayExercises(addDays(date, -1));
   const { busy, run } = useSubmitting();
-  // ↻ only where the shortcut runs (an iPhone with the access set up).
+  const { dragging } = useDiaryDrag();
+  // Fetching steps only where the shortcut runs (an iPhone with the access set up).
   const canFetchSteps = useStepsRefreshAvailable();
   /** Swipe right: copies a row (a training or a package). */
   const onCopy = (title: string, list: ExerciseEntry[]) =>
     void copyTrainingToClipboard(db, title, list).then(() => toast(`„${title}“ kopiert`));
   /** Logs copied trainings on this day (kcal with its weight), with undo. */
-  const logCopies = (parts: TrainingPart[], message: string) =>
-    run(async () => {
-      const ids = await logTrainings(db, date, copiesOf(parts, weightKg));
-      toast(message, {
-        action: {
-          label: 'Rückgängig',
-          onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'exerciseEntries', id))),
-        },
-      });
-    });
+  const logCopies = (parts: readonly TrainingPart[], message: string) =>
+    run(() => logCopiesWithUndo(db, date, parts, weightKg, message));
   const steps = stepsEntryOf(exercises, date);
   const trainings = exercises.filter((e) => !isStepsEntry(e));
-  const yesterdayTrainings = yesterday?.filter((e) => !isStepsEntry(e));
-  const yesterdayRows =
-    yesterdayTrainings && trainings.length === 0 ? groupTrainingEntries(yesterdayTrainings).length : 0;
-  const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterdayTrainings!) : [];
+  const yesterdayTrainings = yesterday?.filter((e) => !isStepsEntry(e)) ?? [];
+  const yesterdayRows = groupTrainingEntries(yesterdayTrainings).length;
+  const yesterdayParts = yesterdayRows > 0 ? trainingParts(yesterdayTrainings) : [];
   const yesterdayDetail = `${fmt0(yesterdayRows)} ${yesterdayRows === 1 ? 'Training' : 'Trainings'} · ${fmt0(
     trainingPartsKcal(yesterdayParts, weightKg),
   )} kcal`;
@@ -105,7 +101,7 @@ export function ExerciseCard({
       <ClipboardPaste className="size-5 text-primary" aria-hidden />
     </Button>
   );
-  const leadingChips = yesterdayRows > 0 && (
+  const leadingChips = yesterdayRows > 0 && trainings.length === 0 && (
     <li className="shrink-0">
       <TrainingChip
         title="Wie gestern"
@@ -118,6 +114,11 @@ export function ExerciseCard({
   );
   const total = exercises.reduce((s, e) => s + e.kcal, 0);
   const rows = groupTrainingEntries(trainings);
+  const rowTitle = (row: (typeof rows)[number]) =>
+    row.kind === 'entry'
+      ? trainingTitle(row.entry, names).title
+      : trainingGroupTitle(row.templateId, row.entries, names);
+  const keys = rows.map(trainingRowKey);
   return (
     <Section
       title={
@@ -135,7 +136,14 @@ export function ExerciseCard({
       }
       action={
         <div className="flex items-center gap-1">
+          {canFetchSteps && <StepsRefreshButton icon="footprints" />}
           {headerAction}
+          <TrainingCardMenu
+            date={date}
+            trainings={trainings}
+            yesterdayParts={yesterdayParts}
+            weightKg={weightKg}
+          />
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/exercise"
@@ -156,11 +164,7 @@ export function ExerciseCard({
               label="Schritte löschen"
               onDelete={() => void removeTrainingsWithUndo(db, [steps], 'Schritte')}
             >
-              <StepsRow
-                entry={steps}
-                credited={stepsCredited}
-                refresh={canFetchSteps && <StepsRefreshButton />}
-              />
+              <StepsRow entry={steps} credited={stepsCredited} />
             </SwipeToDelete>
           </li>
         </ul>
@@ -178,42 +182,53 @@ export function ExerciseCard({
           <TrainingSuggestions date={date} leading={leadingChips} />
         </div>
       ) : (
-        <ul className={cn('divide-y divide-border/70', steps && 'border-t border-border/70')}>
-          {rows.map((row) => {
-            if (row.kind === 'entry') {
-              const e = row.entry;
-              const { title, sport } = trainingTitle(e, names);
+        <TrainingSortable
+          date={date}
+          keys={keys}
+          labelOf={(key) => {
+            const row = rows[keys.indexOf(key)];
+            return row ? rowTitle(row) : 'Training';
+          }}
+        >
+          <ul className={cn('relative divide-y divide-border/70', steps && 'border-t border-border/70')}>
+            {rows.map((row, i) => {
+              const key = keys[i]!;
+              const title = rowTitle(row);
+              if (row.kind === 'entry') {
+                const e = row.entry;
+                return (
+                  <SortableRow key={key} id={key} data-row={e.id}>
+                    <SwipeToDelete
+                      label={`${title} löschen`}
+                      onDelete={() => void removeTrainingsWithUndo(db, [e], title)}
+                      onCopy={() => onCopy(title, [e])}
+                      disabled={dragging}
+                    >
+                      <EntryLink entry={e}>
+                        <ExerciseRowBody entry={e} title={title} sport={trainingTitle(e, names).sport} />
+                      </EntryLink>
+                    </SwipeToDelete>
+                  </SortableRow>
+                );
+              }
               return (
-                <li key={e.id} data-row={e.id}>
-                  <SwipeToDelete
-                    label={`${title} löschen`}
-                    onDelete={() => void removeTrainingsWithUndo(db, [e], title)}
-                    onCopy={() => onCopy(title, [e])}
-                  >
-                    <EntryLink entry={e}>
-                      <ExerciseRowBody entry={e} title={title} sport={sport} />
-                    </EntryLink>
-                  </SwipeToDelete>
-                </li>
+                <SortableRow
+                  key={key}
+                  id={key}
+                  data-row={key}
+                  data-rows={row.entries.map((e) => e.id).join(' ')}
+                >
+                  <TrainingGroupRow
+                    title={title}
+                    entries={row.entries}
+                    onDelete={() => void removeTrainingsWithUndo(db, row.entries, title)}
+                    onCopy={() => onCopy(title, row.entries)}
+                  />
+                </SortableRow>
               );
-            }
-            const title = trainingGroupTitle(row.templateId, row.entries, names);
-            return (
-              <li
-                key={row.groupId}
-                data-row={`group:${row.groupId}`}
-                data-rows={row.entries.map((e) => e.id).join(' ')}
-              >
-                <TrainingGroupRow
-                  title={title}
-                  entries={row.entries}
-                  onDelete={() => void removeTrainingsWithUndo(db, row.entries, title)}
-                  onCopy={() => onCopy(title, row.entries)}
-                />
-              </li>
-            );
-          })}
-        </ul>
+            })}
+          </ul>
+        </TrainingSortable>
       )}
       {trainings.length > 0 && <TrainingSuggestions date={date} className="border-t border-border/70 pt-3" />}
     </Section>
@@ -272,11 +287,12 @@ function TrainingGroupRow({
   onCopy?: () => void;
 }) {
   const db = useDb();
+  const { dragging } = useDiaryDrag();
   const [open, setOpen] = useState(false);
   const listId = useId();
   return (
     <>
-      <SwipeToDelete label={`${title} löschen`} onDelete={onDelete} onCopy={onCopy}>
+      <SwipeToDelete label={`${title} löschen`} onDelete={onDelete} onCopy={onCopy} disabled={dragging}>
         <button
           type="button"
           aria-expanded={open}
@@ -298,6 +314,7 @@ function TrainingGroupRow({
               <SwipeToDelete
                 label={`${e.name} löschen`}
                 onDelete={() => void removeTrainingsWithUndo(db, [e], e.name)}
+                disabled={dragging}
               >
                 <EntryLink entry={e} className="min-h-12 pl-10 text-sm">
                   <ExerciseRowBody entry={e} title={e.name} sport={null} />
@@ -344,6 +361,23 @@ export function TrainingGroupRowBody({
       </div>
     </>
   );
+}
+
+/** Logs copied trainings on a day (computed kcal with `weightKg`), with undo for exactly these. */
+export async function logCopiesWithUndo(
+  db: UserDb,
+  date: ISODate,
+  parts: readonly TrainingPart[],
+  weightKg: number,
+  message: string,
+): Promise<void> {
+  const ids = await logTrainings(db, date, copiesOf(parts, weightKg));
+  toast(message, {
+    action: {
+      label: 'Rückgängig',
+      onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'exerciseEntries', id))),
+    },
+  });
 }
 
 /** Deletes trainings in one transaction, with undo for exactly these. */

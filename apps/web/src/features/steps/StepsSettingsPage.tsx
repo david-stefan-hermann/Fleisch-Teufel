@@ -17,13 +17,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { saveSettings } from '@/db/settings';
+import { fetchSteps } from '@/features/steps/StepsRefreshButton';
 import { useSettings, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtDateOf } from '@/lib/format';
 import {
   fmtReceived,
   refreshStepsStatus,
-  runStepsShortcut,
   stepsApi,
   stepsImportUrl,
   STEPS_SHORTCUT_NAME,
@@ -101,7 +101,7 @@ export function StepsSettingsPage() {
             </dl>
             <div className="grid gap-2 px-4 pt-2 pb-4">
               {ios && (
-                <Button disabled={running} onClick={() => void runStepsShortcut(db, () => sync.sync())}>
+                <Button disabled={running} onClick={() => void fetchSteps(db, () => sync.sync())}>
                   <RefreshCw className={cn(running && 'animate-spin')} aria-hidden />
                   Jetzt abrufen
                 </Button>

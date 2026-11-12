@@ -1,7 +1,8 @@
 /**
- * Steps from Apple Health: the personal access for the iOS shortcut, and ↻ that starts the shortcut
- * from the app. The server keeps the access (`/api/steps/*`); this device remembers the last status
- * it saw in `kv` (`steps.status`), so the diary knows offline whether to offer ↻ and nothing jumps.
+ * Steps from Apple Health: the personal access for the iOS shortcut, and the button that starts the
+ * shortcut from the app (footprints in the training card header, ↻ on the steps pages). The server
+ * keeps the access (`/api/steps/*`); this device remembers the last status it saw in `kv`
+ * (`steps.status`), so the diary knows offline whether to offer the button and nothing jumps.
  * The token itself is shown once on the settings page and never stored.
  */
 import { toISODate, type StepsStatus } from '@ft/shared';
@@ -93,16 +94,19 @@ const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 /**
  * ↻: opens the shortcut, then, once the app is visible again, asks the server every 2 s (at most
  * 30 s) until the access was used after the tap, and syncs once. The time of the tap is taken in
- * server time (`clockOffset`), the server's `lastUsedAt` is server time too.
+ * server time (`clockOffset`), the server's `lastUsedAt` is server time too. Result: `received` (the
+ * import arrived), `timeout` (nothing came within the wait) or `unavailable` (a run was already going).
  */
+export type StepsShortcutResult = 'received' | 'timeout' | 'unavailable';
+
 export async function runStepsShortcut(
   db: UserDb,
   sync: () => Promise<unknown>,
   open: (url: string) => void = (url) => {
     window.location.href = url;
   },
-): Promise<void> {
-  if (running) return;
+): Promise<StepsShortcutResult> {
+  if (running) return 'unavailable';
   setRunning(true);
   const tappedAt = Date.now() + db.clockOffset;
   let deadline = Date.now() + WAIT_MS;
@@ -111,6 +115,7 @@ export async function runStepsShortcut(
   };
   document.addEventListener('visibilitychange', onVisible);
   open(STEPS_SHORTCUT_URL);
+  let received = false;
   try {
     while (Date.now() < deadline) {
       await sleep(POLL_MS);
@@ -121,9 +126,13 @@ export async function runStepsShortcut(
       const s = await stepsApi.status().catch(() => null);
       if (s) void db.kv.put({ key: STATUS_KEY, value: s }).catch(() => {});
       // A second of slack: the import may answer within the same second as the tap.
-      if (s?.lastUsedAt && s.lastUsedAt >= tappedAt - 1000) break;
+      if (s?.lastUsedAt && s.lastUsedAt >= tappedAt - 1000) {
+        received = true;
+        break;
+      }
     }
     await sync().catch(() => {});
+    return received ? 'received' : 'timeout';
   } finally {
     document.removeEventListener('visibilitychange', onVisible);
     setRunning(false);

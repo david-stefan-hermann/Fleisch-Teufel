@@ -17,6 +17,9 @@ import { HintCount, HintField } from '@/components/HintField';
 import { SaveMealDialog } from '@/components/SaveMealDialog';
 import { SaveTrainingDialog } from '@/features/exercise/SaveTrainingDialog';
 import { ClipboardMenu } from '@/features/diary/ClipboardMenu';
+import { TrainingCardMenu } from '@/features/diary/TrainingCardMenu';
+import { logTrainings } from '@/db/entries';
+import { readClipboard, trainingParts } from '@/db/clipboard';
 import { NumberField } from '@/components/NumberField';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
@@ -1734,6 +1737,66 @@ describe('ClipboardMenu with copied trainings', () => {
     expect(menu.textContent).toContain('430 kcal · 2 Aktivitäten');
     expect(within(menu).queryByText('Als Meal speichern')).toBeNull();
     expect(within(menu).getByText('Zwischenablage leeren')).toBeTruthy();
+  });
+});
+
+describe('TrainingCardMenu', () => {
+  const training = (typeKey: string, group?: string) => ({
+    typeKey,
+    name: typeKey,
+    minutes: 30,
+    intensity: 'moderate' as const,
+    met: 6,
+    weightKg: 80,
+    kcal: 240,
+    note: null,
+    ...(group && { group, templateId: 'gym' }),
+  });
+  const openMenu = async () => {
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Aktionen für Training' }), {
+      button: 0,
+      ctrlKey: false,
+    });
+    return screen.findByRole('menu');
+  };
+  const day = async (date: string) =>
+    (await sessionDb.exerciseEntries.where('date').equals(date).sortBy('loggedAt')).filter((e) => !e.deleted);
+
+  it('copies all trainings of the day and deletes them all', async () => {
+    await logTrainings(sessionDb, '2026-11-08', [
+      training('strength', 'a'),
+      training('stretching', 'a'),
+      training('running'),
+    ]);
+    const trainings = await day('2026-11-08');
+    render(<TrainingCardMenu date="2026-11-08" trainings={trainings} yesterdayParts={[]} weightKg={80} />);
+    let menu = await openMenu();
+    expect(within(menu).queryByText('Wie gestern eintragen')).toBeNull();
+    fireEvent.click(within(menu).getByText('Kopieren'));
+    await waitFor(async () => expect(await readClipboard(sessionDb)).not.toBeNull());
+    const clip = await readClipboard(sessionDb);
+    expect(clip).toMatchObject({ kind: 'training', name: 'Training 08.11.2026' });
+    expect(clip?.kind === 'training' && clip.parts.map((p) => p.typeKey)).toEqual([
+      'strength',
+      'stretching',
+      'running',
+    ]);
+    menu = await openMenu();
+    fireEvent.click(within(menu).getByText('Alle Trainings löschen'));
+    await waitFor(async () => expect(await day('2026-11-08')).toEqual([]));
+  });
+
+  it('logs yesterday again when yesterday has trainings', async () => {
+    await logTrainings(sessionDb, '2026-11-07', [training('running')]);
+    const yesterday = trainingParts(await day('2026-11-07'));
+    render(<TrainingCardMenu date="2026-11-08" trainings={[]} yesterdayParts={yesterday} weightKg={70} />);
+    const menu = await openMenu();
+    expect(within(menu).getByText('Kopieren').closest('[role=menuitem]')?.hasAttribute('data-disabled')).toBe(
+      true,
+    );
+    fireEvent.click(within(menu).getByText('Wie gestern eintragen'));
+    await waitFor(async () => expect(await day('2026-11-08')).toHaveLength(1));
+    expect((await day('2026-11-08'))[0]).toMatchObject({ typeKey: 'running', weightKg: 70 });
   });
 });
 

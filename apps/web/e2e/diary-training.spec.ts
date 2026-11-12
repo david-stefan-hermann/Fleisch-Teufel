@@ -90,6 +90,38 @@ test('copy a training to another day, "Wie gestern" on an empty card', async ({ 
   await expect(page.getByRole('button', { name: /^Wie gestern/ })).toHaveCount(0);
 });
 
+test('⋯ of the training card copies the whole day, pasting gives the same rows', async ({ page }) => {
+  await register(page);
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  for (const [query, sport] of [
+    ['rad', 'Radfahren'],
+    ['yoga', 'Yoga'],
+  ] as const) {
+    await page.goto(`/exercise?date=${day(-1)}`);
+    await searchTraining(page, query);
+    await page
+      .getByRole('link', { name: new RegExp(`^${sport}`) })
+      .first()
+      .click();
+    await page.getByRole('button', { name: /^Eintragen · \d+ kcal$/ }).click();
+    await expect(page.getByRole('link', { name: new RegExp(`^${sport}`) })).toBeVisible();
+  }
+  const rows = page.locator('[data-row]').filter({ has: page.locator('a[href^="/exercise-entry/"]') });
+  const before = await rows.allInnerTexts();
+  expect(before).toHaveLength(2);
+
+  await page.getByRole('button', { name: 'Aktionen für Training' }).click();
+  await page.getByRole('menuitem', { name: 'Kopieren' }).click();
+  await expect(page.getByText(/^„Training .*“ kopiert$/)).toBeVisible();
+
+  await page.goto(`/?date=${day(-3)}`);
+  await page.getByRole('button', { name: /^„Training .*“ ins Training eintragen$/ }).click();
+  await expect(page.getByText(/^„Training .*“ eingetragen$/)).toBeVisible();
+  await expect(rows).toHaveCount(2);
+  expect(await rows.allInnerTexts()).toEqual(before);
+});
+
 test('a sport: search, duration wheel with an exact value, own kcal, edit, save as a training', async ({
   page,
 }) => {
@@ -804,6 +836,10 @@ test('saved meals delete by swipe, with undo', async ({ page }) => {
 test('steps from Apple Health: access, import by the shortcut, typed kcal stay, trash', async ({ page }) => {
   await register(page);
   const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  // Without an access the training card has no footprints to fetch steps.
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: /^Training/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Schritte abrufen' })).toHaveCount(0);
 
   // Mehr → Schritte: the access is shown once, with the address to send to.
   await page.goto('/more');
@@ -830,12 +866,18 @@ test('steps from Apple Health: access, import by the shortcut, typed kcal stay, 
     });
   expect((await send('8432')).ok()).toBe(true);
 
-  // The diary pulls it on start: the steps row stands first, with ↻ on an iPhone.
+  // The diary pulls it on start: the steps row stands first; on an iPhone (this project's user agent)
+  // the footprints in the training card header fetch new steps.
   await page.goto('/');
   const row = page.getByRole('link', { name: '8.432 Schritte' });
   await expect(row).toBeVisible();
   await expect(page.getByText('6,1 km', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Schritte abrufen' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Schritte abrufen' })).toHaveCount(1);
+  await expect(
+    page.locator('section', { has: page.getByRole('heading', { name: /^Training/ }) }).getByRole('button', {
+      name: 'Schritte abrufen',
+    }),
+  ).toBeVisible();
   // No "training" for the week strip and no suggestion of steps.
   await expect(page.getByRole('link', { name: /Training eingetragen$/ })).toHaveCount(0);
 

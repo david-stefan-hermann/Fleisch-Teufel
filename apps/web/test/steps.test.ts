@@ -55,7 +55,7 @@ describe('↻ (run the shortcut)', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(sync).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(2000);
-    await done;
+    expect(await done).toBe('received');
     expect(sync).toHaveBeenCalledTimes(1);
     expect(answers).toEqual([]);
   });
@@ -63,8 +63,10 @@ describe('↻ (run the shortcut)', () => {
   it('gives up after 30 seconds and still syncs', async () => {
     const sync = vi.fn(async () => {});
     const done = runStepsShortcut(db(), sync, () => {});
+    // A second tap while the first waits starts nothing.
+    expect(await runStepsShortcut(db(), sync, () => {})).toBe('unavailable');
     await vi.advanceTimersByTimeAsync(31_000);
-    await done;
+    expect(await done).toBe('timeout');
     expect(sync).toHaveBeenCalledTimes(1);
   });
 });

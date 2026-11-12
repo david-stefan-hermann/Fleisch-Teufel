@@ -28,6 +28,12 @@ Abweichungen und Ergänzungen bei der Umsetzung:
 - Eine kcal-Änderung, die ein Gerät noch nicht hochgeladen hat, verliert gegen einen neueren Import
   (Last-Write-Wins, im E2E-Test gesehen). In der Praxis selten, weil die App 0,8 s nach einer Änderung hochlädt.
 
+Überholt (2026-11-12, Block 8 von `docs/plans/2026-11-verbesserungen.md`): Entscheidung F1 gilt nicht mehr. Statt
+↻ an der Schritte-Zeile startet ein grünes Fußabdruck-Symbol im Kopf der Trainingskarte (links vom Einfügen-Symbol,
+nur auf einem iPhone mit eingerichtetem Zugang) den Kurzbefehl; es pulsiert, solange es wartet, und kommt in 30 s
+nichts an, sagt ein Toast „Keine neuen Schritte empfangen“. Die Schritte-Seite (↻) und Mehr → Schritte („Jetzt
+abrufen“) behalten den Abruf.
+
 Nach der ersten Einrichtung am iPhone (2026-11-11, Nutzer):
 
 - Typen heißen in der Auswahl „Steps“ und „Strecke (Gehen und Laufen)“; iOS verlangt Einstellungen → Kurzbefehle
@@ -50,7 +56,7 @@ Nur am iPhone prüfbar (offen):
 
 Entscheidungen nach v1 (Nutzer, 2026-11-10), gehen den Abschnitten unten vor:
 
-- E1 (kein blauer Punkt für Schritte-Tage) und F1 (↻ nur an Zeile und Seite).
+- E1 (kein blauer Punkt für Schritte-Tage) und F1 (↻ nur an Zeile und Seite; F1 überholt, siehe Status).
 - Eigener Schalter „Schritte aufs Ziel anrechnen“ unter Mehr, unter „Training aufs Ziel anrechnen“:
   `settings.addStepsCalories` (boolean, `null` = an; Standard an, vom Nutzer bestätigt). Angerechnetes Training eines Tages = Trainings ohne
   Schritte, wenn `addExerciseCalories`, plus Schritte, wenn `addStepsCalories` (eine Funktion in shared für

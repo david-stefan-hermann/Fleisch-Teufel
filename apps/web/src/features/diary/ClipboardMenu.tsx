@@ -18,6 +18,7 @@ import {
   CLIPBOARD_KEY,
   foodClipboard,
   type AnyClipboard,
+  type TrainingClipboard,
 } from '@/db/clipboard';
 import { describe } from '@/features/exercise/training';
 import { saveMealFromItems } from '@/db/entries';
@@ -85,18 +86,27 @@ export function ClipboardMenu({ clipboard }: { clipboard: AnyClipboard }) {
   );
 }
 
-/** The line under the copied name: kcal and how many entries, ingredients, activities or the amount. */
-function clipboardDetail(clip: AnyClipboard): string {
-  if (clip.kind === 'training') {
-    const kcal = clip.parts.reduce((s, p) => s + p.kcal, 0);
-    const n = clip.parts.length;
-    return [
-      `${fmt0(kcal)} kcal`,
-      n === 1
+/**
+ * The detail of copied trainings: kcal, then "N Trainings" when they are several rows of the card (packages
+ * and single ones), else "N Aktivitäten" of one package or what the single training was.
+ */
+export function trainingClipboardDetail(clip: TrainingClipboard): string {
+  const kcal = clip.parts.reduce((s, p) => s + p.kcal, 0);
+  const n = clip.parts.length;
+  const rows = new Set(clip.parts.map((p, i) => p.group ?? `single:${i}`)).size;
+  return [
+    `${fmt0(kcal)} kcal`,
+    rows > 1
+      ? `${fmt0(rows)} Trainings`
+      : n === 1
         ? describe(null, clip.parts[0]!.minutes, clip.parts[0]!.intensity, null)
         : `${fmt0(n)} Aktivitäten`,
-    ].join(' · ');
-  }
+  ].join(' · ');
+}
+
+/** The line under the copied name: kcal and how many entries, ingredients, activities or the amount. */
+function clipboardDetail(clip: AnyClipboard): string {
+  if (clip.kind === 'training') return trainingClipboardDetail(clip);
   const first = clip.items[0];
   const rows = clip.parts?.length ?? 0;
   return [
