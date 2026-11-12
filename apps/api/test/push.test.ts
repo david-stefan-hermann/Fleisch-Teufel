@@ -1,8 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pushSubscriptions } from '../src/db/schema.js';
+import { knownPushEndpoint } from '../src/routes/push.js';
 import {
   dueSubscriptions,
+  GIVE_UP_MS,
   localClock,
   REMINDER_PAYLOAD,
   sendReminders,
@@ -33,7 +35,7 @@ beforeAll(async () => {
 afterAll(() => ctx.close());
 
 const sub = (endpoint: string, remindAt = '20:00', tz = 'Europe/Berlin') => ({
-  endpoint: `https://push.example.com/${endpoint}`,
+  endpoint: `https://web.push.apple.com/${endpoint}`,
   keys: { p256dh: 'p256dh-key', auth: 'auth-key' },
   remindAt,
   tz,
@@ -92,6 +94,33 @@ describe('subscription routes', () => {
       400,
     );
     expect((await new TestClient(ctx.app).req('PUT', '/api/push/subscription', sub('x'))).status).toBe(401);
+  });
+
+  it('accepts only endpoints of known push services', async () => {
+    for (const ok of [
+      'https://web.push.apple.com/abc',
+      'https://api.push.apple.com/abc',
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+    ])
+      expect(knownPushEndpoint(ok), ok).toBe(true);
+    for (const bad of [
+      'http://web.push.apple.com/abc',
+      'https://web.push.apple.com:8443/abc',
+      'https://push.apple.com.evil.example/abc',
+      'https://evilpush.apple.com/abc',
+      'https://192.168.1.10/abc',
+      'https://nas.local/hook',
+      'not a url',
+    ])
+      expect(knownPushEndpoint(bad), bad).toBe(false);
+    const r = await alice.req('PUT', '/api/push/subscription', {
+      ...sub('x'),
+      endpoint: 'https://10.0.0.1/internal',
+    });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe('push_endpoint');
   });
 
   it('moves a shared device to the account that signs in, and deletes only own subscriptions', async () => {
@@ -199,7 +228,43 @@ describe('sending reminders', () => {
     expect((await ctx.db.select().from(pushSubscriptions))[0]).toMatchObject({
       failures: 0,
       lastSentOn: '2026-10-21',
+      failingSince: null,
     });
+  });
+
+  it('keeps a subscription through errors and gives it up only after a week without success', async () => {
+    await ctx.db.delete(pushSubscriptions);
+    await alice.req('PUT', '/api/push/subscription', sub('flaky', '19:00'));
+    const endpoint = sub('flaky').endpoint;
+    outcomes.set(endpoint, 'error');
+    try {
+      // Errors every minute of an evening (`at` is CEST, Berlin is on CET by then): retried, never
+      // dropped, the day stays open.
+      for (let m = 0; m < 10; m++)
+        expect(
+          (await sendReminders(ctx.db, sender, at(`20:${String(m).padStart(2, '0')}`, '2026-11-01'))).failed,
+        ).toBe(1);
+      let [row] = await ctx.db.select().from(pushSubscriptions);
+      expect(row).toMatchObject({ failures: 10, lastSentOn: null });
+      const since = row!.failingSince!.getTime();
+      expect(since).toBe(at('20:00', '2026-11-01').getTime());
+      // Six days later still failing: kept.
+      expect((await sendReminders(ctx.db, sender, at('20:00', '2026-11-07'))).removed).toBe(0);
+      // A week after the first error: given up.
+      const late = new Date(since + GIVE_UP_MS);
+      expect((await sendReminders(ctx.db, sender, late)).removed).toBe(1);
+      expect(await ctx.db.select().from(pushSubscriptions)).toEqual([]);
+
+      // One success in between starts the count again.
+      await alice.req('PUT', '/api/push/subscription', sub('flaky', '19:00'));
+      await sendReminders(ctx.db, sender, at('20:00', '2026-11-10'));
+      outcomes.delete(endpoint);
+      await sendReminders(ctx.db, sender, at('20:01', '2026-11-10'));
+      [row] = await ctx.db.select().from(pushSubscriptions);
+      expect(row).toMatchObject({ failures: 0, failingSince: null, lastSentOn: '2026-11-10' });
+    } finally {
+      outcomes.delete(endpoint);
+    }
   });
 
   it('answers 503 for subscriptions when the server has no keys', async () => {

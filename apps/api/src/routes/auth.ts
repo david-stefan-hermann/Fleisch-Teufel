@@ -14,6 +14,7 @@ import {
   verifyPassword,
 } from '../auth/session.js';
 import { sessions, users } from '../db/schema.js';
+import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
 import type { Db } from '../db/client.js';
 import type { AppEnv, Deps } from '../types.js';
@@ -31,12 +32,34 @@ export async function registrationOpen(
   return (row?.n ?? 0) === 0;
 }
 
+/** Failed password checks per 15 minutes before a key is locked (IP, account with IP) or slowed. */
+export const LOGIN_FAILURES = 10;
+/** Wait before every login answer while an account has had too many failures from anywhere. */
+export const LOGIN_SLOWDOWN_MS = 2000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function authRoutes(deps: Deps) {
   const { db } = deps;
-  // 10 failed logins per 15 minutes per IP and per account.
-  const loginLimiter = new RateLimiter(10, 15 * 60_000);
+  const loginLimiter = new RateLimiter(LOGIN_FAILURES, 15 * 60_000);
   const registerLimiter = new RateLimiter(deps.env.REGISTER_RATE_LIMIT, 60 * 60_000);
   const app = new Hono<AppEnv>();
+
+  /**
+   * The password check of a signed-in account (password change, account deletion), limited like a
+   * login per account: a stolen session must not be able to guess the password. Null when it matches.
+   */
+  async function checkPassword(userId: string, password: string) {
+    const key = `user:${userId}`;
+    const locked = loginLimiter.blocked(key);
+    if (locked > 0)
+      return { body: { error: 'too_many_requests', retryAfterMs: locked }, status: 429 as const };
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (user && (await verifyPassword(user.passwordHash, password))) return null;
+    loginLimiter.take(key);
+    log.warn('password check failed', { userId });
+    return { body: { error: 'invalid_credentials' }, status: 401 as const };
+  }
 
   app.post('/register', async (c) => {
     if (registerLimiter.take(clientIp(c)) > 0) return c.json({ error: 'too_many_requests' }, 429);
@@ -66,21 +89,28 @@ export function authRoutes(deps: Deps) {
   app.post('/login', async (c) => {
     const body = await parseJson(c, loginSchema);
     if (!body.ok) return body.response;
-    const ipKey = `ip:${clientIp(c)}`;
-    const userKey = `user:${body.data.email}`;
-    // A locked IP or account is refused before the (expensive) hash check, also with the right password.
-    const locked = Math.max(loginLimiter.blocked(ipKey), loginLimiter.blocked(userKey));
+    const ip = clientIp(c);
+    const ipKey = `ip:${ip}`;
+    const userIpKey = `user:${body.data.email}:${ip}`;
+    const accountKey = `user:${body.data.email}`;
+    // A locked IP, or this account from this IP, is refused before the (expensive) hash check, also
+    // with the right password. Failures from anywhere only slow the account down: someone who knows
+    // the email must not be able to lock its owner out.
+    const locked = Math.max(loginLimiter.blocked(ipKey), loginLimiter.blocked(userIpKey));
     if (locked > 0) return c.json({ error: 'too_many_requests', retryAfterMs: locked }, 429);
+    if (loginLimiter.blocked(accountKey) > 0) await sleep(LOGIN_SLOWDOWN_MS);
     const [user] = await db.select().from(users).where(eq(users.email, body.data.email));
     const ok = user
       ? await verifyPassword(user.passwordHash, body.data.password)
       : await dummyVerify(body.data.password);
     if (!ok || !user) {
-      const wait = Math.max(loginLimiter.take(ipKey), loginLimiter.take(userKey));
+      const wait = Math.max(loginLimiter.take(ipKey), loginLimiter.take(userIpKey));
+      loginLimiter.take(accountKey);
+      log.warn('login failed', { userId: user?.id ?? null, ip, locked: wait > 0 });
       if (wait > 0) return c.json({ error: 'too_many_requests', retryAfterMs: wait }, 429);
       return c.json({ error: 'invalid_credentials' }, 401);
     }
-    loginLimiter.reset(userKey);
+    loginLimiter.reset(userIpKey);
     const token = await createSession(db, user.id, c.req.header('user-agent'));
     setSessionCookie(c, token);
     return c.json({ user: toPublicUser(user) });
@@ -103,10 +133,8 @@ export function authRoutes(deps: Deps) {
     const body = await parseJson(c, changePassword);
     if (!body.ok) return body.response;
     const me = c.get('user');
-    const [user] = await db.select().from(users).where(eq(users.id, me.id));
-    if (!user || !(await verifyPassword(user.passwordHash, body.data.currentPassword))) {
-      return c.json({ error: 'invalid_credentials' }, 401);
-    }
+    const refused = await checkPassword(me.id, body.data.currentPassword);
+    if (refused) return c.json(refused.body, refused.status);
     await db
       .update(users)
       .set({ passwordHash: await hashPassword(body.data.newPassword) })
@@ -162,9 +190,8 @@ export function authRoutes(deps: Deps) {
     const body = await parseJson(c, deleteAccount);
     if (!body.ok) return body.response;
     const me = c.get('user');
-    const [user] = await db.select().from(users).where(eq(users.id, me.id));
-    if (!user || !(await verifyPassword(user.passwordHash, body.data.password)))
-      return c.json({ error: 'invalid_credentials' }, 401);
+    const refused = await checkPassword(me.id, body.data.password);
+    if (refused) return c.json(refused.body, refused.status);
     await db.delete(users).where(eq(users.id, me.id));
     clearSessionCookie(c);
     return c.json({ ok: true });

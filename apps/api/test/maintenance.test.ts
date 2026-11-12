@@ -1,8 +1,16 @@
 import { uuidv7 } from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cleanupPhotos, cleanupSessions, PHOTO_GRACE_MS } from '../src/maintenance.js';
-import { createTestContext, registeredClient, type TestClient, type TestCtx } from './helpers.js';
+import { aiFoodChoices } from '../src/db/schema.js';
+import {
+  cleanupOffFoods,
+  cleanupPhotos,
+  cleanupSessions,
+  OFF_UNUSED_MS,
+  PHOTO_GRACE_MS,
+  runMaintenance,
+} from '../src/maintenance.js';
+import { createTestContext, offFood, registeredClient, type TestClient, type TestCtx } from './helpers.js';
 
 let ctx: TestCtx;
 let alice: TestClient;
@@ -100,5 +108,69 @@ describe('maintenance', () => {
     );
     expect(await cleanupSessions(ctx.db)).toBeGreaterThanOrEqual(1);
     expect((await alice.get('/api/auth/me')).status).toBe(401);
+  });
+
+  it('removes cached OFF products nobody uses once they are old, also from the search index', async () => {
+    const eans = ['4000000000001', '4000000000002', '4000000000003', '4000000000004', '4000000000005'];
+    const [unused, onEntry, inMeal, ownBarcode, chosen] = eans as [string, string, string, string, string];
+    const fresh = '4000000000009';
+    const own = await createTestContext({
+      off: { search: async () => [...eans, fresh].map((e) => offFood(e, `Riegel ${e}`)) },
+    });
+    try {
+      const c = await registeredClient(own, 'off-maint@example.com');
+      await own.deps.catalog.searchOff('riegel');
+      expect(own.deps.catalog.offCount).toBe(6);
+      const meal = {
+        id: uuidv7(),
+        updatedAt: 1000,
+        deleted: true,
+        name: 'M',
+        photoId: null,
+        items: [{ ...entry('i', null, null), foodId: `off:${inMeal}` }].map(
+          ({ photoId: _p, photoIds: _q, ...rest }) => rest,
+        ),
+      };
+      const r = await c.post('/api/sync/push', {
+        records: [
+          { table: 'meals', data: meal },
+          { table: 'foodEntries', data: { ...entry(uuidv7(), null, null, true), foodId: `off:${onEntry}` } },
+          {
+            table: 'customFoods',
+            data: {
+              id: uuidv7(),
+              updatedAt: 1000,
+              deleted: false,
+              name: 'Eigener Riegel',
+              brand: null,
+              barcode: ownBarcode,
+              unit: 'g',
+              nutrients: { ENERCC: 400 },
+              portions: [],
+            },
+          },
+        ],
+      });
+      expect(r.json.rejected).toEqual([]);
+      const userId = (await c.get('/api/auth/me')).json.user.id as string;
+      await own.db.insert(aiFoodChoices).values({ userId, term: 'riegel', foodId: `off:${chosen}` });
+      await own.db.execute(
+        sql`update foods set fetched_at = now() - interval '100 days' where id <> ${'off:' + fresh}`,
+      );
+
+      await runMaintenance(own.db, own.deps.catalog);
+      const left = (await own.db.execute(
+        sql`select id from foods where source = 'off' order by id`,
+      )) as unknown as { id: string }[];
+      expect(left.map((f) => f.id)).toEqual(
+        [onEntry, inMeal, ownBarcode, chosen, fresh].map((e) => `off:${e}`).sort(),
+      );
+      expect(left.some((f) => f.id === `off:${unused}`)).toBe(false);
+      expect(own.deps.catalog.offCount).toBe(5);
+      // BLS rows are never touched; later the fresh one is old and unused too.
+      expect(await cleanupOffFoods(own.db, Date.now() + OFF_UNUSED_MS + 1000)).toEqual([`off:${fresh}`]);
+    } finally {
+      await own.close();
+    }
   });
 });

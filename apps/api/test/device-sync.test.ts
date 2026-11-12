@@ -15,7 +15,8 @@ let ctx: TestCtx;
 let cookie: string;
 
 beforeAll(async () => {
-  ctx = await createTestContext();
+  // The steps import trusts the phone's date only near the server's: its day is 2026-10-08 here.
+  ctx = await createTestContext({ clock: () => Date.parse('2026-10-08T12:00:00Z') });
   cookie = (await registeredClient(ctx, 'device@example.com')).cookie!;
 });
 afterAll(() => ctx.close());

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { LOGIN_SLOWDOWN_MS } from '../src/routes/auth.js';
 import { createTestContext, TestClient, type TestCtx } from './helpers.js';
 
 let ctx: TestCtx;
@@ -194,7 +195,7 @@ describe('auth', () => {
     expect(statuses.at(-1)).toBe(429);
   });
 
-  it('refuses the right password too while the account is locked', async () => {
+  it('slows the account down after failures from elsewhere but never locks out the right password', async () => {
     const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
     try {
       const c = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.10' });
@@ -205,19 +206,56 @@ describe('auth', () => {
       const other = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.11' });
       for (let i = 0; i < 10; i++)
         await other.post('/api/auth/login', { email: 'locked@example.com', password: 'guess-' + i });
-      // A third IP with the right password: the account lock holds (brute force from many IPs).
-      const third = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.12' });
-      const res = await third.post('/api/auth/login', {
+      // The guessing IP is locked for this account (and as an IP).
+      expect(
+        (await other.post('/api/auth/login', { email: 'locked@example.com', password: 'correct horse' }))
+          .status,
+      ).toBe(429);
+      // The owner from another IP gets in, only slower.
+      const owner = new TestClient(own.app, { 'x-forwarded-for': '203.0.113.12' });
+      const started = Date.now();
+      const res = await owner.post('/api/auth/login', {
         email: 'locked@example.com',
         password: 'correct horse',
       });
-      expect(res.status).toBe(429);
-      expect(res.json.retryAfterMs).toBeGreaterThan(0);
-      // Another account from the same IP is not affected by the account lock.
+      expect(res.status).toBe(200);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(LOGIN_SLOWDOWN_MS - 50);
+      // Another account is not slowed down.
+      const quick = Date.now();
       expect(
-        (await third.post('/api/auth/login', { email: 'nobody@example.com', password: 'x'.repeat(10) }))
+        (await owner.post('/api/auth/login', { email: 'nobody@example.com', password: 'x'.repeat(10) }))
           .status,
       ).toBe(401);
+      expect(Date.now() - quick).toBeLessThan(LOGIN_SLOWDOWN_MS);
+    } finally {
+      await own.close();
+    }
+  });
+
+  it('limits password guesses with a signed-in session (password change, account deletion)', async () => {
+    const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+    try {
+      const c = new TestClient(own.app);
+      await c.post('/api/auth/register', { email: 'guess@example.com', password: 'correct horse' });
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++)
+        statuses.push(
+          (await c.post('/api/auth/password', { currentPassword: 'guess-' + i, newPassword: 'new password' }))
+            .status,
+        );
+      for (let i = 0; i < 5; i++)
+        statuses.push((await c.req('DELETE', '/api/auth/account', { password: 'guess-x' + i })).status);
+      expect(statuses.slice(0, 10)).toEqual(Array(10).fill(401));
+      expect(statuses.at(-1)).toBe(429);
+      // The right password is refused as well while the limit holds.
+      expect(
+        (
+          await c.post('/api/auth/password', {
+            currentPassword: 'correct horse',
+            newPassword: 'new password',
+          })
+        ).status,
+      ).toBe(429);
     } finally {
       await own.close();
     }
@@ -256,6 +294,26 @@ describe('registration', () => {
       expect(dup.json.error).toBe('email_taken');
     } finally {
       await open.close();
+    }
+  });
+
+  it('counts registrations by the address the proxy appended, not by a forged first hop', async () => {
+    const own = await createTestContext({ env: { ALLOW_REGISTRATION: 'true', REGISTER_RATE_LIMIT: '2' } });
+    try {
+      const reg = (i: number, xff: string) =>
+        new TestClient(own.app, { 'x-forwarded-for': xff }).post('/api/auth/register', {
+          email: `spam${i}@example.com`,
+          password: 'correct horse',
+        });
+      expect((await reg(1, '198.51.100.7')).status).toBe(201);
+      expect((await reg(2, '198.51.100.7')).status).toBe(201);
+      expect((await reg(3, '198.51.100.7')).status).toBe(429);
+      // A client-set first hop changes nothing: the proxy's entry is the last one.
+      expect((await reg(4, '2.2.2.2, 198.51.100.7')).status).toBe(429);
+      expect((await reg(5, '3.3.3.3,198.51.100.7')).status).toBe(429);
+      expect((await reg(6, '198.51.100.8')).status).toBe(201);
+    } finally {
+      await own.close();
     }
   });
 });

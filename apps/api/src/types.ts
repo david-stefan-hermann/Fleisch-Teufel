@@ -21,6 +21,8 @@ export interface Deps {
   /** Web Push for the daily reminder; null without VAPID keys (the feature is then not offered). */
   push: PushSender | null;
   version: string;
+  /** Server clock for the date checks of the steps import (tests set it); default `Date.now`. */
+  clock?: () => number;
 }
 
 export type AppEnv = {

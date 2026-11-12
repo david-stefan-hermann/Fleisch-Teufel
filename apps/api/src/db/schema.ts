@@ -350,8 +350,10 @@ export const pushSubscriptions = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     /** Local date (YYYY-MM-DD) the reminder was handled for last; one per day at most. */
     lastSentOn: text(),
-    /** Consecutive delivery errors; the subscription is dropped after a few. */
+    /** Delivery errors since the last success (404/410 drop the subscription at once). */
     failures: integer().notNull().default(0),
+    /** First delivery error since the last success; after `GIVE_UP_MS` of errors the subscription goes. */
+    failingSince: timestamp({ withTimezone: true }),
   },
   (t) => [index().on(t.userId)],
 );

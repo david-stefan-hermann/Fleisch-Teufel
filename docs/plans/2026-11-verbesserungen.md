@@ -13,8 +13,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 0     | erledigt | 72a29f0 |
 | 1     | erledigt | 2759a17 |
 | 2     | erledigt | da72de6 |
-| 3     | erledigt |         |
-| 4     | offen    |         |
+| 3     | erledigt | fa705c3 |
+| 4     | erledigt |         |
 | 5     | offen    |         |
 | 6     | offen    |         |
 | 7     | offen    |         |
@@ -78,6 +78,22 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   Eintrag wird `failed` mit dem Grund (kein automatisches Wiederholen), die übrigen bleiben wartend und gehen beim
   nächsten Lauf (App sichtbar, online) los; ist das Budget dann noch aufgebraucht, wird je Lauf einer davon
   `failed`.
+- Block 4, S7: Warnungen bleiben Texte (`warnings: string[]` wie bisher in Antwort und `api_tokens.recent`), nicht
+  `[{ date, reason }]`: ein ausgelassener Tag steht als „2026-10-29: 1.000.000.000 Schritte sind nicht plausibel, Tag
+  nicht übernommen.“ darin, so zeigen Kurzbefehl und „Letzte Abrufe“ ihn ohne Formatwechsel (alte Einträge bleiben
+  lesbar). Ein Tag gilt als unplausibel, wenn sein Eintrag das Sync-Schema nicht besteht (z. B. über 200 000
+  Schritte). Ein ignoriertes Telefondatum ergibt die Warnung „Datum des Telefons (…) weicht ab, Datum des Servers (…)
+  verwendet.“; Serverdatum ist das UTC-Datum. Für Tests hat `Deps` eine optionale Uhr `clock`.
+- Block 4, S2: Die IP-Sperre (`ip:<ip>`, 10 Fehlversuche) bleibt zusätzlich bestehen; wer vom selben Anschluss wie
+  der Angreifer kommt, bekommt also weiter 429. Ein erfolgreicher Login setzt nur `user:<email>:<ip>` zurück, die
+  Verlangsamung des Kontos läuft ihre 15 Minuten ab.
+- Block 4, S3: neue Spalte `push_subscriptions.failing_since` (Migration `0016_push-failing-since`); die 7 Tage
+  zählen ab dem ersten Fehler seit dem letzten Erfolg. Ein Fehler wird weiter jede Minute wiederholt (wie bisher).
+- Block 4, S8: geprüft wird nur beim Anlegen/Ändern (`PUT`), Abfragen und Löschen nehmen weiter jede URL. Nur https
+  ohne eigenen Port. Neue Meldung `push_endpoint`: „Dieser Push-Dienst wird nicht unterstützt.“
+- Block 4, B5: zod 4.6.7 (neueste). `pnpm audit --prod` zeigte danach noch `seroval` (über TanStack Router, zwei
+  neue Meldungen „moderate“): per `pnpm up seroval seroval-plugins` im erlaubten Bereich auf 1.8.0 gehoben. Übrig
+  bleibt `uuid` in `tools/bls-import` (exceljs), kein Laufzeitpaket.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

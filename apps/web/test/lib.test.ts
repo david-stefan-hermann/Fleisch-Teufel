@@ -190,7 +190,7 @@ describe('labels', () => {
       'Die Analyse hat zu lange gedauert und wurde abgebrochen.',
     );
     expect(errorMessage(new ApiError(400, 'too_many_images'))).toBe('Höchstens 5 Fotos je Analyse.');
-    for (const code of ['unsupported_image_type', 'push_disabled', 'no_result'])
+    for (const code of ['unsupported_image_type', 'push_disabled', 'push_endpoint', 'no_result'])
       expect(errorMessage(new ApiError(400, code))).not.toMatch(/Fehler \(/);
   });
 });

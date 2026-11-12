@@ -7,6 +7,7 @@
  */
 import {
   DEFAULT_WEIGHT_KG,
+  exerciseEntrySchema,
   nextVersion,
   weightForDay,
   STEPS_LOG_SIZE,
@@ -22,6 +23,7 @@ import { apiTokens, exerciseEntries, userSettings, weightEntries } from '../db/s
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
 import {
+  phoneDateIgnored,
   stepsDays,
   stepsImportSchema,
   stepsRecord,
@@ -72,16 +74,24 @@ function requireApiToken(db: Db, failures: RateLimiter): MiddlewareHandler<Steps
 export interface StepsImportResult {
   ok: true;
   days: { date: string; steps: number; written: boolean }[];
-  /** Readable in the shortcut's answer: what went through but looks wrong. */
+  /** Readable in the shortcut's answer: what went through but looks wrong, or was left out. */
   warnings: string[];
+}
+
+/** A day the import left out because its entry would not be valid (e.g. a billion steps). */
+export interface SkippedStepsDay {
+  date: string;
+  reason: string;
 }
 
 /**
  * Writes the days of one import in one transaction under the user's sync lock: reads the steps
  * entries of these days (tombstones included), the minimum and the weights, and pushes what changed.
+ * A day whose entry would not pass the sync schema is left out and reported; the others are written.
  */
 export async function importSteps(db: Db, userId: string, days: StepsDay[], now = Date.now()) {
   const written = new Set<string>();
+  const skipped: SkippedStepsDay[] = [];
   await db.transaction(async (tx) => {
     await lockUser(tx, userId);
     const ids = days.map((d) => `s:${d.date}`);
@@ -116,10 +126,19 @@ export async function importSteps(db: Db, userId: string, days: StepsDay[], now 
       });
       if (!rec) continue;
       // A device may run up to five minutes ahead: the new version must still beat what it wrote.
-      records.push({
-        table: 'exerciseEntries' as const,
-        data: { ...rec, updatedAt: nextVersion(prev?.updatedAt, now) },
-      });
+      const data = { ...rec, updatedAt: nextVersion(prev?.updatedAt, now) };
+      const valid = exerciseEntrySchema.safeParse(data);
+      if (!valid.success) {
+        const fields = [...new Set(valid.error.issues.map((i) => i.path.join('.')))];
+        skipped.push({
+          date: day.date,
+          reason: fields.includes('steps')
+            ? `${day.steps.toLocaleString('de-DE')} Schritte sind nicht plausibel`
+            : `Werte nicht plausibel (${fields.join(', ')})`,
+        });
+        continue;
+      }
+      records.push({ table: 'exerciseEntries' as const, data });
       written.add(day.date);
     }
     if (records.length) {
@@ -130,7 +149,10 @@ export async function importSteps(db: Db, userId: string, days: StepsDay[], now 
         );
     }
   });
-  return days.map((d) => ({ date: d.date, steps: d.steps, written: written.has(d.date) }));
+  return {
+    days: days.map((d) => ({ date: d.date, steps: d.steps, written: written.has(d.date) })),
+    skipped,
+  };
 }
 
 export function stepsRoutes(deps: Deps) {
@@ -176,27 +198,38 @@ export function stepsRoutes(deps: Deps) {
           : `Felder passen nicht: ${(json.issues ?? []).map((i) => `${i.path}: ${i.message}`).join('; ')}`;
       return refuse(tokenId, message, 400, c);
     }
+    const serverToday = new Date((deps.clock ?? Date.now)()).toISOString().slice(0, 10);
     let days: StepsDay[];
+    let ignoredDate: string | null;
     try {
-      days = stepsDays(body.data);
+      days = stepsDays(body.data, serverToday);
+      ignoredDate = phoneDateIgnored(body.data, serverToday);
     } catch (e) {
       if (e instanceof StepsParseError) return refuse(tokenId, e.message, 400, c);
       throw e;
     }
     const userId = c.get('stepsUser');
-    let result: StepsImportResult['days'];
+    let result: Awaited<ReturnType<typeof importSteps>>;
     try {
       result = await importSteps(db, userId, days);
     } catch (e) {
       log.error('steps import failed', { error: e instanceof Error ? e.message : String(e) });
       return refuse(tokenId, 'Fehler auf dem Server.', 500, c);
     }
-    const warnings = stepsWarnings(days);
-    const written = result.filter((d) => d.written).length;
+    const warnings = [
+      ...(ignoredDate
+        ? [`Datum des Telefons (${ignoredDate}) weicht ab, Datum des Servers (${serverToday}) verwendet.`]
+        : []),
+      ...result.skipped.map((d) => `${d.date}: ${d.reason}, Tag nicht übernommen.`),
+      ...stepsWarnings(days.filter((d) => !result.skipped.some((s) => s.date === d.date))),
+    ];
+    const written = result.days.filter((d) => d.written).length;
     const withDistance = days.filter(hasUsableDistance).length;
+    if (result.skipped.length || ignoredDate)
+      log.warn('steps import: days left out', { skipped: result.skipped, ignoredDate });
     log.info('steps import', { days: days.length, written, withDistance, warnings: warnings.length });
     await remember(tokenId, { days: days.length, written, withDistance, error: null, warnings });
-    const out: StepsImportResult = { ok: true, days: result, warnings };
+    const out: StepsImportResult = { ok: true, days: result.days, warnings };
     return c.json(out);
   });
 

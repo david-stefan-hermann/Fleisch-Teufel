@@ -446,14 +446,23 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   after the app is visible again until `lastUsedAt` is after the tap, then syncs once. Every call with a valid
   token lands in `api_tokens.recent` (last `STEPS_LOG_SIZE`: days, written, with distance, error, warnings),
   shown as "Letzte Abrufe"; the import answers `warnings` (`stepsWarnings`: no distance at all, a distance that
-  does not fit the steps) and the server logs refused and too large calls.
+  does not fit the steps; a day whose entry would be invalid is left out with a warning, the others are
+  written; a phone `now` more than a day off the server date is replaced by it) and the server logs refused and
+  too large calls.
 - Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
   notification a day at a chosen local time, only when nothing is logged that day, per device
   (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/
   `VAPID_PRIVATE_KEY` on the server (`pnpm --filter @ft/api push:keys`); iOS only as installed app. Signing
-  out removes the device's subscription. `sw.ts` shows the notification and opens the diary on tap.
+  out removes the device's subscription. `sw.ts` shows the notification and opens the diary on tap. Endpoints
+  only of known push services (`knownPushEndpoint`, else 400 `push_endpoint`); 404/410 drop a subscription at
+  once, other errors retry each minute and drop it after a week without success (`failingSince`).
+- Server limits: `clientIp` takes the last `X-Forwarded-For` hop (one trusted proxy). Logins: 10 failures per
+  15 min lock the IP and the account from that IP (429); failures from anywhere only slow the account down
+  (`LOGIN_SLOWDOWN_MS`), the right password never gets 429 from elsewhere. Password change and account deletion
+  share the limiter per user id. Refused sync records and failed logins are logged as `warn` (ids, no contents).
 - Server housekeeping (`apps/api/src/maintenance.ts`, at start and daily): photos older than 30 days that no
-  meal or entry (tombstones included) references, and expired sessions. Sessions slide up to 400 days but end
+  meal or entry (tombstones included) references, expired sessions, and cached OFF products fetched more than 90
+  days ago that no entry, meal, own portion, own barcode or AI choice refers to (`catalog.dropOff`). Sessions slide up to 400 days but end
   2 years after creation. `/health` says only `{ ok }`; version and catalog size are under `/api/info`.
 - `/projects` is an SMB dataset: PostgreSQL data dirs cannot live there (0700 permissions), hence the dev DB
   in the home directory.

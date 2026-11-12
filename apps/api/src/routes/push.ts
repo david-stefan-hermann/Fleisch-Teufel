@@ -14,6 +14,31 @@ import { parseJson } from './util.js';
 
 const endpointSchema = z.url().max(2000);
 
+/** Hosts of the push services browsers use; `.x` means any subdomain of x. */
+const PUSH_HOSTS = [
+  '.push.apple.com',
+  'fcm.googleapis.com',
+  '.notify.windows.com',
+  'updates.push.services.mozilla.com',
+  '.push.services.mozilla.com',
+];
+
+/**
+ * Whether an endpoint belongs to a known push service (https on its default port). Anything else
+ * would make the server send a daily POST to an address an account chose, internal ones included.
+ */
+export function knownPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== 'https:' || url.port !== '' || url.username || url.password) return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_HOSTS.some((h) => (h.startsWith('.') ? host.endsWith(h) : host === h));
+}
+
 export const pushSubscriptionSchema = z.object({
   endpoint: endpointSchema,
   keys: z.object({ p256dh: z.string().min(1).max(200), auth: z.string().min(1).max(100) }),
@@ -64,6 +89,7 @@ export function pushRoutes(deps: Deps) {
     if (!body.ok) return body.response;
     const me = c.get('user');
     const { endpoint, keys, remindAt, tz } = body.data;
+    if (!knownPushEndpoint(endpoint)) return c.json({ error: 'push_endpoint' }, 400);
     await db
       .insert(pushSubscriptions)
       .values({ endpoint, userId: me.id, p256dh: keys.p256dh, auth: keys.auth, remindAt, tz })
@@ -78,6 +104,7 @@ export function pushRoutes(deps: Deps) {
           tz,
           lastSentOn: null,
           failures: 0,
+          failingSince: null,
         },
       });
     return c.json({ ok: true });

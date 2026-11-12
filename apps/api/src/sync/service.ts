@@ -28,6 +28,7 @@ import { and, asc, eq, getTableColumns, gt, inArray, sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import type { Db } from '../db/client.js';
 import { syncTables } from '../db/schema.js';
+import { log } from '../log.js';
 
 /** Column name as created by Drizzle's `casing: 'snake_case'` (keys carry no explicit names). */
 const snakeCase = (key: string) => key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
@@ -91,6 +92,14 @@ export async function push(
     if (incomingWins(m.get(rec.id), rec)) m.set(rec.id, rec);
     byTable.set(name, m);
   }
+  // Without this line nobody notices that a device keeps records the server refuses (ids and
+  // reasons only, never contents).
+  if (result.rejected.length)
+    log.warn('sync records rejected', {
+      userId,
+      count: result.rejected.length,
+      rejected: result.rejected.slice(0, 20),
+    });
   if (byTable.size === 0) return result;
 
   await db.transaction(async (tx) => {

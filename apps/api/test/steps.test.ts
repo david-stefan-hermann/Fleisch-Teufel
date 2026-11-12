@@ -64,16 +64,30 @@ describe('reading the shortcut', () => {
 let ctx: TestCtx;
 let alice: TestClient;
 let bob: TestClient;
+/** The server's clock: follows the `now` of each shortcut call (the dates below are in the past). */
+let clock = Date.now();
 
 beforeAll(async () => {
-  ctx = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' } });
+  ctx = await createTestContext({ env: { ALLOW_REGISTRATION: 'true' }, clock: () => clock });
   alice = await registeredClient(ctx, 'steps-alice@example.com');
   bob = await registeredClient(ctx, 'steps-bob@example.com');
 });
 afterAll(() => ctx.close());
 
-/** A client with the shortcut's header: a steps token, no cookie, no Origin. */
-const shortcut = (token: string) => new TestClient(ctx.app, { authorization: `Bearer ${token}` });
+/**
+ * A client with the shortcut's header: a steps token, no cookie, no Origin. Its calls set the
+ * server's clock to the phone's date (noon UTC), so the phone's date is trusted.
+ */
+const shortcut = (token: string) => {
+  const c = new TestClient(ctx.app, { authorization: `Bearer ${token}` });
+  const post = c.post;
+  c.post = (p, b, h) => {
+    const now = (b as { now?: string } | undefined)?.now;
+    if (now) clock = Date.parse(`${now.slice(0, 10)}T12:00:00Z`);
+    return post(p, b, h);
+  };
+  return c;
+};
 
 async function newToken(c: TestClient): Promise<string> {
   const r = await c.post('/api/steps/token');
@@ -313,5 +327,45 @@ describe('steps import', () => {
     const after = (await stepsEntry(alice, '2026-10-27'))!;
     expect(after).toMatchObject({ steps: 9000, note: 'vorgehende Uhr' });
     expect(after.updatedAt).toBeGreaterThan(ahead);
+  });
+
+  it('leaves out an implausible day with a warning and writes the others', async () => {
+    const r = await shortcut(token).post('/api/steps/import', {
+      stepDates: ['2026-10-28', '2026-10-29', '2026-10-30'],
+      stepValues: ['6000', '1000000000', '7000'],
+      now: '2026-10-30',
+    });
+    expect(r.status).toBe(200);
+    expect(r.json.days).toEqual([
+      { date: '2026-10-28', steps: 6000, written: true },
+      { date: '2026-10-29', steps: 1_000_000_000, written: false },
+      { date: '2026-10-30', steps: 7000, written: true },
+    ]);
+    expect(r.json.warnings).toEqual([
+      '2026-10-29: 1.000.000.000 Schritte sind nicht plausibel, Tag nicht übernommen.',
+      expect.stringMatching(/^Keine Strecke empfangen/),
+    ]);
+    expect(await stepsEntry(alice, '2026-10-29')).toBeUndefined();
+    expect(await stepsEntry(alice, '2026-10-30')).toMatchObject({ steps: 7000 });
+  });
+
+  it('uses the server date when the phone date is more than a day off', async () => {
+    clock = Date.parse('2026-11-01T12:00:00Z');
+    const send = (now: string) =>
+      new TestClient(ctx.app, { authorization: `Bearer ${token}` }).post('/api/steps/import', {
+        stepDates: ['2026-10-31', '2026-11-01', '2031-05-02'],
+        stepValues: ['5000', '6000', '9000'],
+        now,
+      });
+    let r = await send('2031-05-02');
+    expect(r.status).toBe(200);
+    expect(r.json.days.map((d: { date: string }) => d.date)).toEqual(['2026-10-31', '2026-11-01']);
+    expect(r.json.warnings[0]).toBe(
+      'Datum des Telefons (2031-05-02) weicht ab, Datum des Servers (2026-11-01) verwendet.',
+    );
+    expect(await stepsEntry(alice, '2031-05-02')).toBeUndefined();
+    // A day off (time zones around midnight) is still the phone's day.
+    r = await send('2026-11-02');
+    expect(r.json.warnings.some((w: string) => w.startsWith('Datum des Telefons'))).toBe(false);
   });
 });

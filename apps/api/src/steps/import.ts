@@ -39,6 +39,19 @@ export interface StepsDay {
   distanceM: number | null;
 }
 
+function phoneDay(now: string): ISODate {
+  const day = parseDay(now.trim());
+  if (!day) throw new StepsParseError(`now: unreadable date "${now.slice(0, 40)}"`);
+  return day;
+}
+
+/** The phone's date when it is more than a day away from the server's (and therefore not used). */
+export function phoneDateIgnored(body: StepsImportBody, serverToday: ISODate): ISODate | null {
+  if (body.now === undefined) return null;
+  const day = phoneDay(body.now);
+  return day < addDays(serverToday, -1) || day > addDays(serverToday, 1) ? day : null;
+}
+
 /** Sums one list pair per day. */
 function sumByDay(
   dates: string[],
@@ -66,9 +79,11 @@ function sumByDay(
  * The days of a payload with their sums, oldest first. Only "today" and the six days before it
  * count: Health's window ("in den letzten 7 Tagen") starts at the same time of day a week ago, so
  * the day before them would come in cut short and make a correct value smaller. Without `now`,
- * "today" is the latest day sent and the oldest day sent is left out for the same reason.
+ * "today" is the latest day sent and the oldest day sent is left out for the same reason. A `now`
+ * more than a day away from the server's date (`serverToday`) is not trusted: the server's date
+ * counts instead (`phoneDateIgnored` says so).
  */
-export function stepsDays(body: StepsImportBody): StepsDay[] {
+export function stepsDays(body: StepsImportBody, serverToday?: ISODate): StepsDay[] {
   const steps = sumByDay(
     parseList(body.stepDates, 'stepDates'),
     parseList(body.stepValues, 'stepValues'),
@@ -86,9 +101,8 @@ export function stepsDays(body: StepsImportBody): StepsDay[] {
   let today: ISODate;
   let from: ISODate;
   if (body.now !== undefined) {
-    const day = parseDay(body.now.trim());
-    if (!day) throw new StepsParseError(`now: unreadable date "${body.now.slice(0, 40)}"`);
-    today = day;
+    const day = phoneDay(body.now);
+    today = serverToday && phoneDateIgnored(body, serverToday) ? serverToday : day;
     from = addDays(today, -(STEPS_WINDOW_DAYS - 1));
   } else {
     today = sent.at(-1)!;

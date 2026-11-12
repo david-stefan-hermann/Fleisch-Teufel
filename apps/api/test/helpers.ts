@@ -90,6 +90,7 @@ export async function createTestContext(
     push?: PushSender | null;
     env?: Record<string, string>;
     bls?: BlsFile;
+    clock?: () => number;
   } = {},
 ): Promise<TestCtx> {
   const base = inject('pgUrl');
@@ -111,6 +112,7 @@ export async function createTestContext(
     analyzer: opts.analyzer ?? null,
     push: opts.push ?? null,
     version: 'test',
+    clock: opts.clock,
   };
   return { deps, db, app: createApp(deps), off, close: () => db.$client.end({ timeout: 1 }) };
 }

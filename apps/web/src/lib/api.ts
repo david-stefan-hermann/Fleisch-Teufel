@@ -173,6 +173,8 @@ export function errorMessage(e: unknown): string {
         return 'Dieses Bildformat wird nicht unterstützt.';
       case 'push_disabled':
         return 'Erinnerungen sind auf dem Server nicht eingerichtet.';
+      case 'push_endpoint':
+        return 'Dieser Push-Dienst wird nicht unterstützt.';
       default:
         return `Fehler (${e.status}). Versuche es erneut.`;
     }

@@ -24,6 +24,9 @@ export interface PushSender {
   send(target: PushTarget, payload: string): Promise<PushOutcome>;
 }
 
+/** A push service that has not answered by then counts as an error (retried the next minute). */
+const SEND_TIMEOUT_MS = 20_000;
+
 /** Sends through the push services with VAPID (the `web-push` library does the encryption). */
 export function createWebPushSender(keys: {
   publicKey: string;
@@ -38,7 +41,7 @@ export function createWebPushSender(keys: {
         await webPush.sendNotification(
           { endpoint: target.endpoint, keys: { p256dh: target.p256dh, auth: target.auth } },
           payload,
-          { TTL: 6 * 60 * 60, urgency: 'normal' },
+          { TTL: 6 * 60 * 60, urgency: 'normal', timeout: SEND_TIMEOUT_MS },
         );
         return 'ok';
       } catch (e) {
@@ -99,8 +102,11 @@ export function dueSubscriptions<T extends { remindAt: string; tz: string; lastS
   return out;
 }
 
-/** After this many consecutive delivery errors a subscription is given up. */
-const MAX_FAILURES = 5;
+/**
+ * A subscription whose deliveries failed for this long without a single success is given up (only
+ * 404/410 drop it at once): an outage of the NAS or the push service must not end the reminder.
+ */
+export const GIVE_UP_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const REMINDER_PAYLOAD = JSON.stringify({
   title: 'Fleisch-Teufel',
@@ -111,7 +117,8 @@ export const REMINDER_PAYLOAD = JSON.stringify({
 
 /**
  * One pass: sends the reminders that are due to people without a diary entry today (their local
- * day), marks the day as handled either way, removes gone endpoints.
+ * day), marks the day as handled when it was sent or skipped (an error retries the next minute),
+ * removes gone endpoints and those that failed for `GIVE_UP_MS`.
  */
 export async function sendReminders(
   db: Db,
@@ -135,7 +142,7 @@ export async function sendReminders(
     const handled = () =>
       db
         .update(pushSubscriptions)
-        .set({ lastSentOn: sub.localDate, failures: 0 })
+        .set({ lastSentOn: sub.localDate, failures: 0, failingSince: null })
         .where(eq(pushSubscriptions.endpoint, sub.endpoint));
     if (logged) {
       await handled();
@@ -146,13 +153,19 @@ export async function sendReminders(
     if (outcome === 'ok') {
       await handled();
       result.sent++;
-    } else if (outcome === 'gone' || sub.failures + 1 >= MAX_FAILURES) {
+    } else if (
+      outcome === 'gone' ||
+      (sub.failingSince && now.getTime() - sub.failingSince.getTime() >= GIVE_UP_MS)
+    ) {
       await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, sub.endpoint));
       result.removed++;
     } else {
       await db
         .update(pushSubscriptions)
-        .set({ failures: sql`${pushSubscriptions.failures} + 1` })
+        .set({
+          failures: sql`${pushSubscriptions.failures} + 1`,
+          failingSince: sub.failingSince ?? now,
+        })
         .where(eq(pushSubscriptions.endpoint, sub.endpoint));
       result.failed++;
     }
@@ -160,14 +173,22 @@ export async function sendReminders(
   return result;
 }
 
-/** Runs `sendReminders` every minute; the timer never keeps the process alive. */
+/**
+ * Runs `sendReminders` every minute; a pass still running skips the next tick (a slow push service
+ * must not get the same reminder twice). The timer never keeps the process alive.
+ */
 export function startReminders(db: Db, sender: PushSender): () => void {
+  let running = false;
   const run = async () => {
+    if (running) return;
+    running = true;
     try {
       const r = await sendReminders(db, sender);
       if (r.sent || r.removed || r.failed) log.info('reminders', r);
     } catch (e) {
       log.warn('reminders failed', { error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      running = false;
     }
   };
   void run();

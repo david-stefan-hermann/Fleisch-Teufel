@@ -55,7 +55,7 @@ export async function main() {
   const here = dirname(fileURLToPath(import.meta.url));
   const webDist = env.WEB_DIST ?? resolve(here, 'public');
   const app = createApp(deps, { webDist });
-  const stopMaintenance = startMaintenance(deps.db);
+  const stopMaintenance = startMaintenance(deps.db, deps.catalog);
   const stopReminders = deps.push ? startReminders(deps.db, deps.push) : () => {};
   const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     log.info(`${APP_NAME} ${VERSION} listening`, {

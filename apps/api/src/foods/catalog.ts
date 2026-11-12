@@ -260,6 +260,19 @@ export class FoodCatalog {
     for (const f of unique) this.indexOff(f);
   }
 
+  /** Forgets cached OFF products the housekeeping deleted (`cleanupOffFoods`). */
+  dropOff(ids: readonly string[]) {
+    if (ids.length === 0) return;
+    for (const id of ids) this.offIndex.delete(id);
+    this.offListCache = null;
+    this.searchCache.clear();
+  }
+
+  /** Number of cached OFF products in the search index. */
+  get offCount(): number {
+    return this.offIndex.size;
+  }
+
   private indexOff(f: Food) {
     this.offIndex.set(f.id, indexItem(f));
     this.offListCache = null;
