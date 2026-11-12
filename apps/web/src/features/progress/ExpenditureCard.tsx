@@ -78,7 +78,9 @@ export function ExpenditureCard({
         <div className="grid gap-2 px-4 pb-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="tabular text-3xl font-bold">{fmt0(est.kcal)}</span>
-            <span className="text-sm text-muted-foreground">kcal am Tag, ohne Training</span>
+            <span className="text-sm text-muted-foreground">
+              kcal am Tag, {settings.addExerciseCalories ? 'ohne' : 'mit'} Training
+            </span>
             {formula !== null && (
               <span className="tabular text-sm text-muted-foreground">· Formel {fmt0(formula)} kcal</span>
             )}
@@ -111,6 +113,13 @@ export function ExpenditureCard({
           ) : suggested !== null && currentAvg !== null && Math.abs(diff) < SUGGEST_FROM_KCAL ? (
             <p className="text-xs text-muted-foreground">Dein Ziel ({fmt0(currentAvg)} kcal) passt dazu.</p>
           ) : null}
+        </div>
+      ) : state.reason === 'implausible' ? (
+        <div className="grid gap-1 px-4 pb-4">
+          <p className="text-sm font-medium">Daten nicht schlüssig</p>
+          <p className="tabular text-xs text-muted-foreground">
+            {fmt0(state.completeDays)} vollständige Tage, {fmt0(state.weighIns)} Wiegungen
+          </p>
         </div>
       ) : (
         <p className="px-4 pb-4 text-sm text-muted-foreground text-pretty">

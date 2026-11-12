@@ -4,16 +4,21 @@ const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
 const nf2 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
 
+/**
+ * A value that shows as zero with `digits` decimals is zero: `Intl` prints −0 and −0,004 as "-0".
+ */
+const noNegativeZero = (n: number, digits: number) => (Math.round(Math.abs(n) * 10 ** digits) === 0 ? 0 : n);
+
 /** Whole number (kcal). */
-export const fmt0 = (n: number) => nf0.format(Math.round(n));
+export const fmt0 = (n: number) => nf0.format(noNegativeZero(Math.round(n), 0));
 /** One decimal max (grams of macros). */
-export const fmt1 = (n: number) => nf1.format(n);
-export const fmt2 = (n: number) => nf2.format(n);
+export const fmt1 = (n: number) => nf1.format(noNegativeZero(n, 1));
+export const fmt2 = (n: number) => nf2.format(noNegativeZero(n, 2));
 const fixed = [0, 1, 2].map(
   (d) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d }),
 );
 /** Exactly `digits` decimals (0 to 2): "84,50", "1,0". */
-export const fmtFixed = (n: number, digits: 0 | 1 | 2) => fixed[digits]!.format(n);
+export const fmtFixed = (n: number, digits: 0 | 1 | 2) => fixed[digits]!.format(noNegativeZero(n, digits));
 
 /** Grams with sensible precision: 0.4 g, 12.5 g, 230 g. */
 export function fmtGrams(n: number, unit = 'g'): string {

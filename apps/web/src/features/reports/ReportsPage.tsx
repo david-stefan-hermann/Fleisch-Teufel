@@ -7,6 +7,7 @@ import {
   startOfWeek,
   targetsForDate,
   type DailyRow,
+  type ISODate,
 } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -15,6 +16,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Chart } from '@/components/Chart';
+import { earliestDate } from '@/db/earliest';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -116,11 +118,11 @@ export function ReportsPage() {
   }, [data, goals, today]);
   const credit = settings?.addExerciseCalories ?? true;
   const creditSteps = settings?.addStepsCalories !== false;
-  const stats = rows ? periodStats(rows, { creditExercise: credit, creditSteps }) : null;
+  const stats = rows ? periodStats(rows, { creditExercise: credit, creditSteps, today }) : null;
 
   const chart = useMemo(
-    () => (rows ? buildChart(rows, metric, credit, creditSteps) : null),
-    [rows, metric, credit, creditSteps],
+    () => (rows ? buildChart(rows, metric, credit, creditSteps, today) : null),
+    [rows, metric, credit, creditSteps, today],
   );
   // Choices live in the URL; the page keeps its scroll position (no "reload" feeling).
   const set = (patch: Partial<{ range: string; end: string; metric: string }>) =>
@@ -174,7 +176,7 @@ export function ReportsPage() {
             <Stat
               label="Ø kcal"
               value={stats.loggedDays ? fmt0(stats.avg.kcal) : NO_VALUE}
-              sub={`Ziel Ø ${stats.loggedDays ? fmt0(stats.avgTargetKcal) : NO_VALUE}`}
+              sub={`Budget Ø ${stats.loggedDays ? fmt0(stats.avgBudgetKcal) : NO_VALUE}`}
             />
             <Stat
               label="Vollständige Tage"
@@ -182,11 +184,11 @@ export function ReportsPage() {
               sub={`${stats.daysOnTarget} im Ziel (±10 %)`}
             />
             <Stat
-              label="Gewicht"
+              label="Trend"
               value={
-                stats.weightChange === null
+                stats.weightTrendKg === null
                   ? NO_VALUE
-                  : `${stats.weightChange > 0 ? '+' : ''}${fmt2(stats.weightChange)} kg`
+                  : `${stats.weightTrendKg > 0 ? '+' : ''}${fmt2(stats.weightTrendKg)} kg`
               }
               sub={stats.weightEnd !== null ? `${fmt2(stats.weightEnd)} kg` : 'keine Werte'}
             />
@@ -209,7 +211,7 @@ export function ReportsPage() {
             {stats.basis === 'complete'
               ? `Durchschnitte über vollständige Tage (abgeschlossen oder mindestens zwei Mahlzeiten).${
                   stats.loggedDays > stats.completeDays
-                    ? ` ${stats.loggedDays - stats.completeDays} ${stats.loggedDays - stats.completeDays === 1 ? 'Tag' : 'Tage'} mit nur einer Mahlzeit ${stats.loggedDays - stats.completeDays === 1 ? 'zählt' : 'zählen'} nicht mit.`
+                    ? ` ${stats.loggedDays - stats.completeDays} ${stats.loggedDays - stats.completeDays === 1 ? 'Tag' : 'Tage'} nur zum Teil erfasst, ${stats.loggedDays - stats.completeDays === 1 ? 'zählt' : 'zählen'} nicht mit.`
                     : ''
                 }`
               : 'Noch kein vollständiger Tag im Zeitraum (zwei Mahlzeiten oder „Tag abschließen“): Durchschnitte über alle Tage mit Einträgen.'}
@@ -256,6 +258,7 @@ export function ReportsPage() {
       <ExportSection
         from={p.from}
         to={p.to > today ? today : p.to}
+        today={today}
         rows={rows}
         mealNames={settings?.mealNames ?? []}
       />
@@ -276,11 +279,13 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
 function ExportSection({
   from,
   to,
+  today,
   rows,
   mealNames,
 }: {
   from: string;
   to: string;
+  today: ISODate;
   rows: DailyRow[] | null;
   mealNames: string[];
 }) {
@@ -304,19 +309,19 @@ function ExportSection({
     else {
       let r = rows ?? [];
       if (scope === 'all') {
-        const entries = await db.foodEntries.filter((e) => !e.deleted).toArray();
-        const first = entries.reduce((m, e) => (e.date < m ? e.date : m), to);
+        // Everything: from the first record of any kind up to today, whatever period is shown.
+        const first = (await earliestDate(db)) ?? today;
         r = dailyRows({
-          from: first,
-          to,
-          entries,
+          from: first < today ? first : today,
+          to: today,
+          entries: await db.foodEntries.filter((e) => !e.deleted).toArray(),
           exercises: await db.exerciseEntries.filter((e) => !e.deleted).toArray(),
           weights: await db.weightEntries.filter((w) => !w.deleted).toArray(),
           goals: await db.goals.filter((x) => !x.deleted).toArray(),
           notes: await db.dayNotes.filter((n) => !n.deleted).toArray(),
         });
       }
-      csv = dailyCsv(r, dialect);
+      csv = dailyCsv(r, dialect, today);
     }
     const name = { entries: 'eintraege', daily: 'tage', weights: 'gewicht', exercise: 'training' }[kind];
     if (await shareOrDownloadText(`fleisch-teufel_${name}_${suffix}.csv`, csv)) toast.success('CSV erstellt');

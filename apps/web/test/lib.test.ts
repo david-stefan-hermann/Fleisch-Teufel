@@ -23,12 +23,12 @@ import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/ap
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining, trainingTitle } from '@/features/exercise/training';
 import {
-  clampAmount,
   convertAmount,
   editorPortions,
   MAX_AMOUNT,
   nearestIndex,
   normalizeAmount,
+  positiveAmount,
   roundAmount,
   wheelValues,
 } from '@/lib/amounts';
@@ -552,13 +552,13 @@ describe('amount wheel', () => {
     expect(nearestIndex(g, null)).toBe(0);
   });
 
-  it('clamps and rounds computed amounts', () => {
-    expect(clampAmount(0, 'base')).toBe(1);
-    expect(clampAmount(12.6, 'base')).toBe(13);
-    expect(clampAmount(1e21, 'base')).toBe(9999);
-    expect(clampAmount(0.30000000000000004, 'portion')).toBe(0.3);
-    expect(clampAmount(0, 'portion')).toBe(0.01);
-    expect(clampAmount(150, 'portion')).toBe(99);
+  it('rounds computed amounts and keeps them above 0', () => {
+    expect(positiveAmount(0, 'base')).toBe(1);
+    expect(positiveAmount(12.6, 'base')).toBe(13);
+    expect(positiveAmount(0.30000000000000004, 'portion')).toBe(0.3);
+    expect(positiveAmount(0, 'portion')).toBe(0.01);
+    // Not clamped to the maximum: the editor shows too much as an error (see amounts.test.tsx).
+    expect(positiveAmount(150, 'portion')).toBe(150);
     expect(roundAmount(1.254, 'portion')).toBe(1.25);
   });
 });

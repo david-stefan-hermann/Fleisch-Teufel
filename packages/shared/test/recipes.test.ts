@@ -46,6 +46,13 @@ describe('recipe mode', () => {
     expect(mealFactorForGrams({ items: [] }, 400)).toBeNull();
   });
 
+  it('keeps the factor unrounded (4 000 g pot with 6 000 kcal, 30 g eaten are 45 kcal)', () => {
+    const pot = { items: [item('Eintopf', 4000, 150)], cookedGrams: 4000 };
+    const f = mealFactorForGrams(pot, 30)!;
+    expect(f).toBe(0.0075);
+    expect(f * 6000).toBeCloseTo(45, 9);
+  });
+
   it('makes an own food per 100 g cooked with the whole recipe as a portion', () => {
     const food = foodFromMeal({ name: 'Reis mit Huhn', items, cookedGrams: 1600 }, 'f1', ' Meal-Prep Reis ')!;
     expect(food).toMatchObject({

@@ -44,7 +44,8 @@ export function mealFactorForGrams(
   grams: number,
 ): number | null {
   const weight = mealWeightGrams(meal);
-  return weight === null ? null : round(grams / weight, 3);
+  // Unrounded: 30 g of a 4 000 g pot are 0,0075, rounding to 0,008 would log 6,7 % too much.
+  return weight === null ? null : grams / weight;
 }
 
 /**

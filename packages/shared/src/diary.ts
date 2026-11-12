@@ -57,13 +57,33 @@ export function quickEntryTitle(text: string | null | undefined): string {
       .map((l) => l.trim().replace(/\s+/g, ' '))
       .find((l) => l.length > 0) ?? '';
   if (!line) return QUICK_ENTRY_NAME;
-  if (line.length <= QUICK_TITLE_MAX) return line;
-  const cut = line.slice(0, QUICK_TITLE_MAX - 1);
+  const chars = Array.from(line);
+  if (chars.length <= QUICK_TITLE_MAX) return line;
+  const cut = takeGraphemes(line, QUICK_TITLE_MAX - 1);
   // A word that ends exactly at the cut is whole; otherwise back to the last space (unless that
   // would leave less than half: one very long word is cut where it is).
-  const space = line[QUICK_TITLE_MAX - 1] === ' ' ? cut.length : cut.lastIndexOf(' ');
-  const head = space >= QUICK_TITLE_MAX / 2 ? cut.slice(0, space) : cut;
+  const space = chars[cut.length] === ' ' ? cut.length : cut.lastIndexOf(' ');
+  const head = (space >= QUICK_TITLE_MAX / 2 ? cut.slice(0, space) : cut).join('');
   return `${head.replace(/[\s,;:.!?(-]+$/, '')}…`;
+}
+
+/**
+ * The code points of the whole characters (graphemes) at the start of `text` that fit into `max`
+ * code points: an emoji is never cut in half (a lone surrogate became U+FFFD on the server), and a
+ * family emoji of several code points is kept whole or left out. Lengths count code points.
+ */
+function takeGraphemes(text: string, max: number): string[] {
+  const out: string[] = [];
+  const segments =
+    typeof Intl.Segmenter === 'function'
+      ? Array.from(new Intl.Segmenter('de', { granularity: 'grapheme' }).segment(text), (s) => s.segment)
+      : Array.from(text);
+  for (const g of segments) {
+    const points = Array.from(g);
+    if (out.length + points.length > max) break;
+    out.push(...points);
+  }
+  return out;
 }
 
 /** Re-scales an item to a new quantity (used when editing entries / logging meals at a factor). */

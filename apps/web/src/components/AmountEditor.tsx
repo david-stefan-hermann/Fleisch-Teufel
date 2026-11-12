@@ -8,6 +8,7 @@ import { Wheel } from '@/components/Wheel';
 import {
   amountKind,
   convertAmount,
+  type AmountKind,
   isBasePortion,
   maxAmount,
   nearestIndex,
@@ -61,22 +62,30 @@ export function AmountEditor({
   className?: string;
 }) {
   const id = useId();
-  const { portion, quantity } = value;
-  const kind = amountKind(portion);
-  const max = maxAmount(kind);
   const [error, setError] = useState<string | null>(null);
-  const unitSymbol = kind === 'base' ? unit : '×';
+  // An amount that is shown but was not committed: more than the maximum (typed, or a unit switch of
+  // a large amount: 3 × 3 500 g in grams), or the empty field in a unit the parent did not take yet.
+  // The parent got `quantity: null` (nothing to save) until a fitting amount replaces it.
+  const [pending, setPending] = useState<Amount | null>(null);
 
   // The amount off the raster that has a place on the wheel. It follows every amount that does not
   // come from the wheel itself (typed, unit switched, changed from outside such as "Gesamtmenge"),
   // and stays while the wheel turns: removing its row mid-turn would shift all rows below it.
-  const [extra, setExtra] = useState<number | null>(quantity);
-  const [seen, setSeen] = useState({ quantity, label: portion.label });
+  const [extra, setExtra] = useState<number | null>(value.quantity);
+  const [seen, setSeen] = useState({ quantity: value.quantity, label: value.portion.label });
   const [own, setOwn] = useState<number | null | undefined>(undefined);
-  if (quantity !== seen.quantity || portion.label !== seen.label) {
-    setSeen({ quantity, label: portion.label });
-    if (quantity !== own || portion.label !== seen.label) setExtra(quantity);
+  if (value.quantity !== seen.quantity || value.portion.label !== seen.label) {
+    setSeen({ quantity: value.quantity, label: value.portion.label });
+    if (value.quantity !== own || value.portion.label !== seen.label) setExtra(value.quantity);
+    // The parent taking the empty amount of the pending unit keeps it; any other amount replaces it.
+    if (pending && !(value.quantity === null && value.portion.label === pending.portion.label))
+      setPending(null);
   }
+  const { portion, quantity } = pending ?? value;
+  const kind = amountKind(portion);
+  const max = maxAmount(kind);
+  const unitSymbol = kind === 'base' ? unit : '×';
+  const limit = (k: AmountKind) => `Höchstens ${fmt0(maxAmount(k))} ${k === 'base' ? unit : 'Portionen'}.`;
   const values = wheelValues(kind, extra);
   const amountText = (v: number) => (kind === 'base' ? fmt0(v) : fmt2(v));
 
@@ -84,6 +93,7 @@ export function AmountEditor({
     const q = values[i];
     if (q === undefined) return;
     setOwn(q);
+    setPending(null);
     setError(null);
     (final ? onCommit : onChange)({ portion, quantity: q });
   };
@@ -103,8 +113,16 @@ export function AmountEditor({
   const switchUnit = (i: number) => {
     const next = portions[i];
     if (!next || next.label === portion.label) return;
+    const q = convertAmount(quantity, portion, next);
+    if (q !== null && q > maxAmount(amountKind(next))) {
+      // Clamping would quietly change the grams: the field shows the amount as an error instead.
+      setPending({ portion: next, quantity: q });
+      setError(limit(amountKind(next)));
+      return onCommit({ portion: next, quantity: null });
+    }
+    setPending(null);
     setError(null);
-    onCommit({ portion: next, quantity: convertAmount(quantity, portion, next) });
+    onCommit({ portion: next, quantity: q });
   };
 
   return (
@@ -157,13 +175,16 @@ export function AmountEditor({
           onValueChange={(q) => {
             if (q === null || !(q > 0)) {
               setError('Bitte eine Menge größer 0 eingeben.');
+              setPending(pending && { portion, quantity: null });
               return onCommit({ portion, quantity: null });
             }
             if (q > max) {
               // Too much is no amount: the button goes inactive instead of logging the last fitting value.
-              setError(`Höchstens ${fmt0(max)} ${kind === 'base' ? unit : 'Portionen'}.`);
+              setError(limit(kind));
+              setPending({ portion, quantity: q });
               return onCommit({ portion, quantity: null });
             }
+            setPending(null);
             setError(null);
             onCommit({ portion, quantity: Math.round(q * 100) / 100 });
           }}

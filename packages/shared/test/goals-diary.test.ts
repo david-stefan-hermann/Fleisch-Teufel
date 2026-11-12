@@ -188,7 +188,7 @@ describe('day summary & reports', () => {
     expect(rows.map((r) => r.mealsLogged)).toEqual([0, 2, 1]);
     expect(st.avg.kcal).toBe(1200);
     expect(st.daysUnderGoal).toBe(1);
-    expect(st.weightChange).toBe(-0.6);
+    expect(st.weightTrendKg).toBe(-0.6);
     expect(st.totalExerciseMinutes).toBe(30);
     // Averages of all codes over the complete day, and the average daily targets.
     expect(st.avgNutrients).toEqual({ ENERCC: 1200 });
@@ -248,5 +248,21 @@ describe('quick entry title', () => {
     expect(quickEntryTitle(fits)).toBe(`${'a'.repeat(29)} ${'b'.repeat(29)}…`);
     // One endless word is cut where it is.
     expect(quickEntryTitle('y'.repeat(200))).toBe(`${'y'.repeat(QUICK_TITLE_MAX - 1)}…`);
+  });
+
+  it('never cuts an emoji in half', () => {
+    // The emoji (two UTF-16 units) sits exactly on the cut: it stays whole, no lone surrogate.
+    const text = `${'y'.repeat(QUICK_TITLE_MAX - 2)}🍕🍕🍕 und mehr`;
+    const title = quickEntryTitle(text);
+    expect(title).toBe(`${'y'.repeat(QUICK_TITLE_MAX - 2)}🍕…`);
+    expect(() => encodeURIComponent(title)).not.toThrow(); // throws on a lone surrogate
+    expect(Array.from(title)).toHaveLength(QUICK_TITLE_MAX);
+    // A family emoji of several code points is kept whole or left out.
+    const family = '👨‍👩‍👧';
+    const long = `${'y'.repeat(QUICK_TITLE_MAX - 3)}${family} und mehr`;
+    expect(quickEntryTitle(long)).toBe(`${'y'.repeat(QUICK_TITLE_MAX - 3)}…`);
+    // Short texts with emoji count their characters, not UTF-16 units.
+    const pizzas = '🍕'.repeat(QUICK_TITLE_MAX);
+    expect(quickEntryTitle(pizzas)).toBe(pizzas);
   });
 });

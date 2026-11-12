@@ -1,4 +1,4 @@
-import { dayBudget, energyBreakdown, get, isCompleteDay, N, type DailyRow } from '@ft/shared';
+import { dayBudget, energyBreakdown, get, isCompleteDay, N, type DailyRow, type ISODate } from '@ft/shared';
 import type { ChartSeries } from '@/components/Chart';
 import { xOf } from '@/lib/time';
 import { fmt0, fmt1, fmt2 } from '@/lib/format';
@@ -37,7 +37,8 @@ export type ChartData = [number[], ...(number | null)[][]];
 /**
  * Data of the report chart. Calories: each bar is as high as the eaten kcal and split by the
  * macros' energy shares (protein at the bottom, then carbs, then fat), like the split bar of the
- * overview; an incomplete day (one meal only, see `isCompleteDay`) or one without macros is one grey
+ * overview; an incomplete day (one meal only, or today before it is closed, see `isCompleteDay`) or
+ * one without macros is one grey
  * bar. "Gegessen" carries the real kcal into the legend.
  */
 export function buildChart(
@@ -47,6 +48,8 @@ export function buildChart(
   creditExercise = true,
   /** Setting "Schritte aufs Ziel anrechnen": the same for the steps. */
   creditSteps = true,
+  /** The running day: grey until it is closed. */
+  today?: ISODate,
 ): { data: ChartData; series: ChartSeries[]; hasData: boolean } {
   const xs = rows.map((r) => xOf(r.date));
   const v = (fn: (r: DailyRow) => number) => rows.map((r) => (r.logged ? fn(r) : null));
@@ -55,7 +58,7 @@ export function buildChart(
       if (!r.logged) return null;
       const kcal = get(r.nutrients, N.kcal);
       const { protein, carbs, fat } = energyBreakdown(r.nutrients).macros;
-      const has = protein.share + carbs.share + fat.share > 0 && isCompleteDay(r);
+      const has = protein.share + carbs.share + fat.share > 0 && isCompleteDay(r, { today });
       return { kcal, has, p: kcal * protein.share, pc: kcal * (protein.share + carbs.share) };
     });
     const seg = (fn: (x: NonNullable<(typeof parts)[number]>) => number | null) =>

@@ -7,8 +7,10 @@ import {
   type CsvDialect,
   isCompleteDay,
   type DailyRow,
+  type EntrySource,
   type ExerciseEntry,
   type FoodEntry,
+  type ISODate,
   type WeightEntry,
 } from '@ft/shared';
 
@@ -64,6 +66,20 @@ export function downloadBlob(filename: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const SOURCE_LABELS: Record<EntrySource, string> = {
+  bls: 'BLS',
+  off: 'Open Food Facts',
+  custom: 'Eigenes',
+  quick: 'Schnelleingabe',
+  ai: 'KI-Analyse',
+};
+
+/** Column "Quelle": where the values come from; a food the AI estimated itself has no food id. */
+export function sourceLabel(e: Pick<FoodEntry, 'source' | 'foodId'>): string {
+  if (e.source === 'ai' && !e.foodId) return 'KI-Schätzung';
+  return SOURCE_LABELS[e.source] ?? e.source;
+}
+
 export function entriesCsv(entries: FoodEntry[], mealNames: string[], dialect: CsvDialect): string {
   const sorted = [...entries].sort(
     (a, b) => a.date.localeCompare(b.date) || a.meal - b.meal || a.loggedAt - b.loggedAt,
@@ -75,7 +91,7 @@ export function entriesCsv(entries: FoodEntry[], mealNames: string[], dialect: C
       { header: 'Mahlzeit', value: (e) => mealNames[e.meal] ?? e.meal },
       { header: 'Lebensmittel', value: (e) => e.name },
       { header: 'Marke', value: (e) => e.brand },
-      { header: 'Quelle', value: (e) => e.source },
+      { header: 'Quelle', value: sourceLabel },
       { header: 'Menge (g)', value: (e) => e.grams },
       { header: 'Portion', value: (e) => e.portionLabel },
       { header: 'Anzahl', value: (e) => e.quantity },
@@ -94,13 +110,14 @@ export function entriesCsv(entries: FoodEntry[], mealNames: string[], dialect: C
   );
 }
 
-export function dailyCsv(rows: DailyRow[], dialect: CsvDialect): string {
+/** Daily rows as CSV; `today` is "Vollständig" only once closed (`isCompleteDay`). */
+export function dailyCsv(rows: DailyRow[], dialect: CsvDialect, today?: ISODate): string {
   return toCsv(
     rows,
     [
       { header: 'Datum', value: (r) => r.date },
       { header: 'Erfasst', value: (r) => (r.logged ? 'ja' : 'nein') },
-      { header: 'Vollständig', value: (r) => (isCompleteDay(r) ? 'ja' : 'nein') },
+      { header: 'Vollständig', value: (r) => (isCompleteDay(r, { today }) ? 'ja' : 'nein') },
       { header: 'kcal', value: (r) => (r.logged ? get(r.nutrients, N.kcal) : null) },
       { header: 'Ziel kcal', value: (r) => r.targetKcal },
       { header: 'Training kcal', value: (r) => r.exerciseKcal },

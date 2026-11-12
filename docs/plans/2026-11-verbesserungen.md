@@ -11,8 +11,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | Block | Stand    | Commit  |
 | ----- | -------- | ------- |
 | 0     | erledigt | 72a29f0 |
-| 1     | erledigt |         |
-| 2     | offen    |         |
+| 1     | erledigt | 2759a17 |
+| 2     | erledigt |         |
 | 3     | offen    |         |
 | 4     | offen    |         |
 | 5     | offen    |         |
@@ -38,6 +38,22 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
   Sync-Datensatz für eine unveränderte Notiz).
 - Block 1: Nach dem Löschen auf Seiten mit Live-Abfrage (Food-, Sport-, Schnelleintrag- und Lebensmittel-Editor)
   kann vor dem Zurückspringen kurz „nicht gefunden“ aufblitzen (wie schon bisher auf der Sport-Seite). Am iPhone prüfen.
+- Block 2, Z3: die gemeinsamen Funktionen heißen `budgetAverage` und `weightTrend` (statt `weekTargetAverage` und
+  `weekWeightTrend`) und liegen in `reports.ts`, weil der Bericht sie auch für Monat und 90 Tage nutzt. `PeriodStats`
+  hat statt `avgTargetKcal` und `weightChange` jetzt `avgBudgetKcal` und `weightTrendKg`. Im Bericht heißt die
+  Kachel „Gewicht“ jetzt „Trend“ (Unterzeile weiter das letzte Gewicht), auf der Wochenkarte ebenso.
+- Block 2, Z2: der Satz unter den Berichtszahlen sagt statt „N Tage mit nur einer Mahlzeit zählen nicht mit“ jetzt
+  „N Tage nur zum Teil erfasst, zählen nicht mit“ (der laufende Tag mit zwei Mahlzeiten gehört jetzt auch dazu).
+- Block 2, Z1: die Karte „Bedarf aus deinen Daten“ sagt „kcal am Tag, mit Training“, solange Training nicht
+  angerechnet wird (sonst wie bisher „ohne Training“). Auf „Tag abschließen“ zeigt „Training“ bei 0 kein „−0“ mehr.
+- Block 2, Z5: der Grenzhinweis bleibt der bestehende Text „Höchstens 9.999 g.“ (wie beim Eintippen, eine Grenze, kein
+  Bedienungssatz). Der Editor merkt sich die zu große Menge samt neuer Einheit (`pending`), bis eine passende Menge
+  kommt; dadurch bleibt auch eine zu groß getippte Zahl im Feld stehen, statt auf der Food-Seite zu verschwinden.
+- Block 2, Z8: geschnitten wird nach ganzen Zeichen (Grapheme per `Intl.Segmenter`, sonst Codepoints), gezählt in
+  Codepoints: ein Familien-Emoji bleibt ganz oder fällt weg, der Titel bleibt höchstens 60 Codepoints lang.
+- Block 2, F10: es gibt keine Quelle `estimate`; KI-Einträge (`ai`) heißen „KI-Analyse“, ohne `foodId` (geschätztes
+  Lebensmittel) „KI-Schätzung“.
+- Block 2, U11: der Zustand „Daten nicht schlüssig“ zeigt darunter die Zahl der vollständigen Tage und Wiegungen.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

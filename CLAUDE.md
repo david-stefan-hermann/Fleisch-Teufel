@@ -387,8 +387,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   camera open). An Open Food Facts food has a pencil "Werte korrigieren": `/custom-food/new?copy=<foodId>`
   prefills an own food with the same barcode; search and online results hide the OFF twin of an own barcode
   (`ownBarcodes`, `shadowedByOwn` in `foods/foodService.ts`), the barcode lookup prefers own foods anyway.
-- Complete days (`isCompleteDay`, shared `reports.ts`): closed with "Tag abschließen" or at least
-  `MIN_MEALS_COMPLETE` (2) meals logged. Report averages and "im Ziel" count complete days (fallback: logged
+- Complete days (`isCompleteDay(row, { today })`, shared `reports.ts`): closed with "Tag abschließen" or at least
+  `MIN_MEALS_COMPLETE` (2) meals logged; the running day only once closed (pass `today`). Report averages and "im Ziel" count complete days (fallback: logged
   days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig".
   `dailyRows` takes `notes` for the closed flag. Under the diary note "Alle vergangenen Tage abschließen" (grey,
   centred text link in `NoteCard`) shows while a day before the shown one has live entries and no `completedAt`
@@ -404,9 +404,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   it); when iOS answers `NotAllowedError` after the long await, the dialog offers "Bild teilen" for a fresh tap.
   Generic file sharing for CSV/JSON: `shareOrDownloadFile` in `features/reports/export.ts`.
 - Expenditure from own data (shared `expenditure.ts`): `estimateExpenditure` = average intake of complete
-  days minus training minus the linear weight trend × 7 700 over the last 21 days (needs 14 complete days
-  and 4 weigh-ins spanning 10 days; implausible results give null). `ExpenditureCard` on `/progress` shows
-  it next to the formula and suggests a kcal target (`targetFromExpenditure`, applied via
+  days minus credited training and steps (not credited = part of the base) minus the linear weight trend ×
+  7 700 over the last 21 days (needs 14 complete days and 4 weigh-ins spanning 10 days); it returns
+  `{ value, reason }` (`tooFew` or `implausible`, the card shows "Daten nicht schlüssig" for the latter).
+  Week card and reports share "Budget Ø" (`budgetAverage`) and "Trend" (`weightTrend`).
+  `ExpenditureCard` on `/progress` shows it next to the formula and suggests a kcal target (`targetFromExpenditure`, applied via
   `features/goals/applyTargetKcal.ts`, or put off 7 days in `kv` `expenditure.dismissedUntil`); the day
   forecast uses it when available (`useExpenditure`). Never changes a goal by itself.
 - Monday only, today's diary: `WeekReviewCard` ("Letzte Woche": Ø kcal vs budget, Ø protein, weight trend,

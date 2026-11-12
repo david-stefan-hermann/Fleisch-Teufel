@@ -1,6 +1,7 @@
-import { dateRange, type ISODate } from './dates.js';
+import { dateRange, diffDays, type ISODate } from './dates.js';
 import { creditedTrainingKcal } from './diary.js';
 import { isStepsEntry } from './exercise.js';
+import { linearTrend, type WeightPoint } from './forecast.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, sumNutrients } from './nutrition.js';
@@ -91,9 +92,17 @@ export function dailyRows(params: {
   });
 }
 
-/** Whether a day's entries can be taken as the whole day (see `MIN_MEALS_COMPLETE`). */
-export function isCompleteDay(r: Pick<DailyRow, 'logged' | 'mealsLogged' | 'completed'>): boolean {
-  return r.logged && (r.completed || r.mealsLogged >= MIN_MEALS_COMPLETE);
+/**
+ * Whether a day's entries can be taken as the whole day (see `MIN_MEALS_COMPLETE`). The running day
+ * (`today`) counts only once it was closed: at noon two meals are no whole day yet.
+ */
+export function isCompleteDay(
+  r: Pick<DailyRow, 'date' | 'logged' | 'mealsLogged' | 'completed'>,
+  opts: { today?: ISODate } = {},
+): boolean {
+  if (!r.logged) return false;
+  if (r.completed) return true;
+  return r.date !== opts.today && r.mealsLogged >= MIN_MEALS_COMPLETE;
 }
 
 export interface PeriodStats {
@@ -115,7 +124,8 @@ export interface PeriodStats {
     satFat: number;
     salt: number;
   };
-  avgTargetKcal: number;
+  /** Average day budget ("Budget Ø": target plus credited training, `budgetAverage`) over the days of `basis`. */
+  avgBudgetKcal: number;
   /** Average per logged day of every nutrient code (input of the nutrient overview, "Ø pro Tag"). */
   avgNutrients: NutrientMap;
   /** Average daily targets over the logged days (kcal and macro grams). */
@@ -128,7 +138,8 @@ export interface PeriodStats {
   totalExerciseMinutes: number;
   weightStart: number | null;
   weightEnd: number | null;
-  weightChange: number | null;
+  /** "Trend": change of the linear weight trend over the period's weigh-ins (`weightTrend`). */
+  weightTrendKg: number | null;
 }
 
 export interface PeriodOptions {
@@ -136,6 +147,8 @@ export interface PeriodOptions {
   creditExercise?: boolean;
   /** The same for the steps (setting "Schritte aufs Ziel anrechnen"). */
   creditSteps?: boolean;
+  /** The running day: complete only once closed (`isCompleteDay`). */
+  today?: ISODate;
 }
 
 /** The kcal a day may have: its target, plus the trainings and steps that are credited. */
@@ -150,11 +163,39 @@ export function dayBudget(
   );
 }
 
+/**
+ * "Budget Ø": the average day budget (kcal target plus the credited training and steps, `dayBudget`)
+ * over `days`, rounded; null without days. The week card and the reports show this one number.
+ */
+export function budgetAverage(days: readonly DailyRow[], opts: PeriodOptions = {}): number | null {
+  if (days.length === 0) return null;
+  const credit = opts.creditExercise ?? true;
+  const creditSteps = opts.creditSteps ?? true;
+  return Math.round(days.reduce((s, r) => s + dayBudget(r, credit, creditSteps), 0) / days.length);
+}
+
+/**
+ * "Trend": how much the linear trend of the weigh-ins in [from, to] moved between the first and the
+ * last of them (kg, two decimals, negative = losing); null with fewer than two weigh-ins on
+ * different days. Single outliers move it less than "last minus first" would.
+ */
+export function weightTrend(weights: readonly WeightPoint[], from: ISODate, to: ISODate): number | null {
+  const inside = weights
+    .filter((w) => w.date >= from && w.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (inside.length < 2) return null;
+  const span = diffDays(inside[0]!.date, inside.at(-1)!.date);
+  const trend = linearTrend(inside);
+  if (!trend || span <= 0) return null;
+  const v = round(trend.slopePerDay * span, 2);
+  return v === 0 ? 0 : v;
+}
+
 export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {}): PeriodStats {
   const credit = opts.creditExercise ?? true;
   const creditSteps = opts.creditSteps ?? true;
   const anyLogged = rows.filter((r) => r.logged);
-  const complete = anyLogged.filter(isCompleteDay);
+  const complete = anyLogged.filter((r) => isCompleteDay(r, opts));
   const basis = complete.length > 0 ? 'complete' : 'logged';
   const logged = basis === 'complete' ? complete : anyLogged;
   const n = logged.length || 1;
@@ -177,7 +218,7 @@ export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {})
       satFat: avgOf(N.satFat),
       salt: avgOf(N.salt),
     },
-    avgTargetKcal: round(logged.reduce((s, r) => s + r.targetKcal, 0) / n, 0),
+    avgBudgetKcal: budgetAverage(logged, opts) ?? 0,
     avgNutrients: logged.length ? multiplyNutrients(sumNutrients(logged.map((r) => r.nutrients)), 1 / n) : {},
     avgTargets: {
       kcal: round(logged.reduce((s, r) => s + r.targetKcal, 0) / n, 0),
@@ -198,9 +239,13 @@ export function periodStats(rows: readonly DailyRow[], opts: PeriodOptions = {})
     totalExerciseMinutes: rows.reduce((s, r) => s + r.exerciseMinutes, 0),
     weightStart,
     weightEnd,
-    weightChange:
-      weights.length >= 2 && weightStart !== null && weightEnd !== null
-        ? round(weightEnd - weightStart, 2)
+    weightTrendKg:
+      rows.length > 0
+        ? weightTrend(
+            weights.map((r) => ({ date: r.date, kg: r.weightKg! })),
+            rows[0]!.date,
+            rows.at(-1)!.date,
+          )
         : null,
   };
 }

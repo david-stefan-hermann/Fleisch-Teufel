@@ -54,6 +54,7 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
   const s = weekSummary(data.rows, data.weights, {
     creditExercise: settings.addExerciseCalories,
     creditSteps: settings.addStepsCalories !== false,
+    today,
   });
   if (s.loggedDays === 0) return null;
   return (
@@ -75,7 +76,7 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
           <dt className="text-xs text-muted-foreground">Ø kcal</dt>
           <dd className="text-lg font-semibold">{s.avgKcal === null ? NO_VALUE : fmt0(s.avgKcal)}</dd>
           <dd className="text-[11px] text-muted-foreground">
-            Ziel Ø {s.avgBudgetKcal === null ? NO_VALUE : fmt0(s.avgBudgetKcal)}
+            Budget Ø {s.avgBudgetKcal === null ? NO_VALUE : fmt0(s.avgBudgetKcal)}
           </dd>
         </div>
         <div>
@@ -88,7 +89,7 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Gewicht</dt>
+          <dt className="text-xs text-muted-foreground">Trend</dt>
           <dd className="text-lg font-semibold">
             {s.weightDeltaKg === null
               ? NO_VALUE

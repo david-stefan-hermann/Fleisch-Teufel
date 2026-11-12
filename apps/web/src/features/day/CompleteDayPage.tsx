@@ -45,7 +45,8 @@ export function CompleteDayPage() {
   const net = eaten - credited;
   // Maintenance from the person's own data when there is enough of it, else from the profile and
   // this day's weight. Only without a complete profile the goal minus the planned daily delta stands
-  // in (wrong once the goal was clamped or edited by hand).
+  // in (wrong once the goal was clamped or edited by hand). Both sides share one basis: training that
+  // is not credited stays out of `net` and inside the data-based maintenance (`estimateExpenditure`).
   const profile = bodyProfile(settings, weight, date);
   const fromData = expenditure.estimate?.kcal ?? null;
   const maintenance =
@@ -86,7 +87,10 @@ export function CompleteDayPage() {
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Training</dt>
-            <dd className="text-lg font-semibold">−{fmt0(credited)}</dd>
+            <dd className="text-lg font-semibold">
+              {Math.round(credited) > 0 ? '−' : ''}
+              {fmt0(credited)}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Ziel</dt>
@@ -132,7 +136,7 @@ export function CompleteDayPage() {
             </p>
             <p className="tabular text-4xl font-bold">{fmt1(forecast.kg)} kg</p>
             <p className="tabular text-sm text-muted-foreground">
-              {forecast.deltaKg <= 0 ? '' : '+'}
+              {round(forecast.deltaKg, 1) > 0 ? '+' : ''}
               {fmt1(round(forecast.deltaKg, 1))} kg gegenüber {fmt1(weight!)} kg
             </p>
             <p className="mt-2 text-xs text-muted-foreground text-pretty">

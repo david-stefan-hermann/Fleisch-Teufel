@@ -23,9 +23,9 @@ export function roundAmount(v: number, kind: AmountKind): number {
   return kind === 'base' ? Math.round(v) : Math.round(v * 100) / 100;
 }
 
-/** A computed amount in its precision, above 0 (0 is never an amount) and at most the maximum. */
-export function clampAmount(v: number, kind: AmountKind): number {
-  return Math.min(maxAmount(kind), Math.max(kind === 'base' ? 1 : 0.01, roundAmount(v, kind)));
+/** A computed amount in its precision and above 0 (0 is never an amount). It may exceed the maximum. */
+export function positiveAmount(v: number, kind: AmountKind): number {
+  return Math.max(kind === 'base' ? 1 : 0.01, roundAmount(v, kind));
 }
 
 /**
@@ -92,10 +92,14 @@ export function editorPortions(unit: 'g' | 'ml', portions: readonly Portion[], c
 export const SCALE_MIN = 0.25;
 export const SCALE_MAX = 3;
 
-/** The same amount in another unit: the grams stay (whole grams, hundredths of a portion). */
+/**
+ * The same amount in another unit: the grams stay (whole grams, hundredths of a portion). The result
+ * is not clamped to `MAX_AMOUNT` (3 × 3 500 g stays 10 500 g instead of quietly becoming 9 999 g):
+ * the editor shows a result above it as an error and saves nothing until it fits.
+ */
 export function convertAmount(quantity: number | null, from: Portion, to: Portion): number | null {
   if (quantity === null || !(quantity > 0)) return null;
-  return clampAmount((quantity * from.grams) / to.grams, amountKind(to));
+  return positiveAmount((quantity * from.grams) / to.grams, amountKind(to));
 }
 
 /** An amount in "100 g" portions as grams (1,5 × 100 g → 150 g); others stay as they are. */
