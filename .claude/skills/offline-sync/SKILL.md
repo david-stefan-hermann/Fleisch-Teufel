@@ -30,6 +30,11 @@ deterministic id and add it to `requiredId()` so offline devices converge.
   They bump `updatedAt` monotonically, validate with Zod and enqueue the outbox **in one transaction**.
   Never `db.<table>.put()` a synced record directly — it would never upload.
 - Deletes are soft (`deleted: true`); all queries filter `!deleted`. Offer undo via `restoreRecord`.
+- The trash shows tombstones of `PURGEABLE_TABLES` (`weightEntries`, `meals`, `exerciseTemplates`,
+  `exerciseEntries` for steps) with `deleted && !purgedAt`. "Endgültig löschen" never removes a tombstone:
+  `purgeRecords` sets the synced `purgedAt` (a normal write). `writeRecord` clears `purgedAt` whenever a
+  record of those tables is written alive (restore, a new weight on the same day), so a later delete puts
+  it back into the trash. New records of those tables need no `purgedAt` in `saveRecord` (it defaults to null).
 - **Never rebuild a stored record from form fields when saving.** A device with an older app version
   does not know fields a newer version added; a record rebuilt from its form sets them to `null` on the
   server (the upsert writes every column). Change fields with `patchRecord`, or save a form with

@@ -105,7 +105,7 @@ export function isDirty(
 }
 
 /**
- * "Neues Meal" (Gespeicherte Meals): an empty draft under a new id, the record follows on "Speichern".
+ * "Neues Meal" (Mehr → Meals): an empty draft under a new id, the record follows on "Speichern".
  * Returns the id for the editor.
  */
 export async function startNewMeal(db: UserDb): Promise<string> {
@@ -116,7 +116,16 @@ export async function startNewMeal(db: UserDb): Promise<string> {
 
 /** Stand-in for the record of a new meal while only its draft exists (the editor needs a `Meal`). */
 export function newMealPlaceholder(mealId: string): Meal {
-  return { id: mealId, name: '', items: [], photoId: null, cookedGrams: null, updatedAt: 0, deleted: false };
+  return {
+    id: mealId,
+    name: '',
+    items: [],
+    photoId: null,
+    cookedGrams: null,
+    purgedAt: null,
+    updatedAt: 0,
+    deleted: false,
+  };
 }
 
 /**

@@ -57,7 +57,15 @@ import {
   pasteClipboard,
   readClipboard,
 } from '@/db/clipboard';
-import { trashCount, trashedMeals, trashedSteps, trashedTrainings, trashedWeights } from '@/db/trash';
+import {
+  purgeRecords,
+  purgeTrash,
+  trashCount,
+  trashedMeals,
+  trashedSteps,
+  trashedTrainings,
+  trashedWeights,
+} from '@/db/trash';
 import {
   addActivityToTraining,
   isTrainingDirty,
@@ -223,6 +231,57 @@ describe('local writes', () => {
     expect((await trashedWeights(d)).map((w) => w.date)).toEqual(['2026-10-01']);
     expect(await trashedMeals(d)).toEqual([]);
     expect(await trashCount(d)).toBe(1);
+  });
+
+  it('purges trash records for good: hidden, a new version in the outbox, restore brings them back', async () => {
+    const d = db();
+    for (const date of ['2026-10-01', '2026-10-02'])
+      await saveRecord(d, 'weightEntries', { id: dayId.weight(date), date, kg: 80 });
+    const [a, b] = ['2026-10-01', '2026-10-02'].map((date) => dayId.weight(date)) as [string, string];
+    await deleteRecord(d, 'weightEntries', a);
+    await deleteRecord(d, 'weightEntries', b);
+    const before = (await d.weightEntries.get(a))!.updatedAt;
+    await d.outbox.clear();
+
+    expect(await purgeRecords(d, [{ table: 'weightEntries', id: a }])).toBe(1);
+    const purged = (await d.weightEntries.get(a))!;
+    expect(purged.deleted).toBe(true);
+    expect(purged.purgedAt).toEqual(expect.any(Number));
+    expect(purged.updatedAt).toBeGreaterThan(before);
+    expect((await d.outbox.toArray()).map((o) => o.key)).toEqual([`weightEntries:${a}`]);
+    expect((await trashedWeights(d)).map((w) => w.id)).toEqual([b]);
+    expect(await trashCount(d)).toBe(1);
+
+    // Restored on another device in the meantime: the purge skips it, as it skips a purged one.
+    await restoreRecord(d, 'weightEntries', b);
+    expect(
+      await purgeRecords(d, [
+        { table: 'weightEntries', id: a },
+        { table: 'weightEntries', id: b },
+      ]),
+    ).toBe(0);
+    expect((await d.weightEntries.get(b))!.deleted).toBe(false);
+
+    // Restoring a purged record clears the mark; deleted again, it is back in the trash.
+    await restoreRecord(d, 'weightEntries', a);
+    expect((await d.weightEntries.get(a))!).toMatchObject({ deleted: false, purgedAt: null });
+    await deleteRecord(d, 'weightEntries', a);
+    expect((await trashedWeights(d)).map((w) => w.id)).toEqual([a]);
+  });
+
+  it('empties the whole trash in one go', async () => {
+    const d = db();
+    await saveRecord(d, 'weightEntries', { id: dayId.weight('2026-10-01'), date: '2026-10-01', kg: 80 });
+    await deleteRecord(d, 'weightEntries', dayId.weight('2026-10-01'));
+    const t = await saveTraining(d, {
+      name: 'Dauerlauf',
+      items: [{ typeKey: 'running', typeName: 'Laufen', minutes: 30, intensity: 'moderate', note: null }],
+    });
+    await deleteRecord(d, 'exerciseTemplates', t);
+    expect(await trashCount(d)).toBe(2);
+    expect(await purgeTrash(d)).toBe(2);
+    expect(await trashCount(d)).toBe(0);
+    expect(await purgeTrash(d)).toBe(0);
   });
 
   it('rejects invalid records without touching the outbox', async () => {
@@ -901,6 +960,7 @@ describe('local writes', () => {
           groupId: null,
           steps: 8432,
           distanceM: 6100,
+          purgedAt: null,
         },
       ],
       weights: [],

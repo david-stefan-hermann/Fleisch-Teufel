@@ -159,7 +159,16 @@ export async function saveExercise(
  */
 export type TrainingToLog = Omit<
   ExerciseEntry,
-  'id' | 'updatedAt' | 'deleted' | 'loggedAt' | 'date' | 'templateId' | 'groupId' | 'steps' | 'distanceM'
+  | 'id'
+  | 'updatedAt'
+  | 'deleted'
+  | 'purgedAt'
+  | 'loggedAt'
+  | 'date'
+  | 'templateId'
+  | 'groupId'
+  | 'steps'
+  | 'distanceM'
 > & {
   templateId?: string | null;
   /** Rows with the same mark share a new `groupId` (the activities of one saved training). */

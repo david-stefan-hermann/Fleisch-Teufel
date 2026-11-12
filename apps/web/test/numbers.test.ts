@@ -74,7 +74,7 @@ describe('earliestDate (start of the "Alles" export)', () => {
     const base = { updatedAt: 1, deleted: false };
     await db.foodEntries.put({ ...base, id: 'f1', date: '2026-10-01' } as never);
     expect(await earliestDate(db)).toBe('2026-10-01');
-    await db.weightEntries.put({ ...base, id: 'w1', date: '2026-09-20', kg: 80 });
+    await db.weightEntries.put({ ...base, id: 'w1', date: '2026-09-20', kg: 80, purgedAt: null });
     await db.exerciseEntries.put({ ...base, id: 'x1', date: '2026-09-25' } as never);
     expect(await earliestDate(db)).toBe('2026-09-20');
     // Deleted records do not count.

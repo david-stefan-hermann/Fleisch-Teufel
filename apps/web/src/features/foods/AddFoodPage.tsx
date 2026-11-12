@@ -623,7 +623,7 @@ function FoodRow({
 function MealList({ meals, search }: { meals: Meal[] | undefined; search: FoodLinkSearch }) {
   if (!meals) return null;
   if (meals.length === 0)
-    return <p className="py-2 text-sm text-muted-foreground text-pretty">Noch keine gespeicherten Meals.</p>;
+    return <p className="py-2 text-sm text-muted-foreground text-pretty">Noch keine Meals.</p>;
   return (
     <ul className="-mx-4 divide-y divide-border/70">
       {meals.map((m) => (

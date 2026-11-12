@@ -14,7 +14,7 @@ import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0 } from '@/lib/format';
 import { sortTrainings, useTypeOptions } from './training';
 
-/** Mehr → Gespeicherte Trainings: pinned first, then by name; tap edits, swipe deletes (undo, trash). */
+/** Mehr → Trainings (saved trainings): pinned first, then by name; tap edits, swipe deletes (undo, trash). */
 export function TrainingsPage() {
   const db = useDb();
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export function TrainingsPage() {
     [db],
   );
   return (
-    <Page title="Gespeicherte Trainings" back="/more" withTabBar={false}>
+    <Page title="Trainings" back="/more" withTabBar={false}>
       <Button
         variant="outline"
         className="mb-3 w-full"
@@ -41,7 +41,7 @@ export function TrainingsPage() {
         <Plus aria-hidden /> Neues Training
       </Button>
       {trainings?.length === 0 && (
-        <p className="py-6 text-center text-sm text-muted-foreground">Noch keine gespeicherten Trainings.</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">Noch keine Trainings.</p>
       )}
       <ul className="-mx-4 divide-y divide-border/70">
         {trainings?.map((t) => {

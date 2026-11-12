@@ -117,12 +117,12 @@ test('food search: tabs as filters, used foods first, own foods with collapsible
   await page.getByRole('tab', { name: 'Eigene' }).click();
   const meals = page.getByRole('button', { name: 'Meals (0)' });
   await expect(meals).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('Noch keine gespeicherten Meals')).toBeVisible();
+  await expect(page.getByText('Noch keine Meals')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Eigene Lebensmittel' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Eigenes Lebensmittel anlegen' })).toBeVisible();
   await meals.click();
   await expect(meals).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByText('Noch keine gespeicherten Meals')).toHaveCount(0);
+  await expect(page.getByText('Noch keine Meals')).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Meals (0)' })).toHaveAttribute('aria-expanded', 'false');
   // An unknown tab in the URL falls back to "Häufig".

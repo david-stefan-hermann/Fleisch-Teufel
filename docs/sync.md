@@ -23,8 +23,16 @@ Sicherung ist neuer und gewinnt, Gelöschtes bleibt gelöscht. Grabsteine der Si
 
 Grabsteine werden nie entfernt. Darauf baut der **Papierkorb** (Mehr → Papierkorb, `apps/web/src/db/trash.ts`)
 auf: er zeigt gelöschte Gewichtseinträge, Schritte, Meals und gespeicherte Trainings (`exerciseTemplates`), „Wiederherstellen“ ist ein normaler Schreibvorgang
-(`restoreRecord`: `deleted: false` mit neuer Version) und erreicht so alle Geräte. Endgültiges Löschen gibt
-es bewusst nicht, weil das Protokoll kein Purge kennt. Gewicht hat die deterministische ID `w:<Datum>`: ein
+(`restoreRecord`: `deleted: false` mit neuer Version) und erreicht so alle Geräte. „Endgültig löschen“
+(„Alle löschen“ je Abschnitt, „Papierkorb leeren“) entfernt den Grabstein nicht, weil das Protokoll kein
+Purge kennt: es setzt das synchronisierte Feld `purgedAt` (Epoch-ms, `purgeRecords` in einer Transaktion,
+eine neue Version wie jede Änderung) auf `weightEntries`, `meals`, `exerciseTemplates` und `exerciseEntries`
+(`PURGEABLE_TABLES` in `apps/web/src/db/write.ts`). Der Papierkorb zeigt nur `deleted && !purgedAt`. Jeder
+Schreibvorgang, der einen Datensatz lebendig macht (Wiederherstellen, neues Gewicht am selben Tag), setzt
+`purgedAt` auf `null`; wird er später wieder gelöscht, steht er wieder im Papierkorb. LWW entscheidet
+zwischen Endgültig-Löschen auf einem und Wiederherstellen auf einem anderen Gerät: die neuere Version gilt
+überall. Eine ältere App-Version ohne das Feld zeigt ausgeblendete Datensätze weiter in ihrem Papierkorb;
+stellt sie einen wieder her, lebt er (hingenommen). Gewicht hat die deterministische ID `w:<Datum>`: ein
 neues Gewicht am selben Tag überschreibt den Grabstein, der Eintrag verschwindet dann aus dem Papierkorb.
 
 Nicht synchronisiert werden Entwürfe auf dem Gerät: der Meal-Editor schreibt ungespeicherte Änderungen nach
@@ -56,7 +64,8 @@ gelesen wird nur über `trainingItemsOf`; nichts ist doppelt, eine ältere App-V
 Aktivität 1 und sieht ein Paket als Training mit seiner ersten Aktivität), `exerciseTemplates.pinned`
 (angepinnt, `null` = nicht) und
 `meals.cookedGrams` (Rezeptmodus: Gewicht des ganzen Meals nach dem Kochen; `null` heißt, die Zutaten zählen
-wie sie sind).
+wie sie sind) und `purgedAt` auf `weightEntries`, `meals`, `exerciseTemplates`, `exerciseEntries` (aus dem Papierkorb
+endgültig gelöscht, siehe oben; `null` = wird im Papierkorb gezeigt, solange `deleted`).
 
 `exerciseEntries.steps` und `exerciseEntries.distanceM` (Schritte und Geh-/Laufstrecke in Metern eines
 Schritte-Eintrags, sonst `null`), `settings.stepsMinimum` (ab wie vielen Schritten ein Tag einen Eintrag bekommt,

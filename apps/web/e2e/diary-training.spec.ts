@@ -178,7 +178,7 @@ test('saved trainings with several activities: editor via the search, pin, log, 
 }) => {
   await register(page);
   await page.goto('/trainings');
-  await expect(page.getByText('Noch keine gespeicherten Trainings.')).toBeVisible();
+  await expect(page.getByText('Noch keine Trainings.')).toBeVisible();
   await page.getByRole('button', { name: 'Neues Training' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Neues Training' })).toBeVisible();
   const save = page.getByRole('button', { name: 'Speichern', exact: true });

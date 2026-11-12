@@ -46,6 +46,7 @@ const weight = (date: string, kg: number, updatedAt: number): WeightEntry => ({
   deleted: false,
   date,
   kg,
+  purgedAt: null,
 });
 
 async function pullAll(c: TestClient, since = 0, limit = 1000) {
@@ -101,6 +102,7 @@ describe('sync', () => {
       deleted: false,
       photoId: 'photo-abc123',
       cookedGrams: 420.5,
+      purgedAt: null,
       name: 'Porridge',
       items: [{ ...entry(), id: undefined, date: undefined }].map(
         ({
@@ -193,6 +195,7 @@ describe('sync', () => {
           groupId: uuidv7(),
           steps: null,
           distanceM: null,
+          purgedAt: null,
         },
       },
       // The day's steps from Apple Health: one per day with a deterministic id.
@@ -216,6 +219,7 @@ describe('sync', () => {
           groupId: null,
           steps: 8432,
           distanceM: 6100,
+          purgedAt: null,
         },
       },
       {
@@ -223,7 +227,8 @@ describe('sync', () => {
         data: {
           id: uuidv7(),
           updatedAt: 5,
-          deleted: false,
+          // Deleted and removed from the trash for good: the tombstone still syncs.
+          deleted: true,
           name: 'Oberkörper',
           typeKey: 'weight_training',
           typeName: 'Krafttraining',
@@ -234,6 +239,7 @@ describe('sync', () => {
             { typeKey: 'stretching', typeName: 'Dehnen', minutes: 15, intensity: 'light', note: null },
           ],
           pinned: true,
+          purgedAt: 6,
         },
       },
       {
@@ -332,11 +338,13 @@ describe('sync', () => {
       groupId: null,
       steps: null,
       distanceM: null,
+      purgedAt: null,
     });
     expect(changes.find((c) => c.data.id === oldTemplate.id)?.data).toEqual({
       ...oldTemplate,
       extraItems: null,
       pinned: null,
+      purgedAt: null,
     });
   });
 
@@ -400,6 +408,22 @@ describe('sync', () => {
       records: [{ table: 'foodEntries', data: { ...e, quantity: 2, updatedAt: 4000 } }],
     });
     expect(r.json.stale).toHaveLength(1);
+  });
+
+  it('syncs a purge like an edit', async () => {
+    const w = { ...weight('2026-09-15', 81, 5000), deleted: true };
+    await alice.post('/api/sync/push', { records: [{ table: 'weightEntries', data: w }] });
+    const { cursor } = await pullAll(alice);
+    const purged = { ...w, purgedAt: 5001, updatedAt: 5001 };
+    const r = await alice.post('/api/sync/push', { records: [{ table: 'weightEntries', data: purged }] });
+    expect(r.json).toMatchObject({ applied: 1, stale: [], rejected: [] });
+    const { changes } = await pullAll(alice, cursor);
+    expect(changes).toEqual([{ table: 'weightEntries', data: purged }]);
+    // A restore on another device that is newer brings it back (purgedAt cleared, alive again).
+    const restored = { ...w, deleted: false, purgedAt: null, updatedAt: 5002 };
+    await alice.post('/api/sync/push', { records: [{ table: 'weightEntries', data: restored }] });
+    const after = await pullAll(alice, cursor);
+    expect(after.changes.at(-1)).toEqual({ table: 'weightEntries', data: restored });
   });
 
   it('resumes from a cursor across tables with small pages', async () => {

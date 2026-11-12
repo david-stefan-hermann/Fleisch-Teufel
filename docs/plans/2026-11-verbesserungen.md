@@ -16,8 +16,8 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 | 3     | erledigt | fa705c3 |
 | 4     | erledigt | 41cf459 |
 | 5     | erledigt | 81ef7ef |
-| 6     | erledigt |         |
-| 7     | offen    |         |
+| 6     | erledigt | 7b4f0d0 |
+| 7     | erledigt |         |
 | 8     | offen    |         |
 | 9     | offen    |         |
 | 10    | offen    |         |
@@ -126,6 +126,18 @@ Geplant am 2026-11-12 (Fable). Umsetzung läuft (Opus 5.5).
 - Block 6: README „Backup“ nennt nur noch den ZFS-Snapshot (der pg_dump-Cron und `pg_restore` sind entfallen, wie B2);
   der Restore rollt nur das eigene Dataset `tank/applications/fleisch-teufel` zurück (per Zariel geprüft, dass es
   eines ist), nie `tank/applications`. Damit ist der Restore-Teil von B2 (Block 13) schon erledigt.
+- Block 7: Migration heißt `0017_trash-purge` (Ausarbeitung), nicht `purged-at`. Statt `purgeAll`/`purgeTable`
+  gibt es `purgeRecords(db, items)` und `purgeTrash(db)` (Ausarbeitung); „Papierkorb leeren“ und „Alle löschen“
+  wirken auf die sichtbaren, gefilterten Zeilen (auch die über der Anzeigegrenze von 100 je Abschnitt). Texte nach
+  der Ausarbeitung („Endgültig löschen?“, „… werden aus dem Papierkorb entfernt und lassen sich nicht
+  wiederherstellen.“, Knopf „Endgültig löschen“, Toast „N Einträge endgültig gelöscht“), bei einem Eintrag in der
+  Einzahl („1 Eintrag wird … lässt sich …“). `saveRecord` braucht kein `purgedAt: null` bei den Aufrufern:
+  `Input` macht das Feld optional, und `writeRecord` setzt es für jeden lebenden Datensatz der vier Tabellen auf
+  `null` (auch ein neues Gewicht auf einem endgültig gelöschten Tag, sonst stünde es nach erneutem Löschen nicht im
+  Papierkorb). Zusätzlich umbenannt: Leerzustand der Suche „Noch keine Meals.“ (`AddFoodPage`, wegen
+  `food-search.spec.ts:120,125`) und in „Daten & Sync“ steht die Tabellenliste jetzt in `rejectedRecords.ts`
+  (Block 5). Mit Suchtext zeigen leere Abschnitte „Keine Treffer“; der Schritte-Abschnitt erscheint weiter nur,
+  wenn es gelöschte Schritte gibt.
 
 **Am iPhone zu prüfen:** siehe Abschnitt 4 der Bestandsaufnahme, ergänzt am Ende dieses Plans.
 

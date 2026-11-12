@@ -179,6 +179,8 @@ export const mealSchema = z.object({
    * Null (default, older records): the ingredients' weights add up as they are.
    */
   cookedGrams: z.number().positive().max(100_000).nullable().default(null),
+  /** Removed from the trash for good on some device (epoch ms); the tombstone stays for the sync. Null = shown in the trash. */
+  purgedAt: z.number().int().nonnegative().nullable().default(null),
 });
 export type Meal = z.infer<typeof mealSchema>;
 
@@ -269,6 +271,8 @@ export const exerciseEntrySchema = z.object({
    */
   steps: z.number().int().min(0).max(200_000).nullable().default(null),
   distanceM: z.number().min(0).max(300_000).nullable().default(null),
+  /** Removed from the trash for good on some device (epoch ms); the tombstone stays for the sync. Null = shown in the trash. */
+  purgedAt: z.number().int().nonnegative().nullable().default(null),
 });
 export type ExerciseEntry = z.infer<typeof exerciseEntrySchema>;
 
@@ -299,6 +303,8 @@ export const exerciseTemplateSchema = z.object({
   extraItems: z.array(trainingItemSchema).max(19).nullable().default(null),
   /** Pinned trainings come first in the diary chips and the search. Null = not pinned. */
   pinned: z.boolean().nullable().default(null),
+  /** Removed from the trash for good on some device (epoch ms); the tombstone stays for the sync. Null = shown in the trash. */
+  purgedAt: z.number().int().nonnegative().nullable().default(null),
 });
 export type ExerciseTemplate = z.infer<typeof exerciseTemplateSchema>;
 
@@ -306,6 +312,8 @@ export const weightEntrySchema = z.object({
   ...base,
   date: isoDateSchema,
   kg: z.number().min(20).max(400),
+  /** Removed from the trash for good on some device (epoch ms); the tombstone stays for the sync. Null = shown in the trash. */
+  purgedAt: z.number().int().nonnegative().nullable().default(null),
 });
 export type WeightEntry = z.infer<typeof weightEntrySchema>;
 

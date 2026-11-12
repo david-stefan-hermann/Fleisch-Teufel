@@ -183,7 +183,7 @@ export function TrainingSearchPage() {
       body = (
         <>
           {!intoId && (
-            <RowList caption="Gespeicherte Trainings" rows={saved} search={linkSearch}>
+            <RowList caption="Trainings" rows={saved} search={linkSearch}>
               <li className="px-4 py-3">
                 <Button
                   variant="outline"

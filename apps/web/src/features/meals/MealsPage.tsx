@@ -25,7 +25,7 @@ export function MealsPage() {
     [db],
   );
   return (
-    <Page title="Gespeicherte Meals" back="/more" withTabBar={false}>
+    <Page title="Meals" back="/more" withTabBar={false}>
       <Button
         variant="outline"
         className="mb-3 w-full"

@@ -74,6 +74,7 @@ const strayStepsCopy = (): ExerciseEntry => ({
   groupId: null,
   steps: 8432,
   distanceM: 6100,
+  purgedAt: null,
 });
 
 const entry = (over: Partial<FoodEntry> = {}): Omit<FoodEntry, 'updatedAt' | 'deleted'> => ({

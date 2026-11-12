@@ -75,6 +75,7 @@ describe('meal suggestions ("Zuletzt hier")', () => {
       items: [],
       photoId: 'p1',
       cookedGrams: null,
+      purgedAt: null,
       updatedAt: 1,
       deleted: false,
     });
@@ -226,6 +227,7 @@ describe('suggestions under a meal with entries', () => {
       items: [],
       photoId: null,
       cookedGrams: null,
+      purgedAt: null,
       updatedAt: 1,
       deleted: false,
     });

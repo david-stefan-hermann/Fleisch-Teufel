@@ -82,6 +82,7 @@ export function newTrainingPlaceholder(templateId: string): ExerciseTemplate {
     note: null,
     extraItems: null,
     pinned: null,
+    purgedAt: null,
     updatedAt: 0,
     deleted: false,
   };

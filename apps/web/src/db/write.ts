@@ -13,7 +13,21 @@ import {
 } from '@ft/shared';
 import type { UserDb } from './dexie';
 
-type Input<T extends SyncTable> = Omit<SyncRecordMap[T], 'updatedAt' | 'deleted'> & { deleted?: boolean };
+/**
+ * Tables whose tombstones show in the trash and can be removed from it for good ("Papierkorb leeren"):
+ * the record gets `purgedAt` and stays a tombstone for the sync.
+ */
+export const PURGEABLE_TABLES = ['weightEntries', 'meals', 'exerciseTemplates', 'exerciseEntries'] as const;
+export type PurgeableTable = (typeof PURGEABLE_TABLES)[number];
+
+function isPurgeable(table: SyncTable): table is PurgeableTable {
+  return (PURGEABLE_TABLES as readonly string[]).includes(table);
+}
+
+type Input<T extends SyncTable> = Omit<SyncRecordMap[T], 'updatedAt' | 'deleted' | 'purgedAt'> & {
+  deleted?: boolean;
+  purgedAt?: number | null;
+};
 
 export async function saveRecord<T extends SyncTable>(
   db: UserDb,
@@ -66,9 +80,12 @@ async function writeRecord<T extends SyncTable>(
     const prev = (await t.get(id)) as SyncRecordMap[T] | undefined;
     const input = build(prev);
     if (!input) return undefined;
+    const deleted = input.deleted ?? false;
     const record = {
       ...input,
-      deleted: input.deleted ?? false,
+      // A live record is never purged: deleting it again puts it back into the trash.
+      ...(isPurgeable(table) && { purgedAt: deleted ? (input.purgedAt ?? null) : null }),
+      deleted,
       updatedAt: nextVersion(prev?.updatedAt, Date.now() + db.clockOffset),
     } as SyncRecordMap[T];
     // Validate before it can ever reach the server (a rejected record would be dropped there).
@@ -111,7 +128,7 @@ export async function deleteRecord(db: UserDb, table: SyncTable, id: string): Pr
   await patchRecord(db, table, id, { deleted: true } as never);
 }
 
-/** Restores a soft-deleted record (undo). */
+/** Restores a soft-deleted record (undo, trash); a live record is never purged (`purgedAt` back to null). */
 export async function restoreRecord(db: UserDb, table: SyncTable, id: string): Promise<void> {
   await patchRecord(db, table, id, { deleted: false } as never);
 }

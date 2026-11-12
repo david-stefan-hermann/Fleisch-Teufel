@@ -147,6 +147,7 @@ export const meals = pgTable(
     items: jsonb().$type<MealItem[]>().notNull(),
     photoId: text(),
     cookedGrams: doublePrecision(),
+    purgedAt: bigint({ mode: 'number' }),
   },
   syncExtras,
 );
@@ -207,6 +208,7 @@ export const exerciseEntries = pgTable(
     groupId: text(),
     steps: integer(),
     distanceM: doublePrecision(),
+    purgedAt: bigint({ mode: 'number' }),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
@@ -223,6 +225,7 @@ export const exerciseTemplates = pgTable(
     note: text(),
     extraItems: jsonb().$type<TrainingItem[]>(),
     pinned: boolean(),
+    purgedAt: bigint({ mode: 'number' }),
   },
   syncExtras,
 );
@@ -233,6 +236,7 @@ export const weightEntries = pgTable(
     ...syncColumns(),
     date: date({ mode: 'string' }).notNull(),
     kg: doublePrecision().notNull(),
+    purgedAt: bigint({ mode: 'number' }),
   },
   syncExtras,
 );

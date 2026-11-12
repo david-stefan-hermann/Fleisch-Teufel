@@ -50,7 +50,7 @@ import { TrainingRow } from './TrainingRow';
 
 /**
  * A saved training. With a day in the URL (training search, diary) it is logged (`TrainingLogView`);
- * without one (Mehr → Gespeicherte Trainings, the pencil of the log view) it is edited, also a new one
+ * without one (Mehr → Trainings, the pencil of the log view) it is edited, also a new one
  * that has only its draft ("Neues Training").
  */
 export function TrainingEditorPage() {

@@ -10,7 +10,7 @@ import { MealLogView } from './MealLogView';
 /**
  * A saved meal. With day and meal in the URL (food search, tab "Eigene") it is logged
  * (`MealLogView`), with `into` as well its ingredients are added to that target instead; without them
- * (Mehr → Gespeicherte Meals) it is edited (`MealEditor`), also a new meal that has only its draft.
+ * (Mehr → Meals) it is edited (`MealEditor`), also a new meal that has only its draft.
  */
 export function MealPage() {
   const { mealId } = useParams({ from: '/authed/meals/$mealId' });

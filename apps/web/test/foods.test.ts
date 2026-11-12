@@ -462,6 +462,7 @@ describe('filterOwn', () => {
       items: [item('Haferflocken'), item('Apfel roh')],
       photoId: null,
       cookedGrams: null,
+      purgedAt: null,
     },
     {
       ...base,
@@ -470,6 +471,7 @@ describe('filterOwn', () => {
       items: [item('Reis'), item('Hähnchen')],
       photoId: null,
       cookedGrams: null,
+      purgedAt: null,
     },
   ] satisfies Meal[];
 

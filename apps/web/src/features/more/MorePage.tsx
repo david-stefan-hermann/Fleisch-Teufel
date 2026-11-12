@@ -83,8 +83,8 @@ export function MorePage() {
       <Section>
         <ul className="divide-y divide-border/70">
           <Row to="/custom-foods" icon={<Salad aria-hidden />} label="Eigene Lebensmittel" />
-          <Row to="/meals" icon={<UtensilsCrossed aria-hidden />} label="Gespeicherte Meals" />
-          <Row to="/trainings" icon={<Dumbbell aria-hidden />} label="Gespeicherte Trainings" />
+          <Row to="/meals" icon={<UtensilsCrossed aria-hidden />} label="Meals" />
+          <Row to="/trainings" icon={<Dumbbell aria-hidden />} label="Trainings" />
         </ul>
       </Section>
       <Section>

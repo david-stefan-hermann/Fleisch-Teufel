@@ -58,7 +58,8 @@ Serve the production web build through the API (same origin, service worker acti
   `transition-all`). The CLI once wrote `from "cn"`; imports must be `@/lib/utils`.
 - Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast;
   `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
-  (`/settings/trash`, `src/db/trash.ts`); there is no purge.
+  (`/settings/trash`, `src/db/trash.ts`, search via `matchesTrash`); "Endgültig löschen" ("Alle löschen" per
+  section, header "Papierkorb leeren", `ConfirmDialog`) only hides tombstones with the synced `purgedAt` (`purgeRecords`).
   Diary rows (`EntryRow`, `GroupRow` in `features/diary/MealCard.tsx`) also swipe right (`onCopy`): that copies
   into the device clipboard (`src/db/clipboard.ts`, `kv` key `clipboard`, not synced, one snapshot that stays
   after pasting). A group keeps `mealId`/`groupName`/`aiAnalysisId`/`photoIds` (photo ids are shared, not

@@ -153,6 +153,7 @@ export function stepsRecord(p: {
       groupId: null,
       steps: day.steps,
       distanceM: v.distanceM,
+      purgedAt: null,
     };
   const auto = isAutoTrainingKcal(existing);
   const { updatedAt: _u, ...rest } = existing;

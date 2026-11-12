@@ -44,6 +44,7 @@ const entry = (date: string, meal: number, kcal: number, extra: Record<string, n
 
 const exercise = (date: string, kcal: number): ExerciseEntry => ({
   id: `ex-${date}`,
+  purgedAt: null,
   updatedAt: 1,
   deleted: false,
   date,
@@ -210,8 +211,8 @@ describe('day summary & reports', () => {
       entries,
       exercises: [exercise('2026-10-07', 300)],
       weights: [
-        { id: 'w:2026-10-06', updatedAt: 1, deleted: false, date: '2026-10-06', kg: 80 },
-        { id: 'w:2026-10-08', updatedAt: 1, deleted: false, date: '2026-10-08', kg: 79.4 },
+        { id: 'w:2026-10-06', updatedAt: 1, deleted: false, date: '2026-10-06', kg: 80, purgedAt: null },
+        { id: 'w:2026-10-08', updatedAt: 1, deleted: false, date: '2026-10-08', kg: 79.4, purgedAt: null },
       ],
       goals,
     });

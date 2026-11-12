@@ -11,12 +11,12 @@ export const TABLE_LABELS: Record<string, string> = {
   weightEntries: 'Gewichtseinträge',
   exerciseEntries: 'Trainings',
   customFoods: 'Eigene Lebensmittel',
-  meals: 'Gespeicherte Meals',
+  meals: 'Meals',
   goals: 'Ziel-Versionen',
   dayNotes: 'Tagesnotizen',
   foodPortions: 'Eigene Portionen',
   exerciseTypes: 'Eigene Sportarten',
-  exerciseTemplates: 'Gespeicherte Trainings',
+  exerciseTemplates: 'Trainings (gespeichert)',
   settings: 'Einstellungen',
 };
 
