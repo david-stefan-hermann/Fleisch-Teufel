@@ -22,7 +22,7 @@ export interface AiErrorInfo {
 
 /**
  * An error that a non-Anthropic step (the transcription) maps itself: status and code as the routes
- * answer them, `usage` what it cost.
+ * answer them.
  */
 export class UpstreamError extends Error {
   constructor(

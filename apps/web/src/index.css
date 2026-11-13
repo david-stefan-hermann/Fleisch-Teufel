@@ -419,6 +419,13 @@ input[type='date']::-webkit-datetime-edit {
     translate: 0 -2px;
   }
 }
+/* Pixel art moves in whole steps (2 px), never between device pixels. */
+.ai-btn .ai-pic.pixel {
+  animation-timing-function: step-end;
+}
+.ai-btn[data-dragging] .ai-pic.pixel {
+  scale: none;
+}
 /* The state ring: the same for every skin in a circle. */
 .ai-btn .ai-ring {
   position: absolute;
@@ -764,8 +771,10 @@ input[type='date']::-webkit-datetime-edit {
   background: none;
   color: #fff;
   caret-color: oklch(0.7 0.17 25);
-  font: 600 22px/1.3 inherit;
   font-family: inherit;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
   padding: 0;
   overflow: hidden;
 }

@@ -413,7 +413,6 @@ export const photos = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.id] })],
 );
 
-/** Wire table name → Drizzle table. */
 /**
  * Utterances to the assistant: what was said or typed, the device's context, what the model planned
  * and how it ended on the device. The id is the device's `requestId` (unique per user: a repeated
@@ -478,6 +477,7 @@ export const assistantSkins = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.id] })],
 );
 
+/** Wire table name → Drizzle table. */
 export const syncTables = {
   settings: userSettings,
   goals,

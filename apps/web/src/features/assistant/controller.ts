@@ -7,7 +7,7 @@ import { MAX_RECORD_MS, today as todayOf, uuidv7, type ISODate } from '@ft/share
 import { toast } from 'sonner';
 import type { UserDb } from '@/db/dexie';
 import { errorMessage } from '@/lib/api';
-import { mealFor, summaryText, type CameraOp } from './execute';
+import { summaryText, targetFor, type CameraOp } from './execute';
 import { storeAssistantHint } from './hint';
 import {
   CONFUSED_MS,
@@ -54,8 +54,11 @@ export class AssistantController {
   private recorder: Recorder | null = null;
   /** The camera of a turn that answered late: opened when "Kamera öffnen" is tapped. */
   private camera: CameraOp | null = null;
-  /** The recording that turned into text mode (sent with the same key as the text). */
-  private carriedRecording: { requestId: string; recording: Recording } | null = null;
+  /**
+   * The recording that turned into text mode (sent with the same key as the text). `failed`: no
+   * text came back (offline, error), so "Senden" sends the recording itself.
+   */
+  private carriedRecording: { requestId: string; recording: Recording; failed?: boolean } | null = null;
   private disposed = false;
 
   constructor(private readonly deps: ControllerDeps) {}
@@ -141,7 +144,11 @@ export class AssistantController {
   }
 
   longPress() {
-    if (!this.deps.voice) return this.keyboard();
+    const { phase } = this.state;
+    if (!this.deps.voice) {
+      if (phase === 'idle' || phase === 'asking') this.keyboard();
+      return;
+    }
     this.dispatch({ type: 'longPress' });
   }
 
@@ -157,12 +164,16 @@ export class AssistantController {
       this.cancel('limit');
       this.dispatch({ type: 'keyboard', transcribing: true });
       void rec.stop().then(async (recording) => {
-        const requestId = uuidv7();
-        this.carriedRecording = { requestId, recording };
+        const carried: { requestId: string; recording: Recording; failed?: boolean } = {
+          requestId: uuidv7(),
+          recording,
+        };
+        this.carriedRecording = carried;
         let text = '';
         try {
-          text = await transcribeTurn(recording.blob, requestId);
+          text = await transcribeTurn(recording.blob, carried.requestId);
         } catch (e) {
+          carried.failed = true;
           toast.error(errorMessage(e));
         }
         this.dispatch({ type: 'transcribed', text });
@@ -178,10 +189,8 @@ export class AssistantController {
   }
 
   discard() {
-    this.recorder?.cancel();
-    this.recorder = null;
+    this.releaseMicrophone();
     this.carriedRecording = null;
-    this.cancel('limit');
     const wasRecording = this.state.phase === 'recording';
     this.dispatch({ type: 'discard' });
     if (wasRecording) this.mood('discarded', 1300);
@@ -198,7 +207,10 @@ export class AssistantController {
       if (option === CAMERA_YES && cam) void this.openCamera(cam);
       return;
     }
+    if (this.state.phase === 'thinking') return;
+    // A recording or the open microphone ends unsent: the tapped option is the answer.
     this.endListening();
+    this.releaseMicrophone();
     void this.send({ source: 'text', text: option }, true);
   }
 
@@ -214,20 +226,28 @@ export class AssistantController {
 
   private async startRecording() {
     this.dispatch({ type: 'startRecording' });
+    let rec: Recorder;
     try {
-      this.recorder = await startRecorder();
+      rec = await startRecorder();
     } catch (e) {
       this.dispatch({ type: 'recordFailed' });
       toast.error(recorderMessage(e));
       return;
     }
-    if (this.disposed || this.state.phase !== 'starting') {
-      this.recorder.cancel();
-      this.recorder = null;
-      return;
-    }
+    // Kept only while this start is still wanted (no other recorder can have taken its place).
+    if (this.disposed || this.state.phase !== 'starting' || this.recorder) return rec.cancel();
+    this.recorder = rec;
     this.dispatch({ type: 'recording' });
-    this.later('limit', this.recorder.maxMs, () => void this.stopRecording());
+    this.later('limit', rec.maxMs, () => void this.stopRecording());
+  }
+
+  /** Stops any recorder without sending (and the timers that would end it). */
+  private releaseMicrophone() {
+    this.recorder?.cancel();
+    this.recorder = null;
+    this.cancel('limit');
+    this.cancel('listen');
+    this.cancel('pause');
   }
 
   private async stopRecording() {
@@ -246,8 +266,9 @@ export class AssistantController {
 
   /** The open microphone after a question: the answer ends after a short pause, silence ends it all. */
   private async listen() {
+    let rec: Recorder;
     try {
-      this.recorder = await startRecorder({
+      rec = await startRecorder({
         onSpeech: () => this.heard(),
         onSilence: () => this.answerEnded(),
       });
@@ -256,14 +277,13 @@ export class AssistantController {
       this.dispatch({ type: 'listenEnd' });
       return;
     }
-    if (this.state.phase !== 'listening') {
-      this.recorder.cancel();
-      this.recorder = null;
-      return;
-    }
+    if (this.disposed || this.state.phase !== 'listening' || this.recorder) return rec.cancel();
+    this.recorder = rec;
     this.later('listen', LISTEN_MS, () => {
       if (!this.state.hearing) this.endListening();
     });
+    // An answer is a recording like any other: at most `MAX_RECORD_MS`.
+    this.later('limit', rec.maxMs, () => void this.stopRecording());
   }
 
   private heard() {
@@ -280,9 +300,7 @@ export class AssistantController {
   /** Closes the open microphone; the question waits for a tap. */
   private endListening() {
     if (this.state.phase !== 'listening') return;
-    this.cancel('listen');
-    this.recorder?.cancel();
-    this.recorder = null;
+    this.releaseMicrophone();
     this.dispatch({ type: 'listenEnd' });
   }
 
@@ -291,6 +309,14 @@ export class AssistantController {
   private async sendText() {
     const text = this.state.text?.trim() ?? '';
     const carried = this.carriedRecording;
+    // Still being transcribed, or no text came back: the recording goes as it is.
+    if (!text && carried && (this.state.text === null || carried.failed)) {
+      this.carriedRecording = null;
+      return this.send(
+        { source: 'voice', requestId: carried.requestId, recording: carried.recording },
+        false,
+      );
+    }
     this.carriedRecording = null;
     if (!text) return this.discard();
     await this.send(
@@ -308,15 +334,28 @@ export class AssistantController {
     const db = this.deps.db;
     const bubble = this.state.bubble;
     this.dispatch({ type: 'send', typed });
-    const audio = input.recording && !input.text ? await input.recording.blob.arrayBuffer() : undefined;
-    const localId = await enqueueTurn(db, {
-      source: input.source,
-      shownDate: this.deps.shownDate(),
-      ...(input.text && { text: input.text }),
-      ...(audio && { audio, audioType: input.recording!.blob.type, durationMs: input.recording!.durationMs }),
-      ...(input.requestId && { requestId: input.requestId }),
-      ...(bubble?.kind === 'question' && bubble.turnId != null && { answersTo: bubble.turnId }),
-    });
+    let localId: number;
+    try {
+      const audio = input.recording && !input.text ? await input.recording.blob.arrayBuffer() : undefined;
+      localId = await enqueueTurn(db, {
+        source: input.source,
+        shownDate: this.deps.shownDate(),
+        ...(input.text && { text: input.text }),
+        ...(audio && {
+          audio,
+          audioType: input.recording!.blob.type,
+          durationMs: input.recording!.durationMs,
+        }),
+        ...(input.requestId && { requestId: input.requestId }),
+        ...(bubble?.kind === 'question' && bubble.turnId != null && { answersTo: bubble.turnId }),
+      });
+    } catch (e) {
+      // Not even stored (storage full, database closed): nothing waits, the button is free again.
+      this.dispatch({ type: 'failed' });
+      this.later('mood', 1500, () => this.dispatch({ type: 'mood', mood: null }));
+      toast.error(errorMessage(e));
+      return;
+    }
     this.waitingFor = localId;
     await processAssistantQueue(db);
     const turn = await db.assistantTurns.get(localId);
@@ -369,7 +408,13 @@ export class AssistantController {
       return;
     }
     if (bubble) {
-      const listen = bubble.kind === 'question' && turn.source === 'voice' && !late && !this.state.typed;
+      // Not after an answer: an unclear answer must not keep the microphone coming back.
+      const listen =
+        bubble.kind === 'question' &&
+        turn.source === 'voice' &&
+        turn.answersTo == null &&
+        !late &&
+        !this.state.typed;
       this.dispatch({ type: 'result', bubble, listen: listen && this.deps.voice });
       if (this.state.phase === 'listening') void this.listen();
       return;
@@ -385,9 +430,9 @@ export class AssistantController {
   }
 
   private async openCamera(op: CameraOp) {
-    const meal = op.meal ?? (await mealFor(this.deps.db, op.date, { now: Date.now(), today: todayOf() }));
+    const target = await targetFor(this.deps.db, op.date, op.meal, { now: Date.now(), today: todayOf() });
     storeAssistantHint(op.hint);
-    this.deps.openPhoto({ date: op.date, meal });
+    this.deps.openPhoto(target);
   }
 }
 

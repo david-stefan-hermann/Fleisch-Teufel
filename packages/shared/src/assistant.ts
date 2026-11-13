@@ -242,7 +242,10 @@ export const skinManifestSchema = z
     /** Faces the figure shows by itself while it rests. */
     idle: z.array(imageKey).max(30).default([]),
   })
-  .refine((m) => [...Object.values(m.states), ...m.idle].every((k) => k in m.images), 'unknown image key');
+  .refine(
+    (m) => [...Object.values(m.states), ...m.idle].every((k) => Object.hasOwn(m.images, k)),
+    'unknown image key',
+  );
 export type SkinManifest = z.infer<typeof skinManifestSchema>;
 
 export interface SkinInfo {

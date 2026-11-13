@@ -152,6 +152,8 @@ export function AssistantButton({
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     press.current = { sx: e.clientX, sy: e.clientY, ox: x, oy: y, moved: false, long: false };
+    // "Senden" has no long press: every tap on it sends.
+    if (typing) return;
     longTimer.current = setTimeout(() => {
       const p = press.current;
       if (!p || p.moved) return;

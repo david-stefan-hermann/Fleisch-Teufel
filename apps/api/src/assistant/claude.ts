@@ -46,7 +46,6 @@ export function createAssistant(opts: {
       const usage: AiUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
       let model: string | null = null;
       let rounds = 0;
-      let reply: string | null = null;
       const failed = (e: unknown) =>
         new AiCallError(signal?.aborted ? new AiOutputError('timeout') : e, usage, model, rounds);
 
@@ -89,11 +88,11 @@ export function createAssistant(opts: {
           .flatMap((b) => (b.type === 'text' ? [b.text] : []))
           .join(' ')
           .trim();
-        if (text) reply = text;
         const uses = response.content.filter((b) => b.type === 'tool_use');
         if (response.stop_reason !== 'tool_use' || uses.length === 0) {
           if (response.stop_reason === 'max_tokens') throw failed(new AiOutputError('max_tokens'));
-          return { reply, model: response.model, usage, rounds };
+          // Only the last answer is the reply: text before a tool call is preamble.
+          return { reply: text || null, model: response.model, usage, rounds };
         }
         messages.push({ role: 'assistant', content: response.content });
         const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
@@ -114,7 +113,7 @@ export function createAssistant(opts: {
         messages.push({ role: 'user', content: results });
       }
       // Out of rounds: what was collected so far still counts (the device shows it with undo).
-      return { reply, model: model ?? opts.model, usage, rounds };
+      return { reply: null, model: model ?? opts.model, usage, rounds };
     },
   };
 }

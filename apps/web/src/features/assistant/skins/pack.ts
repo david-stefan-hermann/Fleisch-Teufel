@@ -51,7 +51,15 @@ export function readSkinPack(zip: Uint8Array): SkinPack {
   if (zip.length > MAX_SKIN_BYTES) throw new SkinPackError('Die Figur ist größer als 3 MB.');
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(zip);
+    // Only files a pack can use, each no larger than a whole pack unpacked (no zip bombs).
+    let count = 0;
+    files = unzipSync(zip, {
+      filter: (f) =>
+        /(^|\/)(skin\.json|[\w.-]{1,80}\.(png|webp))$/i.test(f.name) &&
+        !f.name.includes('__MACOSX') &&
+        f.originalSize <= MAX_SKIN_BYTES &&
+        ++count <= 2 * MAX_SKIN_IMAGES,
+    });
   } catch {
     throw new SkinPackError('Die Datei ist keine lesbare Zip-Datei.');
   }

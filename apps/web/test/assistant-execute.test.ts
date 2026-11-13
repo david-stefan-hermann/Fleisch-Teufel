@@ -98,6 +98,34 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
     ]);
   });
 
+  it('over midnight a sentence without a meal goes to the meal of the entry made just before', async () => {
+    const d = db();
+    const late = { ...env, now: new Date(2026, 10, 14, 0, 5).getTime(), today: '2026-11-14' };
+    const [chips] = (await applyOps(d, [logFood({ meal: 3 })], env)).applied[0]!.entryIds ?? [];
+    await d.foodEntries.update(chips!, { loggedAt: late.now - 10 * 60_000 });
+    const r = await applyOps(d, [logFood({ meal: null, date: '2026-11-14' })], late);
+    expect(r.applied[0]!.target).toEqual({ date: TODAY, meal: 3 });
+  });
+
+  it('a training counts with the weight set earlier in the same sentence', async () => {
+    const d = db();
+    await saveRecord(d, 'weightEntries', { id: dayId.weight(TODAY), date: TODAY, kg: 80 });
+    await applyOps(
+      d,
+      [
+        { kind: 'setWeight', date: TODAY, kg: 100 },
+        {
+          kind: 'logTraining',
+          date: TODAY,
+          items: [{ typeKey: 'running', templateId: null, minutes: 60, intensity: 'moderate' }],
+        },
+      ],
+      env,
+    );
+    const [entry] = await d.exerciseEntries.where('date').equals(TODAY).toArray();
+    expect(entry!.weightKg).toBe(100);
+  });
+
   it('sets a weight over a deleted one and brings the deleted one back on undo', async () => {
     const d = db();
     const id = dayId.weight(TODAY);

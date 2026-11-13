@@ -27,7 +27,7 @@ export function wipeWarning(l: LocalOnly | undefined): string {
       `Nur auf diesem Gerät, gehen verloren: ${list([
         [l.analyses, 'Analyse', 'Analysen'],
         [l.drafts, 'Entwurf', 'Entwürfe'],
-        [l.utterances, 'Aufnahme', 'Aufnahmen'],
+        [l.utterances, 'Satz an den Assistenten', 'Sätze an den Assistenten'],
       ])}.`,
     );
   return out.join(' ');

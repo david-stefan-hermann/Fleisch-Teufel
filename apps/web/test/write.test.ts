@@ -1939,7 +1939,7 @@ describe('"Gerätedaten löschen": what is only on this device', () => {
     expect(local).toEqual({ changes: 0, photos: 2, analyses: 1, drafts: 1, utterances: 2 });
     expect(wipeWarning(local)).toBe(
       'Noch nicht hochgeladen: 2 Fotos. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; ' +
-        'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf, 2 Aufnahmen.',
+        'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf, 2 Sätze an den Assistenten.',
     );
   });
 });

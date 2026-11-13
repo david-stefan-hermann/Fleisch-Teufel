@@ -65,6 +65,11 @@ describe('assistant button state machine', () => {
     expect(reduce(thinking, { type: 'longPress' }).keys).toBe(false);
   });
 
+  it('sending an answer closes the question, so it cannot be answered twice', () => {
+    const asking = reduce(initialState, { type: 'ask', bubble: question });
+    expect(reduce(asking, { type: 'send', typed: true }).bubble).toBeNull();
+  });
+
   it('a late question does not interrupt a recording', () => {
     const rec = run([{ type: 'startRecording' }, { type: 'recording' }]);
     expect(reduce(rec, { type: 'ask', bubble: question })).toBe(rec);

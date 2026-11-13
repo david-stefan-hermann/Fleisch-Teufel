@@ -115,7 +115,16 @@ export function reduce(s: MachineState, e: MachineEvent): MachineState {
     case 'textChange':
       return s.phase === 'typing' ? { ...s, text: e.text } : s;
     case 'send':
-      return { ...s, phase: 'thinking', keys: false, text: null, hearing: false, typed: e.typed };
+      // The answer is on its way: the question closes (a second tap on an option would answer twice).
+      return {
+        ...s,
+        phase: 'thinking',
+        keys: false,
+        text: null,
+        bubble: null,
+        hearing: false,
+        typed: e.typed,
+      };
     case 'discard': {
       const mood = s.phase === 'recording' ? ('discarded' as const) : s.mood;
       return { ...s, phase: s.bubble ? 'asking' : 'idle', text: null, keys: false, hearing: false, mood };

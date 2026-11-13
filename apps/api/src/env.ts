@@ -25,15 +25,15 @@ const envSchema = z.object({
   /** Model for reading food labels (copying printed values): a cheaper one does; defaults to AI_MODEL. */
   AI_LABEL_MODEL: z.string().optional(),
   AI_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('medium'),
-  /**
-   * AI spending limit per account in USD over the last 24 hours and the last 30 days (all calls,
-   * failed ones included); 0 turns a limit off. Above it the AI routes answer 429 `ai_budget`.
-   */
   /** The assistant: OpenAI key for the transcription (without it only typed sentences), models. */
   OPENAI_API_KEY: z.string().optional(),
   TRANSCRIBE_MODEL: z.string().default('gpt-transcribe'),
   ASSISTANT_MODEL: z.string().default('claude-haiku-5-5'),
   ASSISTANT_EFFORT: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('low'),
+  /**
+   * AI spending limit per account in USD over the last 24 hours and the last 30 days (all calls,
+   * failed ones included); 0 turns a limit off. Above it the AI routes answer 429 `ai_budget`.
+   */
   AI_BUDGET_DAY_USD: z.coerce.number().min(0).default(5),
   AI_BUDGET_MONTH_USD: z.coerce.number().min(0).default(50),
   /**

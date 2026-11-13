@@ -162,7 +162,7 @@ export async function createTurnHost(
   const portionOf = (food: Food, label: unknown, grams: number) => {
     if (typeof label !== 'string' || !label.trim()) return null;
     const want = normalize(label);
-    const p = portionsFor(food).find(
+    const p = portionsFor(food, foodSearch.userPortions.get(food.id)).find(
       (x) => normalize(x.label) === want || normalize(x.label).startsWith(`${want} (`),
     );
     // A portion counts only when the grams are a sensible count of it (0.25 steps).

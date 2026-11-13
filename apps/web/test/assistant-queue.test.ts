@@ -1,4 +1,4 @@
-import { uuidv7, type AssistantTurnResult, type Food } from '@ft/shared';
+import { today, uuidv7, type AssistantTurnResult, type Food } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import {
@@ -14,7 +14,7 @@ import {
 } from '@/features/assistant/queue';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
-const TODAY = new Date().toISOString().slice(0, 10);
+const TODAY = today();
 
 const quark: Food = {
   id: 'bls:M1',

@@ -7,6 +7,7 @@
  */
 import {
   addDays,
+  DEFAULT_WEIGHT_KG,
   EXERCISE_TYPES,
   rescaleItem,
   trainingItemsOf,
@@ -33,7 +34,7 @@ import { deleteRecord, patchRecord } from '@/db/write';
 import { rowsToLog, toLog, type TypeOption } from '@/features/exercise/training';
 import { rememberFood } from '@/foods/foodService';
 import { fmt0, fmt2, fmtGrams, fmtRelativeDay } from '@/lib/format';
-import { defaultMealForNow, logTargetFor } from '@/lib/meals';
+import { logTargetFor } from '@/lib/meals';
 
 export interface ApplyEnv {
   /** Epoch ms of the utterance (the meal for "no meal named" is chosen for this moment). */
@@ -62,23 +63,34 @@ async function targetResolver(db: UserDb, env: ApplyEnv) {
     .anyOf([env.today, addDays(env.today, -1)])
     .toArray();
   const pending = (await db.aiQueue.toArray()).filter((i) => !i.result);
-  const chosen = new Map<ISODate, number>();
+  const chosen = new Map<ISODate, { date: ISODate; meal: number }>();
   return (date: ISODate, meal: number | null): { date: ISODate; meal: number } => {
     if (meal !== null) return { date, meal };
     // All operations of one turn that name no meal go to the same one.
     const known = chosen.get(date);
-    if (known !== undefined) return { date, meal: known };
-    const t = logTargetFor({ shownDate: date, today: env.today, now: env.now, entries: recent, pending });
-    // Over midnight the sticky meal may be yesterday's; the day the person named wins, the clock picks the meal.
-    const picked = t.date === date ? t.meal : defaultMealForNow(new Date(env.now));
+    if (known) return known;
+    // The day is the "+"'s shown day: today follows its rules fully (over midnight that can be
+    // yesterday's meal), another day named on purpose stays and the clock picks the meal.
+    const picked = logTargetFor({
+      shownDate: date,
+      today: env.today,
+      now: env.now,
+      entries: recent,
+      pending,
+    });
     chosen.set(date, picked);
-    return { date, meal: picked };
+    return picked;
   };
 }
 
-/** The meal an operation without one gets (also the camera's meal for "Ich hab Fotos"). */
-export async function mealFor(db: UserDb, date: ISODate, env: Omit<ApplyEnv, 'mealNames'>): Promise<number> {
-  return (await targetResolver(db, { ...env, mealNames: [] }))(date, null).meal;
+/** Day and meal for an operation (the camera of "Ich hab Fotos"): its own, else the rules of the "+". */
+export async function targetFor(
+  db: UserDb,
+  date: ISODate,
+  meal: number | null,
+  env: Omit<ApplyEnv, 'mealNames'>,
+): Promise<{ date: ISODate; meal: number }> {
+  return (await targetResolver(db, { ...env, mealNames: [] }))(date, meal);
 }
 
 async function typeOptions(db: UserDb): Promise<TypeOption[]> {
@@ -322,12 +334,14 @@ export async function applyOps(
           }
           case 'setWeight': {
             result.undo.push(...(await setWeight(db, op.date, op.kg)));
+            // The new weight replaces that day's (a training later in this turn counts with it).
+            weights.splice(0, weights.length, ...weights.filter((w) => w.date !== op.date));
             weights.push({ id: '', updatedAt: 0, deleted: false, purgedAt: null, date: op.date, kg: op.kg });
             result.applied.push({ kind: op.kind, text: `${dayLabel(op.date)}Gewicht: ${fmt2(op.kg)} kg` });
             break;
           }
           case 'logTraining': {
-            const weightKg = weightForDay(weights, op.date) ?? 75;
+            const weightKg = weightForDay(weights, op.date) ?? DEFAULT_WEIGHT_KG;
             const rows: TrainingToLog[] = [];
             const names: string[] = [];
             for (const item of op.items) {

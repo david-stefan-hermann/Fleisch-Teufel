@@ -198,13 +198,22 @@ export async function processAssistantQueue(db: UserDb): Promise<void> {
     try {
       do {
         again = false;
-        await runQueue(db);
+        await exclusive(db, () => runQueue(db));
       } while (again);
     } finally {
       current = null;
     }
   })();
   return current;
+}
+
+/**
+ * One queue run at a time across tabs of this account: another tab would put a turn this one is
+ * sending back to "waiting" and apply its answer a second time.
+ */
+function exclusive(db: UserDb, fn: () => Promise<void>): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.locks) return fn();
+  return navigator.locks.request(`ft-assistant-queue:${db.name}`, fn);
 }
 
 async function runQueue(db: UserDb): Promise<void> {
@@ -218,9 +227,13 @@ async function runQueue(db: UserDb): Promise<void> {
       t.late = true;
     });
   for (;;) {
-    const turn = (await db.assistantTurns.where('status').equals('waiting').sortBy('createdAt'))[0];
+    // Taken in one transaction: a "Verwerfen" in between cannot be overwritten.
+    const turn = await db.transaction('rw', db.assistantTurns, async () => {
+      const next = (await db.assistantTurns.where('status').equals('waiting').sortBy('createdAt'))[0];
+      if (next) await db.assistantTurns.update(next.localId!, { status: 'sending' });
+      return next;
+    });
     if (!turn) break;
-    await db.assistantTurns.update(turn.localId!, { status: 'sending' });
     let answer: AssistantTurnResult;
     try {
       answer = await sendTurn(turn, await contextFor(db, turn));
@@ -299,24 +312,42 @@ class Discarded extends Error {}
 export async function undoTurn(db: UserDb, localId: number): Promise<boolean> {
   const turn = await db.assistantTurns.get(localId);
   if (!turn?.undo?.length || turn.undoneAt) return false;
-  await runUndo(db, turn.undo);
-  await db.assistantTurns.update(localId, { undoneAt: Date.now() });
+  const steps = turn.undo;
+  const tables = [...new Set(steps.map((s) => db.syncTable(s.table)))];
+  // Together: a turn never shows "Rückgängig" again after its writes were taken back.
+  const done = await db.transaction('rw', [...tables, db.outbox, db.assistantTurns], async () => {
+    const now = await db.assistantTurns.get(localId);
+    if (!now || now.undoneAt) return false;
+    await runUndo(db, steps);
+    await db.assistantTurns.update(localId, { undoneAt: Date.now() });
+    return true;
+  });
+  if (!done) return false;
   reportOutcome(turn.requestId, 'undone');
   return true;
 }
 
 /** "Verwerfen" of a waiting turn (history): it is never sent. */
 export async function discardTurn(db: UserDb, localId: number): Promise<void> {
-  const turn = await db.assistantTurns.get(localId);
-  if (!turn || (turn.status !== 'waiting' && turn.status !== 'failed')) return;
-  await db.assistantTurns.update(localId, { status: 'discarded', audio: undefined, audioType: undefined });
+  const turn = await db.transaction('rw', db.assistantTurns, async () => {
+    const t = await db.assistantTurns.get(localId);
+    if (!t || (t.status !== 'waiting' && t.status !== 'failed')) return null;
+    await db.assistantTurns.update(localId, { status: 'discarded', audio: undefined, audioType: undefined });
+    return t;
+  });
+  if (!turn) return;
   reportOutcome(turn.requestId, 'discarded');
 }
 
 /** "Wiederholen" of a failed turn: same key, so the server answers a finished one for free. */
 export async function retryTurn(db: UserDb, localId: number): Promise<void> {
-  await db.assistantTurns.update(localId, { status: 'waiting', error: undefined, late: true });
-  void processAssistantQueue(db);
+  // Only a failed one: a second tap after the first retry finished must not apply it again.
+  const retried = await db.transaction('rw', db.assistantTurns, async () => {
+    if ((await db.assistantTurns.get(localId))?.status !== 'failed') return false;
+    await db.assistantTurns.update(localId, { status: 'waiting', error: undefined, late: true });
+    return true;
+  });
+  if (retried) void processAssistantQueue(db);
 }
 
 /** A question nobody answered is closed (bubble X): the turn counts as done. */

@@ -8,7 +8,7 @@
 import { today as todayOf, type AssistantOp, type AssistantTurnRow } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Pause, Play } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { useObjectUrl } from '@/components/MealPhoto';
@@ -252,14 +252,19 @@ function PlayButton({ turn, serverId }: { turn?: AssistantTurn; serverId?: strin
   const [fetched, setFetched] = useState<Blob | null>(null);
   const [playing, setPlaying] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
-  const localBlob = turn?.audio ? new Blob([turn.audio], { type: turn.audioType ?? 'audio/webm' }) : null;
+  const localAudio = turn?.audio;
+  const localType = turn?.audioType;
+  const localBlob = useMemo(
+    () => (localAudio ? new Blob([localAudio], { type: localType ?? 'audio/webm' }) : null),
+    [localAudio, localType],
+  );
   const blob = localBlob ?? fetched;
   const url = useObjectUrl(blob, turn?.audio ? `local:${turn.requestId}` : serverId);
   if (!localBlob && !serverId) return null;
 
   const toggle = async () => {
     const el = audio.current;
-    if (playing && el) {
+    if (playing && el && !el.paused) {
       el.pause();
       return;
     }
@@ -277,7 +282,8 @@ function PlayButton({ turn, serverId }: { turn?: AssistantTurn; serverId?: strin
       }
       return;
     }
-    void el?.play();
+    // In the tap itself (also after a blocked autoplay, which left `playing` set).
+    el?.play().catch(() => setPlaying(false));
   };
 
   return (
@@ -298,6 +304,7 @@ function PlayButton({ turn, serverId }: { turn?: AssistantTurn; serverId?: strin
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => setPlaying(false)}
+          onError={() => setPlaying(false)}
         />
       )}
     </>

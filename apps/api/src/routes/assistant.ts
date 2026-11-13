@@ -58,7 +58,7 @@ export function assistantRoutes(deps: Deps) {
         .where(and(eq(assistantTurns.userId, userId), eq(assistantTurns.id, id)))
     )[0] ?? null;
 
-  /** The form of an upload; null (answered 400/413/415) when it is unusable. */
+  /** The form of an upload; null (answered 400) when it is unusable. */
   const readForm = async (c: Context<AppEnv>) => {
     try {
       return await c.req.formData();
@@ -184,17 +184,22 @@ export function assistantRoutes(deps: Deps) {
       audio = read;
     }
 
-    const prev = await turnRow(user.id, requestId);
-    if (prev?.status === 'ok' && prev.response) return c.json(prev.response);
+    // A call for this key that is still running answers the repeat (checked again after the read:
+    // it writes its result before it leaves `inflight`, and another repeat may have started).
     const key = `${user.id}:${requestId}`;
-    const running = inflight.get(key);
-    if (running) {
+    const join = async (running: Promise<AssistantTurnResult>) => {
       try {
         return c.json(await running);
       } catch (e) {
         return aiError(c, e);
       }
-    }
+    };
+    const before = inflight.get(key);
+    if (before) return join(before);
+    const prev = await turnRow(user.id, requestId);
+    if (prev?.status === 'ok' && prev.response) return c.json(prev.response);
+    const after = inflight.get(key);
+    if (after) return join(after);
 
     const run = async (): Promise<AssistantTurnResult> => {
       await admit(user.id);

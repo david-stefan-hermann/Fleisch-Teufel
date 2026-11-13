@@ -33,6 +33,8 @@ export interface FoodSearch {
   search(query: string): Promise<string>;
   /** Every food returned by `search` in this analysis, by id. */
   seen: Map<string, Food>;
+  /** The person's own portions per food id (only with `detail`). */
+  userPortions: Map<string, Portion[]>;
 }
 
 function customToFood(c: typeof customFoods.$inferSelect): Food {
@@ -135,6 +137,7 @@ export async function createFoodSearch(
 
   return {
     seen,
+    userPortions,
     async search(raw) {
       const query = raw.trim().slice(0, 100);
       const norm = normalize(query);
