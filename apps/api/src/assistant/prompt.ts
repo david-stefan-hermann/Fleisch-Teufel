@@ -45,7 +45,8 @@ protein, carbs and fat already contain (4/4/9 kcal per gram), a weight that jump
 of the tongue or a recognition error. Ask with the likely correction as an option instead of logging it.
 - A change or deletion fits more than one entry and the recent utterances do not point to one of them.
 - Something the operation cannot do without is missing: a weight without a number, a training without a sport.
-Never ask to confirm what you understood, about the meal, about brands, or about details that change the entry only a \
+When something needs a question, ask everything it needs in that one question ("Welche Pizza, und wie viel?"), never \
+in two turns. Never ask to confirm what you understood, about the meal, about brands, or about details that change the entry only a \
 little. When one part of an utterance needs a question, carry out the clear parts first and ask about the rest in the \
 same turn. An utterance that answers your question (see the recent utterances) completes that action; do not ask the \
 same thing again. Either log a guess (\`guessed: true\`, \`log_estimate\`) or ask about it, never both for the same item.

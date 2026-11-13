@@ -107,6 +107,10 @@ wenn alles grün ist, baut der Job `image` (`docker.yml`) das Image und veröffe
 2. In Dockge **„+ Compose“**, Name `fleisch-teufel`, Inhalt von [`deploy/docker-compose.yml`](deploy/docker-compose.yml) einfügen.
 3. Im **.env-Editor** des Stacks die Variablen aus [`deploy/.env.example`](deploy/.env.example) setzen:
    mindestens `POSTGRES_PASSWORD` (lang, zufällig), `ANTHROPIC_API_KEY` (optional) und `OFF_CONTACT_EMAIL`.
+   `OPENAI_API_KEY` (optional) schaltet Sprachaufnahmen für den Assistenten frei (Transkription mit
+   `TRANSCRIBE_MODEL`, Standard `gpt-transcribe`); ohne ihn nimmt der Assistent nur getippte Sätze.
+   `ASSISTANT_MODEL` / `ASSISTANT_EFFORT` (Standard `claude-haiku-5-5`, `low`) planen aus dem Satz die
+   Einträge. Assistent, Foto-Analyse und Etiketten teilen sich Budget und Stundenlimit.
    `AI_LABEL_MODEL` (z. B. `claude-sonnet-5-5`) nimmt ein günstigeres Modell fürs Abschreiben von
    Nährwerttabellen; Tellerfotos bleiben bei `AI_MODEL`. `AI_BUDGET_DAY_USD` (Standard 5) und
    `AI_BUDGET_MONTH_USD` (Standard 50) begrenzen die KI-Kosten je Konto über die letzten 24 Stunden bzw.

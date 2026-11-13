@@ -45,6 +45,14 @@ Ebenfalls nur auf dem Gerät liegt die Zwischenablage des Tagebuchs (`kv`-Schlü
 `apps/web/src/db/clipboard.ts`): eine Momentaufnahme der kopierten Zeile. Erst das Einfügen schreibt normale
 `foodEntries`; eine eingefügte Gruppe verweist auf dieselben Foto-Ids wie das Original (Fotos sind unveränderlich).
 
+Der KI-Assistent hat zwei Tabellen nur auf dem Gerät (Dexie v6): `assistantTurns` (jede Äußerung, eine
+wartende Aufnahme als Bytes, was der Server plante und was das Gerät damit tat, samt Rückgängig-Schritten) und
+`assistantSkins` (Kopien der hochgeladenen Figuren). Synchronisiert wird nur, was ein Turn schreibt: das Gerät
+führt die Operationen mit den normalen Schreibfunktionen aus (`applyOps`, eine Transaktion über die
+synchronisierten Tabellen, die Outbox und den Turn), „Rückgängig“ läuft über `deleteRecord`/`restoreRecord`/
+`patchRecord`. Der Server schreibt für den Assistenten nie in synchronisierte Tabellen; sein Protokoll
+(`assistant_turns`, `assistant_audio`, `assistant_skins`) ist nur auf dem Server.
+
 Neue Felder kommen immer mit Standardwert (`null`), damit noch nicht aktualisierte Geräte weiter
 hochladen können, z. B. `foodEntries.groupId` (Einträge, die zusammen aus einem gespeicherten Meal
 eingetragen wurden; das Tagebuch zeigt sie als eine Zeile), `foodEntries.groupName` (Name einer Gruppe

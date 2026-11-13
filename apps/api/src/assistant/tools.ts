@@ -77,7 +77,8 @@ export function assistantTools(mealNames: readonly string[]): Tool[] {
     },
     {
       name: 'log_quick',
-      description: 'Log plain values without a food (quick entry).',
+      description:
+        'Log plain values without a food (quick entry). text: what was eaten in the words of the person; leave it out when they named no food.',
       input_schema: obj({ date, meal, kcal: num, proteinG: num, carbsG: num, fatG: num, text: str }, [
         'date',
         'kcal',

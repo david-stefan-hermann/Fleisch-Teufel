@@ -397,7 +397,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (changes in the diary group editor and offline are not learned). The food label reading works differently
   (`POST /api/ai/label`, `ai/label.ts`): the model only copies the printed values, never
   estimates, the barcode is kept only with a valid check digit (`cleanGtin`), and the person checks the filled
-  form before saving. Every Claude call, failed ones too (`AiCallError` carries the usage spent), is a row in `ai_analyses`
+  form before saving. Every Claude call (and every transcription), failed ones too (`AiCallError` carries the usage spent), is a row in `ai_analyses`
   (`status`, `error`); `ai/budget.ts` answers 429 `ai_budget` above `AI_BUDGET_DAY_USD`/`AI_BUDGET_MONTH_USD`
   (rolling 24 hours / 30 days, before the hourly rate limit). Queue items send `requestId` (uuidv7): the server
   answers a repeated key with the stored `response` (or waits for the running call) instead of paying again;
@@ -497,6 +497,36 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - `/projects` is an SMB dataset: PostgreSQL data dirs cannot live there (0700 permissions), hence the dev DB
   in the home directory.
 - Secrets: project `.env` (gitignored). Never print or commit them.
+- Assistant (plan `docs/plans/2026-11-ki-assistent.md`, mockup `2026-11-ki-assistent-mockup.html` v7): a floating
+  button on every signed-in page (`features/assistant`, `AssistantMount` in `AuthedLayout`, `z-[45]`, hidden while a
+  `[role=dialog]` is open unless busy; not on `/onboarding`; only with `ServerInfo.assistantEnabled`, recordings only
+  with `voiceEnabled`). Tap records (`recorder.ts`: MediaRecorder webm/opus or mp4, 32 kbit/s, `MAX_RECORD_MS` 2 min,
+  the last 10 s count down), second tap sends; long press (450 ms) offers the keyboard; during a recording keyboard
+  (`/api/assistant/transcribe`, same `requestId`) and X; dragging snaps to an edge (`ft.assistant.pos`), the button
+  avoids tab bar, `[data-page-footer]`, `[data-ai-avoid]` and toasts. Text mode is a dark layer, the button becomes
+  "Senden". Behaviour: pure reducer `machine.ts` (tested) driven by `AssistantController` (`controller.ts`), React
+  reads it with `useSyncExternalStore`. Server: `routes/assistant.ts` (`/turn` multipart audio or text + device
+  context + `requestId`; idempotent via `assistant_turns`), `assistant/claude.ts` (manual Haiku tool loop, at most 8
+  rounds), `assistant/host.ts` (read tools `search_foods` with portions and "zuletzt", `search_trainings`, `get_day`;
+  write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`), prompt
+  `assistant/prompt.ts` (from the spike; no clock rule: `meal: null` and the device picks with `logTargetFor`),
+  transcription `assistant/transcribe.ts` (OpenAI, priced per audio minute in `ai/pricing.ts`). Budget, rate limit
+  and error mapping are shared with the photo analysis (`ai/admit.ts`, `aiGate(deps)`). The server never writes
+  synced tables: the device applies the ops (`execute.ts` `applyOps`, one Dexie transaction, nutrients only from
+  the searched foods, an estimate becomes a quick entry "… (N g, geschätzt)"), undo steps are serializable on the
+  turn (`UndoStep`, `db/undo.ts`). Turns live in Dexie `assistantTurns` (v6) and go through a serial queue
+  (`queue.ts`, started in `session.tsx`): offline they wait (count on the button) and come back "late" (no open
+  microphone, "Fotos jetzt aufnehmen?" instead of opening the camera); a timeout is never repeated by itself. The
+  result is a toast with "Rückgängig"; a question is a bubble (2 to 4 options; after speech the microphone is open
+  `LISTEN_MS` 3 s); a reply without ops shows in the bubble; nothing done: toast "Nicht verstanden". `openCamera` puts
+  the heard hint into `sessionStorage` (`hint.ts`), `PreviewStep` starts with it. History: `/settings/assistant`
+  (device turns first, other devices read only from `GET /api/assistant/turns`, playback while the audio is kept,
+  `ASSISTANT_AUDIO_DAYS` 7, `cleanupAssistantAudio`). Figures: Mehr → Aussehen → "Assistent" (`ft.assistant.button`,
+  `ft.assistant.skin`): Standard (icon in a circle, `--ai-*` tokens), Teufelchen (own pixel art, built in,
+  `skins/builtin.ts`), uploaded packs (zip with `skin.json` `SkinManifest`, checked on the device in `skins/pack.ts`,
+  stored in the account `assistant_skins`, copies in Dexie `assistantSkins`). `tools/skin-pack/build.mjs` builds
+  packs; Elfenmagierin and Dämonin are packs (manifests in `tools/skin-pack/packs`, output in the git-ignored
+  `skins/`), never part of the app.
 
 ## Deployment
 
