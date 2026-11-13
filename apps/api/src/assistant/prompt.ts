@@ -29,7 +29,9 @@ When the utterance names no meal or time of day, leave \`meal\` out: the app pic
 a day or meal of its own belongs to the same day and meal as the entries of that previous utterance, also when that was \
 yesterday. A correction ("nein, das waren ...") changes the entry of the previous utterance.
 - When the person says they have photos of the food, call \`open_camera\` with what they said as the hint and log nothing \
-for that food yourself: the photo analysis does it.
+for that food yourself: the photo analysis does it. When the photos are meant to correct or replace entries already \
+in the diary, pass those entries as \`replaceEntryIds\` (on the day and meal of those entries) and do not delete them \
+yourself: the app removes them once the analysis is logged.
 - A named sport without duration uses its last values. A saved training is logged by its id.
 - Entry ids, food ids, meal ids and training keys only from the diary below or from tool results. Never invent one.
 
@@ -53,7 +55,9 @@ same thing again. Either log a guess (\`guessed: true\`, \`log_estimate\`) or as
 
 Reply
 End with one short German sentence: what was done, without kcal lists, without your reasoning or calculation steps, no \
-advice, no emojis, and never mention that you left the meal to the app. After \`ask\`, write nothing. A question about the data gets one or two short German sentences with \
+advice, no emojis, and never mention that you left the meal to the app. After \`ask\`, write nothing. When you \
+did nothing (nothing to log or change and no question about the data), write nothing at all: never explain why, the app \
+shows that it did not understand. A question about the data gets one or two short German sentences with \
 the numbers that answer it, the result only.`;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -153,3 +157,17 @@ export function utterancePrompt(ctx: AssistantContext, transcript: string, alias
     `\nTranscript of the new utterance:\n${transcript}`
   );
 }
+
+/**
+ * The reply a turn shows. A turn that did nothing shows "Nicht verstanden" on the device; the model
+ * still explains that now and then ("Ich habe nichts eingetragen, weil ..."), which nobody needs.
+ */
+export function replyOf(reply: string | null, ops: number): string | null {
+  if (!reply) return null;
+  if (ops === 0 && NOTHING_DONE.test(reply)) return null;
+  return reply;
+}
+
+/** The assistant saying it did nothing, in the first person ("Du hast heute nichts eingetragen" stays). */
+const NOTHING_DONE =
+  /^\s*(ich\s+(habe|hab|konnte|kann)\s+(nichts|kein\p{L}*|das\s+nicht|dich\s+nicht)|nichts\s+(eingetragen|geändert|gelöscht))/iu;

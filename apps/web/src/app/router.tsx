@@ -1,4 +1,4 @@
-import { AssistantMount } from '@/features/assistant/AssistantProvider';
+import { AssistantProvider } from '@/features/assistant/AssistantProvider';
 import { isISODate, today } from '@ft/shared';
 import {
   createRootRoute,
@@ -78,7 +78,7 @@ function RootLayout() {
 
 /**
  * Signed-in area. Pages render their own header; the tab bar sits on the main tabs. The add sheet
- * (tab bar "+") belongs to the layout so any page can open it.
+ * (tab bar "+") belongs to the layout so any page can open it; it uses the assistant's controller.
  */
 function AuthedLayout() {
   const { session } = useSessionContext();
@@ -86,13 +86,14 @@ function AuthedLayout() {
   if (!session) return <Navigate to="/login" />;
   const showTabs = ['/', '/progress', '/reports', '/more'].includes(path);
   return (
-    <AddSheetProvider>
-      <ViewportVars />
-      <AppBanners />
-      <Outlet />
-      {showTabs && <TabBar />}
-      <AssistantMount />
-    </AddSheetProvider>
+    <AssistantProvider>
+      <AddSheetProvider>
+        <ViewportVars />
+        <AppBanners />
+        <Outlet />
+        {showTabs && <TabBar />}
+      </AddSheetProvider>
+    </AssistantProvider>
   );
 }
 

@@ -31,10 +31,12 @@ export function PhotoPreview({
   adding: boolean;
   onAdd: (photos: Blob[]) => void;
   onRemove: (id: number) => void;
-  onAnalyze: (text: string) => void;
+  /** `replaces`: entries the assistant said these photos replace. */
+  onAnalyze: (text: string, replaces: string[]) => void;
 }) {
   // What the person told the assistant about these photos ("die Soße war Kräutersoße").
-  const [text, setText] = useState(readAssistantHint);
+  const [carried] = useState(readAssistantHint);
+  const [text, setText] = useState(carried.hint);
   useEffect(() => clearAssistantHint(), []);
   const [sheet, setSheet] = useState(false);
   const room = MAX_ANALYSIS_PHOTOS - shots.length;
@@ -45,7 +47,7 @@ export function PhotoPreview({
       className="grid gap-3"
       onSubmit={(e) => {
         e.preventDefault();
-        onAnalyze(text);
+        onAnalyze(text, carried.replaces);
       }}
     >
       <PhotoStrip

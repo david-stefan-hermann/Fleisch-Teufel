@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
 import { logAiItemsRows, logAiMeal, readPhotoBytes } from '@/db/entries';
+import { deleteRecord } from '@/db/write';
 import { rememberFood } from '@/foods/foodService';
 import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/api';
 
@@ -166,6 +167,7 @@ export async function processQueue(db: UserDb): Promise<void> {
  * queue item in one transaction, so the app being killed in between can never log an analysis twice
  * or leave a meal without its entries. With `savedMealId` the meal takes over the ingredients and
  * the entries are attached to it (`logAiMeal`), otherwise they are one named group (`logAiItemsRows`).
+ * Entries the photos replace (`replaces`) are deleted in the same transaction.
  * Null when the item is gone (logged already, discarded): the caller then shows nothing twice.
  */
 export async function logReview(
@@ -181,10 +183,16 @@ export async function logReview(
     'rw',
     [db.foodEntries, db.meals, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
     async () => {
-      if (!(await db.aiQueue.get(item.localId!))) return null;
+      const now = await db.aiQueue.get(item.localId!);
+      if (!now) return null;
       const ids = savedMealId
         ? await logAiMeal(db, savedMealId, name, items, target, analysis, photos)
         : await logAiItemsRows(db, name, items, target, analysis, photos);
+      // The entries the photos were taken to replace go now that the replacement is in.
+      for (const id of now.replaces ?? []) {
+        const old = await db.foodEntries.get(id);
+        if (old && !old.deleted) await deleteRecord(db, 'foodEntries', id);
+      }
       await discardQueueItem(db, item.localId!);
       return ids;
     },

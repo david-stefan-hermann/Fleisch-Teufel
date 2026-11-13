@@ -431,7 +431,7 @@ export class AssistantController {
 
   private async openCamera(op: CameraOp) {
     const target = await targetFor(this.deps.db, op.date, op.meal, { now: Date.now(), today: todayOf() });
-    storeAssistantHint(op.hint);
+    storeAssistantHint(op.hint, op.replaces);
     this.deps.openPhoto(target);
   }
 }

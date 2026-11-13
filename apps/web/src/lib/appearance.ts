@@ -10,19 +10,24 @@ import { useSyncExternalStore } from 'react';
  *   home screen; it cannot be swapped on an installed web app.
  * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
  *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
- * - Assistant: whether the floating button shows, and which figure it wears ('standard', a built-in
- *   one or the id of an uploaded pack).
+ * - Assistant: whether the floating button shows (the add sheet always has it), how big it is, and
+ *   which figure it wears ('standard', a built-in one or the id of an uploaded pack).
  */
 export type ThemePref = 'system' | 'light' | 'dark';
 export type IconPref = 'auto' | 'light' | 'dark';
 export type Mode = 'light' | 'dark';
 export type DiaryMacrosPref = 'numbers' | 'bar';
+export type AssistantSize = 'small' | 'medium' | 'large';
+
+/** Scale of the assistant button per size (small is the 56 px button). */
+export const ASSISTANT_SCALE: Record<AssistantSize, number> = { small: 1, medium: 1.5, large: 2 };
 
 const THEME_KEY = 'ft.theme';
 const ICON_KEY = 'ft.icon';
 const DIARY_MACROS_KEY = 'ft.diaryMacros';
 const ASSISTANT_BUTTON_KEY = 'ft.assistant.button';
 const ASSISTANT_SKIN_KEY = 'ft.assistant.skin';
+const ASSISTANT_SIZE_KEY = 'ft.assistant.size';
 /** Status bar / browser chrome color per theme (`--background`). */
 const THEME_COLOR: Record<Mode, string> = { light: '#faf8f6', dark: '#151312' };
 
@@ -64,6 +69,8 @@ export interface Appearance {
   assistantButton: boolean;
   /** The figure of the assistant button. */
   assistantSkin: string;
+  /** Size of the assistant button. */
+  assistantSize: AssistantSize;
 }
 
 export function resolveAppearance(
@@ -71,7 +78,11 @@ export function resolveAppearance(
   icon: IconPref,
   systemDark: boolean,
   diaryMacros: DiaryMacrosPref = 'numbers',
-  assistant: { button: boolean; skin: string } = { button: true, skin: 'standard' },
+  assistant: { button: boolean; skin: string; size: AssistantSize } = {
+    button: true,
+    skin: 'standard',
+    size: 'small',
+  },
 ): Appearance {
   const mode: Mode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
   return {
@@ -82,13 +93,18 @@ export function resolveAppearance(
     diaryMacros,
     assistantButton: assistant.button,
     assistantSkin: assistant.skin,
+    assistantSize: assistant.size,
   };
 }
 
 let theme: ThemePref = 'system';
 let icon: IconPref = 'auto';
 let diaryMacros: DiaryMacrosPref = 'numbers';
-let assistant = { button: true, skin: 'standard' };
+let assistant: { button: boolean; skin: string; size: AssistantSize } = {
+  button: true,
+  skin: 'standard',
+  size: 'small',
+};
 let current: Appearance = resolveAppearance('system', 'auto', false);
 const listeners = new Set<() => void>();
 
@@ -123,6 +139,7 @@ export function startAppearance(): void {
   assistant = {
     button: read(ASSISTANT_BUTTON_KEY, ['on', 'off'], 'on') === 'on',
     skin: readSkin(),
+    size: read(ASSISTANT_SIZE_KEY, ['small', 'medium', 'large'], 'small'),
   };
   media()?.addEventListener('change', update);
   update();
@@ -164,6 +181,12 @@ export function setAssistantButton(on: boolean): void {
 export function setAssistantSkin(skin: string): void {
   assistant = { ...assistant, skin };
   write(ASSISTANT_SKIN_KEY, skin, skin === 'standard');
+  update();
+}
+
+export function setAssistantSize(size: AssistantSize): void {
+  assistant = { ...assistant, size };
+  write(ASSISTANT_SIZE_KEY, size, size === 'small');
   update();
 }
 

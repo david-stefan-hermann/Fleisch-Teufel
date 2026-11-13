@@ -383,7 +383,9 @@ input[type='date']::-webkit-datetime-edit {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  /* Placed with `translate`, sized with `scale` (Mehr, Aussehen, Größe) from the top left corner. */
+  transform-origin: 0 0;
+  transition: translate 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
 .ai-btn:focus-visible {
   outline: 3px solid color-mix(in oklch, var(--ring) 60%, transparent);
@@ -409,19 +411,6 @@ input[type='date']::-webkit-datetime-edit {
   background: radial-gradient(circle at 34% 28%, var(--ai-face-hi), var(--ai-face) 72%);
   border: 2px solid var(--ai-rim);
   box-shadow: 0 6px 16px oklch(0 0 0 / 0.28);
-}
-.ai-btn .ai-face,
-.ai-btn .ai-pic {
-  animation: ai-bob 2.6s ease-in-out infinite;
-}
-@keyframes ai-bob {
-  50% {
-    translate: 0 -2px;
-  }
-}
-/* Pixel art moves in whole steps (2 px), never between device pixels. */
-.ai-btn .ai-pic.pixel {
-  animation-timing-function: step-end;
 }
 .ai-btn[data-dragging] .ai-pic.pixel {
   scale: none;
@@ -610,18 +599,14 @@ input[type='date']::-webkit-datetime-edit {
 .ai-btn[data-style='free'][data-state='listening'] .ai-pic,
 .ai-btn[data-style='free'][data-state='recording'] .ai-pic {
   --glow: var(--ai-listen);
-  animation:
-    ai-bob 2.6s ease-in-out infinite,
-    ai-glow 1.2s ease-in-out infinite;
+  animation: ai-glow 1.2s ease-in-out infinite;
 }
 .ai-btn[data-style='free'][data-warn] .ai-pic {
-  animation-duration: 2.6s, 0.5s;
+  animation-duration: 0.5s;
 }
 .ai-btn[data-style='free'][data-state='thinking'] .ai-pic {
   --glow: var(--ai-think);
-  animation:
-    ai-bob 2.6s ease-in-out infinite,
-    ai-glow 1.6s ease-in-out infinite;
+  animation: ai-glow 1.6s ease-in-out infinite;
 }
 @keyframes ai-glow {
   0%,
@@ -658,16 +643,11 @@ input[type='date']::-webkit-datetime-edit {
 .ai-btn[data-edge='left'] .ai-act {
   right: -6px;
 }
-/* Tiles of the appearance page show the button at rest, not moving. */
+/* Tiles of the appearance page and the add sheet show the button at rest, not moving. */
 .ai-btn.ai-still {
   position: relative;
-  transform: none;
   cursor: default;
   z-index: auto;
-}
-.ai-still .ai-face,
-.ai-still .ai-pic {
-  animation: none;
 }
 
 /* Small buttons next to the main one (keyboard, discard). */

@@ -261,7 +261,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       d,
       [
         { kind: 'copyEntries', entryIds: ids, toDate: TODAY, toMeal: 0 },
-        { kind: 'openCamera', date: TODAY, meal: 1, hint: 'Die Soße war Kräutersoße.' },
+        { kind: 'openCamera', date: TODAY, meal: 1, hint: 'Die Soße war Kräutersoße.', replaces: [] },
       ],
       env,
     );

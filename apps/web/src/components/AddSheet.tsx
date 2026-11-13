@@ -8,12 +8,17 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
 } from 'react';
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useDb } from '@/app/session';
+import { SheetAssistantButton } from '@/features/assistant/AssistantButton';
+import { useAssistant } from '@/features/assistant/AssistantProvider';
+import { useSkin } from '@/features/assistant/skins/useSkin';
+import { ASSISTANT_SCALE, useAppearance, type AssistantSize } from '@/lib/appearance';
 import { rememberLogStart } from '@/lib/logFlow';
 import { logTargetFor } from '@/lib/meals';
 import { cn } from '@/lib/utils';
@@ -115,6 +120,10 @@ function AddSheet({
     onOpenChange(false);
     fn();
   };
+  const assistant = useAssistant();
+  const { assistantSize } = useAppearance();
+  // The assistant's text field takes the focus: closing must not hand it back to the "+".
+  const keepFocus = useRef(false);
   // Three entries, all "… eintragen": food (camera, barcode, and the search behind the magnifier) in
   // the middle and highlighted, where the thumb rests; weight on the left, training on the right.
   const items: {
@@ -152,11 +161,27 @@ function AddSheet({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       {/* On wide screens a centered card instead of a full-width sheet with giant square tiles. */}
-      <DrawerContent className="pb-[calc(var(--safe-bottom)+1rem)] sm:mx-auto sm:max-w-md sm:rounded-t-2xl sm:border-x">
-        <DrawerHeader>
-          <DrawerTitle>Eintragen</DrawerTitle>
-          <DrawerDescription>Was möchtest du eintragen?</DrawerDescription>
-        </DrawerHeader>
+      <DrawerContent
+        aria-describedby={undefined}
+        onCloseAutoFocus={(e) => {
+          if (keepFocus.current) e.preventDefault();
+          keepFocus.current = false;
+        }}
+        className="pb-[calc(var(--safe-bottom)+1rem)] sm:mx-auto sm:max-w-md sm:rounded-t-2xl sm:border-x"
+      >
+        <DrawerTitle className="sr-only">Eintragen</DrawerTitle>
+        {assistant ? (
+          <SheetAssistant
+            size={assistantSize}
+            onUse={() => {
+              keepFocus.current = true;
+              onOpenChange(false);
+            }}
+            controller={assistant}
+          />
+        ) : (
+          <div className="h-4" />
+        )}
         <div className="grid grid-cols-3 gap-3 px-4">
           {items.map((it) => (
             <button
@@ -177,5 +202,24 @@ function AddSheet({
         </div>
       </DrawerContent>
     </Drawer>
+  );
+}
+
+/** The assistant button above the tiles, always there while the server offers the assistant. */
+function SheetAssistant({
+  controller,
+  size,
+  onUse,
+}: {
+  controller: NonNullable<ReturnType<typeof useAssistant>>;
+  size: AssistantSize;
+  onUse: () => void;
+}) {
+  const scale = ASSISTANT_SCALE[size];
+  const skin = useSkin(scale);
+  return (
+    <div className="flex justify-center pt-4 pb-6">
+      <SheetAssistantButton controller={controller} skin={skin} scale={scale} onUse={onUse} />
+    </div>
   );
 }

@@ -8,13 +8,15 @@ import { useAppearance } from '@/lib/appearance';
 import { BUILTIN_SKINS, type BuiltinSkin } from './builtin';
 import { pixelBox, STANDARD_SKIN, type SkinView } from './SkinFace';
 
+const dpr = () => (typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
+
 /** The view of a pack: its manifest, picture URLs and, for pixel art, the place of the picture. */
 export function skinView(
   id: string,
   manifest: SkinManifest,
   urls: Record<string, string>,
   pixel: { width: number; grid: number } | null,
-  dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
+  ratio = dpr(),
 ): SkinView {
   return {
     id,
@@ -23,12 +25,13 @@ export function skinView(
     kind: 'pictures',
     manifest,
     urls,
-    pixel: manifest.pixelArt && pixel ? pixelBox(pixel.width, pixel.grid, dpr) : null,
+    pixel: manifest.pixelArt && pixel ? pixelBox(pixel.width, pixel.grid, ratio) : null,
   };
 }
 
-export function builtinView(b: BuiltinSkin): SkinView {
-  return skinView(b.id, b.manifest, b.urls, b.grid ? { width: 256, grid: b.grid } : null);
+/** `scale`: the button's size factor (pixel art then stays on whole device pixels). */
+export function builtinView(b: BuiltinSkin, scale = 1): SkinView {
+  return skinView(b.id, b.manifest, b.urls, b.grid ? { width: 256, grid: b.grid } : null, dpr() * scale);
 }
 
 /**
@@ -55,7 +58,8 @@ export function useSkinUrls(skin: AssistantSkin | undefined): Record<string, str
   return held && held.id === id ? held.urls : null;
 }
 
-export function useSkin(): SkinView {
+/** The chosen figure for a button drawn `scale` times its size. */
+export function useSkin(scale = 1): SkinView {
   const db = useDb();
   const { assistantSkin } = useAppearance();
   const builtin = BUILTIN_SKINS.find((b) => b.id === assistantSkin);
@@ -64,8 +68,8 @@ export function useSkin(): SkinView {
     [db, assistantSkin, builtin],
   );
   const urls = useSkinUrls(uploaded);
-  if (builtin) return builtinView(builtin);
+  if (builtin) return builtinView(builtin, scale);
   if (uploaded && urls)
-    return skinView(uploaded.id, uploaded.manifest, urls, { width: uploaded.width, grid: 1 });
+    return skinView(uploaded.id, uploaded.manifest, urls, { width: uploaded.width, grid: 1 }, dpr() * scale);
   return STANDARD_SKIN;
 }

@@ -165,7 +165,7 @@ export function PhotoPage() {
           adding={adding}
           onAdd={(blobs) => void flow.addShots(blobs)}
           onRemove={flow.removeShot}
-          onAnalyze={(text) => void flow.analyze(text)}
+          onAnalyze={(text, replaces) => void flow.analyze(text, replaces)}
         />
       ) : typing ? (
         <div className="grid gap-3">

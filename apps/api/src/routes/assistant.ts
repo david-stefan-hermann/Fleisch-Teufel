@@ -22,7 +22,7 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { aiError, aiGate, NO_USAGE, requestIdOf } from '../ai/admit.js';
 import type { AiUsage } from '../ai/analyze.js';
-import { Aliases, utterancePrompt } from '../assistant/prompt.js';
+import { Aliases, replyOf, utterancePrompt } from '../assistant/prompt.js';
 import { createTurnHost } from '../assistant/host.js';
 import { sniffAudio } from '../assistant/transcribe.js';
 import { requireUser } from '../auth/session.js';
@@ -286,7 +286,7 @@ export function assistantRoutes(deps: Deps) {
         transcript,
         ops: state.ops,
         question: state.question,
-        reply: state.question ? null : out.reply,
+        reply: state.question ? null : replyOf(out.reply, state.ops.length),
         usage,
       });
     };

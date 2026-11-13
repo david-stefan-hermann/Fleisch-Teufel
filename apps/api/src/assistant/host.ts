@@ -383,6 +383,11 @@ export async function createTurnHost(
         date: date(input.date),
         meal: meal(input.meal),
         hint: optText(input.hint, 1000) ?? '',
+        replaces:
+          input.replaceEntryIds == null ||
+          (Array.isArray(input.replaceEntryIds) && !input.replaceEntryIds.length)
+            ? []
+            : entryIds(input.replaceEntryIds),
       }).replace('ok', 'camera opens; the analysis logs the food');
     },
   };

@@ -699,6 +699,27 @@ describe('AI review: re-analyze with the hint', () => {
     expect(before).toEqual([1, 1, 1, 2]);
   });
 
+  it('logReview deletes the entries the photos replace, in the same step', async () => {
+    const d = db();
+    server(analysis('Nudeln', 250), analysis('Nudeln', 300));
+    const first = (await d.aiQueue.get(await analyzed(d)))!;
+    const items = [{ food: food('bls:Nudeln', 'Nudeln', 150), grams: 250 }];
+    const [old] = (await logReview(d, { item: first, name: 'Nudeln', items, meal: 1, savedMealId: null }))!;
+    // "Ich hab Fotos davon": new photos for the logged entry; until they are logged it stays.
+    const id = await enqueuePhotos(d, { date: '2026-10-07', meal: 1, text: '', replaces: [old!] }, [jpeg()]);
+    await processQueue(d);
+    expect((await d.foodEntries.get(old!))!.deleted).toBe(false);
+    const ids = await logReview(d, {
+      item: (await d.aiQueue.get(id))!,
+      name: 'Nudeln',
+      items,
+      meal: 1,
+      savedMealId: null,
+    });
+    expect((await d.foodEntries.get(old!))!.deleted).toBe(true);
+    expect((await d.foodEntries.get(ids![0]!))!.deleted).toBe(false);
+  });
+
   it('keeps a review saved as a meal linked to it (with its name)', async () => {
     const d = db();
     server(analysis('Nudeln', 200), analysis('Reis', 150));

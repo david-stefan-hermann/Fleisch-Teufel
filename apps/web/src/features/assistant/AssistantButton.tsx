@@ -2,7 +2,8 @@
  * The floating assistant button with what hangs on it: the small buttons (keyboard, discard), the
  * bubble (question or reply) and the text layer. It is carried by dragging and snaps to the left or
  * right edge; the position is kept per device (`ft.assistant.pos`) and pushed up by whatever sits at
- * the bottom (tab bar, page footer, toasts, the camera's controls: `[data-ai-avoid]`).
+ * the bottom (tab bar, page footer, toasts, the camera's controls: `[data-ai-avoid]`). Its size is a
+ * setting (`scale`); the gap to the screen edge counts from what is visible (ring, figure).
  */
 import { RECORD_WARN_MS } from '@ft/shared';
 import { Keyboard, X } from 'lucide-react';
@@ -15,11 +16,13 @@ import {
   type ReactNode,
 } from 'react';
 import type { AssistantController } from './controller';
-import { DRAG_PX, LONG_PRESS_MS, LISTEN_MS, type MachineState } from './machine';
-import { SkinFace, type SkinView } from './skins/SkinFace';
+import { DRAG_PX, initialState, LONG_PRESS_MS, LISTEN_MS, type MachineState } from './machine';
+import { SkinFace, skinOverhang, type SkinView } from './skins/SkinFace';
 
-const S = 56;
-const EDGE = 10;
+/** The button at the smallest size. */
+const BASE = 56;
+/** Gap between the screen edge and the visible button. */
+const GAP = 16;
 const POS_KEY = 'ft.assistant.pos';
 
 interface Pos {
@@ -48,8 +51,8 @@ function writePos(p: Pos) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** The visible area and what the button must not cover at the bottom. */
-function measure() {
+/** The visible area and what a button of `size` must not cover at the bottom. */
+function measure(size: number) {
   const vv = window.visualViewport;
   const top = vv?.offsetTop ?? 0;
   const height = vv?.height ?? window.innerHeight;
@@ -63,7 +66,7 @@ function measure() {
     if (r.height > 0 && r.top > top + height / 2) floor = Math.min(floor, r.top);
   }
   const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
-  return { top, width, height, minY: top + safeTop + 60, maxY: floor - 12 - S };
+  return { top, width, height, minY: top + safeTop + 60, maxY: floor - 12 - size };
 }
 
 /** Re-measures when the viewport, the page or the toasts change. */
@@ -111,10 +114,12 @@ export function AssistantButton({
   controller,
   waiting,
   skin,
+  scale,
 }: {
   controller: AssistantController;
   waiting: number;
   skin: SkinView;
+  scale: number;
 }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const [pos, setPos] = useState(readPos);
@@ -132,9 +137,11 @@ export function AssistantButton({
   const recording = state.phase === 'recording';
   useTicker(recording || state.phase === 'listening', 250);
 
-  const m = measure();
+  const S = BASE * scale;
+  const over = skinOverhang(skin).x * scale;
+  const m = measure(S);
   const typing = state.phase === 'typing';
-  let x = pos.edge === 'left' ? EDGE : m.width - EDGE - S;
+  let x = pos.edge === 'left' ? GAP + over : m.width - GAP - over - S;
   let y = clamp(pos.y, m.minY, Math.max(m.minY, m.maxY));
   // Text mode: the button is "Senden" right above the keyboard.
   if (typing) y = m.top + m.height - S - 12;
@@ -222,7 +229,16 @@ export function AssistantButton({
     <>
       {typing && <TextLayer controller={controller} state={state} />}
       {state.bubble && !typing && (
-        <QuestionBubble controller={controller} state={state} x={x} y={y} edge={edge} m={m} />
+        <QuestionBubble
+          controller={controller}
+          state={state}
+          x={x}
+          y={y}
+          size={S}
+          over={over}
+          edge={edge}
+          m={m}
+        />
       )}
       {sideButtons.length > 0 && (
         <div
@@ -230,7 +246,7 @@ export function AssistantButton({
           data-dragging={drag ? '' : undefined}
           style={{
             flexDirection: above ? 'column' : 'column-reverse',
-            transform: `translate(${x + 7}px, ${above ? y - sideH - 4 : y + S + 12}px)`,
+            transform: `translate(${x + S / 2 - 21}px, ${above ? y - sideH - 4 : y + S + 12}px)`,
           }}
         >
           {sideButtons.map((b) => (
@@ -250,7 +266,7 @@ export function AssistantButton({
         data-edge={edge}
         data-warn={warn ? '' : undefined}
         data-dragging={drag ? '' : undefined}
-        style={{ transform: `translate(${x}px, ${y}px)` }}
+        style={{ translate: `${x}px ${y}px`, scale: scale === 1 ? undefined : String(scale) }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={end(true)}
@@ -286,6 +302,8 @@ function QuestionBubble({
   state,
   x,
   y,
+  size: S,
+  over,
   edge,
   m,
 }: {
@@ -293,6 +311,8 @@ function QuestionBubble({
   state: MachineState;
   x: number;
   y: number;
+  size: number;
+  over: number;
   edge: 'left' | 'right';
   m: ReturnType<typeof measure>;
 }) {
@@ -306,8 +326,8 @@ function QuestionBubble({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const w = Math.min(260, m.width - S - 3 * EDGE - 8);
-  const bx = edge === 'left' ? x + S + 10 : x - 10 - w;
+  const w = Math.min(260, m.width - 2 * GAP - S - 2 * over - 8);
+  const bx = edge === 'left' ? x + S + over + 8 : x - over - 8 - w;
   const by = clamp(y + S / 2 - h / 2, m.minY, Math.max(m.minY, m.maxY + S - h));
   return (
     <div
@@ -392,5 +412,68 @@ function TextLayer({ controller, state }: { controller: AssistantController; sta
         />
       </div>
     </>
+  );
+}
+
+/**
+ * The assistant in the add sheet: the figure at rest, at the chosen size. A tap records (types when
+ * the server has no voice), a long press types; both close the sheet first (`onUse`), the floating
+ * button then carries the utterance, also when it is switched off.
+ */
+export function SheetAssistantButton({
+  controller,
+  skin,
+  scale,
+  onUse,
+}: {
+  controller: AssistantController;
+  skin: SkinView;
+  scale: number;
+  onUse: () => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const long = useRef(false);
+  const S = BASE * scale;
+  const over = skinOverhang(skin);
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  return (
+    <div style={{ width: S, height: S, marginTop: over.top * scale }}>
+      <button
+        type="button"
+        className="ai-btn ai-still cursor-pointer"
+        aria-label="Assistent: sprechen"
+        data-state="idle"
+        data-skin={skin.id}
+        data-style={skin.style}
+        data-edge="right"
+        style={scale === 1 ? undefined : { scale: String(scale) }}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          long.current = false;
+          stop();
+          timer.current = setTimeout(() => {
+            long.current = true;
+            onUse();
+            controller.keyboard();
+          }, LONG_PRESS_MS);
+        }}
+        onPointerUp={stop}
+        onPointerLeave={stop}
+        onPointerCancel={stop}
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={() => {
+          stop();
+          if (long.current) return;
+          onUse();
+          controller.tap();
+        }}
+      >
+        <span className="ai-ring" />
+        <SkinFace skin={skin} state={initialState} warn={false} />
+      </button>
+    </div>
   );
 }

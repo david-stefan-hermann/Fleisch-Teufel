@@ -213,6 +213,37 @@ describe('assistant', () => {
     ]);
   });
 
+  it('opens the camera for photos that replace an entry; the entry stays until they are logged', async () => {
+    const id = uuidv7();
+    script = [
+      { name: 'open_camera', input: { date: TODAY, meal: 'Frühstück', hint: '', replaceEntryIds: ['e1'] } },
+    ];
+    const r = await turn(alice, {
+      text: 'Davon habe ich Fotos.',
+      context: JSON.stringify(
+        context({
+          days: [
+            {
+              date: TODAY,
+              entries: [{ id, meal: 0, name: 'Pizza', grams: 300, kcal: 800, proteinG: 30, group: null }],
+              trainings: [],
+              weightKg: null,
+            },
+          ],
+        }),
+      ),
+    });
+    expect(r.json.ops).toEqual([{ kind: 'openCamera', date: TODAY, meal: 0, hint: '', replaces: [id] }]);
+  });
+
+  it('drops a reply that only says nothing was done', async () => {
+    script = [];
+    reply = 'Ich habe nichts eingetragen, weil die Äußerung kein Lebensmittel nennt.';
+    expect((await turn(alice, { text: 'Hm.' })).json.reply).toBeNull();
+    reply = 'Du hast heute noch nichts eingetragen.';
+    expect((await turn(alice, { text: 'Was habe ich heute gegessen?' })).json.reply).toBe(reply);
+  });
+
   it('reads other days without tombstones and without other people', async () => {
     const bob = await registeredClient(ctx, 'bob@example.com');
     const live = entry({ name: 'Rührei' });

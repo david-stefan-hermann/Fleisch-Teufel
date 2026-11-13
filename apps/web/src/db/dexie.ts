@@ -89,6 +89,11 @@ export interface AiQueueItem {
    * by "Wiederholen" and after a lost connection, new for every ↻.
    */
   requestId?: string;
+  /**
+   * Diary entries these photos replace (the assistant's "ich hab Fotos davon" for an entry already
+   * logged): soft-deleted in the transaction that logs the analysis, never before.
+   */
+  replaces?: string[];
 }
 
 /** One ingredient while reviewing an analysis. `confidence` is null for rows the user added. */

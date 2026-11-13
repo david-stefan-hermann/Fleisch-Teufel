@@ -97,3 +97,29 @@ test('the assistant logs a typed sentence; the toast undoes it', async ({ page }
   await expect(page.getByText('„200 Gramm Magerquark zum Mittagessen“')).toBeVisible();
   await expect(page.getByText('rückgängig gemacht')).toBeVisible();
 });
+
+test('the add sheet always carries the assistant, also with the floating button switched off', async ({
+  page,
+}) => {
+  await page.route('**/api/info', async (r) => {
+    const res = await r.fetch();
+    await r.fulfill({
+      response: res,
+      json: { ...(await res.json()), assistantEnabled: true, voiceEnabled: false },
+    });
+  });
+  await page.context().addInitScript(() => localStorage.setItem('ft.assistant.button', 'off'));
+  await register(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 2, name: 'Frühstück' })).toBeVisible();
+  await expect(page.locator('.ai-btn')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Assistent: sprechen' }).click();
+  // The sheet closes; the text mode runs on the floating button while it lasts.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const field = page.getByLabel('Was möchtest du eintragen?');
+  await expect(field).toBeVisible();
+  await field.press('Escape');
+  await expect(page.locator('.ai-btn')).toHaveCount(0);
+});

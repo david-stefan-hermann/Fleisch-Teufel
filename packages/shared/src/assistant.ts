@@ -102,6 +102,8 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     date: isoDateSchema,
     meal: mealOrNull,
     hint: z.string().trim().max(1000).default(''),
+    /** Entries the photos replace: deleted when the analysis is logged (never when it is not). */
+    replaces: z.array(id).max(100).default([]),
   }),
 ]);
 export type AssistantOp = z.infer<typeof assistantOpSchema>;

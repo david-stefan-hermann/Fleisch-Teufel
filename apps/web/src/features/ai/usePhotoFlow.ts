@@ -88,13 +88,13 @@ export function usePhotoFlow({
     setShots((s) => [...s, ...added].slice(0, MAX_ANALYSIS_PHOTOS));
   }
 
-  /** Queues the preview photos with the hint and waits for the result. */
-  async function analyze(text: string) {
+  /** Queues the preview photos with the hint (and the entries they replace) and waits for the result. */
+  async function analyze(text: string, replaces: string[] = []) {
     if (analyzing || shots.length === 0) return;
     await follow(meal, false, () =>
       enqueuePhotos(
         db,
-        { date, meal, text },
+        { date, meal, text, ...(replaces.length > 0 && { replaces }) },
         shots.map((s) => s.blob),
       ),
     );

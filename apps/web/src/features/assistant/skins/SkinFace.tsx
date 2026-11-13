@@ -52,6 +52,18 @@ export function pixelBox(width: number, grid: number, dpr: number): PixelBox | n
   return { size, x: snap((56 - size) / 2), y: snap(56 - size + 2) };
 }
 
+/**
+ * How far the visible button reaches beyond its 56 px box (CSS px before scaling), at the sides and
+ * at the top: the state ring, the outline of a free figure, or a pixel-art picture larger than it.
+ */
+export function skinOverhang(skin: SkinView): { x: number; top: number } {
+  if (skin.kind === 'pictures') {
+    if (skin.pixel) return { x: Math.max(5, -skin.pixel.x), top: Math.max(5, -skin.pixel.y) };
+    if (skin.style === 'free') return { x: 13, top: 16 };
+  }
+  return { x: 5, top: 5 };
+}
+
 const IDLE_SHOW_MS = 1900;
 
 export function SkinFace({ skin, state, warn }: { skin: SkinView; state: MachineState; warn: boolean }) {

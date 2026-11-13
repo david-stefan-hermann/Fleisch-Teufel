@@ -1,12 +1,19 @@
 /**
- * Mehr → Aussehen, section "Assistent": whether the button shows, and its figure (standard, the
- * built-in ones, uploaded packs). The choice is per device.
+ * Mehr → Aussehen, section "Assistent": whether the floating button shows (the add sheet always has
+ * it), its size and its figure (standard, the built-in ones, uploaded packs). The choice is per device.
  */
 import { Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Section } from '@/components/Page';
 import { Switch } from '@/components/ui/switch';
-import { setAssistantButton, setAssistantSkin, useAppearance } from '@/lib/appearance';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import {
+  setAssistantButton,
+  setAssistantSize,
+  setAssistantSkin,
+  useAppearance,
+  type AssistantSize,
+} from '@/lib/appearance';
 import { cn } from '@/lib/utils';
 import { initialState } from '../machine';
 import { BUILTIN_SKINS } from './builtin';
@@ -60,6 +67,12 @@ export function SkinTile({
   );
 }
 
+const SIZES: { value: AssistantSize; label: string }[] = [
+  { value: 'small', label: 'Klein' },
+  { value: 'medium', label: 'Mittel' },
+  { value: 'large', label: 'Groß' },
+];
+
 export function AssistantAppearance({ uploads }: { uploads?: ReactNode }) {
   const a = useAppearance();
   const skins = [STANDARD_SKIN, ...BUILTIN_SKINS.map(builtinView)];
@@ -67,9 +80,25 @@ export function AssistantAppearance({ uploads }: { uploads?: ReactNode }) {
     <Section title="Assistent">
       <div className="flex min-h-14 items-center gap-3 px-4 py-2">
         <label htmlFor="assistant-button" className="min-w-0 flex-1 font-medium">
-          Knopf anzeigen
+          Schwebender Knopf
         </label>
         <Switch id="assistant-button" checked={a.assistantButton} onCheckedChange={setAssistantButton} />
+      </div>
+      <div className="border-t border-border/70 px-4 py-3">
+        <ToggleGroup
+          type="single"
+          variant="outline"
+          value={a.assistantSize}
+          onValueChange={(v) => v && setAssistantSize(v as AssistantSize)}
+          className="w-full"
+          aria-label="Größe des Knopfs"
+        >
+          {SIZES.map((sz) => (
+            <ToggleGroupItem key={sz.value} value={sz.value} className="h-12 flex-1">
+              {sz.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
       <div className="grid grid-cols-3 gap-2.5 border-t border-border/70 p-3.5">
         {skins.map((s) => (
