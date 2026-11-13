@@ -10,6 +10,9 @@ import Dexie, { type EntityTable, type Table } from 'dexie';
 import type { LocalPhoto } from './photos';
 import type {
   AiAnalysisResult,
+  AssistantOp,
+  AssistantQuestion,
+  SkinManifest,
   AiTypedValues,
   AnySyncRecord,
   CustomExerciseType,
@@ -144,6 +147,80 @@ export interface AiPhoto {
   createdAt: number;
 }
 
+/**
+ * One undo step of an assistant turn, serializable (it is kept on the turn, so "Rückgängig" works
+ * from the toast and from the history). Runs only through `deleteRecord`, `restoreRecord` and
+ * `patchRecord`: `delete` removes records the turn created, `restore` brings back records it deleted,
+ * `patch` puts back the field values a record had before.
+ */
+export type UndoStep =
+  | { kind: 'delete'; table: SyncTable; ids: string[] }
+  | { kind: 'restore'; table: SyncTable; ids: string[] }
+  | { kind: 'patch'; table: SyncTable; id: string; fields: Record<string, unknown> };
+
+/** What one operation did, for the toast and the history. */
+export interface AppliedOp {
+  kind: AssistantOp['kind'];
+  /** "Mittagessen: Magerquark, Banane" */
+  text: string;
+  /** History detail: "Magerquark, 200 g · Banane, 1 Stück (120 g)". */
+  detail?: string;
+  kcal?: number;
+  /** Some amounts were assumed by the model ("geschätzt"). */
+  guessed?: boolean;
+  /** Day and meal it wrote to (the next utterance's follow-ups go there). */
+  target?: { date: string; meal: number };
+  /** New or changed diary entries (the diary scrolls to them). */
+  entryIds?: string[];
+}
+
+/**
+ * One utterance to the assistant on this device (Dexie v6). A recording waits here as bytes until
+ * it is sent (offline: `waiting`); afterwards the turn keeps what the server answered and what the
+ * device did with it (undo steps, summary). Device only; the server keeps its own log.
+ */
+export interface AssistantTurn {
+  localId?: number;
+  /** Idempotency key of the request (uuidv7), also the server's turn id. */
+  requestId: string;
+  createdAt: number;
+  source: 'voice' | 'text';
+  /** The recording while it waits (dropped once the server has it). */
+  audio?: ArrayBuffer;
+  audioType?: string;
+  durationMs?: number;
+  /** A typed sentence, or the text the recording was edited to. */
+  text?: string;
+  /** The day the diary showed when the person spoke. */
+  shownDate: string;
+  status: 'waiting' | 'sending' | 'asking' | 'done' | 'failed' | 'discarded';
+  /** Sent later than spoken (it waited for a connection): no open microphone, the camera asks first. */
+  late?: boolean;
+  /** The turn whose question this utterance answers. */
+  answersTo?: number;
+  transcript?: string;
+  ops?: AssistantOp[];
+  question?: AssistantQuestion | null;
+  reply?: string | null;
+  applied?: AppliedOp[];
+  /** Operations whose records this device does not have (left out). */
+  skipped?: number;
+  undo?: UndoStep[];
+  undoneAt?: number;
+  error?: string;
+}
+
+/** An uploaded figure pack (copy of the account's zip, unpacked). */
+export interface AssistantSkin {
+  id: string;
+  name: string;
+  manifest: SkinManifest;
+  /** Picture files by name. */
+  images: Record<string, { bytes: ArrayBuffer; type: string }>;
+  bytes: number;
+  createdAt: number;
+}
+
 export interface KvItem {
   key: string;
   value: unknown;
@@ -168,6 +245,8 @@ export class UserDb extends Dexie {
   photos!: EntityTable<LocalPhoto, 'id'>;
   aiImages!: EntityTable<AiImage, 'localId'>;
   aiPhotos!: EntityTable<AiPhoto, 'id'>;
+  assistantTurns!: EntityTable<AssistantTurn, 'localId'>;
+  assistantSkins!: EntityTable<AssistantSkin, 'id'>;
 
   /**
    * Server clock minus this device's clock (ms), measured by the sync engine. Local versions are
@@ -205,6 +284,8 @@ export class UserDb extends Dexie {
     // v5: several photos per AI queue item. `aiImages` stays declared: its rows are moved over at runtime
     // (`migrateLegacyImages`, same reason as v4 for no `.upgrade()`), then it stays empty.
     this.version(5).stores({ aiPhotos: '++id, localId' });
+    // v6: the assistant's utterances (device log, waiting recordings, undo) and uploaded figures.
+    this.version(6).stores({ assistantTurns: '++localId, createdAt, status', assistantSkins: 'id' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

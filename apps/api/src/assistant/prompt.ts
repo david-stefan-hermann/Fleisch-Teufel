@@ -52,7 +52,7 @@ same thing again. Either log a guess (\`guessed: true\`, \`log_estimate\`) or as
 
 Reply
 End with one short German sentence: what was done, without kcal lists, without your reasoning or calculation steps, no \
-advice, no emojis. After \`ask\`, write nothing. A question about the data gets one or two short German sentences with \
+advice, no emojis, and never mention that you left the meal to the app. After \`ask\`, write nothing. A question about the data gets one or two short German sentences with \
 the numbers that answer it, the result only.`;
 
 const r1 = (n: number) => Math.round(n * 10) / 10;

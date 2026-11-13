@@ -106,7 +106,7 @@ export function assistantTools(mealNames: readonly string[]): Tool[] {
     {
       name: 'save_meal',
       description:
-        'Save diary entries as a reusable meal with a name. The entries stay in the diary and are attached to the new meal.',
+        'Save diary entries as a reusable meal with a name. The entries stay in the diary as they are.',
       input_schema: obj({ name: str, entryIds: ids }, ['name', 'entryIds']),
     },
     {
