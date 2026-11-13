@@ -262,7 +262,7 @@ export function AssistantButton({
         }}
       >
         <span className="ai-ring" />
-        <SkinFace skin={skin} state={state} warn={warn} lastSeconds={remaining <= 3000} />
+        <SkinFace skin={skin} state={state} warn={warn} />
         {waiting > 0 && <span className="ai-badge">{waiting}</span>}
         {recording && (
           <span className="ai-time" aria-live="off">

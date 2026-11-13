@@ -1,0 +1,114 @@
+/**
+ * Mehr → Aussehen, section "Assistent": whether the button shows, and its figure (standard, the
+ * built-in ones, uploaded packs). The choice is per device.
+ */
+import { Plus } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Section } from '@/components/Page';
+import { Switch } from '@/components/ui/switch';
+import { setAssistantButton, setAssistantSkin, useAppearance } from '@/lib/appearance';
+import { cn } from '@/lib/utils';
+import { initialState } from '../machine';
+import { BUILTIN_SKINS } from './builtin';
+import { SkinFace, STANDARD_SKIN, type SkinView } from './SkinFace';
+import { builtinView } from './useSkin';
+
+/** The button at rest, as a picture on a tile. */
+export function SkinPreview({ skin }: { skin: SkinView }) {
+  return (
+    <span
+      className="ai-btn ai-still"
+      data-skin={skin.id}
+      data-style={skin.style}
+      data-state="idle"
+      data-edge="right"
+    >
+      <SkinFace skin={skin} state={initialState} warn={false} />
+    </span>
+  );
+}
+
+export function SkinTile({
+  skin,
+  selected,
+  onSelect,
+  children,
+}: {
+  skin: SkinView;
+  selected: boolean;
+  onSelect: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className={cn(
+          'grid w-full min-w-0 justify-items-center gap-3 rounded-xl border border-border px-1.5 pt-4 pb-2.5 text-xs font-semibold',
+          selected && 'border-primary ring-1 ring-primary',
+        )}
+      >
+        <span className="grid h-16 place-items-center">
+          <SkinPreview skin={skin} />
+        </span>
+        <span className="hyphens-auto">{skin.name}</span>
+      </button>
+      {children}
+    </div>
+  );
+}
+
+export function AssistantAppearance({ uploads }: { uploads?: ReactNode }) {
+  const a = useAppearance();
+  const skins = [STANDARD_SKIN, ...BUILTIN_SKINS.map(builtinView)];
+  return (
+    <Section title="Assistent">
+      <div className="flex min-h-14 items-center gap-3 px-4 py-2">
+        <label htmlFor="assistant-button" className="min-w-0 flex-1 font-medium">
+          Knopf anzeigen
+        </label>
+        <Switch id="assistant-button" checked={a.assistantButton} onCheckedChange={setAssistantButton} />
+      </div>
+      <div className="grid grid-cols-3 gap-2.5 border-t border-border/70 p-3.5">
+        {skins.map((s) => (
+          <SkinTile
+            key={s.id}
+            skin={s}
+            selected={a.assistantSkin === s.id}
+            onSelect={() => setAssistantSkin(s.id)}
+          />
+        ))}
+        {uploads}
+      </div>
+    </Section>
+  );
+}
+
+export function AddSkinTile({ onPick, busy }: { onPick: (file: File) => void; busy: boolean }) {
+  return (
+    <label
+      className={cn(
+        'grid cursor-pointer justify-items-center gap-3 rounded-xl border border-border px-1.5 pt-4 pb-2.5 text-center text-xs font-semibold',
+        busy && 'pointer-events-none opacity-50',
+      )}
+    >
+      <span className="grid size-14 place-items-center rounded-full border-2 border-dashed border-input text-muted-foreground">
+        <Plus className="size-5" aria-hidden />
+      </span>
+      Eigene Figur
+      <input
+        type="file"
+        accept=".zip,application/zip"
+        className="sr-only"
+        disabled={busy}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = '';
+          if (f) onPick(f);
+        }}
+      />
+    </label>
+  );
+}

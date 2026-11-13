@@ -217,6 +217,8 @@ export interface AssistantSkin {
   manifest: SkinManifest;
   /** Picture files by name. */
   images: Record<string, { bytes: ArrayBuffer; type: string }>;
+  /** Width of the rest picture in pixels (pixel art is drawn at whole device pixels from it). */
+  width: number;
   bytes: number;
   createdAt: number;
 }

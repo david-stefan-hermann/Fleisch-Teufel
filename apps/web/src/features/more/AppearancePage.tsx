@@ -1,6 +1,8 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
+import { AssistantAppearance } from '@/features/assistant/skins/SkinPicker';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MacroSummary } from '@/features/diary/MacroSummary';
 import {
@@ -30,6 +32,7 @@ const PREVIEW = { ENERCC: 695, PROT625: 52, CHO: 38, FAT: 36 };
 /** Mehr → Aussehen: app theme, diary macros and logo variant of this device. */
 export function AppearancePage() {
   const a = useAppearance();
+  const { serverInfo } = useSessionContext();
   const icons: { value: IconPref; label: string; files: string[] }[] = [
     { value: 'auto', label: 'Wie die App', files: [ICON_FILES.light.logo, ICON_FILES.dark.logo] },
     { value: 'light', label: 'Hell', files: [ICON_FILES.light.logo] },
@@ -82,6 +85,8 @@ export function AppearancePage() {
           </div>
         </div>
       </Section>
+
+      {serverInfo?.assistantEnabled && <AssistantAppearance />}
 
       <Section title="App-Icon">
         <div className="grid gap-3 px-4 pb-4">
