@@ -162,7 +162,7 @@ export async function applyOps(
             result.applied.push({
               kind: op.kind,
               text: `${where(target)}: ${op.groupName && op.items.length > 1 ? op.groupName : entryNames(items)}`,
-              detail: items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · '),
+              detail: `${where(target)}: ${items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: items.reduce((s, it) => s + kcalOf(it), 0),
               guessed: op.items.some((i) => i.guessed),
               target,
@@ -188,7 +188,7 @@ export async function applyOps(
             result.applied.push({
               kind: op.kind,
               text: `${where(target)}: ${entry.name}`,
-              detail: `${fmt0(op.kcal)} kcal`,
+              detail: `${where(target)}: ${entry.name}, ${fmt0(op.kcal)} kcal`,
               kcal: op.kcal,
               guessed: op.kind === 'logEstimate',
               target,
@@ -211,7 +211,7 @@ export async function applyOps(
             result.applied.push({
               kind: op.kind,
               text: `${where(target)}: ${meal.name}`,
-              detail: meal.items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · '),
+              detail: `${where(target)}: ${meal.items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: meal.items.reduce((s, it) => s + kcalOf(it), 0),
               target,
               entryIds: ids,
@@ -283,7 +283,7 @@ export async function applyOps(
             result.applied.push({
               kind: op.kind,
               text: `${where(target)}: ${entryNames(entries)}`,
-              detail: entries.map((e) => `${e.name}, ${amountOf(e)}`).join(' · '),
+              detail: `${where(target)}: ${entries.map((e) => `${e.name}, ${amountOf(e)}`).join(' · ')}`,
               kcal: entries.reduce((s, e) => s + kcalOf(e), 0),
               target,
               entryIds: ids,

@@ -163,7 +163,7 @@ export interface AppliedOp {
   kind: AssistantOp['kind'];
   /** "Mittagessen: Magerquark, Banane" */
   text: string;
-  /** History detail: "Magerquark, 200 g · Banane, 1 Stück (120 g)". */
+  /** History line: "Mittagessen: Magerquark, 200 g · Banane, 1 Stück (120 g)". */
   detail?: string;
   kcal?: number;
   /** Some amounts were assumed by the model ("geschätzt"). */

@@ -8,6 +8,7 @@ import {
   Info,
   Palette,
   ListOrdered,
+  Mic,
   Salad,
   Target,
   Trash2,
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import type { ReactNode } from 'react';
-import { useSession } from '@/app/session';
+import { useSession, useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Switch } from '@/components/ui/switch';
@@ -50,6 +51,7 @@ function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: st
 
 export function MorePage() {
   const { db, user } = useSession();
+  const { serverInfo } = useSessionContext();
   const settings = useSettings();
   const sync = useSyncState();
   const trashed = useLiveQuery(() => trashCount(db), [db]);
@@ -117,6 +119,9 @@ export function MorePage() {
       </Section>
       <Section>
         <ul className="divide-y divide-border/70">
+          {serverInfo?.assistantEnabled && (
+            <Row to="/settings/assistant" icon={<Mic aria-hidden />} label="Assistent" />
+          )}
           <Row to="/settings/reminder" icon={<BellRing aria-hidden />} label="Erinnerung" />
           <Row
             to="/settings/steps"

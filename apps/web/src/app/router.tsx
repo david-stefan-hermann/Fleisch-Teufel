@@ -320,6 +320,10 @@ export const routes = {
     ...r('/settings/appearance'),
     component: lazyRouteComponent(() => import('@/features/more/AppearancePage'), 'AppearancePage'),
   }),
+  assistant: createRoute({
+    ...r('/settings/assistant'),
+    component: lazyRouteComponent(() => import('@/features/assistant/HistoryPage'), 'AssistantHistoryPage'),
+  }),
   trash: createRoute({
     ...r('/settings/trash'),
     component: lazyRouteComponent(() => import('@/features/more/TrashPage'), 'TrashPage'),
