@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { log } from './log.js';
 import { aiRoutes } from './routes/ai.js';
+import { assistantRoutes } from './routes/assistant.js';
 import { authRoutes, registrationOpen } from './routes/auth.js';
 import { foodRoutes } from './routes/foods.js';
 import { photoRoutes } from './routes/photos.js';
@@ -112,6 +113,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
   app.route('/api/sync', syncRoutes(deps));
   app.route('/api/foods', foodRoutes(deps));
   app.route('/api/ai', aiRoutes(deps));
+  app.route('/api/assistant', assistantRoutes(deps));
   app.route('/api/photos', photoRoutes(deps));
   app.route('/api/push', pushRoutes(deps));
   app.route('/api/steps', stepsRoutes(deps));

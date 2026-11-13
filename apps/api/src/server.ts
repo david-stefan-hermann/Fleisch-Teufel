@@ -4,6 +4,7 @@ import { APP_NAME } from '@ft/shared';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClaudeAnalyzer } from './ai/analyze.js';
+import { createAssistant } from './assistant/claude.js';
 import { createApp } from './app.js';
 import { createDb, runMigrations } from './db/client.js';
 import { loadEnv, type Env } from './env.js';
@@ -45,7 +46,17 @@ export async function buildDeps(env: Env): Promise<Deps> {
           subject: env.VAPID_SUBJECT ?? `mailto:${env.OFF_CONTACT_EMAIL}`,
         })
       : null;
-  return { db, env, catalog, off, analyzer, assistant: null, push, version: VERSION };
+  const assistant =
+    env.aiEnabled && env.ANTHROPIC_API_KEY
+      ? createAssistant({
+          anthropicKey: env.ANTHROPIC_API_KEY,
+          model: env.ASSISTANT_MODEL,
+          effort: env.ASSISTANT_EFFORT,
+          openaiKey: env.OPENAI_API_KEY || undefined,
+          transcribeModel: env.TRANSCRIBE_MODEL,
+        })
+      : null;
+  return { db, env, catalog, off, analyzer, assistant, push, version: VERSION };
 }
 
 export async function main() {
@@ -61,6 +72,7 @@ export async function main() {
     log.info(`${APP_NAME} ${VERSION} listening`, {
       port: info.port,
       ai: deps.analyzer !== null,
+      assistant: deps.assistant ? (deps.assistant.canTranscribe ? 'voice' : 'text') : false,
       push: deps.push !== null,
       registration: env.ALLOW_REGISTRATION,
     });

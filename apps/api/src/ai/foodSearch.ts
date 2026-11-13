@@ -4,9 +4,19 @@
  * turns up locally, and marks for foods chosen in earlier reviews or logged often. Every food handed
  * to the model is kept in `seen`: only those ids are accepted as its choice.
  */
-import { get, indexItem, N, normalize, search, type Food } from '@ft/shared';
-import { and, count, eq, isNotNull } from 'drizzle-orm';
-import { aiFoodChoices, customFoods, foodEntries } from '../db/schema.js';
+import {
+  get,
+  indexItem,
+  isBaseUnit,
+  N,
+  normalize,
+  portionsFor,
+  search,
+  type Food,
+  type Portion,
+} from '@ft/shared';
+import { and, count, eq, isNotNull, sql } from 'drizzle-orm';
+import { aiFoodChoices, customFoods, foodEntries, foodPortions } from '../db/schema.js';
 import type { Deps } from '../types.js';
 
 /** Hits per search shown to the model. */
@@ -69,9 +79,19 @@ function termMatches(term: string, query: string): boolean {
   return short.length >= 4 && long.includes(short);
 }
 
+/** Portions shown per hit with `detail` (the assistant picks the one the person's word names). */
+const DETAIL_PORTIONS = 5;
+
+const fmtGrams = (g: number) => `${Math.round(g * 10) / 10} g`;
+
 export async function createFoodSearch(
   { db, catalog }: Pick<Deps, 'db' | 'catalog'>,
   userId: string,
+  /**
+   * The assistant's search: every hit also names its portions and the amount logged last
+   * ("zuletzt 500 g"), so a word like "Packung" or "wie immer" turns into grams without a question.
+   */
+  opts: { detail?: boolean } = {},
 ): Promise<FoodSearch> {
   const [ownRows, choices, usage] = await Promise.all([
     db
@@ -87,6 +107,24 @@ export async function createFoodSearch(
       )
       .groupBy(foodEntries.foodId),
   ]);
+  const userPortions = new Map<string, Portion[]>();
+  const lastGrams = new Map<string, number>();
+  if (opts.detail) {
+    const [portions, last] = await Promise.all([
+      db
+        .select({ foodId: foodPortions.foodId, label: foodPortions.label, grams: foodPortions.grams })
+        .from(foodPortions)
+        .where(and(eq(foodPortions.userId, userId), eq(foodPortions.deleted, false))),
+      db.execute(sql`
+        select distinct on (food_id) food_id, grams from food_entries
+        where user_id = ${userId} and not deleted and food_id is not null and grams is not null
+        order by food_id, logged_at desc
+      `) as unknown as Promise<{ food_id: string; grams: number }[]>,
+    ]);
+    for (const p of portions)
+      userPortions.set(p.foodId, [...(userPortions.get(p.foodId) ?? []), { label: p.label, grams: p.grams }]);
+    for (const r of last) lastGrams.set(r.food_id, Number(r.grams));
+  }
   const own = ownRows.map(customToFood);
   const ownById = new Map(own.map((f) => [f.id, f]));
   const ownIndex = own.map(indexItem);
@@ -136,7 +174,14 @@ export async function createFoodSearch(
           const marks: string[] = [];
           if (chosenIds.has(f.id)) marks.push('früher gewählt');
           const n = logged.get(f.id) ?? 0;
-          if (n >= OFTEN_FROM) marks.push(`oft eingetragen (${n}×)`);
+          if (opts.detail) {
+            const portions = portionsFor(f, userPortions.get(f.id))
+              .filter((p) => !isBaseUnit(p))
+              .slice(0, DETAIL_PORTIONS);
+            if (portions.length) marks.push(`Portionen: ${portions.map((p) => p.label).join(', ')}`);
+            const last = lastGrams.get(f.id);
+            if (last) marks.push(`zuletzt ${fmtGrams(last)} (${n}× eingetragen)`);
+          } else if (n >= OFTEN_FROM) marks.push(`oft eingetragen (${n}×)`);
           return line(f, marks);
         })
         .join('\n');

@@ -194,7 +194,7 @@ export function servingLabel(text: string | null | undefined, grams: number, uni
 export const isPackagePortion = (p: Pick<Portion, 'label'>) => /^packung\b/i.test(p.label);
 
 /** The base units ("100 g", "1 ml") of `portionsFor`. */
-const isBaseUnit = (p: Pick<Portion, 'label'>) => /^(100|1)\s?(g|ml)$/.test(p.label);
+export const isBaseUnit = (p: Pick<Portion, 'label'>) => /^(100|1)\s?(g|ml)$/.test(p.label);
 
 /**
  * The portion a food is suggested in, from the ordered list of `portionsFor`: the person's own, the

@@ -127,6 +127,13 @@
       "when": 1794446841014,
       "tag": "0017_trash-purge",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794601660314,
+      "tag": "0018_assistant",
+      "breakpoints": true
     }
   ]
 }

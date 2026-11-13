@@ -55,3 +55,20 @@ export function costUsd(
     1_000_000
   );
 }
+
+/**
+ * USD per audio minute of the transcription models (OpenAI, checked 2026-11-13 on
+ * developers.openai.com/api/docs/pricing). They bill the duration, not tokens.
+ */
+export const TRANSCRIBE_PRICES: Record<string, number> = {
+  'gpt-transcribe': 0.0045,
+  'gpt-4o-transcribe': 0.006,
+  'gpt-4o-mini-transcribe': 0.003,
+  'whisper-1': 0.006,
+};
+
+/** Cost of transcribing `seconds` of audio; an unknown model counts at the dearest price. */
+export function transcriptionCostUsd(model: string, seconds: number): number {
+  const perMinute = TRANSCRIBE_PRICES[model] ?? Math.max(...Object.values(TRANSCRIBE_PRICES));
+  return (Math.max(0, seconds) / 60) * perMinute;
+}

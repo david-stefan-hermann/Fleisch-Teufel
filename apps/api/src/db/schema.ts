@@ -11,6 +11,9 @@
  */
 import type {
   AiAnalysisResult,
+  AssistantOp,
+  AssistantQuestion,
+  AssistantTurnResult,
   DayTarget,
   MacroPlan,
   MealItem,
@@ -411,6 +414,70 @@ export const photos = pgTable(
 );
 
 /** Wire table name → Drizzle table. */
+/**
+ * Utterances to the assistant: what was said or typed, the device's context, what the model planned
+ * and how it ended on the device. The id is the device's `requestId` (unique per user: a repeated
+ * request gets `response` again instead of a second paid call). Server only, not synced.
+ */
+export const assistantTurns = pgTable(
+  'assistant_turns',
+  {
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    source: text({ enum: ['voice', 'text'] }).notNull(),
+    /** Transcript of a recording, or the typed sentence; null while only the audio is there. */
+    transcript: text(),
+    context: jsonb(),
+    ops: jsonb().$type<AssistantOp[]>(),
+    question: jsonb().$type<AssistantQuestion>(),
+    reply: text(),
+    status: text({ enum: ['pending', 'ok', 'failed'] })
+      .notNull()
+      .default('pending'),
+    error: text(),
+    /** What the device did with the ops (applied, undone, discarded). */
+    outcome: text({ enum: ['applied', 'undone', 'discarded'] }),
+    /** The complete answer sent to the device (replayed for a repeated request). */
+    response: jsonb().$type<AssistantTurnResult>(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] }), index().on(t.userId, t.createdAt)],
+);
+
+/** Recordings of utterances, kept `ASSISTANT_AUDIO_DAYS` (`cleanupAssistantAudio`), then only the text. */
+export const assistantAudio = pgTable(
+  'assistant_audio',
+  {
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    turnId: text().notNull(),
+    mime: text().notNull(),
+    bytes: integer().notNull(),
+    data: bytea().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.turnId] }), index().on(t.createdAt)],
+);
+
+/** Figure packs a person uploaded (zip as sent); devices keep a copy, the active one is chosen per device. */
+export const assistantSkins = pgTable(
+  'assistant_skins',
+  {
+    userId: uuid()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    id: text().notNull(),
+    name: text().notNull(),
+    bytes: integer().notNull(),
+    data: bytea().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] })],
+);
+
 export const syncTables = {
   settings: userSettings,
   goals,

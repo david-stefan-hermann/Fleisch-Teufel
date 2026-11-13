@@ -3,6 +3,7 @@
  * expired, and cached Open Food Facts products nobody uses. All grow without bound otherwise (every
  * analysed plate stays as bytea forever, every online search keeps up to 50 products in memory).
  */
+import { ASSISTANT_AUDIO_DAYS } from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import type { Db } from './db/client.js';
 import type { FoodCatalog } from './foods/catalog.js';
@@ -64,13 +65,25 @@ export async function cleanupOffFoods(db: Db, now = Date.now()): Promise<string[
   return rows.map((r) => r.id);
 }
 
+/**
+ * Deletes recordings of assistant utterances older than `ASSISTANT_AUDIO_DAYS`; the text of the turn
+ * stays. Returns the number removed.
+ */
+export async function cleanupAssistantAudio(db: Db, now = Date.now()): Promise<number> {
+  const cutoff = new Date(now - ASSISTANT_AUDIO_DAYS * DAY_MS).toISOString();
+  const result = await db.execute(sql`delete from assistant_audio where created_at < ${cutoff}::timestamptz`);
+  return Number((result as unknown as { count?: number }).count ?? 0);
+}
+
 export async function runMaintenance(db: Db, catalog?: FoodCatalog): Promise<void> {
   try {
     const photos = await cleanupPhotos(db);
     const sessions = await cleanupSessions(db);
     const off = await cleanupOffFoods(db);
     catalog?.dropOff(off);
-    if (photos || sessions || off.length) log.info('maintenance', { photos, sessions, offFoods: off.length });
+    const audio = await cleanupAssistantAudio(db);
+    if (photos || sessions || off.length || audio)
+      log.info('maintenance', { photos, sessions, offFoods: off.length, assistantAudio: audio });
   } catch (e) {
     log.warn('maintenance failed', { error: e instanceof Error ? e.message : String(e) });
   }
