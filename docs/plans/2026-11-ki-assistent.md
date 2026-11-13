@@ -8,19 +8,19 @@ Umsetzung durch Opus 5.5. Den Statusblock hier pflegen (ein Block = ein Commit, 
 Geplant am 2026-11-13, vom Nutzer genehmigt. Am 2026-11-13 von Opus 5.5 umgesetzt (alle Blöcke, nicht gepusht).
 Zwei Paare sind beim Bauen zusammengewachsen und je ein Commit: 3+4 (Server) und 7+8 (Knopf mit Text und Sprache).
 
-| Block                                                | Commit          |
-| ---------------------------------------------------- | --------------- |
-| 0 Mockup v7                                          | `bb57b72`       |
-| 1 Schemata, Env, Mikrofon-Policy                     | `68e71b3`       |
-| 2 `ai/admit.ts`                                      | `1df9ef7`       |
-| 3+4 Tabellen, Transkription, `/turn`, Verlauf-Routen | `d798e20`       |
-| 5 `applyOps`, Rückgängig                             | `1d63db6`       |
-| 6 Dexie v6, Warteschlange                            | `0e47864`       |
-| 7+8 Knopf, Textmodus, Sprache, Kamera                | `8cf2857`       |
-| 9 Verlauf                                            | `7897efc`       |
-| 10 Figuren, Teufelchen                               | `8c9d162`       |
-| 11 Eigene Packs, `tools/skin-pack`                   | `606fffd`       |
-| 12 Doku, E2E                                         | (dieser Commit) |
+| Block                                                | Commit    |
+| ---------------------------------------------------- | --------- |
+| 0 Mockup v7                                          | `bb57b72` |
+| 1 Schemata, Env, Mikrofon-Policy                     | `68e71b3` |
+| 2 `ai/admit.ts`                                      | `1df9ef7` |
+| 3+4 Tabellen, Transkription, `/turn`, Verlauf-Routen | `d798e20` |
+| 5 `applyOps`, Rückgängig                             | `1d63db6` |
+| 6 Dexie v6, Warteschlange                            | `0e47864` |
+| 7+8 Knopf, Textmodus, Sprache, Kamera                | `8cf2857` |
+| 9 Verlauf                                            | `7897efc` |
+| 10 Figuren, Teufelchen                               | `8c9d162` |
+| 11 Eigene Packs, `tools/skin-pack`                   | `606fffd` |
+| 12 Doku, E2E                                         | `4dbf80e` |
 
 Entscheidungen beim Umsetzen (mit dem Nutzer am 2026-11-13): Teufelchen sind die eigenen Pixel-Bilder aus
 `Standard-Teufel` (fest in der App, 64er-Raster, ganzzahlig in Gerätepixeln); Standard bleibt das Symbol im Kreis.
