@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import postgres from 'postgres';
 import { inject } from 'vitest';
 import type { FoodAnalyzer } from '../src/ai/analyze.js';
+import type { Assistant } from '../src/assistant/types.js';
 import { createApp } from '../src/app.js';
 import { createDb, runMigrations, type Db } from '../src/db/client.js';
 import { loadEnv } from '../src/env.js';
@@ -87,6 +88,7 @@ export async function createTestContext(
   opts: {
     off?: Partial<OffClient>;
     analyzer?: FoodAnalyzer | null;
+    assistant?: Assistant | null;
     push?: PushSender | null;
     env?: Record<string, string>;
     bls?: BlsFile;
@@ -110,6 +112,7 @@ export async function createTestContext(
     catalog,
     off,
     analyzer: opts.analyzer ?? null,
+    assistant: opts.assistant ?? null,
     push: opts.push ?? null,
     version: 'test',
     clock: opts.clock,

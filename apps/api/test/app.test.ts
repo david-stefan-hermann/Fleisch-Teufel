@@ -19,13 +19,21 @@ describe('app', () => {
     expect(h.status).toBe(200);
     expect(await h.json()).toEqual({ ok: true });
     const info = await (await ctx.app.request('/api/info')).json();
-    expect(info).toMatchObject({ name: 'Fleisch-Teufel', aiEnabled: false, blsVersion: 'test-1' });
+    expect(info).toMatchObject({
+      name: 'Fleisch-Teufel',
+      aiEnabled: false,
+      assistantEnabled: false,
+      voiceEnabled: false,
+      blsVersion: 'test-1',
+    });
   });
 
   it('sets security headers', async () => {
     const r = await ctx.app.request('/health');
     expect(r.headers.get('content-security-policy')).toContain("default-src 'self'");
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
+    // The assistant records in the app itself; nothing embedded may.
+    expect(r.headers.get('permissions-policy')).toContain('microphone=(self)');
   });
 
   it('rejects oversized JSON bodies', async () => {

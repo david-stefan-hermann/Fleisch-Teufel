@@ -7,9 +7,9 @@ Umsetzung durch Opus 5.5. Den Statusblock hier pflegen (ein Block = ein Commit, 
 
 Geplant am 2026-11-13, vom Nutzer genehmigt. Noch kein Block umgesetzt.
 
-| Block | Commit |
-|---|---|
-| 0 bis 12 | offen |
+| Block    | Commit |
+| -------- | ------ |
+| 0 bis 12 | offen  |
 
 ## Kontext
 
@@ -173,7 +173,7 @@ Dazu `question { text, options }` und `reply` (ein kurzer Satz, bei Datenfragen 
 ### Figuren
 
 - `skins/types.ts`: `SkinManifest { format: 'fleisch-teufel-skin', version: 1, name, style: 'free' | 'circle',
-  pixelArt?, thinkingDots?, images: Record<key, file>, states: Partial<Record<State, key>>, idle: key[] }`.
+pixelArt?, thinkingDots?, images: Record<key, file>, states: Partial<Record<State, key>>, idle: key[] }`.
   Pflicht ist nur `states.idle`; fehlt ein Bild, bleibt die Ruhe stehen. Zustände: idle, typing, listening, warn,
   thinking, asking, confused, error, done, undone, discarded, carried.
 - `StandardSkin` (Komponente, Symbole Mikrofon, Stopp, Punkte, Senden; Farben als Tokens in `index.css` für hell

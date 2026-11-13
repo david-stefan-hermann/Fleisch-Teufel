@@ -459,6 +459,10 @@ export interface ServerInfo {
   version: string;
   registrationOpen: boolean;
   aiEnabled: boolean;
+  /** The assistant answers typed sentences (AI on). Missing on older servers. */
+  assistantEnabled?: boolean;
+  /** The assistant also takes recordings (a transcription key is set). */
+  voiceEnabled?: boolean;
   blsVersion: string;
   /** Foods in the server's BLS catalog (a quick sanity check of the deployment). */
   blsFoods?: number;

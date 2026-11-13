@@ -45,7 +45,7 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
         frameAncestors: ["'none'"],
       },
       crossOriginEmbedderPolicy: false,
-      permissionsPolicy: { camera: ['self'], microphone: [], geolocation: [] },
+      permissionsPolicy: { camera: ['self'], microphone: ['self'], geolocation: [] },
     }),
   );
   app.use('*', compress());
@@ -100,6 +100,8 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
       version: deps.version,
       registrationOpen: await registrationOpen(deps),
       aiEnabled: deps.analyzer !== null,
+      assistantEnabled: !!deps.assistant,
+      voiceEnabled: !!deps.assistant?.canTranscribe,
       blsVersion: deps.catalog.blsVersion,
       blsFoods: deps.catalog.blsCount,
     };

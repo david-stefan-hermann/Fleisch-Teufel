@@ -1,3 +1,4 @@
+export * from './assistant.js';
 export * from './barcode.js';
 export * from './csv.js';
 export * from './dates.js';

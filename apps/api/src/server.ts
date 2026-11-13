@@ -45,7 +45,7 @@ export async function buildDeps(env: Env): Promise<Deps> {
           subject: env.VAPID_SUBJECT ?? `mailto:${env.OFF_CONTACT_EMAIL}`,
         })
       : null;
-  return { db, env, catalog, off, analyzer, push, version: VERSION };
+  return { db, env, catalog, off, analyzer, assistant: null, push, version: VERSION };
 }
 
 export async function main() {
