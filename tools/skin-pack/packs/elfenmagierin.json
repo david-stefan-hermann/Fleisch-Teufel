@@ -1,0 +1,40 @@
+{
+  "format": "fleisch-teufel-skin",
+  "version": 1,
+  "name": "Elfenmagierin",
+  "style": "free",
+  "thinkingDots": true,
+  "images": {
+    "neutral": "neutral.png",
+    "neutral2": "neutral2.png",
+    "smiling": "smiling.png",
+    "happy": "happy.png",
+    "laugh": "laugthing.png",
+    "fun": "fun.png",
+    "surprised": "surprised.png",
+    "shy": "shy.png",
+    "flirty": "flirty.png",
+    "smug": "smug.png",
+    "serious": "serious.png",
+    "angry": "angry.png",
+    "sad": "sad.png",
+    "crying": "crying.png",
+    "scared": "scared.png",
+    "aftercast": "aftercast.png"
+  },
+  "states": {
+    "idle": "neutral",
+    "typing": "neutral2",
+    "listening": "surprised",
+    "warn": "scared",
+    "thinking": "serious",
+    "asking": "happy",
+    "confused": "shy",
+    "error": "sad",
+    "done": "aftercast",
+    "undone": "crying",
+    "discarded": "angry",
+    "carried": "happy"
+  },
+  "idle": ["smiling", "flirty", "smug", "fun", "laugh", "neutral2"]
+}

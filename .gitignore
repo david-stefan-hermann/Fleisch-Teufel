@@ -36,3 +36,6 @@ PLAN*.md
 
 # User-provided screenshots and notes (local only)
 user-input/
+
+# Figure packs built with tools/skin-pack (pictures may not be passed on)
+/skins/

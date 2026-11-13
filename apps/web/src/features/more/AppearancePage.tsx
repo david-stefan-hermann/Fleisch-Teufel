@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { AssistantAppearance } from '@/features/assistant/skins/SkinPicker';
+import { UploadedSkins } from '@/features/assistant/skins/UploadedSkins';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MacroSummary } from '@/features/diary/MacroSummary';
 import {
@@ -86,7 +87,7 @@ export function AppearancePage() {
         </div>
       </Section>
 
-      {serverInfo?.assistantEnabled && <AssistantAppearance />}
+      {serverInfo?.assistantEnabled && <AssistantAppearance uploads={<UploadedSkins />} />}
 
       <Section title="App-Icon">
         <div className="grid gap-3 px-4 pb-4">

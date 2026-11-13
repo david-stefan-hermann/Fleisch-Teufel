@@ -9,6 +9,9 @@
 import {
   assistantContextSchema,
   MAX_AUDIO_BYTES,
+  MAX_SKIN_BYTES,
+  MAX_SKINS,
+  type SkinInfo,
   MAX_UTTERANCE_LENGTH,
   type AssistantContext,
   type AssistantTurnResult,
@@ -23,7 +26,7 @@ import { Aliases, utterancePrompt } from '../assistant/prompt.js';
 import { createTurnHost } from '../assistant/host.js';
 import { sniffAudio } from '../assistant/transcribe.js';
 import { requireUser } from '../auth/session.js';
-import { aiAnalyses, assistantAudio, assistantTurns } from '../db/schema.js';
+import { aiAnalyses, assistantAudio, assistantSkins, assistantTurns } from '../db/schema.js';
 import { log } from '../log.js';
 import type { AppEnv, Deps } from '../types.js';
 
@@ -371,6 +374,73 @@ export function assistantRoutes(deps: Deps) {
       'cache-control': 'private, max-age=86400',
       'x-content-type-options': 'nosniff',
     });
+  });
+
+  // ---------------------------------------------------------------- figures (packs the person uploaded)
+
+  const SKIN_ID = /^[\w-]{8,64}$/;
+
+  app.get('/skins', async (c) => {
+    const rows = await db
+      .select({
+        id: assistantSkins.id,
+        name: assistantSkins.name,
+        bytes: assistantSkins.bytes,
+        createdAt: assistantSkins.createdAt,
+      })
+      .from(assistantSkins)
+      .where(eq(assistantSkins.userId, c.get('user').id))
+      .orderBy(assistantSkins.createdAt);
+    const skins: SkinInfo[] = rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+    return c.json({ skins });
+  });
+
+  app.get('/skins/:id', async (c) => {
+    const [row] = await db
+      .select({ data: assistantSkins.data })
+      .from(assistantSkins)
+      .where(and(eq(assistantSkins.userId, c.get('user').id), eq(assistantSkins.id, c.req.param('id'))));
+    if (!row) return c.json({ error: 'not_found' }, 404);
+    return c.body(new Uint8Array(row.data), 200, {
+      'content-type': 'application/zip',
+      'cache-control': 'private, max-age=31536000, immutable',
+      'x-content-type-options': 'nosniff',
+    });
+  });
+
+  /**
+   * A pack as the device checked it (zip with `skin.json`, PNG/WebP pictures): kept as sent, at most
+   * `MAX_SKINS` per account. The device reads and checks the content; the server only stores it.
+   */
+  app.put('/skins/:id', async (c) => {
+    const user = c.get('user');
+    const id = c.req.param('id');
+    if (!SKIN_ID.test(id)) return c.json({ error: 'invalid_id' }, 400);
+    const name = (c.req.query('name') ?? '').trim().slice(0, 40);
+    if (!name) return c.json({ error: 'validation' }, 400);
+    if (Number(c.req.header('content-length') ?? 0) > MAX_SKIN_BYTES)
+      return c.json({ error: 'too_large' }, 413);
+    const buf = new Uint8Array(await c.req.arrayBuffer());
+    if (buf.length > MAX_SKIN_BYTES) return c.json({ error: 'too_large' }, 413);
+    if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b || buf[2] !== 0x03 || buf[3] !== 0x04)
+      return c.json({ error: 'not_a_zip' }, 415);
+    const [{ n } = { n: 0 }] = await db
+      .select({ n: sql<number>`count(*)`.mapWith(Number) })
+      .from(assistantSkins)
+      .where(and(eq(assistantSkins.userId, user.id), sql`${assistantSkins.id} <> ${id}`));
+    if (n >= MAX_SKINS) return c.json({ error: 'too_many_skins' }, 409);
+    await db
+      .insert(assistantSkins)
+      .values({ userId: user.id, id, name, bytes: buf.length, data: Buffer.from(buf) })
+      .onConflictDoNothing();
+    return c.json({ ok: true, id });
+  });
+
+  app.delete('/skins/:id', async (c) => {
+    await db
+      .delete(assistantSkins)
+      .where(and(eq(assistantSkins.userId, c.get('user').id), eq(assistantSkins.id, c.req.param('id'))));
+    return c.json({ ok: true });
   });
 
   return app;

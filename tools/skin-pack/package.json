@@ -1,0 +1,14 @@
+{
+  "name": "@ft/skin-pack",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Builds figure packs for the assistant button (zip with skin.json and WebP pictures).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "sharp": "^0.35.5"
+  }
+}

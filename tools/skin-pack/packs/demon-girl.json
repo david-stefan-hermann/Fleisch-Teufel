@@ -1,0 +1,41 @@
+{
+  "format": "fleisch-teufel-skin",
+  "version": 1,
+  "name": "Dämonin",
+  "style": "free",
+  "thinkingDots": false,
+  "images": {
+    "neutral": "Neutral.png",
+    "smiling": "Smiling.png",
+    "happy": "Happy.png",
+    "laughing": "Laughing.png",
+    "surprised": "Surprised.png",
+    "nervous": "Nervous.png",
+    "thinking": "Thinking.png",
+    "shy": "Shy.png",
+    "sad": "Sad.png",
+    "crying": "Crying.png",
+    "angry": "Angry.png",
+    "smug": "Smug.png",
+    "playful": "Playful.png",
+    "playful2": "Playful 2.png",
+    "tongue": "Tongue out.png",
+    "boring": "Boring.png",
+    "serious-smile": "Serious smile.png"
+  },
+  "states": {
+    "idle": "neutral",
+    "typing": "smiling",
+    "listening": "surprised",
+    "warn": "nervous",
+    "thinking": "thinking",
+    "asking": "happy",
+    "confused": "shy",
+    "error": "sad",
+    "done": "laughing",
+    "undone": "crying",
+    "discarded": "angry",
+    "carried": "happy"
+  },
+  "idle": ["smiling", "smug", "playful", "playful2", "tongue", "boring", "serious-smile"]
+}

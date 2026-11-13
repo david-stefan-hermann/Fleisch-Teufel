@@ -361,6 +361,40 @@ describe('assistant', () => {
     expect((await ctx.db.select().from(assistantAudio)).length).toBe(before - 1);
   });
 
+  it('keeps uploaded figure packs per account: size, number, owner', async () => {
+    const zip = (n = 64) => {
+      const b = new Uint8Array(n);
+      b.set([0x50, 0x4b, 0x03, 0x04]);
+      return b;
+    };
+    const put = (c: TestClient, id: string, body: Uint8Array, name = 'Elfenmagierin') =>
+      ctx.app.request(`/api/assistant/skins/${id}?name=${encodeURIComponent(name)}`, {
+        method: 'PUT',
+        headers: { cookie: c.cookie!, 'content-type': 'application/zip' },
+        body: new Blob([body as Uint8Array<ArrayBuffer>]),
+      });
+    const owner = await registeredClient(ctx, 'skins@example.com');
+    expect((await put(owner, 'skin-0001', zip())).status).toBe(200);
+    expect((await put(owner, 'skin-0002', new Uint8Array(64).fill(1))).status).toBe(415);
+    expect((await put(owner, 'skin-0003', zip(3 * 1024 * 1024 + 1))).status).toBe(413);
+    for (let i = 2; i <= 5; i++) expect((await put(owner, `skin-000${i}`, zip())).status).toBe(200);
+    expect((await put(owner, 'skin-0006', zip())).status).toBe(409);
+    // Uploading the same pack again is no new one.
+    expect((await put(owner, 'skin-0001', zip())).status).toBe(200);
+    const list = await owner.get('/api/assistant/skins');
+    expect(list.json.skins).toHaveLength(5);
+    expect(list.json.skins[0]).toMatchObject({ id: 'skin-0001', name: 'Elfenmagierin', bytes: 64 });
+    const other = await registeredClient(ctx, 'other@example.com');
+    expect((await other.get('/api/assistant/skins')).json.skins).toEqual([]);
+    expect((await other.get('/api/assistant/skins/skin-0001')).status).toBe(404);
+    const got = await ctx.app.request('/api/assistant/skins/skin-0001', {
+      headers: { cookie: owner.cookie! },
+    });
+    expect(new Uint8Array(await got.arrayBuffer()).slice(0, 2)).toEqual(new Uint8Array([0x50, 0x4b]));
+    expect((await owner.req('DELETE', '/api/assistant/skins/skin-0001')).status).toBe(200);
+    expect((await owner.get('/api/assistant/skins')).json.skins).toHaveLength(4);
+  });
+
   it('prices the transcription per audio minute', () => {
     expect(transcriptionCostUsd('gpt-transcribe', 60)).toBeCloseTo(0.0045);
     expect(transcriptionCostUsd('unknown', 60)).toBeCloseTo(0.006);
