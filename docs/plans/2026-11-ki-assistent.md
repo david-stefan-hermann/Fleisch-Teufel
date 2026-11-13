@@ -21,6 +21,7 @@ Zwei Paare sind beim Bauen zusammengewachsen und je ein Commit: 3+4 (Server) und
 | 10 Figuren, Teufelchen                               | `8c9d162` |
 | 11 Eigene Packs, `tools/skin-pack`                   | `606fffd` |
 | 12 Doku, E2E                                         | `4dbf80e` |
+| Review: Korrekturen nach Durchsicht                  | `3553dd4` |
 
 Entscheidungen beim Umsetzen (mit dem Nutzer am 2026-11-13): Teufelchen sind die eigenen Pixel-Bilder aus
 `Standard-Teufel` (fest in der App, 64er-Raster, ganzzahlig in Gerätepixeln); Standard bleibt das Symbol im Kreis.
