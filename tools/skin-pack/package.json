@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Builds figure packs for the assistant button (zip with skin.json and WebP pictures).",
   "scripts": {
-    "build": "node build.mjs"
+    "pack": "node build.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

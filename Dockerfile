@@ -13,6 +13,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY tools/bls-import/package.json tools/bls-import/
+COPY tools/skin-pack/package.json tools/skin-pack/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 
 COPY . .
