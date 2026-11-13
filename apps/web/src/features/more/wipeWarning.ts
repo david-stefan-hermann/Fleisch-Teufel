@@ -22,11 +22,12 @@ export function wipeWarning(l: LocalOnly | undefined): string {
         [l.photos, 'Foto', 'Fotos'],
       ])}. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; gelingt das nicht, gehen sie verloren.`,
     );
-  if (l.analyses + l.drafts > 0)
+  if (l.analyses + l.drafts + l.utterances > 0)
     out.push(
       `Nur auf diesem Gerät, gehen verloren: ${list([
         [l.analyses, 'Analyse', 'Analysen'],
         [l.drafts, 'Entwurf', 'Entwürfe'],
+        [l.utterances, 'Aufnahme', 'Aufnahmen'],
       ])}.`,
     );
   return out.join(' ');

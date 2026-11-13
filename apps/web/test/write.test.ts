@@ -1929,11 +1929,17 @@ describe('"Gerätedaten löschen": what is only on this device', () => {
     await d.kv.put({ key: 'mealDraft:m1', value: {} });
     await d.kv.put({ key: 'mealDraftPhoto:m1', value: {} });
     await d.kv.put({ key: 'clipboard', value: {} });
+    const turn = { requestId: 'r', createdAt: 1, source: 'voice' as const, shownDate: '2026-10-07' };
+    await d.assistantTurns.bulkAdd([
+      { ...turn, status: 'waiting' },
+      { ...turn, status: 'failed' },
+      { ...turn, status: 'done' },
+    ]);
     const local = await localOnlyData(d);
-    expect(local).toEqual({ changes: 0, photos: 2, analyses: 1, drafts: 1 });
+    expect(local).toEqual({ changes: 0, photos: 2, analyses: 1, drafts: 1, utterances: 2 });
     expect(wipeWarning(local)).toBe(
       'Noch nicht hochgeladen: 2 Fotos. Vor dem Löschen wird noch einmal versucht, sie hochzuladen; ' +
-        'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf.',
+        'gelingt das nicht, gehen sie verloren. Nur auf diesem Gerät, gehen verloren: 1 Analyse, 1 Entwurf, 2 Aufnahmen.',
     );
   });
 });

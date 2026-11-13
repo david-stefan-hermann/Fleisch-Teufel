@@ -9,6 +9,7 @@ import { ApiError, endpoints } from '@/lib/api';
 import { UserDb, userDbName } from '@/db/dexie';
 import { SyncEngine } from '@/sync/syncEngine';
 import { startQueueProcessing } from '@/features/ai/queue';
+import { startAssistantQueue } from '@/features/assistant/queue';
 import { disableReminder } from '@/lib/reminder';
 import { recordError } from '@/lib/errorLog';
 
@@ -84,6 +85,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     if (!session) return;
     session.sync.start();
     const stopQueue = startQueueProcessing(session.db);
+    const stopAssistant = startAssistantQueue(session.db);
     // Background check of the server session.
     endpoints.me().then(
       () => setNeedsReauth(false),
@@ -94,6 +96,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       session.sync.stop();
       stopQueue();
+      stopAssistant();
     };
   }, [session]);
 
