@@ -1,3 +1,4 @@
+import { AssistantMount } from '@/features/assistant/AssistantProvider';
 import { isISODate, today } from '@ft/shared';
 import {
   createRootRoute,
@@ -90,6 +91,7 @@ function AuthedLayout() {
       <AppBanners />
       <Outlet />
       {showTabs && <TabBar />}
+      <AssistantMount />
     </AddSheetProvider>
   );
 }

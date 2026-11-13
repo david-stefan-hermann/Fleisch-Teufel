@@ -10,6 +10,8 @@ import { useSyncExternalStore } from 'react';
  *   home screen; it cannot be swapped on an installed web app.
  * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
  *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
+ * - Assistant: whether the floating button shows, and which figure it wears ('standard', a built-in
+ *   one or the id of an uploaded pack).
  */
 export type ThemePref = 'system' | 'light' | 'dark';
 export type IconPref = 'auto' | 'light' | 'dark';
@@ -19,6 +21,8 @@ export type DiaryMacrosPref = 'numbers' | 'bar';
 const THEME_KEY = 'ft.theme';
 const ICON_KEY = 'ft.icon';
 const DIARY_MACROS_KEY = 'ft.diaryMacros';
+const ASSISTANT_BUTTON_KEY = 'ft.assistant.button';
+const ASSISTANT_SKIN_KEY = 'ft.assistant.skin';
 /** Status bar / browser chrome color per theme (`--background`). */
 const THEME_COLOR: Record<Mode, string> = { light: '#faf8f6', dark: '#151312' };
 
@@ -56,6 +60,10 @@ export interface Appearance {
   iconMode: Mode;
   /** How diary rows show their macros. */
   diaryMacros: DiaryMacrosPref;
+  /** The assistant's floating button is shown (when the server offers the assistant). */
+  assistantButton: boolean;
+  /** The figure of the assistant button. */
+  assistantSkin: string;
 }
 
 export function resolveAppearance(
@@ -63,19 +71,29 @@ export function resolveAppearance(
   icon: IconPref,
   systemDark: boolean,
   diaryMacros: DiaryMacrosPref = 'numbers',
+  assistant: { button: boolean; skin: string } = { button: true, skin: 'standard' },
 ): Appearance {
   const mode: Mode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
-  return { theme, icon, mode, iconMode: icon === 'auto' ? mode : icon, diaryMacros };
+  return {
+    theme,
+    icon,
+    mode,
+    iconMode: icon === 'auto' ? mode : icon,
+    diaryMacros,
+    assistantButton: assistant.button,
+    assistantSkin: assistant.skin,
+  };
 }
 
 let theme: ThemePref = 'system';
 let icon: IconPref = 'auto';
 let diaryMacros: DiaryMacrosPref = 'numbers';
+let assistant = { button: true, skin: 'standard' };
 let current: Appearance = resolveAppearance('system', 'auto', false);
 const listeners = new Set<() => void>();
 
 function update() {
-  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros);
+  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros, assistant);
   apply(current);
   listeners.forEach((l) => l());
 }
@@ -102,6 +120,10 @@ export function startAppearance(): void {
   theme = read(THEME_KEY, ['system', 'light', 'dark'], 'system');
   icon = read(ICON_KEY, ['auto', 'light', 'dark'], 'auto');
   diaryMacros = read(DIARY_MACROS_KEY, ['numbers', 'bar'], 'numbers');
+  assistant = {
+    button: read(ASSISTANT_BUTTON_KEY, ['on', 'off'], 'on') === 'on',
+    skin: readSkin(),
+  };
   media()?.addEventListener('change', update);
   update();
 }
@@ -121,6 +143,27 @@ export function setIconPref(next: IconPref): void {
 export function setDiaryMacrosPref(next: DiaryMacrosPref): void {
   diaryMacros = next;
   write(DIARY_MACROS_KEY, next, next === 'numbers');
+  update();
+}
+
+function readSkin(): string {
+  try {
+    const v = localStorage.getItem(ASSISTANT_SKIN_KEY);
+    return v && /^[\w-]{1,64}$/.test(v) ? v : 'standard';
+  } catch {
+    return 'standard';
+  }
+}
+
+export function setAssistantButton(on: boolean): void {
+  assistant = { ...assistant, button: on };
+  write(ASSISTANT_BUTTON_KEY, on ? 'on' : 'off', on);
+  update();
+}
+
+export function setAssistantSkin(skin: string): void {
+  assistant = { ...assistant, skin };
+  write(ASSISTANT_SKIN_KEY, skin, skin === 'standard');
   update();
 }
 

@@ -76,7 +76,7 @@ export function CameraCapture({
   }
 
   const overlay = (
-    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
+    <div data-ai-avoid className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
       <Button
         variant="secondary"
         size="icon-lg"

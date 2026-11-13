@@ -206,7 +206,7 @@ export function PhotoPage() {
             onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
           />
           {/* The two other ways to log, where the thumb is: typing it in, or the food search. */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <div data-ai-avoid className="mt-3 grid grid-cols-2 gap-2">
             <Button variant="outline" size="lg" disabled={analyzing} onClick={openForm}>
               <Keyboard aria-hidden /> Eingeben
             </Button>

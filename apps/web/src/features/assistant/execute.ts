@@ -76,6 +76,11 @@ async function targetResolver(db: UserDb, env: ApplyEnv) {
   };
 }
 
+/** The meal an operation without one gets (also the camera's meal for "Ich hab Fotos"). */
+export async function mealFor(db: UserDb, date: ISODate, env: Omit<ApplyEnv, 'mealNames'>): Promise<number> {
+  return (await targetResolver(db, { ...env, mealNames: [] }))(date, null).meal;
+}
+
 async function typeOptions(db: UserDb): Promise<TypeOption[]> {
   const own = (await db.exerciseTypes.toArray()).filter((t) => !t.deleted);
   return [

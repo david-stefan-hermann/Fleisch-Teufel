@@ -171,6 +171,12 @@ export function errorMessage(e: unknown): string {
         return `Höchstens ${MAX_ANALYSIS_PHOTOS} Fotos je Analyse.`;
       case 'unsupported_image_type':
         return 'Dieses Bildformat wird nicht unterstützt.';
+      case 'voice_disabled':
+        return 'Sprachaufnahmen sind auf dem Server nicht eingerichtet. Tippe stattdessen.';
+      case 'bad_audio':
+      case 'unsupported_audio_type':
+      case 'audio_missing':
+        return 'Die Aufnahme konnte nicht gelesen werden. Versuche es noch einmal.';
       case 'push_disabled':
         return 'Erinnerungen sind auf dem Server nicht eingerichtet.';
       case 'push_endpoint':

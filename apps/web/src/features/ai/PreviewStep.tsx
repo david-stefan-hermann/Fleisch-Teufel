@@ -1,5 +1,6 @@
 import { MAX_ANALYSIS_PHOTOS, MAX_HINT_LENGTH } from '@ft/shared';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { clearAssistantHint, readAssistantHint } from '@/features/assistant/hint';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { warmUpCamera } from '@/components/cameraWarmup';
 import { HintCount, HintField } from '@/components/HintField';
@@ -32,7 +33,9 @@ export function PhotoPreview({
   onRemove: (id: number) => void;
   onAnalyze: (text: string) => void;
 }) {
-  const [text, setText] = useState('');
+  // What the person told the assistant about these photos ("die Soße war Kräutersoße").
+  const [text, setText] = useState(readAssistantHint);
+  useEffect(() => clearAssistantHint(), []);
   const [sheet, setSheet] = useState(false);
   const room = MAX_ANALYSIS_PHOTOS - shots.length;
 
