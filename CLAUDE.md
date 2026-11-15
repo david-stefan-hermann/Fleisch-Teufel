@@ -436,12 +436,27 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   Generic file sharing for CSV/JSON: `shareOrDownloadFile` in `features/reports/export.ts`.
 - Expenditure from own data (shared `expenditure.ts`): `estimateExpenditure` = average intake of complete
   days minus credited training and steps (not credited = part of the base) minus the linear weight trend ×
-  7 700 over the last 21 days (needs 14 complete days and 4 weigh-ins spanning 10 days); it returns
-  `{ value, reason }` (`tooFew` or `implausible`, the card shows "Daten nicht schlüssig" for the latter).
+  7 700 over the last 28 days (needs 14 complete days and 6 weigh-ins spanning 14 days); it returns
+  `{ value, reason }` (`tooFew` or `implausible`, the card shows "Daten nicht schlüssig" for the latter) and
+  `uncertaintyKcal` (slope error of the trend × 7 700 and the error of the mean intake; the card shows "± N").
   Week card and reports share "Budget Ø" (`budgetAverage`) and "Trend" (`weightTrend`).
   `ExpenditureCard` on `/progress` shows it next to the formula and suggests a kcal target (`targetFromExpenditure`, applied via
   `features/goals/applyTargetKcal.ts`, or put off 7 days in `kv` `expenditure.dismissedUntil`); the day
   forecast uses it when available (`useExpenditure`). Never changes a goal by itself.
+- Need calculation (plan `docs/plans/2026-11-bedarfsrechnung.md`, sources in
+  `docs/research/2026-11-kalorien-makrobedarf.md`): four goals in `GOALS` (shared `tdee.ts`: `lose` −0,5 %,
+  `maintain`, `gain_beginner` +0,25 %, `gain_advanced` +0,1 % of body weight a week, each with its macro template
+  `cut`/`high_protein`/`gain`). `settings.goalKind` (null = set up before the goals) plus `weeklyRateKg`
+  (computed on saving with `weeklyRateForGoal`, what older versions read); `goalKindOf` reads old settings by the
+  sign of the rate, `currentWeeklyRate` lets the rate follow the current weight. `kcalTarget` (used by
+  `calorieGoal` and `targetFromExpenditure`): deficit at most 25 % of the expenditure (30 % from BMI 30), then
+  `MIN_KCAL`; `clamped` is `deficit`/`minimum` (badges "Defizit begrenzt"/"Untergrenze"). Protein per kg of the
+  current body weight without a cap, fat at least `FAT_FLOOR_PER_KG` (0,5 g/kg), carbs the rest;
+  `macrosExceedKcal` gives the badge "Kalorienziel zu niedrig". The onboarding takes the estimate from own data
+  (`useExpenditure`) before the formula (`calorieGoal(..., { expenditureKcal })`, badge "aus deinen Daten").
+  Goal cards in the onboarding, a goal select in the profile. `features/goals/RecalcGoalCard.tsx` ("Neue
+  Bedarfsrechnung") shows in today's diary while `onboardedAt` is set and `goalKind` is null; X sets `kv`
+  `goalRecalc.dismissed` (this device), finishing the onboarding hides it everywhere.
 - Monday only, today's diary: `WeekReviewCard` ("Letzte Woche": Ø kcal vs budget, Ø protein, weight trend,
   complete days; `weekSummary`), X hides it for the week (`kv` `weekReview.dismissed`). The diary stays the
   start page; no streaks, no verdicts.

@@ -680,6 +680,29 @@ test('a double tap on "Meal eintragen" logs the analysis once', async ({ page })
     .toBe(1);
 });
 
+test('goals: muscle gain after two years starts with the template "Muskelaufbau"', async ({ page }) => {
+  await register(page);
+  await page.getByRole('radio', { name: 'Männlich' }).click();
+  await page.getByLabel('Geburtsdatum').fill('1990-01-01');
+  await page.getByLabel('Größe').fill('180');
+  await page.getByLabel('Aktuelles Gewicht').fill('80');
+  for (let i = 0; i < 2; i++) await page.getByRole('button', { name: 'Weiter' }).click();
+  const goal = page.getByRole('radio', { name: /Ab 2 Jahren Krafttraining/ });
+  await expect(goal).toContainText('+0,08 kg pro Woche');
+  await goal.click();
+  await page.getByRole('button', { name: 'Weiter' }).click();
+  await expect(page.getByRole('radio', { name: /Muskelaufbau/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByLabel('Protein')).toHaveValue('160'); // 2.0 g/kg × 80 kg
+  await expect(page.getByText('Das sind 2 g Eiweiß pro kg Körpergewicht.')).toBeVisible();
+  await page.getByRole('button', { name: 'Ziele speichern' }).click();
+  await expect(page.getByText('Ziele gespeichert')).toBeVisible();
+  // A fresh account has its goal: no offer to recalculate.
+  await expect(page.getByRole('region', { name: 'Kalorienübersicht des Tages' })).toBeVisible();
+  await expect(page.getByText('Neue Bedarfsrechnung')).toHaveCount(0);
+  await page.goto('/settings/profile');
+  await expect(page.getByLabel('Ziel', { exact: true })).toContainText('Muskeln aufbauen · ab 2 Jahren');
+});
+
 test('macro templates: protein follows body weight', async ({ page }) => {
   await register(page);
   await page.getByRole('radio', { name: 'Männlich' }).click();
@@ -687,15 +710,21 @@ test('macro templates: protein follows body weight', async ({ page }) => {
   await page.getByLabel('Größe').fill('180');
   await page.getByLabel('Aktuelles Gewicht').fill('80');
   for (let i = 0; i < 3; i++) await page.getByRole('button', { name: 'Weiter' }).click();
-  await page.getByRole('radio', { name: /Diät \/ Muskelerhalt/ }).click();
+  // The default goal "Abnehmen" starts with "Diät / Muskelerhalt": 2.2 g/kg.
+  await expect(page.getByRole('radio', { name: /Diät \/ Muskelerhalt/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await expect(page.getByLabel('Protein')).toHaveValue('176');
+  await page.getByRole('radio', { name: /Proteinreich/ }).click();
   await expect(page.getByLabel('Protein')).toHaveValue('160');
   await page.getByRole('radio', { name: /Eigene/ }).click();
   await page.getByRole('slider', { name: 'Eiweiß' }).focus();
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByLabel('Protein')).toHaveValue('152'); // 1.9 g/kg × 80 kg
-  // Far above the 35 % energy cap: the cap applies and is explained.
+  // No cap on protein: 3.0 g/kg are 240 g.
   await page.keyboard.press('End');
-  await expect(page.getByText(/auf 35 % der Kalorien begrenzt/)).toBeVisible();
+  await expect(page.getByLabel('Protein')).toHaveValue('240');
   await page.keyboard.press('Home');
   await page.getByRole('button', { name: 'Ziele speichern' }).click();
   await expect(page.getByText('Ziele gespeichert')).toBeVisible();
