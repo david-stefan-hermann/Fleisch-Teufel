@@ -2,13 +2,19 @@ import {
   ACTIVITY_LABELS_DE,
   ageOn,
   calorieGoal,
-  DEFAULT_MACRO_PLAN,
+  EXPENDITURE_WINDOW_DAYS,
+  GOAL_KINDS,
+  GOAL_LABELS_DE,
+  GOALS,
+  goalKindOf,
   macrosForPlan,
   kcalFromMacros,
+  planFromPreset,
   today as todayOf,
-  WEEKLY_RATES,
+  weeklyRateForGoal,
   weightOn,
   type ActivityLevel,
+  type GoalKind,
   type MacroPlan,
   type Settings,
   type Sex,
@@ -20,14 +26,17 @@ import { useDb } from '@/app/session';
 import { MacroPlanPicker } from '@/components/MacroPlanPicker';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { initialPlan } from './goalPlan';
 import { saveOnboarding } from './saveOnboarding';
 import { DEFAULT_SETTINGS, useSettings, useWeights } from '@/hooks/data';
+import { useExpenditure } from '@/hooks/useExpenditure';
 import { useSubmitting } from '@/hooks/useSubmitting';
-import { fmt0, fmt1 } from '@/lib/format';
+import { fmt0, fmt1, fmt2, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const STEPS = ['Profil', 'Aktivität', 'Ziel', 'Ergebnis'] as const;
@@ -36,11 +45,32 @@ const STEPS = ['Profil', 'Aktivität', 'Ziel', 'Ergebnis'] as const;
 export function OnboardingPage() {
   const settings = useSettings();
   const weights = useWeights();
-  if (!settings || !weights) return null;
-  return <OnboardingForm settings={settings} weight={weightOn(weights, todayOf()) ?? null} />;
+  const expenditure = useExpenditure(todayOf());
+  if (!settings || !weights || !expenditure) return null;
+  return (
+    <OnboardingForm
+      settings={settings}
+      weight={weightOn(weights, todayOf()) ?? null}
+      expenditureKcal={expenditure.estimate?.kcal ?? null}
+    />
+  );
 }
 
-function OnboardingForm({ settings, weight: initialWeight }: { settings: Settings; weight: number | null }) {
+/** "−0,4" / "+0,08" / "±0" (U+2212 for the minus). */
+function signed(n: number, fmt: (n: number) => string): string {
+  return n === 0 ? '±0' : `${n < 0 ? '\u2212' : '+'}${fmt(Math.abs(n))}`;
+}
+
+function OnboardingForm({
+  settings,
+  weight: initialWeight,
+  expenditureKcal,
+}: {
+  settings: Settings;
+  weight: number | null;
+  /** Expenditure from the person's own data (`useExpenditure`), null without an estimate. */
+  expenditureKcal: number | null;
+}) {
   const db = useDb();
   const navigate = useNavigate();
   const { run, busy } = useSubmitting();
@@ -53,13 +83,13 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
   const [height, setHeight] = useState<number | null>(settings.heightCm);
   const [weight, setWeight] = useState<number | null>(initialWeight);
   const [activity, setActivity] = useState<ActivityLevel>(known ? settings.activityLevel : 'light');
-  const [targetWeight, setTargetWeightRaw] = useState<number | null>(settings.targetWeightKg);
-  const [rate, setRate] = useState(known ? settings.weeklyRateKg : -0.5);
+  const [targetWeight, setTargetWeight] = useState<number | null>(settings.targetWeightKg);
+  const [goalKind, setGoalKind] = useState<GoalKind>(known ? goalKindOf(settings) : 'lose');
   const [kcal, setKcal] = useState<number | null>(null);
   const [protein, setProtein] = useState<number | null>(null);
   const [fat, setFat] = useState<number | null>(null);
   const [carbs, setCarbs] = useState<number | null>(null);
-  const [plan, setPlanState] = useState<MacroPlan>(settings.macroPlan ?? DEFAULT_MACRO_PLAN);
+  const [plan, setPlanState] = useState<MacroPlan>(() => initialPlan(settings, goalKind, known));
 
   const age = birthDate ? ageOn(birthDate, today) : null;
   const profileValid =
@@ -73,17 +103,17 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
     weight !== null &&
     weight >= 30 &&
     weight <= 300;
-  const goal = profileValid
-    ? calorieGoal({ sex: sex!, ageYears: age!, heightCm: height!, weightKg: weight! }, activity, rate)
-    : null;
+  const profile = profileValid ? { sex: sex!, ageYears: age!, heightCm: height!, weightKg: weight! } : null;
+  const rateOf = (kind: GoalKind) => (weight !== null ? weeklyRateForGoal(kind, weight) : 0);
+  const goalFor = (kind: GoalKind) =>
+    profile ? calorieGoal(profile, activity, rateOf(kind), { expenditureKcal }) : null;
+  const rate = rateOf(goalKind);
+  const goal = goalFor(goalKind);
+  const formulaTdee = profile && expenditureKcal !== null ? calorieGoal(profile, activity, 0).tdee : null;
 
-  // Entering a target weight suggests the matching direction.
-  function setTargetWeight(t: number | null) {
-    setTargetWeightRaw(t);
-    if (t === null || weight === null) return;
-    if (Math.abs(t - weight) < 0.5) setRate(0);
-    else if (t > weight && rate <= 0) setRate(0.25);
-    else if (t < weight && rate >= 0) setRate(-0.5);
+  function chooseGoal(kind: GoalKind) {
+    setGoalKind(kind);
+    setPlanState(planFromPreset(GOALS[kind].preset));
   }
 
   function applyMacros(kcalTarget: number, p: MacroPlan) {
@@ -114,7 +144,7 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
         heightCm: height,
         activityLevel: activity,
         targetWeightKg: targetWeight,
-        weeklyRateKg: rate,
+        goalKind,
         macroPlan: plan,
       },
       weightKg: weight!,
@@ -131,12 +161,9 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
     setStep(step + 1);
   };
   const canNext = step === 0 ? profileValid : true;
-  // Weeks to the target only when the pace points towards it (losing with a target above = never).
+  // Weeks to the target only when the goal points towards it (losing with a target above = never).
   const toGo = targetWeight !== null && weight !== null ? targetWeight - weight : null;
   const weeks = toGo !== null && rate !== 0 && Math.sign(toGo) === Math.sign(rate) ? toGo / rate : null;
-  const wrongWay = toGo !== null && toGo !== 0 && rate !== 0 && Math.sign(toGo) !== Math.sign(rate);
-  // More than 1 % of body weight per week is too fast for most (depends on the weight, not on a fixed pace).
-  const tooFast = weight !== null && rate < 0 && Math.abs(rate) / weight > 0.01;
   const profileHint =
     age !== null && (age < 14 || age > 110)
       ? 'Der Rechner gilt für 14 bis 110 Jahre.'
@@ -225,44 +252,65 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
       )}
 
       {step === 2 && (
-        <Section>
-          <div className="grid gap-4 p-4">
-            <NumberField
-              label="Zielgewicht (optional)"
-              unit="kg"
-              value={targetWeight}
-              onValueChange={setTargetWeight}
-            />
-            <div className="grid gap-1.5">
-              <span className="text-sm font-medium">Tempo pro Woche</span>
-              <div className="grid grid-cols-4 gap-2">
-                {WEEKLY_RATES.map((r) => (
+        <>
+          <Section>
+            <div className="grid gap-2 p-4" role="radiogroup" aria-label="Ziel">
+              {GOAL_KINDS.map((k) => {
+                const g = goalFor(k);
+                return (
                   <button
-                    key={r}
+                    key={k}
                     type="button"
-                    aria-pressed={rate === r}
-                    onClick={() => setRate(r)}
+                    role="radio"
+                    aria-checked={goalKind === k}
+                    onClick={() => chooseGoal(k)}
                     className={cn(
-                      'tabular h-12 rounded-lg border text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                      rate === r ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent',
+                      'flex items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                      goalKind === k ? 'border-primary bg-primary/5' : 'hover:bg-accent',
                     )}
                   >
-                    {r > 0 ? '+' : ''}
-                    {r.toLocaleString('de-DE')} kg
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">{GOAL_LABELS_DE[k].title}</div>
+                      {GOAL_LABELS_DE[k].hint && (
+                        <div className="text-sm text-muted-foreground">{GOAL_LABELS_DE[k].hint}</div>
+                      )}
+                    </div>
+                    <div className="tabular shrink-0 text-right text-sm text-muted-foreground">
+                      {k === 'maintain' ? (
+                        '±0'
+                      ) : (
+                        <>
+                          <div>{signed(rateOf(k), fmt2)} kg pro Woche</div>
+                          {g && <div>{signed(g.kcal - g.tdee, fmt0)} kcal</div>}
+                        </>
+                      )}
+                    </div>
                   </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {rate === 0
-                  ? 'Gewicht halten.'
-                  : `${rate < 0 ? 'Abnehmen' : 'Zunehmen'}: ${fmt0(Math.abs(rate * 7700) / 7)} kcal ${rate < 0 ? 'weniger' : 'mehr'} pro Tag.`}
-                {weeks !== null && weeks < 300 && ` Ziel in etwa ${fmt0(Math.max(1, weeks))} Wochen.`}
-                {wrongWay && ' Dieses Tempo führt vom Zielgewicht weg.'}
-                {tooFast && ' Mehr als 1 % des Körpergewichts pro Woche ist für die meisten zu schnell.'}
-              </p>
+                );
+              })}
             </div>
-          </div>
-        </Section>
+          </Section>
+          <Section>
+            <div className="grid gap-2 p-4">
+              <NumberField
+                label="Zielgewicht (optional)"
+                unit="kg"
+                value={targetWeight}
+                onValueChange={setTargetWeight}
+              />
+              {toGo !== null && Math.abs(toGo) >= 0.1 && (
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="text-muted-foreground">Dauer</span>
+                  <span className="tabular">
+                    {weeks !== null && weeks < 300
+                      ? `frühestens in ${fmt0(Math.max(1, Math.ceil(weeks)))} Wochen`
+                      : NO_VALUE}
+                  </span>
+                </div>
+              )}
+            </div>
+          </Section>
+        </>
       )}
 
       {step === 3 && goal && (
@@ -276,20 +324,28 @@ function OnboardingForm({ settings, weight: initialWeight }: { settings: Setting
               <div>
                 <dt className="text-xs text-muted-foreground">Gesamtumsatz</dt>
                 <dd className="text-lg font-semibold">{fmt0(goal.tdee)}</dd>
+                {goal.source === 'data' && (
+                  <dd>
+                    <Badge variant="secondary">aus deinen Daten</Badge>
+                  </dd>
+                )}
               </div>
               <div>
                 <dt className="text-xs text-muted-foreground">Ziel</dt>
                 <dd className="text-lg font-bold text-primary">{fmt0(goal.kcal)}</dd>
+                {goal.clamped && (
+                  <dd>
+                    <Badge variant="outline" className="text-warn-text">
+                      {goal.clamped === 'deficit' ? 'Defizit begrenzt' : 'Untergrenze'}
+                    </Badge>
+                  </dd>
+                )}
               </div>
             </dl>
-            {goal.clamped && (
-              <p className="px-4 pb-4 text-xs text-warn-text">
-                Das rechnerische Ziel lag unter {fmt0(goal.kcal)} kcal und wurde angehoben. Wähle ein
-                langsameres Tempo für ein nachhaltiges Defizit.
-              </p>
-            )}
             <p className="px-4 pb-4 text-xs text-muted-foreground">
-              Mifflin-St Jeor × Aktivitätsfaktor, plus/minus 7700 kcal je kg Wochenziel.
+              {formulaTdee !== null
+                ? `Aus Essen und Gewichtstrend der letzten ${EXPENDITURE_WINDOW_DAYS} Tage · Formel ${fmt0(formulaTdee)} kcal`
+                : 'Mifflin-St Jeor × Aktivitätsfaktor, plus/minus 7700 kcal je kg Wochenziel.'}
             </p>
           </Section>
           <Section title="Makro-Verteilung">

@@ -1,4 +1,12 @@
-import { KCAL_PER_G, MACRO_PRESETS, macrosForPlan, planFromPreset, round, type MacroPlan } from '@ft/shared';
+import {
+  KCAL_PER_G,
+  MACRO_PRESETS,
+  macrosExceedKcal,
+  macrosForPlan,
+  planFromPreset,
+  round,
+  type MacroPlan,
+} from '@ft/shared';
 import { Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
@@ -55,7 +63,7 @@ export function MacroPlanPicker({
             label="Eiweiß"
             value={`${fmt1(plan.proteinPerKg)} g/kg`}
             min={0.8}
-            max={2.5}
+            max={3.0}
             step={0.1}
             current={plan.proteinPerKg}
             onChange={(v) => onChange({ ...plan, proteinPerKg: round(v, 1) })}
@@ -72,26 +80,30 @@ export function MacroPlanPicker({
         </div>
       )}
       {m ? (
-        <dl
-          className="tabular grid grid-cols-3 gap-2 rounded-xl border p-3 text-center text-sm"
-          aria-live="polite"
-        >
-          <div>
-            <dt className="text-xs text-muted-foreground">Eiweiß</dt>
-            <dd className="font-semibold">{fmt0(m.proteinG)} g</dd>
-            <dd className="text-xs text-muted-foreground">{pct(m.proteinG, KCAL_PER_G.protein)} %</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Kohlenh.</dt>
-            <dd className="font-semibold">{fmt0(m.carbsG)} g</dd>
-            <dd className="text-xs text-muted-foreground">{pct(m.carbsG, KCAL_PER_G.carbs)} %</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Fett</dt>
-            <dd className="font-semibold">{fmt0(m.fatG)} g</dd>
-            <dd className="text-xs text-muted-foreground">{pct(m.fatG, KCAL_PER_G.fat)} %</dd>
-          </div>
-        </dl>
+        <div className="grid gap-2 rounded-xl border p-3" aria-live="polite">
+          <dl className="tabular grid grid-cols-3 gap-2 text-center text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">Eiweiß</dt>
+              <dd className="font-semibold">{fmt0(m.proteinG)} g</dd>
+              <dd className="text-xs text-muted-foreground">{pct(m.proteinG, KCAL_PER_G.protein)} %</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Kohlenh.</dt>
+              <dd className="font-semibold">{fmt0(m.carbsG)} g</dd>
+              <dd className="text-xs text-muted-foreground">{pct(m.carbsG, KCAL_PER_G.carbs)} %</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Fett</dt>
+              <dd className="font-semibold">{fmt0(m.fatG)} g</dd>
+              <dd className="text-xs text-muted-foreground">{pct(m.fatG, KCAL_PER_G.fat)} %</dd>
+            </div>
+          </dl>
+          {weightKg && macrosExceedKcal(kcal, weightKg, plan) && (
+            <Badge variant="outline" className="justify-self-center text-warn-text">
+              Kalorienziel zu niedrig
+            </Badge>
+          )}
+        </div>
       ) : (
         // Protein is set per kg body weight: without a weight there are no grams to show.
         <div className="flex items-center justify-between gap-2 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
@@ -100,12 +112,6 @@ export function MacroPlanPicker({
           </span>
           <Badge variant="outline">Gewicht fehlt</Badge>
         </div>
-      )}
-      {m && weightKg && m.proteinG < Math.round(plan.proteinPerKg * weightKg) - 1 && (
-        <p className="text-xs text-warn-text">
-          Eiweiß ist auf 35 % der Kalorien begrenzt ({fmt0(m.proteinG)} g statt{' '}
-          {fmt0(plan.proteinPerKg * weightKg)} g). Mehr ist bei diesem Kalorienziel nicht sinnvoll.
-        </p>
       )}
     </div>
   );

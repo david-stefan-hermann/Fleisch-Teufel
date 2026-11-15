@@ -22,7 +22,10 @@ export async function saveOnboarding(
   db: UserDb,
   input: {
     base: Settings;
-    profile: Pick<Settings, 'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'macroPlan'> & {
+    profile: Pick<
+      Settings,
+      'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'macroPlan'
+    > & {
       goalKind: GoalKind;
     };
     weightKg: number;

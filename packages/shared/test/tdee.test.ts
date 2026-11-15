@@ -45,7 +45,9 @@ describe('Mifflin-St Jeor', () => {
     expect(g.kcal).toBe(1600);
     expect(g.clamped).toBe('deficit');
     expect(g.source).toBe('formula');
-    expect(calorieGoal({ sex: 'male', ageYears: 30, heightCm: 180, weightKg: 80 }, 'sedentary', -0.4)).toMatchObject({
+    expect(
+      calorieGoal({ sex: 'male', ageYears: 30, heightCm: 180, weightKg: 80 }, 'sedentary', -0.4),
+    ).toMatchObject({
       kcal: 1700,
       clamped: null,
     });
