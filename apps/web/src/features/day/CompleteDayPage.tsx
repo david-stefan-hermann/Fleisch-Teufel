@@ -1,5 +1,6 @@
 import {
   bodyProfile,
+  currentWeeklyRate,
   dailyDeltaForWeeklyRate,
   dayId,
   fiveWeekForecast,
@@ -53,7 +54,7 @@ export function CompleteDayPage() {
     fromData ??
     (profile
       ? Math.round(tdee(profile, settings.activityLevel))
-      : summary.targets.kcal - dailyDeltaForWeeklyRate(settings.weeklyRateKg));
+      : summary.targets.kcal - dailyDeltaForWeeklyRate(currentWeeklyRate(settings, weight)));
   // A meal without entries while the day is far under budget: most likely not logged, not skipped.
   const emptyMeals = summary.perMeal.flatMap((m, i) => (get(m, N.kcal) > 0 ? [] : [i]));
   const maybeMissing =

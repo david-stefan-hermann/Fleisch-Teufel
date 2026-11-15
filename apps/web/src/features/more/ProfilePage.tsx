@@ -3,10 +3,13 @@ import {
   ageOn,
   DEFAULT_WEIGHT_RANGE,
   DEFAULT_WEIGHT_STEP,
-  WEEKLY_RATES,
+  GOAL_KINDS,
+  goalKindOf,
+  weeklyRateForGoal,
   WEIGHT_RANGES,
   WEIGHT_STEPS,
   type ActivityLevel,
+  type GoalKind,
   type Settings,
   type Sex,
 } from '@ft/shared';
@@ -23,16 +26,25 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { saveSettings } from '@/db/settings';
-import { useSettings, useToday } from '@/hooks/data';
+import { useCurrentWeight, useSettings, useToday } from '@/hooks/data';
 import { useSettingsForm } from '@/hooks/useSettingsForm';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtFixed } from '@/lib/format';
 
 export function ProfilePage() {
   const settings = useSettings();
+  const today = useToday();
+  const weight = useCurrentWeight(today);
   if (!settings) return null;
-  return <ProfileForm initial={settings} />;
+  return <ProfileForm initial={settings} weightKg={weight ?? null} />;
 }
+
+const GOAL_OPTIONS: Record<GoalKind, string> = {
+  lose: 'Abnehmen',
+  maintain: 'Gewicht halten',
+  gain_beginner: 'Muskeln aufbauen · unter 2 Jahre',
+  gain_advanced: 'Muskeln aufbauen · ab 2 Jahren',
+};
 
 /** The fields this page owns; only these are saved (meal names or the plan changed elsewhere stay). */
 const profileFields = (s: Settings) => ({
@@ -42,11 +54,12 @@ const profileFields = (s: Settings) => ({
   activityLevel: s.activityLevel,
   targetWeightKg: s.targetWeightKg,
   weeklyRateKg: s.weeklyRateKg,
+  goalKind: s.goalKind,
   weightStepKg: s.weightStepKg,
   weightRangeKg: s.weightRangeKg,
 });
 
-function ProfileForm({ initial }: { initial: Settings }) {
+function ProfileForm({ initial, weightKg }: { initial: Settings; weightKg: number | null }) {
   const db = useDb();
   const [s, setS] = useState<Settings>(initial);
   const set = (patch: Partial<Settings>) => setS({ ...s, ...patch });
@@ -135,6 +148,31 @@ function ProfileForm({ initial }: { initial: Settings }) {
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="p-goal">Ziel</Label>
+            {/* Set up before the goals: shows the goal the stored rate means, saved only when changed. */}
+            <Select
+              value={s.goalKind ?? goalKindOf(s)}
+              onValueChange={(v) => {
+                const goalKind = v as GoalKind;
+                set({
+                  goalKind,
+                  weeklyRateKg: weightKg !== null ? weeklyRateForGoal(goalKind, weightKg) : s.weeklyRateKg,
+                });
+              }}
+            >
+              <SelectTrigger id="p-goal" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {GOAL_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {GOAL_OPTIONS[k]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 items-start gap-3">
             <NumberField
               label="Zielgewicht"
@@ -142,22 +180,6 @@ function ProfileForm({ initial }: { initial: Settings }) {
               value={s.targetWeightKg}
               onValueChange={(v) => set({ targetWeightKg: v })}
             />
-            <div className="grid gap-1.5">
-              <Label htmlFor="p-rate">Tempo/Woche</Label>
-              <Select value={String(s.weeklyRateKg)} onValueChange={(v) => set({ weeklyRateKg: Number(v) })}>
-                <SelectTrigger id="p-rate" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {WEEKLY_RATES.map((r) => (
-                    <SelectItem key={r} value={String(r)}>
-                      {r > 0 ? '+' : ''}
-                      {r.toLocaleString('de-DE')} kg
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
       </Section>

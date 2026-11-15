@@ -1,8 +1,11 @@
 import {
   addDays,
+  bmi,
   bodyProfile,
+  currentWeeklyRate,
   EXPENDITURE_MIN_DAYS,
   EXPENDITURE_MIN_WEIGH_INS,
+  EXPENDITURE_WINDOW_DAYS,
   goalForDate,
   targetFromExpenditure,
   tdee,
@@ -55,7 +58,13 @@ export function ExpenditureCard({
   const formula = profile ? Math.round(tdee(profile, settings.activityLevel)) : null;
   const goal = goalForDate(goals, today);
   const currentAvg = goal ? Math.round(goal.days.reduce((s, d) => s + d.kcal, 0) / goal.days.length) : null;
-  const suggested = est ? targetFromExpenditure(est.kcal, settings.weeklyRateKg, settings.sex) : null;
+  const rate = currentWeeklyRate(settings, weightKg);
+  const suggested = est
+    ? targetFromExpenditure(est.kcal, rate, {
+        sex: settings.sex,
+        bmi: weightKg !== null && settings.heightCm !== null ? bmi(weightKg, settings.heightCm) : null,
+      })
+    : null;
   const diff = suggested !== null && currentAvg !== null ? suggested - currentAvg : 0;
   const dismissed = dismissedUntil !== null && dismissedUntil > today;
   const showSuggestion = suggested !== null && Math.abs(diff) >= SUGGEST_FROM_KCAL && !dismissed;
@@ -77,7 +86,15 @@ export function ExpenditureCard({
       {est ? (
         <div className="grid gap-2 px-4 pb-4">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="tabular text-3xl font-bold">{fmt0(est.kcal)}</span>
+            <span className="tabular text-3xl font-bold">
+              {fmt0(est.kcal)}
+              {est.uncertaintyKcal > 0 && (
+                <span className="text-xl font-semibold text-muted-foreground">
+                  {' '}
+                  ± {fmt0(est.uncertaintyKcal)}
+                </span>
+              )}
+            </span>
             <span className="text-sm text-muted-foreground">
               kcal am Tag, {settings.addExerciseCalories ? 'ohne' : 'mit'} Training
             </span>
@@ -91,15 +108,13 @@ export function ExpenditureCard({
             {est.weeklyTrendKg > 0 ? '+' : ''}
             {fmt2(est.weeklyTrendKg)} kg pro Woche, {fmt0(est.days)} vollständige Tage und{' '}
             {fmt0(est.weighIns)} Wiegungen seit {fmtDate(est.from)}.
-            {est.confidence === 'medium' ? ' Wird mit jedem vollständigen Tag und Wiegen genauer.' : ''}
           </p>
           {showSuggestion ? (
             <div className="grid gap-2 rounded-xl bg-muted p-3 text-sm">
               <p className="text-pretty">
-                Mit deinem Tempo ({settings.weeklyRateKg > 0 ? '+' : ''}
-                {fmt2(settings.weeklyRateKg)} kg pro Woche) passen{' '}
-                <strong className="tabular">{fmt0(suggested)} kcal</strong> am Tag. Dein Ziel liegt bei{' '}
-                {fmt0(currentAvg!)} kcal.
+                Mit deinem Tempo ({rate > 0 ? '+' : ''}
+                {fmt2(rate)} kg pro Woche) passen <strong className="tabular">{fmt0(suggested)} kcal</strong>{' '}
+                am Tag. Dein Ziel liegt bei {fmt0(currentAvg!)} kcal.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" disabled={busy || weightKg === null} onClick={() => void run(apply)}>
@@ -124,8 +139,8 @@ export function ExpenditureCard({
       ) : (
         <p className="px-4 pb-4 text-sm text-muted-foreground text-pretty">
           Nach {EXPENDITURE_MIN_DAYS} vollständig erfassten Tagen (mindestens zwei Mahlzeiten oder „Tag
-          abschließen“) und {EXPENDITURE_MIN_WEIGH_INS} Wiegungen in drei Wochen steht hier dein
-          Erhaltungsbedarf aus Essen und Gewichtstrend statt aus der Formel. Bisher:{' '}
+          abschließen“) und {EXPENDITURE_MIN_WEIGH_INS} Wiegungen in {EXPENDITURE_WINDOW_DAYS / 7} Wochen
+          steht hier dein Erhaltungsbedarf aus Essen und Gewichtstrend statt aus der Formel. Bisher:{' '}
           {fmt0(state.completeDays)} Tage, {fmt0(state.weighIns)} Wiegungen.
         </p>
       )}

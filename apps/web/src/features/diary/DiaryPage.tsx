@@ -30,6 +30,7 @@ import { MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
 import { ShareDayDialog } from './share/ShareDayDialog';
 import { showsWeekReview, WeekReviewCard } from './WeekReviewCard';
+import { RecalcGoalCard } from '@/features/goals/RecalcGoalCard';
 import { WeekStrip } from './WeekStrip';
 
 export function DiaryPage() {
@@ -156,6 +157,8 @@ export function DiaryPage() {
           <CalorieCard summary={summary} exerciseCredited={settings.addExerciseCalories} />
           {/* Monday only: last week in three numbers, hidden with X until the next Monday. */}
           {showsWeekReview(date, today) && <WeekReviewCard today={today} />}
+          {/* Set up before the four goals: offer the new calculation once (X hides it). */}
+          {date === today && <RecalcGoalCard today={today} />}
           {/* Long press on an entry, then drop it on another meal to move it there. */}
           <DiaryDnd mealNames={settings.mealNames}>
             {Array.from({ length: MEAL_COUNT }, (_, m) => (
