@@ -79,10 +79,11 @@ describe('sync', () => {
       activityLevel: 'light',
       targetWeightKg: 80,
       weeklyRateKg: -0.5,
+      goalKind: 'gain_advanced',
       mealNames: ['Frühstück', 'Mittag', 'Abend', 'Snacks'],
       addExerciseCalories: true,
       onboardedAt: 5,
-      macroPlan: { preset: 'low_carb', proteinPerKg: 1.8, fatPct: null, carbsPct: 20 },
+      macroPlan: { preset: 'gain', proteinPerKg: 2.0, fatPct: 25, carbsPct: null },
       weightStepKg: 0.01,
       weightRangeKg: 2,
       stepsMinimum: 2500,
@@ -313,15 +314,36 @@ describe('sync', () => {
       intensity: 'moderate',
       note: null,
     };
+    // Settings of an app version before the goals (no goalKind).
+    const oldSettings = {
+      id: 'profile',
+      updatedAt: 8,
+      deleted: false,
+      sex: 'female',
+      birthDate: '1992-03-01',
+      heightCm: 168,
+      activityLevel: 'light',
+      targetWeightKg: null,
+      weeklyRateKg: -0.25,
+      mealNames: ['Frühstück', 'Mittag', 'Abend', 'Snacks'],
+      addExerciseCalories: true,
+      onboardedAt: 5,
+      macroPlan: null,
+      weightStepKg: null,
+      weightRangeKg: null,
+      stepsMinimum: null,
+      addStepsCalories: null,
+    };
     const before = (await pullAll(alice)).cursor;
     const r = await alice.post('/api/sync/push', {
       records: [
         { table: 'foodEntries', data: oldEntry },
         { table: 'exerciseEntries', data: oldExercise },
         { table: 'exerciseTemplates', data: oldTemplate },
+        { table: 'settings', data: oldSettings },
       ],
     });
-    expect(r.json).toMatchObject({ applied: 3, stale: [], rejected: [] });
+    expect(r.json).toMatchObject({ applied: 4, stale: [], rejected: [] });
     const { changes } = await pullAll(alice, before);
     expect(changes.find((c) => c.data.id === oldEntry.id)?.data).toEqual({
       ...oldEntry,
@@ -346,6 +368,7 @@ describe('sync', () => {
       pinned: null,
       purgedAt: null,
     });
+    expect(changes.find((c) => c.table === 'settings')?.data).toEqual({ ...oldSettings, goalKind: null });
   });
 
   it('keeps users isolated even with identical ids', async () => {

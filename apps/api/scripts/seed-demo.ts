@@ -97,7 +97,9 @@ records.push({
     heightCm: 182,
     activityLevel: 'light',
     targetWeightKg: 80,
-    weeklyRateKg: -0.5,
+    // Goal "Abnehmen": −0,5 % a week of the demo's end weight (about 83 kg).
+    weeklyRateKg: -0.41,
+    goalKind: 'lose',
     mealNames: [...DEFAULT_MEAL_NAMES],
     addExerciseCalories: true,
     onboardedAt: now,

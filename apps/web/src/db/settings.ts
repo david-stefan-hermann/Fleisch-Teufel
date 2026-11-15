@@ -13,6 +13,7 @@ export const DEFAULT_SETTINGS: Settings = {
   activityLevel: 'light',
   targetWeightKg: null,
   weeklyRateKg: -0.5,
+  goalKind: null,
   mealNames: [...DEFAULT_MEAL_NAMES],
   addExerciseCalories: true,
   onboardedAt: null,

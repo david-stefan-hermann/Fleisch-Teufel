@@ -1493,6 +1493,10 @@ describe('settings, notes and onboarding writes', () => {
     await saveSettings(d, { heightCm: 180 });
     expect(await d.settings.get('profile')).toMatchObject({ mealNames: ['A', 'B', 'C', 'D'], heightCm: 180 });
     expect(await d.outbox.count()).toBe(1);
+    // A goal set up once stays when another page saves its fields.
+    await saveSettings(d, { goalKind: 'gain_advanced' });
+    await saveSettings(d, { mealNames: ['E', 'F', 'G', 'H'] });
+    expect(await d.settings.get('profile')).toMatchObject({ goalKind: 'gain_advanced' });
   });
 
   it('saveDayNote keeps the completed state of the day', async () => {
@@ -1518,12 +1522,14 @@ describe('settings, notes and onboarding writes', () => {
       heightCm: 168,
       activityLevel: 'light' as const,
       targetWeightKg: 60,
-      weeklyRateKg: -0.5,
+      goalKind: 'lose' as const,
       macroPlan: null,
     };
     const target = { kcal: 1800, proteinG: 110, fatG: 60, carbsG: 200 };
     await saveOnboarding(d, { base: DEFAULT_SETTINGS, profile, weightKg: 70, target, today: '2026-10-01' });
     expect(await d.weightEntries.get(dayId.weight('2026-10-01'))).toMatchObject({ kg: 70 });
+    // The goal is stored with its weekly rate at this weight (−0,5 % of 70 kg).
+    expect(await d.settings.get('profile')).toMatchObject({ goalKind: 'lose', weeklyRateKg: -0.35 });
     await patchRecord(d, 'goals', dayId.goal('2026-10-01'), { micros: { FIBT: 40 } });
 
     // Three weeks later with the prefilled (old) weight: no new weight entry, fiber target kept.

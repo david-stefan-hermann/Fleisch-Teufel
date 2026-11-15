@@ -1,9 +1,19 @@
-import { dayId, goalForDate, SETTINGS_ID, uniformWeek, type DayTarget, type Settings } from '@ft/shared';
+import {
+  dayId,
+  goalForDate,
+  SETTINGS_ID,
+  uniformWeek,
+  weeklyRateForGoal,
+  type DayTarget,
+  type GoalKind,
+  type Settings,
+} from '@ft/shared';
 import type { UserDb } from '@/db/dexie';
 import { saveRecord } from '@/db/write';
 
 /**
- * Persists the onboarding result: profile, weight and a goal valid from today. Running the
+ * Persists the onboarding result: profile (the goal with its weekly rate at this weight), weight and
+ * a goal valid from today. Running the
  * calculator again keeps what it did not ask about: a weight that is only the prefilled last entry
  * is not written as today's measurement, and the micronutrient targets of the goal valid so far
  * carry over.
@@ -12,10 +22,9 @@ export async function saveOnboarding(
   db: UserDb,
   input: {
     base: Settings;
-    profile: Pick<
-      Settings,
-      'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'weeklyRateKg' | 'macroPlan'
-    >;
+    profile: Pick<Settings, 'sex' | 'birthDate' | 'heightCm' | 'activityLevel' | 'targetWeightKg' | 'macroPlan'> & {
+      goalKind: GoalKind;
+    };
     weightKg: number;
     target: DayTarget;
     today: string;
@@ -26,6 +35,7 @@ export async function saveOnboarding(
   await saveRecord(db, 'settings', {
     ...settings,
     ...profile,
+    weeklyRateKg: weeklyRateForGoal(profile.goalKind, weightKg),
     id: SETTINGS_ID,
     onboardedAt: base.onboardedAt ?? Date.now(),
   });

@@ -134,6 +134,13 @@
       "when": 1794601660314,
       "tag": "0018_assistant",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794737804177,
+      "tag": "0019_goal_kind",
+      "breakpoints": true
     }
   ]
 }

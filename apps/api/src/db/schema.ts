@@ -94,6 +94,7 @@ export const userSettings = pgTable(
     activityLevel: text({ enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'] }).notNull(),
     targetWeightKg: doublePrecision(),
     weeklyRateKg: doublePrecision().notNull(),
+    goalKind: text({ enum: ['lose', 'maintain', 'gain_beginner', 'gain_advanced'] }),
     mealNames: jsonb().$type<string[]>().notNull(),
     addExerciseCalories: boolean().notNull(),
     onboardedAt: bigint({ mode: 'number' }),
