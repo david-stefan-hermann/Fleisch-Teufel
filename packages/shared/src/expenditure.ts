@@ -16,15 +16,18 @@ import { creditedTrainingKcal } from './diary.js';
 import { N } from './nutrients.js';
 import { get, round } from './nutrition.js';
 import { budgetAverage, isCompleteDay, weightTrend, type DailyRow } from './reports.js';
-import { dailyDeltaForWeeklyRate, KCAL_PER_KG_BODY_WEIGHT, MIN_KCAL, type Sex } from './tdee.js';
+import { KCAL_PER_KG_BODY_WEIGHT, kcalTarget, type Sex } from './tdee.js';
 
-/** Days of diary considered (the last three weeks, like MacroFactor's window). */
-export const EXPENDITURE_WINDOW_DAYS = 21;
+/**
+ * Days of diary considered (four weeks): below about 28 days the uncertainty is larger than 300 kcal
+ * (research report, section on the expenditure from own data).
+ */
+export const EXPENDITURE_WINDOW_DAYS = 28;
 /** Complete days needed before an estimate is shown at all. */
 export const EXPENDITURE_MIN_DAYS = 14;
 /** Weigh-ins needed inside the window, and the days the first and last must span. */
-export const EXPENDITURE_MIN_WEIGH_INS = 4;
-export const EXPENDITURE_MIN_WEIGH_SPAN_DAYS = 10;
+export const EXPENDITURE_MIN_WEIGH_INS = 6;
+export const EXPENDITURE_MIN_WEIGH_SPAN_DAYS = 14;
 /** Outside this range the inputs are not believable (a missed week of logging, a wrong weight). */
 const PLAUSIBLE = { min: 800, max: 6000 };
 /** A trend steeper than this is water or a wrong weigh-in, not energy balance. */
@@ -46,8 +49,11 @@ export interface ExpenditureEstimate {
   weeklyTrendKg: number;
   from: ISODate;
   to: ISODate;
-  /** `high` with the full window and daily weigh-ins, else `medium`. */
-  confidence: 'medium' | 'high';
+  /**
+   * Standard error of `kcal` (rounded to 10): the slope error of the weight trend × 7 700 and the
+   * standard error of the daily intake, combined.
+   */
+  uncertaintyKcal: number;
 }
 
 /**
@@ -103,6 +109,13 @@ export function estimateExpenditure(params: {
     complete.length;
   const base = intakeAvg - exerciseAvg - trend.slopePerDay * KCAL_PER_KG_BODY_WEIGHT;
   if (!Number.isFinite(base) || base < PLAUSIBLE.min || base > PLAUSIBLE.max) return missing('implausible');
+  const intakeVar =
+    complete.length > 1
+      ? complete.reduce((s, r) => s + (get(r.nutrients, N.kcal) - intakeAvg) ** 2, 0) / (complete.length - 1)
+      : 0;
+  const uncertainty = Math.sqrt(
+    (trend.slopeSePerDay * KCAL_PER_KG_BODY_WEIGHT) ** 2 + intakeVar / complete.length,
+  );
   return {
     reason: null,
     value: {
@@ -114,23 +127,18 @@ export function estimateExpenditure(params: {
       weeklyTrendKg: round(trend.slopePerDay * 7, 2),
       from,
       to,
-      confidence: complete.length >= windowDays - 2 && weights.length >= 10 ? 'high' : 'medium',
+      uncertaintyKcal: Math.round(uncertainty / 10) * 10,
     },
   };
 }
 
-/**
- * A daily kcal target from an expenditure and the chosen weekly rate, never below the safety
- * minimum (like `calorieGoal`), rounded to 10.
- */
+/** A daily kcal target from an expenditure and the weekly rate, with the limits of `kcalTarget`. */
 export function targetFromExpenditure(
   expenditureKcal: number,
   weeklyRateKg: number,
-  sex: Sex | null,
+  opts: { sex: Sex | null; bmi?: number | null },
 ): number {
-  const raw = expenditureKcal + dailyDeltaForWeeklyRate(weeklyRateKg);
-  const min = sex ? MIN_KCAL[sex] : 1350;
-  return Math.round(Math.max(raw, min) / 10) * 10;
+  return kcalTarget(expenditureKcal, weeklyRateKg, opts).kcal;
 }
 
 export interface WeekSummary {

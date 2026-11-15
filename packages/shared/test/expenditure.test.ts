@@ -65,8 +65,9 @@ describe('expenditure from own data', () => {
       weighIns: 21,
       intakeAvg: 2000,
       exerciseAvg: 0,
-      confidence: 'high',
     });
+    // A perfectly straight trend and the same intake every day: no uncertainty.
+    expect(est.uncertaintyKcal).toBe(0);
     expect(est.weeklyTrendKg).toBeCloseTo(-0.5, 1);
   });
 
@@ -81,14 +82,24 @@ describe('expenditure from own data', () => {
     // 14 complete days plus 7 half days (lunch only, 600 kcal): the half days do not pull it down.
     const rows = days(21).map((d, i) => (i < 7 ? row(d, 600, { mealsLogged: 1 }) : row(d, 2000)));
     expect(estimateExpenditure({ rows, weights }).value!.kcal).toBe(2000);
-    expect(estimateExpenditure({ rows, weights }).value!.confidence).toBe('medium');
     // One complete day fewer: nothing.
     expect(
       estimateExpenditure({ rows: rows.map((r, i) => (i === 7 ? row(r.date, null) : r)), weights }),
     ).toEqual({ value: null, reason: 'tooFew' });
-    // Weigh-ins only on three days, or all within one week: nothing.
-    expect(estimateExpenditure({ rows, weights: weights.slice(0, 3) }).reason).toBe('tooFew');
-    expect(estimateExpenditure({ rows, weights: weights.slice(10, 16) }).reason).toBe('tooFew');
+    // Weigh-ins only on five days, or six within less than two weeks: nothing.
+    expect(estimateExpenditure({ rows, weights: weights.slice(0, 5) }).reason).toBe('tooFew');
+    expect(estimateExpenditure({ rows, weights: weights.slice(0, 14) }).reason).toBe('tooFew');
+    expect(estimateExpenditure({ rows, weights: weights.slice(0, 15) }).value).not.toBeNull();
+  });
+
+  it('gives a small range for a smooth trend and a large one for a scattered trend', () => {
+    const rows = days(28).map((d, i) => row(d, 2000 + (i % 2 ? 100 : -100)));
+    const smooth = days(28).map((d, i) => ({ date: d, kg: 80 - 0.01 * i + (i % 2 ? 0.05 : -0.05) }));
+    const scattered = days(28).map((d, i) => ({ date: d, kg: 80 - 0.01 * i + [0, 1.2, -0.9, 0.6][i % 4]! }));
+    const a = estimateExpenditure({ rows, weights: smooth }).value!;
+    const b = estimateExpenditure({ rows, weights: scattered }).value!;
+    expect(a.uncertaintyKcal).toBeLessThan(50);
+    expect(b.uncertaintyKcal).toBeGreaterThan(100);
   });
 
   it('refuses implausible results (a wrong weight, a week of missing dinners)', () => {
@@ -101,11 +112,12 @@ describe('expenditure from own data', () => {
     expect(estimateExpenditure({ rows: low, weights: flat }).reason).toBe('implausible');
   });
 
-  it('turns an expenditure into a target with the weekly rate, never below the minimum', () => {
-    expect(targetFromExpenditure(2550, -0.5, 'male')).toBe(2000);
-    expect(targetFromExpenditure(2550, 0, null)).toBe(2550);
-    expect(targetFromExpenditure(1600, -1, 'female')).toBe(1200);
-    expect(targetFromExpenditure(1600, -1, null)).toBe(1350);
+  it('turns an expenditure into a target with the weekly rate, the deficit cap and the minimum', () => {
+    expect(targetFromExpenditure(2550, -0.5, { sex: 'male' })).toBe(2000);
+    expect(targetFromExpenditure(2550, 0, { sex: null })).toBe(2550);
+    expect(targetFromExpenditure(2550, -1, { sex: 'male' })).toBe(1910);
+    expect(targetFromExpenditure(1600, -1, { sex: 'female' })).toBe(1200);
+    expect(targetFromExpenditure(1600, -1, { sex: null })).toBe(1350);
   });
 });
 
@@ -195,11 +207,11 @@ describe('numbers from the inventory of November 2026', () => {
     const plain = estimateExpenditure({ rows, weights, creditExercise: false }).value!;
     expect(plain.kcal).toBe(2800);
     expect(plain.exerciseAvg).toBe(0);
-    expect(targetFromExpenditure(plain.kcal, -0.5, 'male')).toBe(2250);
+    expect(targetFromExpenditure(plain.kcal, -0.5, { sex: 'male' })).toBe(2250);
     // Credited, the training goes onto the budget and comes off the base.
     const credited = estimateExpenditure({ rows, weights, creditExercise: true }).value!;
     expect(credited.kcal).toBe(2400);
-    expect(targetFromExpenditure(credited.kcal, -0.5, 'male')).toBe(1850);
+    expect(targetFromExpenditure(credited.kcal, -0.5, { sex: 'male' })).toBe(1850);
   });
 
   it('Z2: the running day counts only once it is closed', () => {

@@ -8,6 +8,11 @@ export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'ver
 /**
  * Physical activity level multipliers (classic Harris-Benedict/Mifflin multipliers).
  * Exercise is logged separately (feature #9), so users should pick their level *without* workouts.
+ *
+ * Why 1.2 for "Kaum aktiv" and not the PAL 1.4 of DGE and FAO: those describe the true expenditure,
+ * but a target in the app is held against self-logged calories, which run low on average (Subar 2003:
+ * 12 to 20 % in 24-hour recalls). The owner's own data (39 days, about 2150 kcal expenditure at a BMR
+ * of 1793) fit 1.2, not 1.4. This is our own derivation, not the statement of a source.
  */
 export const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -32,8 +37,57 @@ export const KCAL_PER_KG_BODY_WEIGHT = 7700;
 export const MIN_KCAL: Record<Sex, number> = { male: 1500, female: 1200 };
 const MIN_KCAL_UNKNOWN = 1350;
 
-/** Weekly rates offered in onboarding (kg/week; negative = lose). */
-export const WEEKLY_RATES = [-1, -0.75, -0.5, -0.25, 0, 0.25, 0.5] as const;
+/**
+ * Largest deficit as a share of the expenditure (from BMI 30 a little more). Our own caution limit
+ * from the reviews on muscle loss in large deficits (Murphy 2021: from about 500 kcal deficit lean
+ * mass gains suffer), not a standardised number.
+ */
+export const MAX_DEFICIT_SHARE = 0.25;
+const MAX_DEFICIT_SHARE_OBESE = 0.3;
+
+export const GOAL_KINDS = ['lose', 'maintain', 'gain_beginner', 'gain_advanced'] as const;
+export type GoalKind = (typeof GOAL_KINDS)[number];
+
+/**
+ * The four goals: weekly rate in percent of body weight and the macro template they start with.
+ * −0.5 % is the lower end of 0.5 to 1.0 % (Helms 2014, Garthe 2011). +0.25 % is the lower end of
+ * Iraki 2019 for beginners. +0.1 % and the border of two years of training are convention (ACSM 2009,
+ * MacroFactor), not a measured threshold.
+ */
+export const GOALS: Record<GoalKind, { ratePct: number; preset: Exclude<MacroPresetId, 'custom'> }> = {
+  lose: { ratePct: -0.5, preset: 'cut' },
+  maintain: { ratePct: 0, preset: 'high_protein' },
+  gain_beginner: { ratePct: 0.25, preset: 'gain' },
+  gain_advanced: { ratePct: 0.1, preset: 'gain' },
+};
+
+export const GOAL_LABELS_DE: Record<GoalKind, { title: string; hint: string | null }> = {
+  lose: { title: 'Abnehmen', hint: null },
+  maintain: { title: 'Gewicht halten', hint: null },
+  gain_beginner: { title: 'Muskeln aufbauen', hint: 'Unter 2 Jahre Krafttraining' },
+  gain_advanced: { title: 'Muskeln aufbauen', hint: 'Ab 2 Jahren Krafttraining' },
+};
+
+/** Weekly weight change of a goal at a body weight (kg, rounded to 0.01). */
+export function weeklyRateForGoal(kind: GoalKind, weightKg: number): number {
+  return Math.round(GOALS[kind].ratePct * weightKg) / 100;
+}
+
+/** The stored goal, else (set up before goals existed) the one the sign of the weekly rate means. */
+export function goalKindOf(settings: { goalKind?: GoalKind | null; weeklyRateKg: number }): GoalKind {
+  if (settings.goalKind) return settings.goalKind;
+  return settings.weeklyRateKg < 0 ? 'lose' : settings.weeklyRateKg > 0 ? 'gain_beginner' : 'maintain';
+}
+
+/** The weekly rate to plan with: the goal's rate at the current weight, else the stored rate. */
+export function currentWeeklyRate(
+  settings: { goalKind?: GoalKind | null; weeklyRateKg: number },
+  weightKg: number | null | undefined,
+): number {
+  return settings.goalKind && weightKg != null
+    ? weeklyRateForGoal(settings.goalKind, weightKg)
+    : settings.weeklyRateKg;
+}
 
 export interface BodyProfile {
   /** `null`: no answer; the formula then uses the mean of both constants. */
@@ -76,21 +130,59 @@ export function dailyDeltaForWeeklyRate(weeklyRateKg: number): number {
   return (weeklyRateKg * KCAL_PER_KG_BODY_WEIGHT) / 7;
 }
 
-export interface CalorieGoal {
-  bmr: number;
-  tdee: number;
-  kcal: number;
-  /** True when the raw target fell below MIN_KCAL and was raised. */
-  clamped: boolean;
+/** Which limit raised the target: the largest deficit or the lowest target (`minimum` wins when both do). */
+export type KcalClamp = 'deficit' | 'minimum' | null;
+
+/**
+ * Daily kcal target from an expenditure and a weekly rate: the deficit at most `MAX_DEFICIT_SHARE`
+ * of the expenditure (from BMI 30: 30 %), then never below `MIN_KCAL`, rounded to 10.
+ */
+export function kcalTarget(
+  expenditureKcal: number,
+  weeklyRateKg: number,
+  opts: { sex: Sex | null; bmi?: number | null },
+): { kcal: number; clamped: KcalClamp } {
+  let raw = expenditureKcal + dailyDeltaForWeeklyRate(weeklyRateKg);
+  let clamped: KcalClamp = null;
+  const share = opts.bmi != null && opts.bmi >= 30 ? MAX_DEFICIT_SHARE_OBESE : MAX_DEFICIT_SHARE;
+  const floor = expenditureKcal * (1 - share);
+  if (raw < floor) {
+    raw = floor;
+    clamped = 'deficit';
+  }
+  const min = opts.sex ? MIN_KCAL[opts.sex] : MIN_KCAL_UNKNOWN;
+  if (raw < min) {
+    raw = min;
+    clamped = 'minimum';
+  }
+  return { kcal: roundTo(raw, 10), clamped };
 }
 
-export function calorieGoal(p: BodyProfile, activity: ActivityLevel, weeklyRateKg: number): CalorieGoal {
+export interface CalorieGoal {
+  bmr: number;
+  /** The expenditure used: from the person's data or BMR × activity factor. */
+  tdee: number;
+  kcal: number;
+  /** The limit that raised the target (see `kcalTarget`). */
+  clamped: KcalClamp;
+  source: 'data' | 'formula';
+}
+
+/**
+ * The calorie target of a profile. With `expenditureKcal` (estimate from the person's own data) that
+ * replaces BMR × activity factor.
+ */
+export function calorieGoal(
+  p: BodyProfile,
+  activity: ActivityLevel,
+  weeklyRateKg: number,
+  opts: { expenditureKcal?: number | null } = {},
+): CalorieGoal {
   const bmr = bmrMifflinStJeor(p);
-  const t = bmr * ACTIVITY_FACTORS[activity];
-  const raw = t + dailyDeltaForWeeklyRate(weeklyRateKg);
-  const min = p.sex ? MIN_KCAL[p.sex] : MIN_KCAL_UNKNOWN;
-  const kcal = Math.max(raw, min);
-  return { bmr: Math.round(bmr), tdee: Math.round(t), kcal: roundTo(kcal, 10), clamped: raw < min };
+  const fromData = opts.expenditureKcal != null;
+  const t = fromData ? opts.expenditureKcal! : bmr * ACTIVITY_FACTORS[activity];
+  const { kcal, clamped } = kcalTarget(t, weeklyRateKg, { sex: p.sex, bmi: bmi(p.weightKg, p.heightCm) });
+  return { bmr: Math.round(bmr), tdee: Math.round(t), kcal, clamped, source: fromData ? 'data' : 'formula' };
 }
 
 export interface MacroGrams {
@@ -100,8 +192,15 @@ export interface MacroGrams {
   carbsG: number;
 }
 
+/** Lowest fat per kg body weight (lower end of 0.5 to 1.5 g/kg, Iraki 2019, Helms 2014). */
+export const FAT_FLOOR_PER_KG = 0.5;
+
 export interface MacroSplitOptions {
-  /** Protein per kg body weight. Default 1.8 g/kg (ISSN position stand: 1.4 to 2.0 g/kg for active people). */
+  /**
+   * Protein per kg body weight. Default 2.0 g/kg: 1.6 is the well supported lower bound, the
+   * confidence interval and advice of Morton 2018 reach 2.2; Iraki 2019 and Stokes 2018 give 1.6 to
+   * 2.2. In a deficit the need rises (Helms 2014).
+   */
   proteinPerKg?: number;
   /** Fat share of energy in percent. Default 30 % (DGE guideline value for adults: 30 %). */
   fatPct?: number;
@@ -113,20 +212,22 @@ export interface MacroSplitOptions {
 }
 
 /**
- * Default macro split: protein by body weight (capped at 35 % of energy), fat by energy share,
- * carbohydrates fill the rest; or, with `carbsPct`, carbohydrates fixed and fat fills the rest.
+ * Default macro split: protein by body weight (no cap), fat by energy share but at least
+ * `FAT_FLOOR_PER_KG`, carbohydrates fill the rest (at least 0); or, with `carbsPct`, carbohydrates
+ * fixed and fat fills the rest (again at least the floor).
  */
 export function defaultMacros(kcal: number, weightKg: number, opts: MacroSplitOptions = {}): MacroGrams {
-  const proteinPerKg = opts.proteinPerKg ?? 1.8;
-  const proteinG = Math.min(proteinPerKg * weightKg, (kcal * 0.35) / KCAL_PER_G.protein);
+  const proteinPerKg = opts.proteinPerKg ?? 2.0;
+  const proteinG = proteinPerKg * weightKg;
   const proteinKcal = proteinG * KCAL_PER_G.protein;
+  const fatFloorG = FAT_FLOOR_PER_KG * weightKg;
   let fatG: number;
   let carbsG: number;
   if (opts.carbsPct != null) {
     carbsG = (kcal * opts.carbsPct) / 100 / KCAL_PER_G.carbs;
-    fatG = Math.max(0, kcal - proteinKcal - carbsG * KCAL_PER_G.carbs) / KCAL_PER_G.fat;
+    fatG = Math.max(fatFloorG, (kcal - proteinKcal - carbsG * KCAL_PER_G.carbs) / KCAL_PER_G.fat);
   } else {
-    fatG = (kcal * (opts.fatPct ?? 30)) / 100 / KCAL_PER_G.fat;
+    fatG = Math.max(fatFloorG, (kcal * (opts.fatPct ?? 30)) / 100 / KCAL_PER_G.fat);
     carbsG = Math.max(0, kcal - proteinKcal - fatG * KCAL_PER_G.fat) / KCAL_PER_G.carbs;
   }
   return {
@@ -137,7 +238,7 @@ export function defaultMacros(kcal: number, weightKg: number, opts: MacroSplitOp
   };
 }
 
-export const MACRO_PRESET_IDS = ['balanced', 'high_protein', 'cut', 'low_carb', 'custom'] as const;
+export const MACRO_PRESET_IDS = ['balanced', 'high_protein', 'gain', 'cut', 'low_carb', 'custom'] as const;
 export type MacroPresetId = (typeof MACRO_PRESET_IDS)[number];
 
 export interface MacroPreset {
@@ -155,25 +256,25 @@ export interface MacroPreset {
  */
 export const MACRO_PRESETS: readonly MacroPreset[] = [
   {
-    id: 'balanced',
-    label: 'Ausgewogen',
-    hint: '1,0 g Eiweiß/kg · 30 % Fett, nah an den DGE-Empfehlungen',
-    proteinPerKg: 1.0,
-    fatPct: 30,
-    carbsPct: null,
-  },
-  {
     id: 'high_protein',
     label: 'Proteinreich',
-    hint: '1,6 g Eiweiß/kg · 30 % Fett, sättigt besser, gut bei Sport',
-    proteinPerKg: 1.6,
+    hint: '2,0 g Eiweiß/kg · 30 % Fett',
+    proteinPerKg: 2.0,
     fatPct: 30,
     carbsPct: null,
   },
   {
     id: 'cut',
     label: 'Diät / Muskelerhalt',
-    hint: '2,0 g Eiweiß/kg · 25 % Fett, schützt Muskeln im Defizit',
+    hint: '2,2 g Eiweiß/kg · 25 % Fett',
+    proteinPerKg: 2.2,
+    fatPct: 25,
+    carbsPct: null,
+  },
+  {
+    id: 'gain',
+    label: 'Muskelaufbau',
+    hint: '2,0 g Eiweiß/kg · 25 % Fett',
     proteinPerKg: 2.0,
     fatPct: 25,
     carbsPct: null,
@@ -181,10 +282,18 @@ export const MACRO_PRESETS: readonly MacroPreset[] = [
   {
     id: 'low_carb',
     label: 'Low Carb',
-    hint: '1,8 g Eiweiß/kg · 20 % Kohlenhydrate, Rest Fett',
-    proteinPerKg: 1.8,
+    hint: '2,0 g Eiweiß/kg · 20 % Kohlenhydrate',
+    proteinPerKg: 2.0,
     fatPct: null,
     carbsPct: 20,
+  },
+  {
+    id: 'balanced',
+    label: 'Ausgewogen',
+    hint: '1,0 g Eiweiß/kg · 30 % Fett',
+    proteinPerKg: 1.0,
+    fatPct: 30,
+    carbsPct: null,
   },
 ];
 
@@ -198,7 +307,7 @@ export interface MacroPlan {
 
 export const DEFAULT_MACRO_PLAN: MacroPlan = {
   preset: 'high_protein',
-  proteinPerKg: 1.6,
+  proteinPerKg: 2.0,
   fatPct: 30,
   carbsPct: null,
 };
@@ -215,6 +324,17 @@ export function macrosForPlan(kcal: number, weightKg: number, plan: MacroPlan): 
     fatPct: plan.fatPct ?? undefined,
     carbsPct: plan.carbsPct,
   });
+}
+
+/** True when protein and fat (after the floor) of a plan alone need more than `kcal`. */
+export function macrosExceedKcal(kcal: number, weightKg: number, plan: MacroPlan): boolean {
+  const proteinKcal = plan.proteinPerKg * weightKg * KCAL_PER_G.protein;
+  const fatG =
+    plan.carbsPct != null
+      ? FAT_FLOOR_PER_KG * weightKg
+      : Math.max(FAT_FLOOR_PER_KG * weightKg, (kcal * (plan.fatPct ?? 30)) / 100 / KCAL_PER_G.fat);
+  const carbsKcal = plan.carbsPct != null ? (kcal * plan.carbsPct) / 100 : 0;
+  return proteinKcal + fatG * KCAL_PER_G.fat + carbsKcal > kcal + 0.5;
 }
 
 /** Energy implied by macro grams (for the "macros don't add up" hint in the goal editor). */

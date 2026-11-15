@@ -10,7 +10,7 @@
  */
 import { z } from 'zod';
 import { isISODate } from './dates.js';
-import { MACRO_PRESET_IDS } from './tdee.js';
+import { GOAL_KINDS, MACRO_PRESET_IDS } from './tdee.js';
 import { MICRO_NUTRIENTS } from './nutrients.js';
 
 export const idSchema = z
@@ -66,6 +66,8 @@ export const settingsSchema = z.object({
   activityLevel: activityLevelSchema,
   targetWeightKg: z.number().min(20).max(400).nullable(),
   weeklyRateKg: z.number().min(-1.5).max(1),
+  /** One of the four goals (`GOALS`); null: set up before goals existed, or never set up. */
+  goalKind: z.enum(GOAL_KINDS).nullable().default(null),
   mealNames: z.array(z.string().trim().min(1).max(40)).length(MEAL_COUNT),
   addExerciseCalories: z.boolean(),
   onboardedAt: z.number().int().nullable(),

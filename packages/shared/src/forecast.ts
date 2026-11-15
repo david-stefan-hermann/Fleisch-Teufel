@@ -65,7 +65,7 @@ export function movingAverage(points: readonly WeightPoint[], windowDays = 7): W
 /** Least-squares line through the points; slope in kg per day. */
 export function linearTrend(
   points: readonly WeightPoint[],
-): { slopePerDay: number; intercept: number; origin: ISODate } | null {
+): { slopePerDay: number; intercept: number; origin: ISODate; slopeSePerDay: number } | null {
   if (points.length < 2) return null;
   const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date));
   const origin = sorted[0]!.date;
@@ -82,7 +82,12 @@ export function linearTrend(
   }
   if (den === 0) return null;
   const slopePerDay = num / den;
-  return { slopePerDay, intercept: my - slopePerDay * mx, origin };
+  const intercept = my - slopePerDay * mx;
+  // Standard error of the slope (0 with two points: the line goes through both).
+  let sse = 0;
+  for (let i = 0; i < n; i++) sse += (ys[i]! - (intercept + slopePerDay * xs[i]!)) ** 2;
+  const slopeSePerDay = n > 2 ? Math.sqrt(sse / (n - 2) / den) : 0;
+  return { slopePerDay, intercept, origin, slopeSePerDay };
 }
 
 /** Latest weight on or before `date`. */

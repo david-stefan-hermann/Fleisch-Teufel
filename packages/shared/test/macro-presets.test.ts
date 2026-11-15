@@ -14,13 +14,25 @@ describe('macro presets', () => {
   it('low carb fixes carbohydrates and lets fat fill the rest', () => {
     const m = macrosForPlan(2000, 80, planFromPreset('low_carb'));
     expect(m.carbsG).toBe(100); // 20 % of 2000 kcal / 4
-    expect(m.proteinG).toBe(144);
-    expect(m.fatG).toBe(Math.round((2000 - 144 * 4 - 100 * 4) / 9));
+    expect(m.proteinG).toBe(160);
+    expect(m.fatG).toBe(Math.round((2000 - 160 * 4 - 100 * 4) / 9));
   });
 
-  it('caps protein at 35 % of energy for heavy people on small budgets', () => {
+  it('has no protein cap for heavy people on small budgets', () => {
     const m = defaultMacros(1500, 140, { proteinPerKg: 2.0 });
-    expect(m.proteinG).toBe(Math.round((1500 * 0.35) / 4));
+    expect(m.proteinG).toBe(280);
+    expect(m.fatG).toBe(70);
+    expect(m.carbsG).toBe(0);
+  });
+
+  it('carries the values of the templates', () => {
+    expect(MACRO_PRESETS.map((p) => [p.id, p.proteinPerKg, p.fatPct, p.carbsPct])).toEqual([
+      ['high_protein', 2.0, 30, null],
+      ['cut', 2.2, 25, null],
+      ['gain', 2.0, 25, null],
+      ['low_carb', 2.0, null, 20],
+      ['balanced', 1.0, 30, null],
+    ]);
   });
 
   it('keeps carbs and fat non-negative when protein is high', () => {
@@ -48,6 +60,7 @@ describe('schema defaults for newer fields', () => {
       onboardedAt: null,
     });
     expect(settings.macroPlan).toBeNull();
+    expect(settings.goalKind).toBeNull();
     const meal = mealSchema.parse({
       id: 'm',
       updatedAt: 1,
