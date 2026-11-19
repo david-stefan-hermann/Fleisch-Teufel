@@ -157,6 +157,23 @@ describe('changing meals', () => {
     expect((await readDay(d, DATE))[0]!.eatenAt).toBe(at(8));
   });
 
+  it('keeps a time set by hand, also for the night, while entries come and go', async () => {
+    const d = db();
+    await oldEntry(d, 0, at(8));
+    const target = await prepareMealTarget(d, { date: DATE, meal: 1, dm: 'new' }, at(20));
+    const [first] = await logItems(d, [item], target);
+    const snack = (await readDay(d, DATE)).find((m) => m.id === target.diaryMealId)!;
+    const night = eatenAtOf(DATE, 0, 30, true);
+    await setDiaryMealTime(d, snack, night);
+    await logItems(d, [item], { date: DATE, meal: snack.slot, diaryMealId: snack.id });
+    await logItems(d, [item], { date: DATE, meal: snack.slot, diaryMealId: snack.id });
+    await deleteRecord(d, 'foodEntries', first!);
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => m.id)).toEqual([dayId.diaryMeal(DATE, 0), snack.id]);
+    expect(day[1]).toMatchObject({ id: snack.id, eatenAt: night, night: true, timeEdited: true });
+    expect(day[1]!.entries.every((e) => e.date === DATE)).toBe(true);
+  });
+
   it('keeps source and target as they were when an entry moves', async () => {
     const d = db();
     const a = await oldEntry(d, 0, at(8));

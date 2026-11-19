@@ -2228,6 +2228,74 @@ describe('diary meal cards', () => {
       expect(within(card).getByRole('link', { name }).getAttribute('href')).toContain('dm=new');
   });
 
+  it('a tap on the time opens the time dialog; the night is offered only from 00:00 to 04:59', async () => {
+    renderCard(meal());
+    fireEvent.click(await screen.findByRole('button', { name: 'Mittagessen um 12:35, Uhrzeit ändern' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'Mittagessen' })).toBeTruthy();
+    const hour = within(dialog).getByRole('listbox', { name: 'Stunde' });
+    expect(within(hour).getByRole('option', { selected: true }).textContent).toBe('12');
+    expect(within(dialog).queryByRole('radio', { name: /^Nacht auf/ })).toBeNull();
+    expect(
+      (within(dialog).getByRole('button', { name: 'Änderungen übernehmen' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    fireEvent.keyDown(hour, { key: 'Home' });
+    const night = await within(dialog).findByRole('radio', { name: 'Nacht auf Fr.' });
+    expect(within(dialog).getByRole('radio', { name: 'Do., 19. Nov.' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    fireEvent.click(night);
+    expect(night.getAttribute('aria-checked')).toBe('true');
+
+    // Five o'clock is the meal's own day again: the choice is gone and reset.
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(hour, { key: 'ArrowDown' });
+    await waitFor(() => expect(within(dialog).queryByRole('radio', { name: /^Nacht auf/ })).toBeNull());
+    fireEvent.keyDown(hour, { key: 'Home' });
+    expect(
+      (await within(dialog).findByRole('radio', { name: 'Nacht auf Fr.' })).getAttribute('aria-checked'),
+    ).toBe('false');
+  });
+
+  it('a meal of the night after its day carries a moon and opens with the night chosen', async () => {
+    renderCard(meal({ eatenAt: new Date(2026, 10, 20, 0, 30).getTime(), night: true }));
+    const time = await screen.findByRole('button', {
+      name: 'Mittagessen um 00:30, Nacht auf Fr., Uhrzeit ändern',
+    });
+    expect(time.parentElement!.textContent).toBe('00:30Fr.');
+    fireEvent.click(time);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('radio', { name: 'Nacht auf Fr.' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(
+      within(within(dialog).getByRole('listbox', { name: 'Minute' })).getByRole('option', { selected: true })
+        .textContent,
+    ).toBe('30');
+  });
+
+  it('"Änderungen übernehmen" sets the time of the meal and marks it as set by hand', async () => {
+    renderCard(meal());
+    fireEvent.click(await screen.findByRole('button', { name: /Uhrzeit ändern/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.keyDown(within(dialog).getByRole('listbox', { name: 'Stunde' }), { key: 'ArrowDown' });
+    fireEvent.keyDown(within(dialog).getByRole('listbox', { name: 'Minute' }), { key: 'Home' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Änderungen übernehmen' }));
+    await waitFor(async () =>
+      expect(await sessionDb.diaryMeals.get('meal-1')).toMatchObject({
+        eatenAt: new Date(2026, 10, 19, 13, 0).getTime(),
+        timeEdited: true,
+      }),
+    );
+  });
+
+  it('the time of a meal of waiting analyses only cannot be changed', async () => {
+    const waiting = { localId: 1 } as unknown as AiQueueItem;
+    renderCard(meal({ entries: [], pending: [waiting] }));
+    expect(await screen.findByText('12:35')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Uhrzeit ändern/ })).toBeNull();
+  });
+
   it('"Mahlzeit hinzufügen" starts a new meal', async () => {
     renderInRouter(<AddMealLink date={DATE} next={{ name: 'Abendessen', slot: 2 }} />);
     const link = await screen.findByRole('link', { name: 'Mahlzeit hinzufügen' });

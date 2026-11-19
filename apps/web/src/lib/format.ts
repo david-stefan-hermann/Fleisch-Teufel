@@ -70,6 +70,11 @@ const rtf = new Intl.RelativeTimeFormat('de-DE', { numeric: 'auto' });
 const dayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
 /** "Do., 15. Okt." (narrow headers). */
 export const fmtDayShort = (d: ISODate) => dayShort.format(parseISODate(d));
+/** "Fr." (alone the weekday comes without its dot, so it is taken from the short date). */
+export function fmtWeekdayShort(d: ISODate): string {
+  const day = dayShort.formatToParts(parseISODate(d)).find((p) => p.type === 'weekday')?.value ?? '';
+  return day.endsWith('.') ? day : `${day}.`;
+}
 
 /** "Heute", "Gestern", "Morgen", else the long date (or the short one with `short`). */
 export function fmtRelativeDay(d: ISODate, today: ISODate, short = false): string {

@@ -1,4 +1,5 @@
 import {
+  addDays,
   get,
   groupDiaryEntries,
   N,
@@ -9,7 +10,7 @@ import {
   type NutrientMap,
 } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
-import { Camera, ChevronDown, ChevronRight, ClipboardPaste, ListPlus, Plus } from 'lucide-react';
+import { Camera, ChevronDown, ChevronRight, ClipboardPaste, ListPlus, Moon, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -27,12 +28,13 @@ import { useMealInfo } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAppearance } from '@/lib/appearance';
 import { useRememberLogStart } from '@/lib/logFlow';
-import { fmt0, fmt2, fmtGrams, fmtIngredients, fmtTime } from '@/lib/format';
+import { fmt0, fmt2, fmtGrams, fmtIngredients, fmtTime, fmtWeekdayShort } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MacroSummary } from './MacroSummary';
 import { DiaryMealMenu } from './DiaryMealMenu';
 import { MealNameMenu } from './MealNameMenu';
 import { MealSuggestions } from './MealSuggestions';
+import { MealTimeDialog } from './MealTimeDialog';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
 import { readExpanded, setGroupExpanded } from './expandedGroups';
@@ -78,11 +80,7 @@ export function MealCard({
 
   return (
     <div ref={setDropRef} data-meal={id} className="mb-[18px]">
-      <div className="flex h-[22px] items-center pl-4">
-        <span className="tabular -m-2 p-2 text-[13px] leading-4 font-medium text-muted-foreground">
-          {fmtTime(meal.eatenAt)}
-        </span>
-      </div>
+      <MealTimeLine meal={meal} />
       <Section
         className={cn(
           'mb-0 transition-[box-shadow,background-color] motion-reduce:transition-none',
@@ -148,6 +146,46 @@ export function MealCard({
         )}
         <MealSuggestions date={date} meal={slot} mealName={name} data={suggestions} empty={false} />
       </Section>
+    </div>
+  );
+}
+
+/**
+ * The time above a meal card: a tap opens the time dialog. A meal eaten in the night after its day
+ * carries a moon with that weekday. A meal of waiting analyses only has no record to take a time.
+ */
+function MealTimeLine({ meal }: { meal: DiaryDayMeal }) {
+  const [open, setOpen] = useState(false);
+  const time = fmtTime(meal.eatenAt);
+  const night = meal.night && (
+    <span className="inline-flex items-center gap-[3px] rounded-full bg-secondary px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
+      <Moon className="size-[11px]" aria-hidden />
+      {fmtWeekdayShort(addDays(meal.date, 1))}
+    </span>
+  );
+  const label = meal.night ? `${time}, Nacht auf ${fmtWeekdayShort(addDays(meal.date, 1))}` : time;
+  const text = 'tabular -m-2 p-2 text-[13px] leading-4 font-medium text-muted-foreground';
+  return (
+    <div className="flex h-[22px] items-center gap-1.5 pl-4">
+      {meal.entries.length > 0 ? (
+        <>
+          <button
+            type="button"
+            aria-label={`${meal.name} um ${label}, Uhrzeit ändern`}
+            onClick={() => setOpen(true)}
+            className={cn(
+              text,
+              'rounded-lg hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+            )}
+          >
+            {time}
+          </button>
+          <MealTimeDialog meal={meal} open={open} onOpenChange={setOpen} />
+        </>
+      ) : (
+        <span className={text}>{time}</span>
+      )}
+      {night}
     </div>
   );
 }

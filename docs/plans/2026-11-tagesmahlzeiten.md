@@ -15,8 +15,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 4     | 709fb96 | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
 | 5     | b344dfc | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
 | 6     | 914e05c | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
-| 7     | s. Log  | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
-| 8     |         | Uhrzeit-Dialog und Nacht                                | offen  |
+| 7     | 3eb335e | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
+| 8     | s. Log  | Uhrzeit-Dialog und Nacht                                | fertig |
 | 9     |         | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
 | 10    |         | Assistent                                               | offen  |
 | 11    |         | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
@@ -85,6 +85,17 @@ Block 7:
 - Die Tests der Namen stehen in `day-meals-write.test.ts` statt in `write.test.ts`, dort liegen die Helfer für Mahlzeiten.
 - Übergang bis Block 9: Einfügen, „Zuletzt hier“ und „Wie gestern“ schreiben nur über `meal`. Entsteht so nach einer Umbenennung eine Mahlzeit ohne Datensatz, trägt sie den Namen aus `legacyMealNames`.
 - Übergang bis Block 10 und 11: Assistent, Tagesbild, CSV und „Tag abschließen“ lesen weiter `settings.mealNames[slot]` und zeigen nach einer Umbenennung auch für alte Tage den neuen Namen.
+
+Block 8:
+
+- Der Übergang aus Block 6 ist geschlossen: Die Uhrzeit über der Karte öffnet den Dialog. Eine Mahlzeit nur aus wartenden Analysen zeigt
+  sie weiter als Text (Annahme).
+- Die Wahl „Nacht auf …“ steht beim Drehen auf 00 bis 04 auf dem Tag der Mahlzeit, außer die Mahlzeit ist schon eine Nacht-Mahlzeit.
+  Mockup C3 zeigt den Zustand nach dem Antippen.
+- „Änderungen übernehmen“ ist nur aktiv, wenn sich die Uhrzeit geändert hat. Sonst würde ein alter Tag ohne Änderung auf die Uhrzeit wechseln.
+- Neu `fmtWeekdayShort` in `lib/format.ts` („Fr.“ für Mond und Nacht-Wahl): Der Wochentag allein kommt aus `Intl` ohne Punkt, er wird
+  deshalb aus dem kurzen Datum genommen. `lib/format.ts` kam zur Dateiliste dazu.
+- Die Uhrzeit bleibt grau wie die übrigen. Mockup A3/C2 hebt die geänderte Uhrzeit nur als Markierung des Mockups hervor.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

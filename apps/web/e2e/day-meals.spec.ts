@@ -260,6 +260,110 @@ test('a day from before the meals keeps the order of its four slots', async ({ p
   await expect(timeOf(page, 'Abendessen')).toHaveText('12:00');
 });
 
+/** Opens the time dialog of a meal and turns its wheels by keyboard to `hour:minute`. */
+async function setTime(page: Page, meal: string, hour: number, minute: number) {
+  await page.getByRole('button', { name: new RegExp(`^${meal} um .*, Uhrzeit ändern$`) }).click();
+  const dialog = page.getByRole('dialog', { name: meal });
+  for (const [label, value] of [
+    ['Stunde', hour],
+    ['Minute', minute],
+  ] as const) {
+    const wheel = dialog.getByRole('listbox', { name: label });
+    await wheel.focus();
+    await wheel.press('Home');
+    for (let i = 0; i < value; i++) await wheel.press('ArrowDown');
+    await expect(wheel.getByRole('option', { selected: true })).toHaveText(String(value).padStart(2, '0'));
+  }
+  return dialog;
+}
+
+const mealOrder = async (page: Page) =>
+  (await page.locator('[data-meal] h2').allTextContents()).map((t) => t.split(/\d/)[0]!.trim());
+
+test('the time of a meal: 07:40 to 14:00 sorts the day anew, the name stays, undo restores', async ({
+  page,
+}) => {
+  const noon = await startAtNoon(page);
+  await page.clock.setFixedTime(noon - 260 * MINUTE);
+  await openFoodPage(page);
+  await logQuick(page, 'Haferflocken', 222);
+  await page.clock.setFixedTime(noon + 35 * MINUTE);
+  await openFoodPage(page);
+  await logQuick(page, 'Linseneintopf', 509);
+  await expect(timeOf(page, 'Frühstück')).toHaveText('07:40');
+  await expect.poll(() => mealOrder(page)).toEqual(['Frühstück', 'Mittagessen']);
+
+  const dialog = await setTime(page, 'Frühstück', 14, 0);
+  await expect(dialog.getByRole('radio')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page.getByText('Frühstück auf 14:00 geändert')).toBeVisible();
+  await expect(timeOf(page, 'Frühstück')).toHaveText('14:00');
+  await expect.poll(() => mealOrder(page)).toEqual(['Mittagessen', 'Frühstück']);
+  await expect(row(page, 'Frühstück', 'Haferflocken')).toBeVisible();
+
+  await undo(page, 'Frühstück auf 14:00 geändert');
+  await expect(timeOf(page, 'Frühstück')).toHaveText('07:40');
+  await expect.poll(() => mealOrder(page)).toEqual(['Frühstück', 'Mittagessen']);
+});
+
+test('on a day from before the meals a new time switches to the clock, undo brings the slots back', async ({
+  page,
+}) => {
+  const noon = await startAtNoon(page);
+  await page.goto('/photo?form=1&meal=2');
+  await fillQuickForm(page, 'Suppe', 400);
+  await page.clock.setFixedTime(noon + 60 * MINUTE);
+  await page.goto('/photo?form=1&meal=0');
+  await fillQuickForm(page, 'Toast', 200);
+  await page.goto('/');
+  await expect(page.locator('[data-meal] h2')).toHaveCount(2);
+  await expect.poll(() => mealOrder(page)).toEqual(['Frühstück', 'Abendessen']);
+
+  const dialog = await setTime(page, 'Frühstück', 13, 5);
+  await dialog.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(timeOf(page, 'Frühstück')).toHaveText('13:05');
+  await expect.poll(() => mealOrder(page)).toEqual(['Abendessen', 'Frühstück']);
+
+  await undo(page, 'Frühstück auf 13:05 geändert');
+  await expect(timeOf(page, 'Frühstück')).toHaveText('13:00');
+  await expect.poll(() => mealOrder(page)).toEqual(['Frühstück', 'Abendessen']);
+});
+
+test('00:30 as the night after the day stays on that day, at its end, with a moon', async ({ page }) => {
+  const noon = await startAtNoon(page);
+  await openFoodPage(page);
+  await logQuick(page, 'Skyr', 126);
+  await page.clock.setFixedTime(noon + 60 * MINUTE);
+  await openFoodPage(page);
+  await logQuick(page, 'Linseneintopf', 509);
+  await expect.poll(() => mealOrder(page)).toEqual(['Frühstück', 'Mittagessen']);
+  const tomorrow = await page.evaluate(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const parts = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+    const day = parts.formatToParts(d).find((p) => p.type === 'weekday')!.value;
+    return day.endsWith('.') ? day : `${day}.`;
+  });
+
+  const dialog = await setTime(page, 'Frühstück', 0, 30);
+  const night = dialog.getByRole('radio', { name: `Nacht auf ${tomorrow}` });
+  await expect(night).toHaveAttribute('aria-checked', 'false');
+  await night.click();
+  await expect(night).toHaveAttribute('aria-checked', 'true');
+  await dialog.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+  await expect(page.getByText('Frühstück auf 00:30 geändert')).toBeVisible();
+
+  await expect.poll(() => mealOrder(page)).toEqual(['Mittagessen', 'Frühstück']);
+  const stamp = page.locator('[data-meal]').last().locator('div').first();
+  await expect(stamp).toHaveText(`00:30${tomorrow}`);
+  await expect(stamp.locator('svg.lucide-moon')).toHaveCount(1);
+  await expect(row(page, 'Frühstück', 'Skyr')).toBeVisible();
+
+  // The entries stay on their day: the next day has none.
+  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  await expect(page.locator('[data-meal]')).toHaveCount(0);
+});
+
 test('the last entry swiped away on the meal page leaves the page open, undo fills it again', async ({
   page,
 }) => {

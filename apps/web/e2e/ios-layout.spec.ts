@@ -128,6 +128,55 @@ test.describe('375 px (iPhone mini and SE)', () => {
     expect(await animations()).toEqual([]);
   });
 
+  test('the time dialog of a meal fits the screen with wheels, night choice and both buttons', async ({
+    page,
+  }) => {
+    await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+    await page.getByLabel('E-Mail').fill(`time-${Date.now()}@example.com`);
+    await page.getByLabel('Passwort').fill('e2e-password-123');
+    await page.getByRole('button', { name: 'Konto erstellen' }).click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(async () => {
+      await page.goto('/photo?form=1&meal=1');
+      await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible({ timeout: 2_000 });
+    }).toPass();
+    await page.getByLabel('Was hast du gegessen?').fill('Suppe');
+    await page.getByLabel('Kalorien').fill('400');
+    await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+    await expect(page.getByText('Suppe', { exact: true })).toBeVisible();
+    await page.goto('/');
+
+    await page.getByRole('button', { name: /^Mittagessen um .*, Uhrzeit ändern$/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Mittagessen' });
+    const hour = dialog.getByRole('listbox', { name: 'Stunde' });
+    await hour.focus();
+    await hour.press('Home');
+    await expect(dialog.getByRole('radio', { name: /^Nacht auf / })).toBeVisible();
+
+    const viewport = page.viewportSize()!;
+    const box = (await dialog.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    for (const control of [
+      hour,
+      dialog.getByRole('listbox', { name: 'Minute' }),
+      dialog.getByRole('radio', { name: /^Nacht auf / }),
+      dialog.getByRole('button', { name: 'Änderungen übernehmen' }),
+      dialog.getByRole('button', { name: 'Abbrechen' }),
+    ]) {
+      await expect(control).toBeInViewport({ ratio: 1 });
+    }
+    // Nothing in the dialog scrolls: everything is on the screen at once.
+    expect(
+      await dialog
+        .locator('[data-slot="dialog-body"]')
+        .evaluate((el) => el.scrollHeight <= el.clientHeight + 1),
+    ).toBe(true);
+  });
+
   test('reports, goals, progress and the diary header fit without cutting numbers', async ({
     page,
   }, info) => {
