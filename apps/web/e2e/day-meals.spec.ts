@@ -233,7 +233,8 @@ test('a meal dragged empty disappears, undo brings it back with name and time', 
   await logQuick(page, 'Linseneintopf', 500);
 
   await dragTo(page, 'Apfel', 'Mittagessen');
-  await expect(page.getByText('Apfel zu Mittagessen verschoben')).toBeVisible();
+  // `exact`: the drag announcement of dnd-kit says the same with a period.
+  await expect(page.getByText('Apfel zu Mittagessen verschoben', { exact: true })).toBeVisible();
   await expect(row(page, 'Mittagessen', 'Apfel')).toBeVisible();
   await expect(page.getByRole('heading', { level: 2, name: 'Frühstück' })).toHaveCount(0);
   // The meal it went to keeps its time, although the entry is older.

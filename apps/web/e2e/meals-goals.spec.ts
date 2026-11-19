@@ -811,6 +811,9 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   const ask = page.getByRole('dialog', { name: 'Neu analysieren?' });
   await expect(ask).toContainText('Deine Änderungen an den Zutaten gehen verloren.');
   await ask.getByRole('button', { name: 'Abbrechen' }).click();
+  // While the dialog closes, the page behind it is hidden from the accessibility tree: `redo` would
+  // find the dialog's own "Neu analysieren" and confirm it.
+  await expect(ask).toHaveCount(0);
   await expect(page.getByLabel('Menge', { exact: true }).first()).toHaveValue('180');
 
   // New hint, ↻, confirm: the review is greyed out under the overlay, ↻ is locked meanwhile.
@@ -821,7 +824,8 @@ test('AI review: the hint stays editable, ↻ analyzes again (asking after chang
   await expect(redo).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Meal eintragen' })).toBeDisabled();
   await expect(hint).toBeDisabled();
-  expect(hints).toEqual(['mit Butter', 'ohne Butter, mit Reis']);
+  // The overlay shows before the request leaves: wait until the route has it (and set `release`).
+  await expect.poll(() => hints).toEqual(['mit Butter', 'ohne Butter, mit Reis']);
   release!();
 
   // The new result replaces the rows; one queue item, the hint stays.

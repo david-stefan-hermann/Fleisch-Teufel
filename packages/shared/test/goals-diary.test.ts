@@ -109,7 +109,6 @@ describe('day summary & reports', () => {
       settings: { addExerciseCalories: true },
     });
     expect(s.food.ENERCC).toBe(1200);
-    expect(s.perMeal.map((m) => m.ENERCC ?? 0)).toEqual([500, 0, 700, 0]);
     expect(s.budgetKcal).toBe(2300);
     expect(s.remainingKcal).toBe(1100);
     const off = summarizeDay({

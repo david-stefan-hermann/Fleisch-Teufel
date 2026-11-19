@@ -105,6 +105,27 @@ describe('buildDayMeals', () => {
     expect(waiting.map((m) => [m.id, m.pending])).toEqual([['m1', ['foto']]]);
   });
 
+  it('puts every live entry into exactly one meal, so the cards add up to the day', () => {
+    const entries = [
+      entry('virtual', 0, at(8)),
+      entry('own', 3, at(10), { diaryMealId: 'snack1' }),
+      entry('second', 3, at(16), { diaryMealId: 'snack2' }),
+      entry('older app', 3, at(17)),
+      entry('moved by older app', 1, at(9), { diaryMealId: 'snack1' }),
+      entry('not arrived', 2, at(19), { diaryMealId: 'later' }),
+      entry('deleted record', 0, at(7), { diaryMealId: 'gone' }),
+      entry('tombstone', 2, at(18), { deleted: true }),
+    ];
+    const meals = build(entries, [
+      record('snack1', 3, at(10)),
+      record('snack2', 3, at(16)),
+      record('gone', 0, at(7), { deleted: true }),
+    ]);
+    const shown = meals.flatMap((m) => m.entries.map((e) => e.id));
+    const live = entries.filter((e) => !e.deleted).map((e) => e.id);
+    expect(shown.sort()).toEqual(live.sort());
+  });
+
   it('keeps an entry in a deleted record visible', () => {
     const meals = build(
       [entry('a', 0, at(8), { diaryMealId: 'm1' })],

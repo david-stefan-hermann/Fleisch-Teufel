@@ -10,6 +10,7 @@ import {
   computeItem,
   dayId,
   DEFAULT_MEAL_NAMES,
+  eatenAtOf,
   EXERCISE_TYPE_MAP,
   metFor,
   STEPS_MET,
@@ -41,45 +42,64 @@ if (res.status === 409 || res.status === 403)
 if (!res.ok) throw new Error(`auth failed: ${res.status} ${await res.text()}`);
 const cookie = /ft_session=[^;]+/.exec(res.headers.get('set-cookie') ?? '')![0];
 
-const food = async (id: string): Promise<Food> =>
-  ((await (await call(`/api/foods/${encodeURIComponent(id)}`, { cookie })).json()) as { food: Food }).food;
+const food = async (id: string): Promise<Food | undefined> => {
+  const r = await call(`/api/foods/${encodeURIComponent(id)}`, { cookie });
+  return r.ok ? ((await r.json()) as { food: Food }).food : undefined;
+};
 
-// Typical German meals from the BLS (code, label, grams, portion).
-const plan: { meal: number; items: [string, number, string?][] }[] = [
+// Typical German meals from the BLS (code, grams) at their usual time of day.
+const plan: { meal: number; at: [number, number]; items: [string, number][] }[] = [
   {
     meal: 0,
+    at: [7, 30],
     items: [
       ['C133000', 60],
       ['M141100', 200],
-      ['F503100', 150, 'Apfel'],
+      ['F503100', 150],
     ],
   },
   {
     meal: 1,
+    at: [12, 30],
     items: [
-      ['E411000', 250],
-      ['V411180', 150],
+      ['C352032', 250],
+      ['V416182', 150],
       ['G620100', 150],
     ],
   },
   {
     meal: 2,
+    at: [18, 45],
     items: [
-      ['B140000', 100, 'Scheibe'],
+      ['B271000', 100],
       ['M5B1600', 40],
-      ['G550100', 120],
+      ['G561100', 120],
     ],
   },
-  { meal: 3, items: [['H710100', 30]] },
+  { meal: 3, at: [15, 30], items: [['H120100', 30]] },
 ];
-const ids = [...new Set(plan.flatMap((p) => p.items.map((i) => i[0])))];
+const SNACK = 3;
+// Days in diary meals of their own (records in `diaryMeals`): two "Snacks", and an own name.
+const twoSnacks: [number, number][] = [
+  [10, 15],
+  [16, 0],
+];
+const OWN_MEAL = 'Kuchen bei Oma';
+const ownMeal: { at: [number, number]; items: [string, number][] } = {
+  at: [15, 0],
+  items: [
+    ['D480200', 120],
+    ['F503100', 100],
+  ],
+};
+const ids = [
+  ...new Set([...plan.flatMap((p) => p.items.map((i) => i[0])), ...ownMeal.items.map((i) => i[0])]),
+];
 const foods = new Map<string, Food>();
 for (const code of ids) {
-  try {
-    foods.set(code, await food(`bls:${code}`));
-  } catch {
-    /* code may not exist; skipped below */
-  }
+  // A code the catalog does not have is skipped below.
+  const f = await food(`bls:${code}`).catch(() => undefined);
+  if (f) foods.set(code, f);
 }
 
 const t = today();
@@ -101,6 +121,7 @@ records.push({
     weeklyRateKg: -0.41,
     goalKind: 'lose',
     mealNames: [...DEFAULT_MEAL_NAMES],
+    customMealNames: [OWN_MEAL],
     addExerciseCalories: true,
     onboardedAt: now,
   },
@@ -124,11 +145,15 @@ for (let d = 0; d <= 41; d++) {
       table: 'weightEntries',
       data: { id: dayId.weight(date), updatedAt: now, deleted: false, date, kg: round(kg, 1) },
     });
-  if (d === 41 && rnd() > 2) continue;
-  let i = 0;
-  for (const m of plan) {
-    if (m.meal === 3 && rnd() > 0.6) continue;
-    for (const [code, grams] of m.items) {
+  const minute = () => Math.round((rnd() - 0.5) * 30);
+  const logItems = (
+    items: readonly (readonly [string, number])[],
+    meal: number,
+    eatenAt: number,
+    diaryMealId: string | null,
+  ) => {
+    let i = 0;
+    for (const [code, grams] of items) {
       const f = foods.get(code);
       if (!f) continue;
       const g = round(grams * (0.8 + rnd() * 0.4), 0);
@@ -145,8 +170,10 @@ for (let d = 0; d <= 41; d++) {
           updatedAt: now,
           deleted: false,
           date,
-          meal: m.meal,
-          loggedAt: now + d * 100 + i++,
+          meal,
+          diaryMealId,
+          // Logged while eating, a minute apart.
+          loggedAt: eatenAt + i++ * 60_000,
           foodId: f.id,
           source: 'bls',
           name: f.name,
@@ -162,6 +189,39 @@ for (let d = 0; d <= 41; d++) {
         },
       });
     }
+  };
+  // A diary meal with a record of its own (a new meal as the app writes it).
+  const ownRecord = (name: string, slot: number, eatenAt: number) => {
+    const id = uuidv7();
+    records.push({
+      table: 'diaryMeals',
+      data: { id, updatedAt: now, deleted: false, date, name, eatenAt, slot, timeEdited: false },
+    });
+    return id;
+  };
+  for (const m of plan) {
+    const eatenAt = eatenAtOf(date, m.at[0], m.at[1] + minute());
+    // Today only up to now.
+    if (eatenAt > now) continue;
+    if (m.meal === SNACK) {
+      if (d % 7 === 3) {
+        // Two meals named "Snacks": both write index 3 and stay apart.
+        for (const [h, min] of twoSnacks) {
+          const at = eatenAtOf(date, h, min + minute());
+          if (at <= now) logItems(m.items, SNACK, at, ownRecord(DEFAULT_MEAL_NAMES[SNACK]!, SNACK, at));
+        }
+        continue;
+      }
+      // On a day with the own meal (index 3 as well) a snack without a record would join it.
+      if (rnd() > 0.6 || d % 7 === 5) continue;
+    }
+    // Everything else as entries without a record: the meal of their index.
+    logItems(m.items, m.meal, eatenAt, null);
+  }
+  if (d % 7 === 5) {
+    const at = eatenAtOf(date, ownMeal.at[0], ownMeal.at[1] + minute());
+    // Breakfast, lunch and dinner hold indexes 0 to 2: an own name shares index 3 with the snacks.
+    if (at <= now) logItems(ownMeal.items, SNACK, at, ownRecord(OWN_MEAL, SNACK, at));
   }
   // Steps as the Apple Health shortcut sends them (one record per day under `s:<date>`).
   const steps = Math.round(4_000 + rnd() * 8_000);

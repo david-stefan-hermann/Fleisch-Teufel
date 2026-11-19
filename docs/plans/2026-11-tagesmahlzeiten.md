@@ -19,8 +19,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 8     | ffbacaa | Uhrzeit-Dialog und Nacht                                | fertig |
 | 9     | 32e0f0f | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
 | 10    | c2451b3 | Assistent                                               | fertig |
-| 11    | s. Log  | Berichte, CSV, Tagesbild, Tag abschließen               | fertig |
-| 12    |         | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
+| 11    | bceace0 | Berichte, CSV, Tagesbild, Tag abschließen               | fertig |
+| 12    | s. Log  | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | fertig |
 | 13    |         | Doku                                                    | offen  |
 
 **Abweichungen während der Umsetzung**: hier eintragen, nicht still entscheiden.
@@ -158,6 +158,47 @@ Block 11:
   Index, den schon eine neue Mahlzeit (uuidv7) belegt, zählt er als eigene Mahlzeit, obwohl das Tagebuch ihn dieser Mahlzeit zuordnet.
   Der Tag kann dadurch zu früh als vollständig gelten.
 - Zusätzliche Tests: E2E „Tag abschließen“ in `day-meals.spec.ts`, Uhrzeit im Tagesbild in `share-day.spec.ts`.
+
+Block 12:
+
+- `seed-demo.ts`: Einträge tragen die Uhrzeit ihrer Mahlzeit (07:30, 12:30, 15:30, 18:45, je ± 15 Minuten, eine Minute Abstand), heute nur
+  bis jetzt. Jeder siebte Tag hat zwei „Snacks“ mit eigenem Datensatz (10:15 und 16:00), ein anderer „Kuchen bei Oma“ (eigener Name, auch in
+  `customMealNames`). An diesem Tag fehlen die Snacks ohne Datensatz, sie kämen über Regel 3 in „Kuchen bei Oma“ (gleicher Index).
+- Gefunden und behoben: Vier BLS-Codes des Skripts gab es nicht (Mittagessen, Abendessen, Snacks waren dünn oder leer), die Zählung
+  „N/N foods found“ zählte Fehlantworten mit. Ersetzt durch Reis, Hähnchenbrust, Roggenmischbrot, Tomate, Walnuss; nur Antworten mit `ok` zählen.
+- `summarizeDay` summiert `food` jetzt direkt über die lebenden Einträge, `perMeal` und `mealCount` sind entfallen. Verwaiste Importe von
+  `MEAL_COUNT` gab es keine.
+- Alt-Daten: Ein Konto, das mit dem Skript von vor diesem Block angelegt wurde, zeigt alte Tage in Fachreihenfolge mit den typischen
+  Uhrzeiten (alle `loggedAt` lagen am Tag des Anlegens), Summen wie vorher.
+- Sichtprüfung im Produktions-Build über die API (375 px, hell und dunkel, neben Mockup A, B, C, F): Karten, Zeitzeile, Namensauswahl,
+  Zeit-Dialog und „Mahlzeiten-Namen“ stimmen mit dem Mockup überein.
+- E2E-Wackler, alle drei Testfehler: `meals-goals.spec.ts` „AI review: … ↻“ prüfte `hints` vor der zweiten Anfrage (jetzt `expect.poll`) und
+  klickte ↻, während der erste Dialog noch ausblendete; die Seite dahinter ist dann für die Barrierefreiheit verborgen, der Locator traf das
+  „Neu analysieren“ des Dialogs (jetzt Warten, bis er weg ist). `day-meals.spec.ts` „a meal dragged empty“ fand den Toast-Text auch in der
+  Ansage von dnd-kit („… verschoben.“, jetzt `exact`). Beide danach 25 Läufe grün. „within 30 minutes“, `diary-training.spec.ts:459`,
+  `meals-goals.spec.ts:276` liefen je 23-mal ohne Fehler, ein Wettlauf war dort nicht zu belegen.
+- Im Gesamtlauf zusätzlich gefunden: `ios-layout.spec.ts` „reports, goals, progress …“ navigierte direkt nach der Registrierung, während die
+  App noch auf die Onboarding-Seite wechselte („Frame load interrupted“); jetzt mit `toPass` wie die beiden anderen Tests der Datei.
+- **Offen, kein Testfehler belegbar**: `meals-goals.spec.ts:146` „edit a saved meal“ fiel in 2 von 47 Läufen, immer gleich: Das Foto, das
+  direkt nach dem Drehen des Mengen-Rädchens gewählt wird, erscheint nicht. Vermutlich überschreiben sich im Meal-Editor zwei
+  Entwurfs-Schreibvorgänge: `pick` in `PhotoSection` setzt `photo: 'pending'` auf den Entwurf von vor `await compressImage`, das Rädchen
+  meldet sein Ende erst nach `SETTLE_MS`. Das wäre ein Fehler der App, nicht geändert.
+
+**Was sich nicht ändern darf** (Block 12, einzeln geprüft):
+
+- [x] Summen: `summarizeDay` rechnet über alle lebenden Einträge des Tages (`goals-diary.test.ts`); neu in `day-meals.test.ts`: jeder lebende Eintrag steht in genau einer Mahlzeit, die Karten ergeben den Tag.
+- [x] `foodEntries.meal` bleibt 0 bis 3 (Schema) und wird von jedem Weg über `applyLogTarget` geschrieben (`day-meals-write.test.ts`).
+- [x] Der Server schreibt keine Mahlzeiten: `diaryMeals` liest auf dem Server nur `assistant/host.ts`, sonst nur der generische Sync.
+- [x] Wischen, Rückgängig, Gruppen-Editor, Zwischenablage: E2E `diary-training.spec.ts`, `meals-goals.spec.ts` (Zwischenablage), grün.
+- [x] Langes Drücken zieht: `DRAG_ACTIVATION` und Sensoren unverändert, E2E „touch: long press drags“ grün.
+- [x] Navigation: E2E „back means the page before“ grün (auch wiederholt).
+- [x] KI: `requestId`, Doppeltipp trägt einmal ein, `logReview` in einer Transaktion, `leaveAnalysis` (E2E und `meals-photos.test.ts`).
+- [x] Assistent: Operationen laufen auf dem Gerät in einer Transaktion mit Rückgängig (`assistant-execute.test.ts`).
+- [x] Training, Schritte, Gewicht, Notiz, „Tag abschließen“, „Alle vergangenen Tage abschließen“: E2E grün.
+- [x] CSV: bestehende Spalten an ihrer Stelle, „Uhrzeit“ am Ende (`write.test.ts`).
+- [x] `MIN_MEALS_COMPLETE` ist 2.
+- [x] Sicherung, Wiederherstellung, Epoche ohne Dialog (`device-sync.test.ts`).
+- [x] Keine Erklärtexte, Wortwahl, keine Halbgeviert- oder Geviertstriche im Diff seit `feda5d7`.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

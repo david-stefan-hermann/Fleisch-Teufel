@@ -112,7 +112,6 @@ export interface DaySummary {
   date: ISODate;
   targets: ResolvedTargets;
   food: NutrientMap;
-  perMeal: NutrientMap[];
   /** All trainings of the day, steps included. */
   exerciseKcal: number;
   /** The part of `exerciseKcal` from the day's steps (Apple Health). */
@@ -153,17 +152,12 @@ export function summarizeDay(params: {
   exercises: readonly ExerciseEntry[];
   goals: readonly Goal[];
   settings: (Pick<Settings, 'addExerciseCalories'> & Partial<Pick<Settings, 'addStepsCalories'>>) | undefined;
-  mealCount?: number;
 }): DaySummary {
   const { date } = params;
-  const mealCount = params.mealCount ?? 4;
   const entries = params.entries.filter((e) => !e.deleted && e.date === date);
   // Steps count once per day, only under their fixed id (`isStraySteps`).
   const exercises = params.exercises.filter((e) => !e.deleted && e.date === date && !isStraySteps(e));
-  const perMeal = Array.from({ length: mealCount }, (_, m) =>
-    sumNutrients(entries.filter((e) => e.meal === m).map((e) => e.nutrients)),
-  );
-  const food = sumNutrients(perMeal);
+  const food = sumNutrients(entries.map((e) => e.nutrients));
   const targets = targetsForDate(params.goals, date);
   const exerciseKcal = round(
     exercises.reduce((s, e) => s + e.kcal, 0),
@@ -179,7 +173,6 @@ export function summarizeDay(params: {
     date,
     targets,
     food,
-    perMeal,
     exerciseKcal,
     stepsKcal,
     creditedKcal,

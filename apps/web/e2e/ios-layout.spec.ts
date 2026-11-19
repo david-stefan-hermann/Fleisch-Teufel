@@ -189,8 +189,12 @@ test.describe('375 px (iPhone mini and SE)', () => {
     await expect(page).toHaveURL(/\/onboarding$/);
     const fitsScreen = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 
-    // A day with large macros (long numbers in the report rows) and a weight for the chart.
-    await page.goto('/photo?form=1&meal=0');
+    // A day with large macros (long numbers in the report rows) and a weight for the chart. The app may
+    // still be settling on the onboarding page and interrupt this navigation.
+    await expect(async () => {
+      await page.goto('/photo?form=1&meal=0');
+      await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible({ timeout: 2_000 });
+    }).toPass();
     await page.getByLabel('Was hast du gegessen?').fill('Großes Frühstück');
     await page.getByLabel('Kalorien').fill('1385');
     await page.getByLabel('Protein').fill('104');
