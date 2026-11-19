@@ -2,6 +2,7 @@ export * from './assistant.js';
 export * from './barcode.js';
 export * from './csv.js';
 export * from './dates.js';
+export * from './dayMeals.js';
 export * from './diary.js';
 export * from './exercise.js';
 export * from './expenditure.js';

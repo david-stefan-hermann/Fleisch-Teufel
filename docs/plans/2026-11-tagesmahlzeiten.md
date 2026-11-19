@@ -7,21 +7,21 @@ Implementierungsplan für die umsetzende Sitzung. Das Mockup ist abgenommen
 
 Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese Tabelle.
 
-| Block | Commit | Inhalt                                                  | Stand  |
-| ----- | ------ | ------------------------------------------------------- | ------ |
-| 1     | dieser | Datenmodell, Migration `0020`, Dexie v7, Sync           | fertig |
-| 2     |        | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | offen  |
-| 3     |        | Schreibschicht auf dem Gerät                            | offen  |
-| 4     |        | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | offen  |
-| 5     |        | KI-Warteschlange, verzögerte Analysen, Entwürfe         | offen  |
-| 6     |        | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
-| 7     |        | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
-| 8     |        | Uhrzeit-Dialog und Nacht                                | offen  |
-| 9     |        | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
-| 10    |        | Assistent                                               | offen  |
-| 11    |        | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
-| 12    |        | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
-| 13    |        | Doku                                                    | offen  |
+| Block | Commit  | Inhalt                                                  | Stand  |
+| ----- | ------- | ------------------------------------------------------- | ------ |
+| 1     | 16d149e | Datenmodell, Migration `0020`, Dexie v7, Sync           | fertig |
+| 2     | dieser  | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | fertig |
+| 3     |         | Schreibschicht auf dem Gerät                            | offen  |
+| 4     |         | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | offen  |
+| 5     |         | KI-Warteschlange, verzögerte Analysen, Entwürfe         | offen  |
+| 6     |         | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
+| 7     |         | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
+| 8     |         | Uhrzeit-Dialog und Nacht                                | offen  |
+| 9     |         | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
+| 10    |         | Assistent                                               | offen  |
+| 11    |         | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
+| 12    |         | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
+| 13    |         | Doku                                                    | offen  |
 
 **Abweichungen während der Umsetzung**: hier eintragen, nicht still entscheiden.
 
