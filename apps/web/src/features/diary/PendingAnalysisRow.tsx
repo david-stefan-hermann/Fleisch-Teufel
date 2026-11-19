@@ -67,7 +67,7 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
         <div className="min-w-0 flex-1">
           <Link
             to="/photo"
-            search={{ date: item.date, meal: item.meal }}
+            search={{ date: item.date, meal: item.meal, dm: item.diaryMealId ?? undefined }}
             onClick={() => rememberStart(item.date)}
             draggable={false}
             className="block truncate font-medium after:absolute after:inset-0 focus-visible:outline-none"

@@ -924,6 +924,92 @@ test('a photo taken offline shows in the diary right away and is logged once ana
   await expect(page.getByRole('button', { name: /Lebensmittel erkannt/ })).toHaveCount(0);
 });
 
+test('a photo taken offline for a new meal waits in it and creates it once analysed', async ({
+  page,
+  context,
+}) => {
+  await register(page);
+  await page.route('**/api/ai/status', (r) =>
+    r.fulfill({ json: { enabled: true, model: 'claude-opus-5-5' } }),
+  );
+  await page.goto('/photo?dm=new');
+  const picker = page.getByRole('button', { name: /^Mahlzeit: / });
+  await expect(picker).toContainText('Frühstück');
+  await expect(picker).toContainText('Neu');
+  await context.setOffline(true);
+  await page.locator('input[type=file]:not([capture])').setInputFiles('public/pwa-192x192.png');
+  await page.getByRole('button', { name: 'Analysieren' }).click();
+  await expect(page.getByText(/^Offline gespeichert\./)).toBeVisible();
+
+  const breakfast = page.locator('section', { has: page.getByRole('link', { name: /^Frühstück/ }) });
+  const waiting = breakfast.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
+  await expect(waiting).toContainText('Gespeichert, wird analysiert, sobald du online bist');
+
+  // The "+" of the tab bar stays in the meal the photo waits in: its name and time are fixed already.
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Eintragen', exact: true })
+    .getByRole('button', { name: 'Essen eintragen' })
+    .click();
+  await expect(picker).toContainText('Frühstück');
+  await expect(picker).not.toContainText('Neu');
+  const time = (await picker.textContent())!.match(/\d\d:\d\d/)![0];
+  await page.goBack();
+
+  await page.route('**/api/ai/analyze', (r) =>
+    r.fulfill({
+      json: {
+        analysisId: '00000000-0000-7000-8000-00000000000a',
+        dishName: 'Porridge',
+        items: [
+          {
+            name: 'Porridge',
+            grams: 200,
+            confidence: 'high',
+            preparation: null,
+            packaged: false,
+            searchTerms: [],
+            candidates: [
+              {
+                food: {
+                  id: 'bls:P',
+                  source: 'bls',
+                  sourceId: 'P',
+                  name: 'Porridge',
+                  nameEn: null,
+                  brand: null,
+                  group: null,
+                  unit: 'g',
+                  nutrients: { ENERCC: 100, PROT625: 5, CHO: 15, FAT: 2 },
+                  portions: [],
+                },
+                score: 1,
+              },
+            ],
+          },
+        ],
+        notes: null,
+        model: 'claude-opus-5-5',
+        usage: { inputTokens: 1, outputTokens: 1, costUsd: 0.01 },
+      },
+    }),
+  );
+  await context.setOffline(false);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.getByText('„Porridge“ analysiert und eingetragen')).toBeVisible();
+  await expect(waiting).toHaveCount(0);
+  await expect(breakfast.getByText('Porridge', { exact: true })).toBeVisible();
+
+  // The meal now exists with the name and time it got when the photo was queued.
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Eintragen', exact: true })
+    .getByRole('button', { name: 'Essen eintragen' })
+    .click();
+  await expect(picker).toContainText('Frühstück');
+  await expect(picker).toContainText(time);
+});
+
 test('leaving during the analysis goes to the diary; the result is logged there, the review never opens', async ({
   page,
 }) => {
@@ -1097,10 +1183,12 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
   await page.getByRole('button', { name: 'Fotos hinzufügen' }).click();
   await addInSheet('Fotos hinzufügen', 'public/pwa-192x192.png');
   await expect(page.getByText('1 Foto noch nicht analysiert')).toBeVisible();
-  await expect(page.getByText('Neu', { exact: true })).toBeVisible();
+  // The badge on the photo; the meal select of the review can say "Neu" too.
+  const newPhotoBadge = page.locator('span.pointer-events-none', { hasText: /^Neu$/ });
+  await expect(newPhotoBadge).toBeVisible();
   await page.getByRole('button', { name: 'Neu analysieren' }).click();
   await expect.poll(() => sent).toEqual([2, 3]);
-  await expect(page.getByText('Neu', { exact: true })).toHaveCount(0);
+  await expect(newPhotoBadge).toHaveCount(0);
   await page.getByRole('button', { name: 'Meal eintragen' }).click();
 
   // Diary: one group row with three photos.

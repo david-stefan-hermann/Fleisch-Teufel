@@ -6,10 +6,11 @@ import type { AiAnalysisResult, Food, Portion } from '@ft/shared';
 import type { AiDraft, AiDraftRow, AiQueueItem, UserDb } from './dexie';
 
 /** Initial rows from the analysis: first candidate preselected, grams rounded. */
-export function draftFromResult(item: Pick<AiQueueItem, 'meal' | 'result'>): AiDraft {
+export function draftFromResult(item: Pick<AiQueueItem, 'meal' | 'diaryMealId' | 'result'>): AiDraft {
   const result = item.result as AiAnalysisResult;
   return {
     meal: item.meal,
+    ...(item.diaryMealId ? { diaryMealId: item.diaryMealId } : {}),
     mealName:
       result.dishName ??
       (result.items

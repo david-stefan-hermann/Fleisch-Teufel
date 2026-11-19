@@ -12,8 +12,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 1     | 16d149e | Datenmodell, Migration `0020`, Dexie v7, Sync           | fertig |
 | 2     | 573e8b6 | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | fertig |
 | 3     | 44c195d | Schreibschicht auf dem Gerät                            | fertig |
-| 4     | s. Log  | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
-| 5     |         | KI-Warteschlange, verzögerte Analysen, Entwürfe         | offen  |
+| 4     | 709fb96 | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
+| 5     | s. Log  | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
 | 6     |         | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
 | 7     |         | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
 | 8     |         | Uhrzeit-Dialog und Nacht                                | offen  |
@@ -40,6 +40,24 @@ Block 4:
   Mahlzeit wird also nur über ihre Zeilen gefunden. `ReviewStep` und `MealCard` sind deshalb nur dafür angefasst.
 - Bekannte Grenze: Hat eine ältere App einen Eintrag in ein anderes Fach gezogen, zeigt `entryMealKey` noch auf die alte
   Mahlzeit, das „+“ der Tab-Leiste landet bis 30 Minuten danach dort.
+
+Block 5:
+
+- Der Übergang aus Block 4 ist geschlossen: Analysen behalten die gewählte Mahlzeit vom Einreihen bis zum Eintragen.
+- `buildDayMeals` blieb unverändert, es konnte wartende Analysen schon. Neu sind die Lesewege in `db/diaryMeals.ts`:
+  `readDay` liefert, was das Tagebuch zeigt (`isWaitingAnalysis`, dieselbe Regel wie `usePendingAnalyses`).
+- Neu `readPlannedDay` für Auswahl und Ziel: Eine Analyse in ihrer Prüfung hat keine Zeile im Tagebuch, die von ihr begonnene
+  Mahlzeit bleibt aber wählbar und belegt Name und Index. Sonst bekäme die nächste neue Mahlzeit denselben Namen.
+- `moveEntriesToDiaryMeal` und `placeMovedEntry` lesen den Tag ohne Warteschlange, weil ihre Transaktionen `aiQueue` nicht
+  enthalten. Wird ein Eintrag in eine Mahlzeit gezogen, die nur eine wartende Analyse kennt, entsteht ihr Datensatz dabei.
+- Ein Link nur mit `meal` wählt keine Mahlzeit, die nur über ihre Id bekannt ist (`mealOfSlot`): Die Anzeige folgt damit Regel 3,
+  nach der auch geschrieben wird.
+- Wer in der Prüfung „Neue Mahlzeit“ wählt, bekommt Id, Name und Uhrzeit erst beim Eintragen (`diaryMealId: 'new'` im Entwurf).
+- Die Mahlzeit-Auswahl der Prüfung zeigt wie Mockup D „Neu“ für eine Mahlzeit ohne Eintrag. `meals-goals.spec.ts` sucht das
+  „Neu“ auf dem Foto deshalb gezielt am Foto.
+- `QueueList.tsx` brauchte keine Änderung, `hooks/data.ts` und `db/diaryMeals.ts` kamen zur Dateiliste dazu.
+- Übergang bis Block 6: Das Tagebuch zeigt wartende Analysen weiter in den vier Fächern (`p.meal`), `useDayMeals` liefert sie
+  schon in ihrer Mahlzeit.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

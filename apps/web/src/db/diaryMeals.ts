@@ -16,9 +16,13 @@ import {
   type DiaryMeal,
   type FoodEntry,
   type ISODate,
+  type PendingMealItem,
 } from '@ft/shared';
-import type { UserDb } from './dexie';
+import type { AiQueueItem, UserDb } from './dexie';
 import { saveRecord, patchRecord, upsertRecord } from './write';
+
+/** A meal of a day on this device: the analyses that still wait stand in it. */
+export type DiaryDayMeal = DayMeal<AiQueueItem>;
 
 /** Where the next entries go. `{ date, meal }` alone still means the old slot. */
 export interface LogTarget {
@@ -64,18 +68,79 @@ async function mealNames(db: UserDb) {
   return { standard, unrecorded: settings?.legacyMealNames ?? standard };
 }
 
-export async function readDay(db: UserDb, date: ISODate): Promise<DayMeal[]> {
+/**
+ * An analysis that shows as a row of its meal: not analysed yet, or analysed and its logging failed.
+ * It lives on this device only and counts in no sum.
+ */
+export function isWaitingAnalysis(item: AiQueueItem): boolean {
+  return !item.result || (!!item.deferred && item.status === 'failed');
+}
+
+/** An analysis at the meal it was queued for. */
+function queuedAt(item: AiQueueItem, meal: number, picked: string | null): PendingMealItem<AiQueueItem> {
+  const begins = picked !== null && picked === item.diaryMealId ? item.newMeal : undefined;
+  return {
+    value: item,
+    meal,
+    diaryMealId: picked,
+    name: begins?.name ?? null,
+    eatenAt: begins?.eatenAt ?? null,
+    at: item.createdAt,
+  };
+}
+
+/** A waiting analysis in the meal it will be logged into: a choice in its review goes first. */
+function waitingIn(item: AiQueueItem): PendingMealItem<AiQueueItem> {
+  const picked = item.draft?.diaryMealId ?? item.diaryMealId ?? null;
+  return queuedAt(item, item.draft?.meal ?? item.meal, picked === 'new' ? null : picked);
+}
+
+const queueOfDay = (db: UserDb, date: ISODate, keep: (item: AiQueueItem) => boolean) =>
+  db.aiQueue.filter((i) => i.date === date && keep(i)).sortBy('createdAt');
+
+async function buildDay(
+  db: UserDb,
+  date: ISODate,
+  pending: readonly PendingMealItem<AiQueueItem>[],
+): Promise<DiaryDayMeal[]> {
   const [entries, records, names] = await Promise.all([
     db.foodEntries.where('date').equals(date).toArray(),
     db.diaryMeals.where('date').equals(date).toArray(),
     mealNames(db),
   ]);
-  return buildDayMeals({ date, entries, records, names: names.unrecorded });
+  return buildDayMeals({ date, entries, records, pending, names: names.unrecorded });
+}
+
+/** The meals of a day as the diary shows them. */
+export async function readDay(db: UserDb, date: ISODate): Promise<DiaryDayMeal[]> {
+  return buildDay(db, date, (await queueOfDay(db, date, isWaitingAnalysis)).map(waitingIn));
+}
+
+/**
+ * The meals a new entry can go to or must not collide with: the diary's, and the meal an analysis
+ * in its review began. That one has no row in the diary, but its name and index are taken.
+ */
+async function readPlannedDay(db: UserDb, date: ISODate): Promise<DiaryDayMeal[]> {
+  const items = await queueOfDay(db, date, (i) => isWaitingAnalysis(i) || !!i.newMeal);
+  const pending = items.map((i) =>
+    isWaitingAnalysis(i) ? waitingIn(i) : queuedAt(i, i.meal, i.diaryMealId ?? null),
+  );
+  return buildDay(db, date, pending);
+}
+
+/** Name and time of a meal that so far exists only through an analysis waiting for it. */
+function queuedNewMeal(meal: DiaryDayMeal): { name: string; eatenAt: number } | null {
+  if (!meal.virtual) return null;
+  const begins = meal.pending.find((i) => i.diaryMealId === meal.id && i.newMeal)?.newMeal;
+  return begins ? { name: begins.name, eatenAt: begins.eatenAt } : null;
 }
 
 /** The meal an entry without a meal of its own joins at `at` (see `buildDayMeals`). */
 function mealOfSlot(day: readonly DayMeal[], slot: number, at: number): DayMeal | undefined {
-  const ofSlot = day.filter((m) => m.slot === slot).sort((a, b) => a.eatenAt - b.eatenAt);
+  const ofSlot = day
+    // A meal known only by its id takes nothing that names just an index.
+    .filter((m) => m.slot === slot && (!m.virtual || unrecordedSlot(m.id) !== null))
+    .sort((a, b) => a.eatenAt - b.eatenAt);
   const recorded = ofSlot.filter((m) => !m.virtual);
   const from = recorded.length > 0 ? recorded : ofSlot;
   return from.filter((m) => m.eatenAt <= at).at(-1) ?? from[0];
@@ -83,7 +148,7 @@ function mealOfSlot(day: readonly DayMeal[], slot: number, at: number): DayMeal 
 
 /** The next automatic meal of a day: its name and the index its entries write. */
 export async function readNextMeal(db: UserDb, date: ISODate): Promise<MealChoice['next']> {
-  const [day, { standard }] = await Promise.all([readDay(db, date), mealNames(db)]);
+  const [day, { standard }] = await Promise.all([readPlannedDay(db, date), mealNames(db)]);
   const name = nextMealName(standard, day);
   return { name, slot: slotForNewMeal(name, standard, day) };
 }
@@ -95,7 +160,7 @@ export async function readMealChoice(
   at = Date.now(),
 ): Promise<MealChoice> {
   const [meals, next, { unrecorded }] = await Promise.all([
-    readDay(db, date),
+    readPlannedDay(db, date),
     readNextMeal(db, date),
     mealNames(db),
   ]);
@@ -129,7 +194,7 @@ export async function readMealChoice(
 export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now()): Promise<LogTarget> {
   const { date, meal, dm } = ref;
   if (!dm) return { date, meal, diaryMealId: null };
-  const day = await readDay(db, date);
+  const day = await readPlannedDay(db, date);
   if (dm === 'new') {
     const { standard } = await mealNames(db);
     const name = ref.name?.trim() || nextMealName(standard, day);
@@ -142,8 +207,12 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
   }
   const shown = day.find((m) => m.id === dm);
   // A meal without a record stays without one: its entries find it through their index.
-  if (shown)
-    return { date, meal: shown.slot, diaryMealId: shown.virtual && unrecordedSlot(dm) !== null ? null : dm };
+  if (shown?.virtual && unrecordedSlot(dm) !== null) return { date, meal: shown.slot, diaryMealId: null };
+  if (shown) {
+    // Whoever logs first into a meal an analysis began writes its record.
+    const create = queuedNewMeal(shown);
+    return { date, meal: shown.slot, diaryMealId: dm, ...(create && { create }) };
+  }
   const record = await db.diaryMeals.get(dm);
   if (record) return { date, meal: record.slot, diaryMealId: record.id };
   return { date, meal: unrecordedSlot(dm) ?? meal, diaryMealId: null };
@@ -184,9 +253,13 @@ function recordOf(meal: DayMeal): Omit<DiaryMeal, 'updatedAt' | 'deleted'> {
   return { id, date, name, eatenAt, slot, timeEdited };
 }
 
-/** Writes down a meal that exists only through its entries, so its name and time stay as they are. */
-async function keepMeal(db: UserDb, meal: DayMeal): Promise<void> {
-  if (unrecordedSlot(meal.id) !== null && !(await db.diaryMeals.get(meal.id))) {
+/**
+ * Writes down a meal that exists only through its entries or a waiting analysis, so its name and
+ * time stay as they are.
+ */
+async function keepMeal(db: UserDb, meal: DiaryDayMeal): Promise<void> {
+  const unrecorded = unrecordedSlot(meal.id) !== null || queuedNewMeal(meal) !== null;
+  if (unrecorded && !(await db.diaryMeals.get(meal.id))) {
     await saveRecord(db, 'diaryMeals', recordOf(meal));
   }
 }
@@ -195,10 +268,11 @@ async function keepMeal(db: UserDb, meal: DayMeal): Promise<void> {
 export async function moveEntriesToDiaryMeal(
   db: UserDb,
   ids: readonly string[],
-  target: DayMeal,
+  target: DiaryDayMeal,
 ): Promise<EntryMealPlace[]> {
   return db.transaction('rw', [db.foodEntries, db.diaryMeals, db.settings, db.outbox], async () => {
-    const day = await readDay(db, target.date);
+    // The queue is outside this transaction, and only the entries matter here.
+    const day = await buildDay(db, target.date, []);
     const moved: EntryMealPlace[] = [];
     for (const id of ids) {
       const prev = await db.foodEntries.get(id);
@@ -224,7 +298,8 @@ export async function placeMovedEntry(
   id: string,
   target: LogTarget,
 ): Promise<{ meal: number; diaryMealId: string | null }> {
-  const day = await readDay(db, target.date);
+  // The caller's transaction does not hold the queue; a meal only an analysis knows has `target.create`.
+  const day = await buildDay(db, target.date, []);
   const source = day.find((m) => m.entries.some((e) => e.id === id));
   const into = day.find((m) => m.id === mealIdOf(target));
   if (source) await keepMeal(db, source);

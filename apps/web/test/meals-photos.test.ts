@@ -14,7 +14,14 @@ import {
   updateDraft,
 } from '@/db/aiDraft';
 import { UserDb, type AiDraft } from '@/db/dexie';
-import { addItemToMeal, aiMealItems } from '@/db/entries';
+import {
+  moveEntriesToDiaryMeal,
+  prepareMealTarget,
+  readDay,
+  readMealChoice,
+  readNextMeal,
+} from '@/db/diaryMeals';
+import { addItemToMeal, aiMealItems, logItems } from '@/db/entries';
 import {
   addItemsToMealDraft,
   addItemToMealDraft,
@@ -56,6 +63,7 @@ import {
 } from '@/features/ai/queue';
 import { patchRecord, saveRecord } from '@/db/write';
 import { parseInto, formatInto, returnFromInto, rememberIntoStart } from '@/lib/into';
+import { logTargetFor } from '@/lib/meals';
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 
@@ -932,6 +940,239 @@ describe('AI review: re-analyze with the hint', () => {
     server(analysis('Brot', 60));
     const plain = await enqueueDescription(d, { date: '2026-10-07', meal: 1, text: 'Brot' });
     expect((await d.aiQueue.get(plain))!.typed).toBeUndefined();
+  });
+
+  describe('the meal of the day an analysis goes to', () => {
+    const DATE = '2026-10-07';
+    const offline = () =>
+      vi.stubGlobal('fetch', async () => {
+        throw new TypeError('Failed to fetch');
+      });
+    const record = (d: UserDb, id: string, name: string, slot: number, eatenAt: number) =>
+      saveRecord(d, 'diaryMeals', { id, date: DATE, name, slot, eatenAt, timeEdited: false });
+    /** Queues a photo while offline, so that it waits. */
+    async function waiting(d: UserDb, dm?: string, meal = 0) {
+      offline();
+      const id = await enqueuePhotos(d, { date: DATE, meal, dm, text: '' }, [jpeg()]);
+      await processQueue(d);
+      return id;
+    }
+
+    it('logs an item of the older app version into its index, without a record', async () => {
+      const d = db();
+      server(analysis('Nudeln', 250));
+      await d.aiQueue.add({
+        date: DATE,
+        meal: 2,
+        text: 'Nudeln',
+        textOnly: true,
+        status: 'pending',
+        deferred: true,
+        createdAt: 1,
+      });
+      await processQueue(d);
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 2, diaryMealId: null });
+      expect(await d.diaryMeals.count()).toBe(0);
+      expect((await readDay(d, DATE)).map((m) => m.id)).toEqual([`dm:${DATE}:2`]);
+    });
+
+    it('shows an item of the older app version in the meal of its index', async () => {
+      const d = db();
+      await record(d, 'lunch', 'Mittag', 1, 1000);
+      await d.aiQueue.add({ date: DATE, meal: 1, text: '', status: 'pending', createdAt: 2000 });
+      const [meal] = await readDay(d, DATE);
+      expect(meal).toMatchObject({ id: 'lunch', entries: [] });
+      expect(meal!.pending).toHaveLength(1);
+    });
+
+    it('fixes a new meal when queued and writes it with the entries, however late', async () => {
+      const d = db();
+      const id = await waiting(d, 'new');
+      const item = (await d.aiQueue.get(id))!;
+      const mealId = item.diaryMealId!;
+      expect(item).not.toHaveProperty('dm');
+      expect(item.newMeal).toMatchObject({ name: 'Frühstück', slot: 0 });
+      const { eatenAt } = item.newMeal!;
+      // Waiting: a meal to see, but nothing written.
+      expect(await readDay(d, DATE)).toMatchObject([
+        { id: mealId, name: 'Frühstück', eatenAt, virtual: true, entries: [] },
+      ]);
+      expect(await d.diaryMeals.count()).toBe(0);
+      expect(await d.outbox.count()).toBe(0);
+
+      vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 5 * 3_600_000 });
+      try {
+        server(analysis('Nudeln', 250));
+        await processQueue(d);
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(await d.diaryMeals.get(mealId)).toMatchObject({ name: 'Frühstück', eatenAt, slot: 0 });
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 0, diaryMealId: mealId });
+      expect(await readDay(d, DATE)).toMatchObject([{ id: mealId, virtual: false, pending: [] }]);
+    });
+
+    it('writes no meal when the entries of the analysis cannot be written', async () => {
+      const d = db();
+      const id = await waiting(d, 'new');
+      server({ ...analysis('Kaputt', 1), items: [{ ...analysis('Kaputt', 1).items[0]!, grams: 1e9 }] });
+      await processQueue(d);
+      expect((await d.aiQueue.get(id))!.status).toBe('failed');
+      expect(await d.diaryMeals.count()).toBe(0);
+      expect(await d.foodEntries.count()).toBe(0);
+      // Its row stays in the meal it was queued for.
+      expect((await readDay(d, DATE))[0]!.pending).toHaveLength(1);
+    });
+
+    it('logs once when the queue runs twice at the same time', async () => {
+      const d = db();
+      await waiting(d, 'new');
+      server(analysis('Nudeln', 250));
+      await Promise.all([processQueue(d), processQueue(d)]);
+      await processQueue(d);
+      expect(await d.foodEntries.count()).toBe(1);
+      expect(await d.diaryMeals.count()).toBe(1);
+    });
+
+    it('lands in the meal picked when two meals share an index', async () => {
+      const d = db();
+      await record(d, 'first', 'Kuchen', 3, 1000);
+      await record(d, 'second', 'Eis', 3, 2000);
+      const id = await waiting(d, 'first', 3);
+      const day = await readDay(d, DATE);
+      expect(day.find((m) => m.id === 'first')!.pending.map((i) => i.localId)).toEqual([id]);
+      expect(day.find((m) => m.id === 'second')).toBeUndefined();
+
+      server(analysis('Torte', 120));
+      await processQueue(d);
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 3, diaryMealId: 'first' });
+      expect((await readDay(d, DATE)).map((m) => m.id)).toEqual(['first']);
+    });
+
+    it('keeps the meal picked in the review through a new analysis', async () => {
+      const d = db();
+      await record(d, 'first', 'Kuchen', 3, 1000);
+      await record(d, 'second', 'Eis', 3, 2000);
+      server(analysis('Torte', 120), analysis('Torte', 200));
+      const id = await enqueuePhotos(d, { date: DATE, meal: 3, dm: 'first', text: '' }, [jpeg()]);
+      await processQueue(d);
+      const review = (await d.aiQueue.get(id))!;
+      await d.aiQueue.update(id, { draft: { ...draftFromResult(review), diaryMealId: 'second' } });
+
+      await reanalyze(d, id, 'größer');
+      const item = (await d.aiQueue.get(id))!;
+      expect(item.draft).toMatchObject({ diaryMealId: 'second', meal: 3 });
+      expect(item.draft!.rows[0]!.grams).toBe(200);
+      const items = [{ food: food('bls:Torte', 'Torte', 300), grams: 200 }];
+      const { meal, diaryMealId } = item.draft!;
+      await logReview(d, { item, name: 'Torte', items, meal, diaryMealId, savedMealId: null });
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 3, diaryMealId: 'second' });
+    });
+
+    it('logs a deferred analysis into the meal its review picked', async () => {
+      const d = db();
+      await record(d, 'first', 'Kuchen', 3, 1000);
+      await record(d, 'second', 'Eis', 3, 2000);
+      server(analysis('Torte', 120));
+      const id = await enqueuePhotos(d, { date: DATE, meal: 3, dm: 'first', text: '' }, [jpeg()]);
+      await processQueue(d);
+      const review = (await d.aiQueue.get(id))!;
+      await d.aiQueue.update(id, {
+        deferred: true,
+        draft: { ...draftFromResult(review), diaryMealId: 'second' },
+      });
+      await processQueue(d);
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 3, diaryMealId: 'second' });
+    });
+
+    it('leaves no meal behind when the analysis is discarded', async () => {
+      const d = db();
+      const id = await waiting(d, 'new');
+      await discardQueueItem(d, id);
+      expect(await d.diaryMeals.count()).toBe(0);
+      expect(await d.outbox.count()).toBe(0);
+      expect(await readDay(d, DATE)).toEqual([]);
+    });
+
+    it('lets the next analysis join the meal and the first to log write it', async () => {
+      const d = db();
+      const first = await waiting(d, 'new');
+      const queued = (await d.aiQueue.get(first))!;
+      const mealId = queued.diaryMealId!;
+      // The "+" of the tab bar finds the meal of the waiting photo, the sums do not know it.
+      const now = queued.createdAt + 60_000;
+      expect(
+        logTargetFor({ shownDate: DATE, today: DATE, now, entries: [], pending: [queued] }),
+      ).toMatchObject({ dm: mealId, meal: 0 });
+      const second = await waiting(d, mealId);
+      expect((await d.aiQueue.get(second))!.newMeal).toEqual(queued.newMeal);
+      const [meal] = await readDay(d, DATE);
+      expect(meal!.pending.map((i) => i.localId)).toEqual([first, second]);
+      expect(await readNextMeal(d, DATE)).toEqual({ name: 'Mittagessen', slot: 1 });
+
+      await discardQueueItem(d, first);
+      server(analysis('Nudeln', 250));
+      await d.aiQueue.update(second, { deferred: true });
+      await processQueue(d);
+      expect(await d.diaryMeals.get(mealId)).toMatchObject({
+        name: 'Frühstück',
+        eatenAt: queued.newMeal!.eatenAt,
+      });
+    });
+
+    it('writes the meal of a waiting analysis with an entry logged into it first', async () => {
+      const d = db();
+      const id = await waiting(d, 'new');
+      const queued = (await d.aiQueue.get(id))!;
+      const target = await prepareMealTarget(d, { date: DATE, meal: 0, dm: queued.diaryMealId! });
+      await logItems(d, [item('Apfel', 50)], target);
+      expect(await d.diaryMeals.get(queued.diaryMealId!)).toMatchObject({
+        name: 'Frühstück',
+        eatenAt: queued.newMeal!.eatenAt,
+        slot: 0,
+      });
+      const [meal] = await readDay(d, DATE);
+      expect(meal).toMatchObject({ virtual: false });
+      expect(meal!.entries).toHaveLength(1);
+      expect(meal!.pending).toHaveLength(1);
+    });
+
+    it('writes the meal of a waiting analysis when an entry is moved into it', async () => {
+      const d = db();
+      await waiting(d, 'new');
+      const [id] = await logItems(d, [item('Apfel', 50)], { date: DATE, meal: 2 });
+      const target = (await readDay(d, DATE)).find((m) => m.pending.length > 0)!;
+      await moveEntriesToDiaryMeal(d, [id!], target);
+      expect(await d.diaryMeals.get(target.id)).toMatchObject({ name: 'Frühstück', slot: 0 });
+      expect(await d.foodEntries.get(id!)).toMatchObject({ meal: 0, diaryMealId: target.id });
+    });
+
+    it('holds the new meal of an open review without showing it in the diary', async () => {
+      const d = db();
+      server(analysis('Nudeln', 250));
+      const id = await enqueuePhotos(d, { date: DATE, meal: 0, dm: 'new', text: '' }, [jpeg()]);
+      await processQueue(d);
+      const item = (await d.aiQueue.get(id))!;
+      const mealId = item.diaryMealId!;
+      expect(await readDay(d, DATE)).toEqual([]);
+      const choice = await readMealChoice(d, { date: DATE, meal: 0, dm: mealId });
+      expect(choice.current).toMatchObject({ id: mealId, name: 'Frühstück' });
+      expect(choice.next.name).toBe('Mittagessen');
+
+      // Another meal picked in the review: the one the analysis began is never written.
+      await record(d, 'lunch', 'Mittag', 1, 1000);
+      const items = [{ food: food('bls:Nudeln', 'Nudeln', 150), grams: 250 }];
+      await logReview(d, { item, name: 'Nudeln', items, meal: 1, diaryMealId: 'lunch', savedMealId: null });
+      expect(await d.diaryMeals.get(mealId)).toBeUndefined();
+      expect((await d.foodEntries.toArray())[0]).toMatchObject({ meal: 1, diaryMealId: 'lunch' });
+    });
+
+    it('queues a description for the meal picked', async () => {
+      const d = db();
+      offline();
+      const id = await enqueueDescription(d, { date: DATE, meal: 0, dm: 'new', text: 'Döner' });
+      expect(await d.aiQueue.get(id)).toMatchObject({ textOnly: true, newMeal: { name: 'Frühstück' } });
+    });
   });
 
   it('treats a timeout as a failure to repeat by hand, not as offline', async () => {

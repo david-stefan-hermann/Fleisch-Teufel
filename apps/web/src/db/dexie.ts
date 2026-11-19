@@ -51,6 +51,16 @@ export interface AiQueueItem {
   createdAt: number;
   date: string;
   meal: number;
+  /**
+   * The meal of the day picked when the analysis was queued. Null or missing: found through `meal`,
+   * like an entry without a meal of its own (also every item queued by an older app version).
+   */
+  diaryMealId?: string | null;
+  /**
+   * Name, time and index of the meal `diaryMealId` begins, fixed when the analysis was queued. The
+   * first entry written into that meal creates its record from these.
+   */
+  newMeal?: { name: string; eatenAt: number; slot: number };
   text: string;
   /**
    * Legacy (app versions before Dexie v4): the photo inline as Blob. New items keep their photos in
@@ -115,6 +125,8 @@ export interface AiDraftRow {
 export interface AiDraft {
   rows: AiDraftRow[];
   meal: number;
+  /** The meal picked in the review (`new`: the next one of the day); missing: the one of the queue item. */
+  diaryMealId?: string | null;
   /** Name of the group or meal; prefilled from the analysis, changed in the save dialog. */
   mealName: string;
   /** Set once the review was saved as a meal ("Als Meal speichern"); logging then attaches to it. */

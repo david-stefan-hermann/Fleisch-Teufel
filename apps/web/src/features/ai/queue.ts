@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { draftFromResult, type AiItem } from '@/db/aiDraft';
 import type { AiPhoto, AiQueueItem, UserDb } from '@/db/dexie';
+import { prepareMealTarget, type MealRef } from '@/db/diaryMeals';
 import { logAiItemsRows, logAiMeal, readPhotoBytes } from '@/db/entries';
 import { deleteRecord } from '@/db/write';
 import { rememberFood } from '@/foods/foodService';
@@ -167,17 +168,28 @@ export async function processQueue(db: UserDb): Promise<void> {
  * queue item in one transaction, so the app being killed in between can never log an analysis twice
  * or leave a meal without its entries. With `savedMealId` the meal takes over the ingredients and
  * the entries are attached to it (`logAiMeal`), otherwise they are one named group (`logAiItemsRows`).
- * Entries the photos replace (`replaces`) are deleted in the same transaction.
+ * Entries the photos replace (`replaces`) are deleted in the same transaction. The meal is the one
+ * picked in the review, else the one the analysis was queued for; an item without either (queued by
+ * an older app version) goes by its index `meal`.
  * Null when the item is gone (logged already, discarded): the caller then shows nothing twice.
  */
 export async function logReview(
   db: UserDb,
-  args: { item: AiQueueItem; name: string; items: AiItem[]; meal: number; savedMealId: string | null },
+  args: {
+    item: AiQueueItem;
+    name: string;
+    items: AiItem[];
+    meal: number;
+    diaryMealId?: string | null;
+    savedMealId: string | null;
+  },
 ): Promise<string[] | null> {
   const { item, name, items, meal, savedMealId } = args;
-  // Bytes first: the transaction would close while it waits for `arrayBuffer()`.
+  // Bytes and target first: the transaction would close while it waits for `arrayBuffer()`, and it
+  // does not hold the tables the target is read from.
   const photos = await readPhotoBytes(await loadQueueImages(db, item));
-  const target = { date: item.date, meal };
+  const dm = args.diaryMealId ?? item.diaryMealId ?? undefined;
+  const target = await prepareMealTarget(db, { date: item.date, meal, dm });
   const analysis = { analysisId: item.result!.analysisId };
   return db.transaction(
     'rw',
@@ -229,6 +241,7 @@ async function logDeferred(db: UserDb): Promise<void> {
         name: draft.mealName,
         items,
         meal: draft.meal,
+        diaryMealId: draft.diaryMealId,
         savedMealId: null,
       });
       if (ids === null) continue; // discarded meanwhile
@@ -286,7 +299,7 @@ async function runQueue(db: UserDb): Promise<void> {
         const old = now.draft;
         const draft = old
           ? {
-              ...draftFromResult({ meal: old.meal, result }),
+              ...draftFromResult({ meal: old.meal, diaryMealId: old.diaryMealId, result }),
               ...(old.savedMealId ? { savedMealId: old.savedMealId, mealName: old.mealName } : {}),
             }
           : undefined;
@@ -365,16 +378,39 @@ async function photoRows(localId: number, images: readonly Blob[]): Promise<AiPh
   );
 }
 
-/** Queues the photos of one meal for analysis; returns the new item's `localId`. */
+/**
+ * Where a queued analysis will be logged, fixed now: a new meal gets its id, name and time at this
+ * moment, so they stay however long the analysis waits, and the next analysis can join it.
+ */
+async function queuedMeal(
+  db: UserDb,
+  ref: MealRef,
+): Promise<Pick<AiQueueItem, 'meal' | 'diaryMealId' | 'newMeal'>> {
+  if (!ref.dm) return { meal: ref.meal };
+  const target = await prepareMealTarget(db, ref);
+  return {
+    meal: target.meal,
+    diaryMealId: target.diaryMealId ?? null,
+    ...(target.create && { newMeal: { ...target.create, slot: target.meal } }),
+  };
+}
+
+/** Queues the photos of one meal for analysis (`dm`: the meal picked); returns the new item's `localId`. */
 export async function enqueuePhotos(
   db: UserDb,
-  item: Omit<AiQueueItem, 'localId' | 'status' | 'createdAt' | 'image' | 'requestId'>,
+  item: Omit<
+    AiQueueItem,
+    'localId' | 'status' | 'createdAt' | 'image' | 'requestId' | 'diaryMealId' | 'newMeal'
+  > & { dm?: string },
   images: readonly Blob[],
 ): Promise<number> {
+  const { dm, ...fields } = item;
   const rows = await photoRows(0, images);
+  const place = await queuedMeal(db, { date: item.date, meal: item.meal, dm });
   return db.transaction('rw', [db.aiQueue, db.aiPhotos], async () => {
     const localId = (await db.aiQueue.add({
-      ...item,
+      ...fields,
+      ...place,
       status: 'pending',
       createdAt: Date.now(),
       requestId: uuidv7(),
@@ -391,12 +427,13 @@ export async function enqueuePhotos(
  */
 export async function enqueueDescription(
   db: UserDb,
-  item: Pick<AiQueueItem, 'date' | 'meal' | 'text' | 'typed'>,
+  item: Pick<AiQueueItem, 'date' | 'meal' | 'text' | 'typed'> & { dm?: string },
 ): Promise<number> {
   const typed = cleanTypedValues(item.typed);
+  const place = await queuedMeal(db, { date: item.date, meal: item.meal, dm: item.dm });
   return (await db.aiQueue.add({
     date: item.date,
-    meal: item.meal,
+    ...place,
     ...(typed && { typed }),
     text: item.text.trim(),
     textOnly: true,

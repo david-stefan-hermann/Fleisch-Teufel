@@ -5,7 +5,6 @@ import {
   summarizeDay,
   today as todayOf,
   weightForDay,
-  type DayMeal,
   type DaySummary,
   type ExerciseEntry,
   type FoodEntry,
@@ -19,7 +18,13 @@ import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type AnyClipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
-import { readDay, readMealChoice, type MealChoice } from '@/db/diaryMeals';
+import {
+  isWaitingAnalysis,
+  readDay,
+  readMealChoice,
+  type DiaryDayMeal,
+  type MealChoice,
+} from '@/db/diaryMeals';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
@@ -66,8 +71,8 @@ export function useDayEntries(date: ISODate): FoodEntry[] | undefined {
   );
 }
 
-/** The meals of a day, in the order the diary shows them. */
-export function useDayMeals(date: ISODate): DayMeal[] | undefined {
+/** The meals of a day, in the order the diary shows them, with the analyses waiting in each. */
+export function useDayMeals(date: ISODate): DiaryDayMeal[] | undefined {
   const db = useDb();
   return useLiveQuery(() => readDay(db, date), [db, date]);
 }
@@ -138,10 +143,7 @@ export function usePendingAnalyses(date: ISODate): AiQueueItem[] | undefined {
   const db = useDb();
   return useLiveQuery(
     // Not analysed yet, or analysed but its logging failed (shows "Wiederholen" like a failed analysis).
-    () =>
-      db.aiQueue
-        .filter((i) => i.date === date && (!i.result || (!!i.deferred && i.status === 'failed')))
-        .sortBy('createdAt'),
+    () => db.aiQueue.filter((i) => i.date === date && isWaitingAnalysis(i)).sortBy('createdAt'),
     [db, date],
   );
 }

@@ -1,4 +1,4 @@
-import { dayId, MAX_ANALYSIS_PHOTOS } from '@ft/shared';
+import { MAX_ANALYSIS_PHOTOS } from '@ft/shared';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -74,10 +74,14 @@ export function usePhotoFlow({
     const id = waiting.current;
     waiting.current = null;
     if (id !== null) void leaveAnalysis(db, id);
-    void returnToDiary({
-      date,
-      focus: { rows: id === null ? [] : [`pending:${id}`], mealId: dayId.diaryMeal(date, meal) },
-    });
+    void (async () => {
+      const item = id === null ? undefined : await db.aiQueue.get(id);
+      const place = item ?? { date, meal, diaryMealId: dm === 'new' ? null : dm };
+      await returnToDiary({
+        date,
+        focus: { rows: id === null ? [] : [`pending:${id}`], mealId: mealIdOf(place) },
+      });
+    })();
   }
 
   /** Compresses taken or picked photos and adds them to the preview. */
@@ -98,10 +102,10 @@ export function usePhotoFlow({
   /** Queues the preview photos with the hint (and the entries they replace) and waits for the result. */
   async function analyze(text: string, replaces: string[] = []) {
     if (analyzing || shots.length === 0) return;
-    await follow(meal, false, () =>
+    await follow(false, () =>
       enqueuePhotos(
         db,
-        { date, meal, text, ...(replaces.length > 0 && { replaces }) },
+        { date, meal, dm, text, ...(replaces.length > 0 && { replaces }) },
         shots.map((s) => s.blob),
       ),
     );
@@ -119,7 +123,7 @@ export function usePhotoFlow({
       carbsG: entry.carbs ?? undefined,
       fatG: entry.fat ?? undefined,
     };
-    await follow(meal, true, () => enqueueDescription(db, { date, meal, text: entry.text, typed }));
+    await follow(true, () => enqueueDescription(db, { date, meal, dm, text: entry.text, typed }));
   }
 
   const { busy: logging, run } = useSubmitting();
@@ -137,7 +141,7 @@ export function usePhotoFlow({
    * Queues an analysis and waits for it while the person stays here: a finished one opens its review,
    * an offline one goes to the diary as a placeholder, a failed one says so.
    */
-  async function follow(toMeal: number, fromForm: boolean, enqueue: () => Promise<number>) {
+  async function follow(fromForm: boolean, enqueue: () => Promise<number>) {
     setAnalyzing(true);
     let id: number;
     try {
@@ -173,7 +177,7 @@ export function usePhotoFlow({
         );
         return void returnToDiary({
           date,
-          focus: { rows: [`pending:${id}`], mealId: dayId.diaryMeal(date, toMeal) },
+          focus: { rows: [`pending:${id}`], mealId: mealIdOf(item) },
         });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');

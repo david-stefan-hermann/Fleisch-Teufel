@@ -1,6 +1,5 @@
 import {
   computeItem,
-  dayId,
   get,
   MAX_ANALYSIS_PHOTOS,
   N,
@@ -53,11 +52,13 @@ import {
   type RowGrams,
 } from '@/db/aiDraft';
 import type { AiDraft, AiDraftRow, AiQueueItem } from '@/db/dexie';
+import { mealIdOf } from '@/db/diaryMeals';
 import { createAiMeal } from '@/db/entries';
 import { patchRecord } from '@/db/write';
 import { getFood, recentAndFrequent, rememberFood, userPortions, type FoodUsage } from '@/foods/foodService';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { useGoals, useSettings, useToday } from '@/hooks/data';
+import { MealTargetSelect } from '@/features/diary/MealTargetSelect';
+import { useGoals, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { basePortion, editorPortions, isBasePortion, SCALE_MAX, SCALE_MIN } from '@/lib/amounts';
 import { endpoints } from '@/lib/api';
@@ -98,7 +99,6 @@ export function ResultEditor({
   const navigate = useNavigate();
   const router = useRouter();
   const returnToDiary = useReturnToDiary();
-  const settings = useSettings();
   const goals = useGoals();
   const result = item.result as AiAnalysisResult;
   const photos = useAiImages(item);
@@ -112,6 +112,8 @@ export function ResultEditor({
   const [sheet, setSheet] = useState(false);
   const [draft, setDraft] = useState<AiDraft>(() => currentDraft(item));
   const { rows, meal, mealName } = draft;
+  // The meal picked here, else the one the analysis was queued for.
+  const dm = draft.diaryMealId ?? item.diaryMealId ?? undefined;
   const commit = (next: AiDraft) => {
     setDraft(next);
     void db.aiQueue.update(item.localId!, { draft: next });
@@ -169,7 +171,7 @@ export function ResultEditor({
     rememberIntoStart(router.history);
     void navigate({
       to: '/add',
-      search: { date: item.date, meal, into: `ai:${item.localId}`, ...(q ? { q } : {}) },
+      search: { date: item.date, meal, dm, into: `ai:${item.localId}`, ...(q ? { q } : {}) },
     });
   }
 
@@ -209,10 +211,11 @@ export function ResultEditor({
   async function log() {
     const items = resolved.map((r) => ({ food: r.food, grams: r.grams, portion: r.portion }));
     // Entries, photos and the removal of the analysis in one transaction (`logReview`).
-    const ids = await logReview(db, { item, name, items, meal, savedMealId });
+    const ids = await logReview(db, { item, name, items, meal, diaryMealId: dm, savedMealId });
+    const mealId = mealIdOf({ date: item.date, meal, diaryMealId: dm === 'new' ? null : dm });
     // Logged already (a second tap that got through, or the queue run): nothing to say twice.
     if (ids === null) {
-      await returnToDiary({ date: item.date, focus: { rows: [], mealId: dayId.diaryMeal(item.date, meal) } });
+      await returnToDiary({ date: item.date, focus: { rows: [], mealId } });
       return;
     }
     for (const r of resolved) await rememberFood(db, r.food);
@@ -221,7 +224,7 @@ export function ResultEditor({
     if (choices.length > 0) void endpoints.aiChoices(result.analysisId, choices).catch(() => {});
     toast.success(`„${name}“ eingetragen`);
     // "Back" from the diary must not reopen the review of a logged analysis.
-    await returnToDiary({ date: item.date, focus: { rows: ids, mealId: dayId.diaryMeal(item.date, meal) } });
+    await returnToDiary({ date: item.date, focus: { rows: ids, mealId } });
   }
 
   return (
@@ -441,21 +444,13 @@ export function ResultEditor({
               </div>
             )}
             <NutrientBreakdown title="Summe" nutrients={totals} targets={targets} />
-            <div className="grid gap-1.5">
-              <Label htmlFor="result-meal">Mahlzeit</Label>
-              <Select value={String(meal)} onValueChange={(v) => commit({ ...draft, meal: Number(v) })}>
-                <SelectTrigger id="result-meal" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(settings?.mealNames ?? []).map((n, i) => (
-                    <SelectItem key={i} value={String(i)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <MealTargetSelect
+              id="result-meal"
+              date={item.date}
+              meal={meal}
+              dm={dm}
+              onChange={(pick) => commit({ ...draft, meal: pick.meal, diaryMealId: pick.dm ?? null })}
+            />
             <p className="text-xs text-muted-foreground">
               Modell {result.model} · {result.usage.inputTokens + result.usage.outputTokens} Tokens · ≈{' '}
               {result.usage.costUsd.toLocaleString('de-DE', {
