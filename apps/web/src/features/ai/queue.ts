@@ -181,7 +181,7 @@ export async function logReview(
   const analysis = { analysisId: item.result!.analysisId };
   return db.transaction(
     'rw',
-    [db.foodEntries, db.meals, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
+    [db.foodEntries, db.diaryMeals, db.meals, db.outbox, db.photos, db.aiQueue, db.aiPhotos, db.aiImages],
     async () => {
       const now = await db.aiQueue.get(item.localId!);
       if (!now) return null;

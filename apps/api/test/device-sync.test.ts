@@ -10,6 +10,8 @@ import { photos as photoRows, syncTables } from '../src/db/schema.js';
 import { UserDb } from '../../web/src/db/dexie';
 import { loadPhoto, pruneLocalPhotos, storePhoto } from '../../web/src/db/photos';
 import { createBackup, restoreBackup } from '../../web/src/db/backup';
+import { prepareMealTarget, readDay, renameDiaryMeal } from '../../web/src/db/diaryMeals';
+import { logItems } from '../../web/src/db/entries';
 import { deleteRecord, patchRecord, saveRecord } from '../../web/src/db/write';
 import { SyncEngine, type SyncEngineOptions } from '../../web/src/sync/syncEngine';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
@@ -323,6 +325,125 @@ describe('device ↔ server sync', () => {
     await a.db.diaryMeals.update(id, { futureField: 'bleibt' } as never);
     await patchRecord(a.db, 'diaryMeals', id, { name: 'Brunch' });
     expect(await a.db.diaryMeals.get(id)).toMatchObject({ name: 'Brunch', futureField: 'bleibt' });
+  });
+
+  describe('meals of a day', () => {
+    const DATE = '2026-10-01';
+    const item = {
+      foodId: null,
+      source: 'quick' as const,
+      name: 'Apfel',
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 50 },
+    };
+    const newMeal = (d: UserDb, date: string) =>
+      prepareMealTarget(d, { date, meal: 0, dm: 'new' }, Date.now());
+
+    it('lets two devices rename the same meal without a record into one', async () => {
+      const date = '2026-10-02';
+      const a = device('rename-a');
+      const b = device('rename-b');
+      await saveRecord(a.db, 'foodEntries', entry({ date, meal: 1 }));
+      await a.engine.sync();
+      await b.engine.sync();
+      const [onA] = await readDay(a.db, date);
+      const [onB] = await readDay(b.db, date);
+      await renameDiaryMeal(a.db, onA!, 'Brunch');
+      await renameDiaryMeal(b.db, onB!, 'Kuchen');
+      await a.engine.sync();
+      await b.engine.sync();
+      await a.engine.sync();
+      const names = [(await readDay(a.db, date))[0]!.name, (await readDay(b.db, date))[0]!.name];
+      expect(names[0]).toBe('Kuchen');
+      expect(names[1]).toBe('Kuchen');
+      expect(await a.db.diaryMeals.where('date').equals(date).count()).toBe(1);
+    });
+
+    it('shows two meals when two offline devices each start one', async () => {
+      const date = '2026-10-03';
+      const a = device('offline-a');
+      const b = device('offline-b');
+      await logItems(a.db, [item], await newMeal(a.db, date));
+      await logItems(b.db, [item], await newMeal(b.db, date));
+      await a.engine.sync();
+      await b.engine.sync();
+      await a.engine.sync();
+      expect(await readDay(a.db, date)).toHaveLength(2);
+      expect((await readDay(b.db, date)).map((m) => m.id)).toEqual(
+        (await readDay(a.db, date)).map((m) => m.id),
+      );
+    });
+
+    it('brings a meal back when an entry of another device arrives after its entries were deleted', async () => {
+      const date = '2026-10-04';
+      const a = device('late-a');
+      const b = device('late-b');
+      const [first] = await logItems(a.db, [item], await newMeal(a.db, date));
+      await a.engine.sync();
+      await b.engine.sync();
+      const [meal] = await readDay(b.db, date);
+      await logItems(
+        b.db,
+        [item],
+        await prepareMealTarget(b.db, { date, meal: 0, dm: meal!.id }, Date.now()),
+      );
+      await deleteRecord(a.db, 'foodEntries', first!);
+      await a.engine.sync();
+      expect(await readDay(a.db, date)).toEqual([]);
+      await b.engine.sync();
+      await a.engine.sync();
+      expect((await readDay(a.db, date)).map((m) => [m.id, m.name])).toEqual([[meal!.id, meal!.name]]);
+    });
+
+    it('shows a placeholder until the meal of an entry arrives', async () => {
+      const date = '2026-10-05';
+      const a = device('order-a');
+      const target = await newMeal(a.db, date);
+      await logItems(a.db, [item], target);
+      const db = new UserDb(`order-b-${uuidv7()}`);
+      const stored = (await a.db.foodEntries.where('date').equals(date).toArray())[0]!;
+      await db.foodEntries.put(stored);
+      expect((await readDay(db, date))[0]).toMatchObject({ id: target.diaryMealId, virtual: true });
+      await a.engine.sync();
+      await device('order-b', { db }).engine.sync();
+      expect((await readDay(db, date))[0]).toMatchObject({ name: 'Frühstück', virtual: false });
+    });
+
+    it('puts an entry of an older app into the meal of its index', async () => {
+      const date = DATE;
+      const a = device('older-a');
+      await logItems(a.db, [item], await newMeal(a.db, date));
+      const [meal] = await readDay(a.db, date);
+      await a.engine.sync();
+      const { diaryMealId: _, ...old } = entry({ date, meal: meal!.slot, loggedAt: meal!.eatenAt + 1 });
+      await server('/api/sync/push', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          records: [{ table: 'foodEntries', data: { ...old, updatedAt: 5, deleted: false } }],
+        }),
+      });
+      await a.engine.sync();
+      expect((await readDay(a.db, date)).map((m) => [m.id, m.entries.length])).toEqual([[meal!.id, 2]]);
+    });
+
+    it('restores a backup from before meals existed', async () => {
+      const a = device('backup-old');
+      const e = entry({ date: '2026-10-06', meal: 2 });
+      const backup = {
+        app: 'fleisch-teufel' as const,
+        exportedAt: new Date().toISOString(),
+        version: '1',
+        foodEntries: [{ ...e, updatedAt: 5, deleted: false }],
+      };
+      await restoreBackup(a.db, backup);
+      expect((await readDay(a.db, '2026-10-06')).map((m) => m.slot)).toEqual([2]);
+    });
   });
 
   it('keeps "update the app" across starts and loads everything again after an update', async () => {

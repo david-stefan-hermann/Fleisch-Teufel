@@ -154,6 +154,7 @@ export async function applyOps(
     'rw',
     [
       db.foodEntries,
+      db.diaryMeals,
       db.meals,
       db.exerciseEntries,
       db.exerciseTemplates,

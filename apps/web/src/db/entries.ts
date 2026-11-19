@@ -24,6 +24,7 @@ import {
 } from '@ft/shared';
 import type { AiItem } from './aiDraft';
 import type { UserDb } from './dexie';
+import { applyLogTarget, type LogTarget } from './diaryMeals';
 import { addItemToMealDraft } from './mealDraft';
 import { storePhoto, storePhotoBytes } from './photos';
 import { patchRecord, restoreRecord, saveRecord } from './write';
@@ -47,19 +48,26 @@ export type NewFoodEntry = Omit<
 export type DiaryItem = MealItem & { note?: string | null };
 
 /** Logs one food on a day (the food page). Returns the id of the new entry. */
-export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string): Promise<string> {
+export async function logFoodEntry(
+  db: UserDb,
+  item: NewFoodEntry,
+  date: string,
+  target: LogTarget = { date, meal: item.meal },
+): Promise<string> {
   const id = uuidv7();
-  await saveRecord(db, 'foodEntries', {
-    ...item,
-    id,
-    date,
-    loggedAt: Date.now(),
-    groupId: null,
-    groupName: null,
-    photoId: null,
-    photoIds: null,
-    note: null,
-    diaryMealId: null,
+  await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
+    await saveRecord(db, 'foodEntries', {
+      ...item,
+      ...(await applyLogTarget(db, target)),
+      id,
+      date,
+      loggedAt: Date.now(),
+      groupId: null,
+      groupName: null,
+      photoId: null,
+      photoIds: null,
+      note: null,
+    });
   });
   return id;
 }
@@ -106,18 +114,25 @@ function quickEntryFields(v: QuickEntryValues, keepName?: string) {
  * "Eintragen" of the quick entry form: a plain entry with the typed values (no food, no group). The
  * full text goes into `note`, its shortened first line is the name. Returns the id of the new entry.
  */
-export async function logQuickEntry(db: UserDb, date: ISODate, values: QuickEntryValues): Promise<string> {
+export async function logQuickEntry(
+  db: UserDb,
+  date: ISODate,
+  values: QuickEntryValues,
+  target: LogTarget = { date, meal: values.meal },
+): Promise<string> {
   const id = uuidv7();
-  await saveRecord(db, 'foodEntries', {
-    ...quickEntryFields(values),
-    id,
-    date,
-    loggedAt: Date.now(),
-    groupId: null,
-    groupName: null,
-    photoId: null,
-    photoIds: null,
-    diaryMealId: null,
+  await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
+    await saveRecord(db, 'foodEntries', {
+      ...quickEntryFields(values),
+      ...(await applyLogTarget(db, target)),
+      id,
+      date,
+      loggedAt: Date.now(),
+      groupId: null,
+      groupName: null,
+      photoId: null,
+      photoIds: null,
+    });
   });
   return id;
 }
@@ -333,7 +348,7 @@ export async function updateTraining(
 export async function logItems(
   db: UserDb,
   items: DiaryItem[],
-  target: { date: string; meal: number },
+  target: LogTarget,
   opts: {
     factor?: number;
     mealId?: string | null;
@@ -350,7 +365,8 @@ export async function logItems(
   const now = Date.now();
   const ids: string[] = [];
   // One transaction: the app being killed or one invalid item never leaves half a group behind.
-  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
+  await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
+    const placed = await applyLogTarget(db, target);
     for (const [i, item] of items.entries()) {
       const id = uuidv7();
       ids.push(id);
@@ -372,9 +388,8 @@ export async function logItems(
         nutrients,
         id,
         date: target.date,
-        meal: target.meal,
+        ...placed,
         loggedAt: now + i,
-        diaryMealId: null,
         mealId: opts.mealId ?? null,
         aiAnalysisId: opts.aiAnalysisId ?? null,
         groupId,
@@ -461,13 +476,13 @@ export async function logAiMeal(
   mealId: string,
   name: string,
   items: AiItem[],
-  target: { date: string; meal: number },
+  target: LogTarget,
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photos (already compressed by the AI queue), in order. */
   photos: readonly PhotoBytes[] = [],
 ): Promise<string[]> {
   const mealItems = aiMealItems(items);
-  return db.transaction('rw', [db.meals, db.foodEntries, db.outbox, db.photos], async () => {
+  return db.transaction('rw', [db.meals, db.foodEntries, db.diaryMeals, db.outbox, db.photos], async () => {
     const existing = await db.meals.get(mealId);
     if (existing?.deleted) await restoreRecord(db, 'meals', mealId);
     if (existing)
@@ -498,7 +513,7 @@ export async function logAiItems(
   db: UserDb,
   name: string,
   items: AiItem[],
-  target: { date: string; meal: number },
+  target: LogTarget,
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   /** The analysed photos (already compressed by the AI queue), in order; none keeps the row without photo. */
   photos: readonly Blob[] = [],
@@ -516,11 +531,11 @@ export async function logAiItemsRows(
   db: UserDb,
   name: string,
   items: AiItem[],
-  target: { date: string; meal: number },
+  target: LogTarget,
   analysis: Pick<AiAnalysisResult, 'analysisId'>,
   photos: readonly PhotoBytes[] = [],
 ): Promise<string[]> {
-  return db.transaction('rw', [db.foodEntries, db.outbox, db.photos], async () =>
+  return db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox, db.photos], async () =>
     logItems(db, aiMealItems(items), target, {
       groupName: name.trim() || 'Meal vom Foto',
       aiAnalysisId: analysis.analysisId,
@@ -621,10 +636,10 @@ export function diaryParts(entries: readonly FoodEntry[]): DiaryPart[] {
 export async function logParts(
   db: UserDb,
   parts: readonly DiaryPart[],
-  target: { date: string; meal: number },
+  target: LogTarget,
 ): Promise<string[]> {
   const ids: string[] = [];
-  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
+  await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
     for (const p of parts) {
       if (p.kind === 'entry') ids.push(...(await logItems(db, p.items, target)));
       else
