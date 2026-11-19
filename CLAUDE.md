@@ -62,6 +62,34 @@ Serve the production web build through the API (same origin, service worker acti
 - TanStack Router search params: validators return optional keys (`clean()` in the router) so links can omit them.
 - shadcn/ui: components live in `apps/web/src/components/ui` and were adjusted (touch sizes h-10/h-11, no
   `transition-all`). The CLI once wrote `from "cn"`; imports must be `@/lib/utils`.
+- Diary meals (plan `docs/plans/2026-11-tagesmahlzeiten.md`, mockup v4): a day has as many meals as were eaten,
+  each with a name and a time, sorted by time; there are no fixed slots. Synced table `diaryMeals` (`name`,
+  `eatenAt`, `slot`, `timeEdited`) plus `foodEntries.diaryMealId`; `foodEntries.meal` (0 to 3, the meal's `slot`,
+  `slotForNewMeal`) is still always written for older app versions. Entries without `diaryMealId` form a virtual
+  meal `dm:<date>:<slot>` that exists only when read (name from `legacyMealNames ?? mealNames`, time the earliest
+  `loggedAt` of that index fitting the day, tombstones included, else the typical time of the index). `buildDayMeals`
+  (shared `dayMeals.ts`, pure) alone assigns entries to meals: their record, a placeholder while the record has not
+  arrived, else the youngest meal of the index not after `loggedAt`. A meal is visible exactly while it has a live
+  entry or a waiting analysis; "Mahlzeit löschen" deletes its entries (undo), never the meal record, and a meal
+  dragged empty disappears. A day from before the change keeps the order of its slots (`usesSlotOrder`) until a
+  time is set there or a new meal joins it. Records are written only when there is something to keep: a new meal
+  (uuidv7) with its first entry, a virtual one under its `dm:` id when renamed, timed or an entry is dragged in or
+  out. Read a day with `readDay`/`useDayMeals` (`db/diaryMeals.ts`, `readPlannedDay` for pickers: a meal begun
+  by an analysis in review stays choosable). Where entries go is settled before the write transaction:
+  `prepareMealTarget(db, { date, meal, dm })` returns a `LogTarget` (`dm: 'new'` gets id, name and time now,
+  `create`; `keep` writes down a virtual meal that shares the new meal's index so its entries stay), every log
+  function takes it and calls `applyLogTarget` in its transaction (whose scope needs `db.diaryMeals`). Links and
+  forms carry `dm` (`new` or a meal id) next to `meal`; a link with only `meal` still means that slot. The card:
+  the time above it (`MealStamp`; tap: `MealTimeDialog`, hour and minute wheels, 00:00 to 04:59 may be "Nacht
+  auf <Tag>": the meal stays on its day, sorts to its end and carries a moon; `setDiaryMealTime` sets
+  `timeEdited`), the name (`MealNameMenu`: the four standard names, own names from the synced
+  `settings.customMealNames`, "Eigener Name"; a name too long for the header runs as `MarqueeText`), kcal and
+  chevron link to `/diary-meal?dm=`. An empty day shows one card for the next meal (`nextMealName`: the first
+  standard name the day lacks, then "Weitere Mahlzeit"); "Mahlzeit hinzufügen" below the meals opens
+  `/photo?dm=new` and writes nothing by itself. Mehr → "Mahlzeiten-Namen" renames the standard names (only for
+  new meals: the first rename stores `legacyMealNames`, so old days keep theirs) and deletes own names (meals
+  keep the name they carry). Older app versions keep logging by `meal` (the third rule places those entries)
+  and show at most four slots.
 - Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast;
   `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
   (`/settings/trash`, `src/db/trash.ts`, search via `matchesTrash`); "Endgültig löschen" ("Alle löschen" per
@@ -72,7 +100,7 @@ Serve the production web build through the API (same origin, service worker acti
   copied); a single entry or one ingredient of an expanded group pastes as a plain entry. A whole diary meal is
   copied with "Kopieren" in its ⋯ menu (kind `meal`, `parts`: its rows as `DiaryPart`s, pasted with the same
   structure). Header of each diary meal (and `/diary-meal`): [`PasteButton` while something is copied]
-  [⋯ `DiaryMealMenu`: Kopieren, Als Meal speichern, Wie gestern eintragen, Alle Einträge löschen] [+]. The diary
+  [⋯ `DiaryMealMenu`: Kopieren, Als Meal speichern, Wie gestern eintragen, Mahlzeit löschen] [+]. The diary
   header reads cloud, `ClipboardMenu`, share (round 11); the menu has "Als Meal speichern" (groups and meals,
   `saveMealFromItems`) and "Zwischenablage leeren". "Wie gestern", the clipboard and suggestions log through
   `diaryParts`/`logParts` (`src/db/entries.ts`); a meal saved from diary rows takes every ingredient on its own
@@ -149,18 +177,22 @@ Serve the production web build through the API (same origin, service worker acti
 label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter wins; size math in `fitSize`). Toasts sit at the bottom (iOS tints the status bar from top elements).
 - Diary drag and drop: `features/diary/DiaryDnd.tsx` (dnd-kit, mouse + touch sensors, 300 ms long press);
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
-  Moves go through `moveEntriesToMeal` (`src/db/entries.ts`). The training card sorts its rows with its own
+  Moves go through `moveEntriesToDiaryMeal` (`src/db/diaryMeals.ts`: writes the record of a virtual source or
+  target first, so both keep name and time; undo via `restoreEntryMeals`); editing an entry into another meal
+  uses `placeMovedEntry`. Meals themselves are not dragged. The training card sorts its rows with its own
   `DndContext` (`features/diary/TrainingSortable.tsx`: generic `SortableRows`/`SortableRow` with `onReorder(keys)`,
   same sensors via `useDragSensors`, `DragStateProvider` for `useDiaryDrag`); food has no order within a meal yet.
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
   "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". Without a chosen meal the sheet
-  asks `logTargetFor` (`lib/meals.ts`) for day and meal: the meal of the youngest entry made today while it is
-  younger than `STICKY_MEAL_MS` (20 minutes; its current meal, also after a drag to another one), over midnight
-  the entry made before midnight for that day (then the forms say the day with `DayNote` and the diary of
-  yesterday opens afterwards), else the meal of the hour; waiting analyses count like entries, a past day shown
-  in the diary and entries added to a past day trigger nothing. The "+" of a meal always wins. `/photo` is the
+  asks `logTargetFor` (`lib/meals.ts`, pure; the caller passes `newMealSlot` from `readNextMeal`) for day and meal:
+  the meal of the youngest entry while it is at most `NEW_MEAL_GAP_MS` (30 minutes) old (its current meal, also
+  after a drag to another one), over midnight the entry made before midnight for that day (then the forms say
+  the day with `DayNote` and the diary of yesterday opens afterwards), else `dm: 'new'`, a new meal with the next
+  name; waiting analyses count like entries. On another day than today the youngest entry made for that day
+  counts. The "+" of a meal always wins. `/photo` is the
   food page "Essen eintragen" (camera, barcode; no header icons). The right end of its header names the meal
-  (`components/HeaderMealPicker.tsx`): a tap opens a dropdown to pick another one, for everything the page
+  (`components/HeaderMealPicker.tsx`: name and time, or "Neu"): a tap opens a dropdown with the meals of the day
+  and "Neue Mahlzeit" with the name it would get, for everything the page
   does (photo, form, search, barcode); the choice is written into the URL of the step that shows (`replace`).
   Under the camera sit two buttons, "Eingeben"
   and "Suchen" (`/add`, pushed). "Eingeben" opens one form (search param `form`, a history step of its own;
@@ -322,7 +354,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `editorPortions` keeps the current portion of an older entry.
 - Photos waiting for analysis: a first analysis that had to wait for a connection, was left on the photo page
   (`leaveAnalysis`) or was cut off by closing the app gets `deferred` on its `aiQueue` item. Every item without a result (waiting, running, failed) shows as `PendingAnalysisRow` in its diary meal
-  (`usePendingAnalyses`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
+  (read with the day by `useDayMeals`; photo, hint as title, state, `NO_VALUE` instead of kcal, counts in no sum, never asks to
   review). Swipe left discards it with undo (`takeQueueItem` / `restoreQueueItem`), a failed one has the text link
   "Wiederholen" (`retryQueueItem`). Once analysed, `logDeferred` (`features/ai/queue.ts`, only inside the
   serialized queue run, so never twice) logs it as a normal group with all photos (first candidate, the model's
@@ -403,11 +435,15 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   answers a repeated key with the stored `response` (or waits for the running call) instead of paying again;
   ↻ gets a new key, "Wiederholen" keeps it. Cache prices per model live in `ai/pricing.ts`.
 - Diary meal suggestions: `MealSuggestions` ("Zuletzt hier", `src/db/suggestions.ts`) under every diary meal
-  (and on `/diary-meal`), below its entries: foods and groups of this meal index in the last 60 days, scored by
-  frequency and recency (same weekday higher), without what the meal already has that day (cut to 4 after
-  that). One live query per day for all cards (`daySuggestions`, `useDaySuggestions`). One tap logs the last
-  amount (`logSuggestion`) with undo; "Wie gestern" (`copyMealFromDay`) is a chip only while the meal is empty,
-  else in the ⋯ menu.
+  (and on `/diary-meal`), below its entries: foods and groups of the meals with the same name in the last 60 days
+  (read as meals through `buildDayMeals`; a standard name and its name from `legacyMealNames` count as one, so a
+  rename keeps the history), scored by frequency and recency (same weekday higher), without what the meal already
+  has that day (cut to 4 after that). One live query per day for all cards (`daySuggestions`, `useDaySuggestions`,
+  keyed by meal id plus `NEXT_MEAL_KEY` for the card of an empty day). One tap logs the last amount
+  (`logSuggestion`) with undo; "Wie gestern" (`copyMealFromDay`) takes yesterday's meal of the same name, else the
+  one nearest in time (`closestMeal`, the chip names it), a chip only while the meal is empty, else in the ⋯ menu.
+  Pasting, suggestions and "Wie gestern" get a `MealRef` and settle it with `prepareMealTarget` at the tap: they
+  write into exactly the meal tapped, the empty card begins a new one.
 - AI review: while no ingredient is a fat (`isFatFood`, `features/ai/fatSuggestion.ts`) the review offers
   "+ Öl 10 g" / "+ Butter 10 g" (photo apps miss about 30 g fat per meal); candidates show "N× gegessen".
   The prompt lists invisible fats as own rows by default unless the hint rules them out.
@@ -419,8 +455,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   prefills an own food with the same barcode; search and online results hide the OFF twin of an own barcode
   (`ownBarcodes`, `shadowedByOwn` in `foods/foodService.ts`), the barcode lookup prefers own foods anyway.
 - Complete days (`isCompleteDay(row, { today })`, shared `reports.ts`): closed with "Tag abschließen" or at least
-  `MIN_MEALS_COMPLETE` (2) meals logged; the running day only once closed (pass `today`). Report averages and "im Ziel" count complete days (fallback: logged
-  days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig".
+  `MIN_MEALS_COMPLETE` (2) meals logged (`mealsLogged` counts diary meals by `entryMealKey`: two "Snacks" are
+  two); the running day only once closed (pass `today`). Report averages and "im Ziel" count complete days (fallback: logged
+  days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig". The
+  entries CSV (`entriesCsv` with `mealOf` from `mealsOfEntries`) names each entry's meal, sorts by the meal's time
+  and ends with the column "Uhrzeit"; existing columns keep their place. "Tag abschließen" (`CompleteDayPage`)
+  names the standard meals the day lacks, "Schnell schätzen" begins the next meal (`/photo?dm=new&form=1`).
   `dailyRows` takes `notes` for the closed flag. Under the diary note "Alle vergangenen Tage abschließen" (grey,
   centred text link in `NoteCard`) shows while a day before the shown one has live entries and no `completedAt`
   (`openPastDays` in `db/notes.ts`, `useOpenPastDays`); `completeDays` closes them in one transaction (skips days
@@ -428,7 +468,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Share a day (`features/diary/share`): share icon in the diary header, `ShareDayDialog` (Essen on, Training and
   Notiz off, disabled when the day has none, not remembered). `DayShareImage` is a static tree from the same
   building blocks as the diary (`CalorieOverview`, `EntryRowBody`, `GroupRowBody`, `ExerciseRowBody`; change them
-  there, not in a copy): date, calorie overview closed, meals with entries (groups closed), trainings, note,
+  there, not in a copy): date, calorie overview closed, the day's meals (`DayShareData.meals`, each with its
+  `MealStamp` time and moon, long names cut, groups closed), trainings, note,
   footer with logo. `renderDayImage` renders it off screen in its own root and rasterizes it with
   `modern-screenshot` (`domToBlob`, 2 to 3×, WebKit rasterizes twice); group photos go in as data URLs
   (`collectShareData`). `shareImage` hands `fleisch-teufel_tagebuch_<date>.png` to Web Share (download without
@@ -533,7 +574,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   reads it with `useSyncExternalStore`. Server: `routes/assistant.ts` (`/turn` multipart audio or text + device
   context + `requestId`; idempotent via `assistant_turns`), `assistant/claude.ts` (manual Haiku tool loop, at most 8
   rounds), `assistant/host.ts` (read tools `search_foods` with portions and "zuletzt", `search_trainings`, `get_day`;
-  write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`), prompt
+  write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`; meals: the device
+  sends `days[].meals` of today and yesterday and the tools' `meal` is a free string, a short id `m1` or a name,
+  a name the day lacks starts a new meal with it; ops carry `diaryMealId` and `mealName` next to the index, which
+  `execute.ts` resolves before its transaction (id, name, index, then `logTargetFor`; a context without `meals`
+  from an older app keeps the four names and the index), prompt
   `assistant/prompt.ts` (from the spike; no clock rule: `meal: null` and the device picks with `logTargetFor`; a
   turn that did nothing has no reply, `replyOf` also drops "Ich habe nichts eingetragen, weil ..."),
   transcription `assistant/transcribe.ts` (OpenAI, priced per audio minute in `ai/pricing.ts`). Budget, rate limit

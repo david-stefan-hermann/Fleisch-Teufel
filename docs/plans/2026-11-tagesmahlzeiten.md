@@ -20,8 +20,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 9     | 32e0f0f | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
 | 10    | c2451b3 | Assistent                                               | fertig |
 | 11    | bceace0 | Berichte, CSV, Tagesbild, Tag abschließen               | fertig |
-| 12    | s. Log  | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | fertig |
-| 13    |         | Doku                                                    | offen  |
+| 12    | 3a3f80d | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | fertig |
+| 13    | s. Log  | Doku                                                    | fertig |
 
 **Abweichungen während der Umsetzung**: hier eintragen, nicht still entscheiden.
 
@@ -199,6 +199,28 @@ Block 12:
 - [x] `MIN_MEALS_COMPLETE` ist 2.
 - [x] Sicherung, Wiederherstellung, Epoche ohne Dialog (`device-sync.test.ts`).
 - [x] Keine Erklärtexte, Wortwahl, keine Halbgeviert- oder Geviertstriche im Diff seit `feda5d7`.
+
+Block 13:
+
+- Die Übergänge aus Block 9 und 10 sind geschlossen: `CLAUDE.md` beschreibt „Zuletzt hier“ nach Namen und den Assistenten mit den
+  Mahlzeiten des Tages. Neuer Absatz „Diary meals“ (Datenmodell, `buildDayMeals`, `LogTarget`, Karte, Namen, Uhrzeit), angepasst sind
+  Hinzufügen-Menü (30 Minuten), Kopf-Auswahl, Ziehen, ⋯-Menü, wartende Analysen, Berichte, CSV, Tagesbild und „Tag abschließen“.
+- `docs/sync.md`: Abschnitt „Mahlzeiten des Tages“ und die Id `dm:` in der Tabelle. `.claude/skills/offline-sync/SKILL.md`: eine Regel
+  (Ziel vor der Transaktion, `db.diaryMeals` im Umfang, keine Massenmigration).
+- `README.md`: Funktionszeile „Tagebuch“; „Rückweg nach einer fehlgeschlagenen Migration“ trennt additive Migrationen (nur das Image)
+  von nicht additiven oder einer beschädigten Datenbank (Snapshot wie unter „Restore“).
+- Der Hash dieses Commits steht im Log, ein Commit kann seinen eigenen Hash nicht enthalten.
+
+**Nur auf dem iPhone prüfbar** (die übrigen Punkte der Prüfliste decken Tests ab, auf dem Gerät trotzdem einmal ansehen):
+
+- Daumen-Treffer der Zeitzeile über der Karte, ohne den Kopf zu berühren.
+- Laufschrift: Ruhe und Nahtlosigkeit auf echtem WebKit, Stillstand mit „Bewegung reduzieren“ in iOS.
+- Zeit-Dialog: Rädchen mit dem Finger, keine Tastatur dazwischen.
+- Langes Drücken und Ziehen eines Eintrags mit dem Finger.
+- Foto offline, App schließen, online öffnen: Analyse landet in ihrer Mahlzeit.
+- Assistent mit echter Sprache („zum Mittagessen“, „neue Mahlzeit Kuchen bei Oma“, ein Satz ohne Mahlzeit).
+- Tagesbild über das Teilen-Menü von iOS, CSV in Numbers oder Excel.
+- Zweites Gerät mit älterer App-Version: trägt weiter ein, zeigt den Update-Hinweis.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

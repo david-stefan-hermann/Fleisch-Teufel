@@ -8,12 +8,12 @@ später mit dem Server abgeglichen. Der Abgleich ist ein einfacher **Last-Write-
 
 Jeder synchronisierte Datensatz (Tabellen siehe `SYNC_SCHEMAS` in `packages/shared/src/schemas.ts`) hat:
 
-| Feld                    | Bedeutung                                                                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                    | auf dem Gerät erzeugt (UUID v7) oder **deterministisch** bei „einmal pro Tag“: `w:2026-10-07` (Gewicht), `n:…` (Notiz), `g:…` (Ziel ab Datum), `s:…` (Schritte), `profile` (Einstellungen) |
-| `updatedAt`             | Epoch-ms der letzten lokalen Änderung, streng monoton je Datensatz (`nextVersion`)                                                                                                         |
-| `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                                                |
-| `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                                         |
+| Feld                    | Bedeutung                                                                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                    | auf dem Gerät erzeugt (UUID v7) oder **deterministisch** bei „einmal pro Tag“: `w:2026-10-07` (Gewicht), `n:…` (Notiz), `g:…` (Ziel ab Datum), `s:…` (Schritte), `dm:<Datum>:<Index>` (Mahlzeit ohne eigene Id, siehe unten), `profile` (Einstellungen) |
+| `updatedAt`             | Epoch-ms der letzten lokalen Änderung, streng monoton je Datensatz (`nextVersion`)                                                                                                                                                                      |
+| `deleted`               | Soft-Delete („Grabstein“), damit Löschungen synchronisieren                                                                                                                                                                                             |
+| `user_id`, `change_seq` | nur serverseitig: Besitzer und Cursor (globale Sequenz `sync_seq`)                                                                                                                                                                                      |
 
 **JSON-Sicherung** („Daten & Sync“, `apps/web/src/db/backup.ts`): „Wiederherstellen“ holt nur Fehlendes
 zurück. Die Seite synchronisiert vorher (ohne Server kein Einspielen), dann geht jeder Datensatz der
@@ -89,6 +89,43 @@ Eintrag noch nicht hochgeladen hat, verliert sie gegen einen neueren Import (Las
 
 Deterministische IDs sorgen dafür, dass zwei Geräte, die offline am selben Tag ein Gewicht eintragen,
 nicht zwei Einträge erzeugen, sondern auf **einen** Datensatz konvergieren.
+
+## Mahlzeiten des Tages
+
+Ein Tag hat keine festen Fächer mehr, sondern so viele Mahlzeiten wie gegessen wurde (Migration `0020`, Dexie v7).
+Die Tabelle `diaryMeals` hält je Mahlzeit `date`, `name`, `eatenAt` (Epoch-ms, gesetzt vom ersten Eintrag, danach
+nur von der Person), `slot` (der Index 0 bis 3, den ihre Einträge in `foodEntries.meal` tragen, ändert sich nie)
+und `timeEdited` (die Person hat die Uhrzeit gesetzt). Dazu kommen `foodEntries.diaryMealId` (`null` = keine
+eigene Mahlzeit), `settings.customMealNames` (eigene Namen für die Auswahl) und `settings.legacyMealNames` (die
+vier Standard-Namen von vor der ersten Umbenennung), alle mit Standardwert `null`. `SYNC_SCHEMAS` führt
+`diaryMeals` vor `foodEntries`, damit eine JSON-Sicherung die Mahlzeit zuerst einspielt.
+
+**Keine Massenmigration.** Alte Einträge behalten `diaryMealId: null` und `meal` wird weiter immer geschrieben. Je
+Tag und Index bilden solche Einträge eine **virtuelle Mahlzeit** mit der Id `dm:<Datum>:<Index>`, die nur beim
+Lesen entsteht (`buildDayMeals` in `packages/shared/src/dayMeals.ts`): Name aus `legacyMealNames ?? mealNames`,
+Uhrzeit vom frühesten `loggedAt` dieses Index, das zum Tag passt (Grabsteine zählen mit), sonst die typische
+Uhrzeit des Index. Ein Datensatz entsteht erst, wenn etwas Eigenes zu merken ist: eine neue Mahlzeit (UUID v7)
+zusammen mit ihrem ersten Eintrag in derselben Transaktion, eine virtuelle beim Umbenennen, beim Ändern der
+Uhrzeit oder wenn ein Eintrag hinein- oder hinausgezogen wird. Dann bekommt sie die **deterministische** Id
+`dm:<Datum>:<Index>` (`requiredId` prüft sie, eine UUID v7 ist frei): zwei Geräte, die dieselbe virtuelle
+Mahlzeit umbenennen, landen auf einem Datensatz, LWW entscheidet. Zwei Geräte, die offline je eine neue Mahlzeit
+beginnen, erzeugen zwei (bekannte Grenze, die Einträge lassen sich zusammenziehen).
+
+Zuordnung eines lebenden Eintrags: zu seinem Datensatz, wenn `diaryMealId` auf eine Mahlzeit desselben Tages und
+Index zeigt (auch eine gelöschte); zu einem Platzhalter unter dieser Id, solange der Datensatz noch nicht
+angekommen ist; sonst zur jüngsten Mahlzeit seines Index, deren `eatenAt` nicht nach `loggedAt` liegt, sonst zur
+frühesten dieses Index, sonst zur virtuellen. **Sichtbar** ist eine Mahlzeit genau dann, wenn sie einen lebenden
+Eintrag oder eine wartende Analyse hat. „Mahlzeit löschen“ löscht nur die Einträge und schreibt keinen Grabstein
+für die Mahlzeit: Rückgängig, eine leer gezogene Mahlzeit und ein später ankommender Eintrag eines anderen Geräts
+sind damit derselbe Fall, die Karte steht mit Name und Uhrzeit wieder da.
+
+**Ältere App-Versionen** schreiben weiter Einträge mit `meal` und ohne `diaryMealId` (der Server speichert `null`);
+die dritte Regel ordnet sie über den Index zu, auch einen Eintrag, den sie in ein anderes Fach gezogen haben
+(`meal` passt dann nicht mehr zum `slot` des Datensatzes). Sie zeigen höchstens vier Fächer. Änderungen an
+`diaryMeals` kennen sie nicht, überspringen sie und melden „App-Update nötig“ (`sync.needsUpdate`); nach dem
+Update holt ein voller Pull alles nach. Eine Sicherung von vor dem Umbau hat keine `diaryMeals`, ihre Einträge
+werden virtuell. Der Server schreibt keine Mahlzeiten; der Assistent liest sie nur (`get_day`), die Operationen
+führt das Gerät aus.
 
 ## Ablauf
 
