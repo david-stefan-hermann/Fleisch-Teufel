@@ -19,6 +19,7 @@ import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MacroSummary } from '@/features/diary/MacroSummary';
 import { DayShareImage, type DayShareData } from '@/features/diary/share/DayShareImage';
 import { DiaryDnd } from '@/features/diary/DiaryDnd';
+import { MarqueeText } from '@/components/MarqueeText';
 import { AddMealLink, EmptyMealCard, MealCard } from '@/features/diary/MealCard';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { NutrientEditor } from '@/components/NutrientEditor';
@@ -190,6 +191,64 @@ describe('NumberField with fixed decimals', () => {
     expect(input.value).toBe('84,30');
     fireEvent.click(screen.getByText('tape'));
     expect(input.value).toBe('84,55');
+  });
+});
+
+describe('MarqueeText', () => {
+  /** jsdom has no layout: the box is 100 px wide, the text as wide as given. */
+  function layout(textWidth: number) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private cb: ResizeObserverCallback) {}
+        observe() {
+          this.cb([], this as unknown as ResizeObserver);
+        }
+        disconnect() {}
+        unobserve() {}
+      },
+    );
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      return { width: this.classList.contains('marquee') ? 100 : textWidth } as DOMRect;
+    });
+  }
+  const reduceMotion = (matches: boolean) =>
+    vi.stubGlobal('matchMedia', () => ({
+      matches,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+  const box = (c: HTMLElement) => c.querySelector<HTMLElement>('.marquee')!;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('a name that fits stands still, once', () => {
+    layout(80);
+    const { container } = render(<MarqueeText text="Snacks" />);
+    expect(box(container).hasAttribute('data-running')).toBe(false);
+    expect(screen.getAllByText('Snacks')).toHaveLength(1);
+  });
+
+  it('a name that does not fit runs with a copy that is not read out', () => {
+    layout(240);
+    const { container } = render(<MarqueeText text="Kuchen bei Oma" />);
+    expect(box(container).hasAttribute('data-running')).toBe(true);
+    const [first, copy] = screen.getAllByText('Kuchen bei Oma');
+    expect(first!.getAttribute('aria-hidden')).toBeNull();
+    expect(copy!.getAttribute('aria-hidden')).toBe('true');
+    expect(box(container).style.getPropertyValue('--marquee-distance')).toBe('272px');
+    expect(box(container).style.getPropertyValue('--marquee-duration')).toBe('12.5s');
+  });
+
+  it('with reduced motion a long name is cut off: no run, no copy', () => {
+    layout(240);
+    reduceMotion(true);
+    const { container } = render(<MarqueeText text="Kuchen bei Oma" />);
+    expect(box(container).hasAttribute('data-running')).toBe(false);
+    expect(screen.getAllByText('Kuchen bei Oma')).toHaveLength(1);
   });
 });
 

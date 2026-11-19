@@ -18,7 +18,7 @@ export interface NameDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: ReactNode;
+  description?: ReactNode;
   /** Confirm button, e.g. "Meal speichern". */
   confirmLabel: string;
   /** Prefilled name, used again each time the dialog opens. */
@@ -74,7 +74,7 @@ function NameForm({
     <>
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
       <DialogBody className="gap-1.5">
         <Label htmlFor="name-dialog-name">Name</Label>

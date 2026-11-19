@@ -1,18 +1,31 @@
-import { dayId, eatenAtOf, uuidv7, type FoodEntry, type MealItem } from '@ft/shared';
+import {
+  dayId,
+  eatenAtOf,
+  MAX_CUSTOM_MEAL_NAMES,
+  SETTINGS_ID,
+  uuidv7,
+  type FoodEntry,
+  type MealItem,
+} from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import {
   applyLogTarget,
+  chooseMealName,
   moveEntriesToDiaryMeal,
+  ownMealNames,
   prepareMealTarget,
   readDay,
   readMealChoice,
   readNextMeal,
+  removeOwnMealName,
   renameDiaryMeal,
   restoreEntryMeals,
+  saveStandardMealNames,
   setDiaryMealTime,
 } from '@/db/diaryMeals';
 import { UserDb } from '@/db/dexie';
 import { logItems, updateFoodEntry } from '@/db/entries';
+import { DEFAULT_SETTINGS, saveSettings } from '@/db/settings';
 import { deleteRecord, saveRecord } from '@/db/write';
 
 const DATE = '2026-11-19';
@@ -286,5 +299,117 @@ describe('editing an entry', () => {
     const day = await readDay(d, DATE);
     expect(day.map((m) => m.name).sort()).toEqual(['Frühstück', 'Mittagessen']);
     expect(day.find((m) => m.name === 'Mittagessen')!.entries.map((e) => e.id)).toEqual([entry.id]);
+  });
+});
+
+describe('meal names', () => {
+  const STANDARD = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'];
+  const RENAMED = ['Morgens', 'Mittags', 'Abends', 'Zwischendurch'];
+  const settingsOf = async (d: UserDb) => (await d.settings.get(SETTINGS_ID))!;
+
+  it('a renamed standard name counts for new meals only, old days keep theirs', async () => {
+    const d = db();
+    await saveSettings(d, {});
+    await oldEntry(d, 0, at(8));
+    await saveStandardMealNames(d, RENAMED);
+    expect(await settingsOf(d)).toMatchObject({ mealNames: RENAMED, legacyMealNames: STANDARD });
+    expect((await readDay(d, DATE)).map((m) => m.name)).toEqual(['Frühstück']);
+    expect((await readNextMeal(d, '2026-11-20')).name).toBe('Morgens');
+  });
+
+  it('keeps the names from before the first rename through later ones', async () => {
+    const d = db();
+    await saveStandardMealNames(d, RENAMED);
+    await saveStandardMealNames(d, ['A', 'B', 'C', 'D']);
+    expect(await settingsOf(d)).toMatchObject({ mealNames: ['A', 'B', 'C', 'D'], legacyMealNames: STANDARD });
+  });
+
+  it('saving unchanged names sets nothing', async () => {
+    const d = db();
+    await saveSettings(d, {});
+    const before = await settingsOf(d);
+    await saveStandardMealNames(d, [' Frühstück ', ...STANDARD.slice(1)]);
+    expect(await settingsOf(d)).toEqual(before);
+  });
+
+  it('builds on the names stored at saving, not on a copy of the page', async () => {
+    const d = db();
+    await saveSettings(d, { mealNames: RENAMED, legacyMealNames: STANDARD });
+    await saveStandardMealNames(d, ['A', 'B', 'C', 'D']);
+    expect((await settingsOf(d)).legacyMealNames).toEqual(STANDARD);
+  });
+
+  it('an own name goes to the meal and into the picker', async () => {
+    const d = db();
+    await oldEntry(d, 1, at(12));
+    const [meal] = await readDay(d, DATE);
+    expect(await chooseMealName(d, meal!, '  Kuchen bei Oma ')).toEqual({ listed: true });
+    expect((await readDay(d, DATE))[0]).toMatchObject({
+      name: 'Kuchen bei Oma',
+      virtual: false,
+      eatenAt: at(12),
+    });
+    expect((await settingsOf(d)).customMealNames).toEqual(['Kuchen bei Oma']);
+    expect((await d.outbox.toArray()).map((o) => o.table).sort()).toContain('settings');
+  });
+
+  it('keeps no duplicates and neither standard names nor the automatic one', async () => {
+    const d = db();
+    await saveSettings(d, {});
+    await oldEntry(d, 0, at(8));
+    const [meal] = await readDay(d, DATE);
+    for (const name of ['Kuchen', 'kuchen', 'mittagessen', 'Weitere Mahlzeit'])
+      await chooseMealName(d, meal!, name);
+    expect((await settingsOf(d)).customMealNames).toEqual(['Kuchen']);
+  });
+
+  it('a full list leaves the name on the meal and says so', async () => {
+    const d = db();
+    const full = Array.from({ length: MAX_CUSTOM_MEAL_NAMES }, (_, i) => `Name ${i}`);
+    await saveSettings(d, { customMealNames: full });
+    await oldEntry(d, 0, at(8));
+    const [meal] = await readDay(d, DATE);
+    expect(await chooseMealName(d, meal!, 'Noch einer')).toEqual({ listed: false });
+    expect((await readDay(d, DATE))[0]!.name).toBe('Noch einer');
+    expect((await settingsOf(d)).customMealNames).toEqual(full);
+  });
+
+  it('a name the server would refuse changes neither the meal nor the list', async () => {
+    const d = db();
+    await oldEntry(d, 0, at(8));
+    const [meal] = await readDay(d, DATE);
+    await expect(chooseMealName(d, meal!, 'x'.repeat(41))).rejects.toThrow();
+    expect(await d.diaryMeals.count()).toBe(0);
+    expect(await d.settings.get(SETTINGS_ID)).toBeUndefined();
+  });
+
+  it('a deleted own name leaves the picker, the meal keeps it', async () => {
+    const d = db();
+    await oldEntry(d, 0, at(8));
+    const [meal] = await readDay(d, DATE);
+    await chooseMealName(d, meal!, 'Kuchen bei Oma');
+    await removeOwnMealName(d, 'Kuchen bei Oma');
+    expect(ownMealNames(await settingsOf(d))).toEqual([]);
+    expect((await readDay(d, DATE))[0]!.name).toBe('Kuchen bei Oma');
+  });
+
+  it('an own name equal to a renamed standard name is offered once', () => {
+    const settings = { ...DEFAULT_SETTINGS, mealNames: RENAMED, customMealNames: ['Morgens', 'Kuchen'] };
+    expect(ownMealNames(settings)).toEqual(['Kuchen']);
+  });
+
+  it('naming a meal keeps the order of an old day', async () => {
+    const d = db();
+    // Snacks in the morning: an old day stays in the order of its four meals, not by time.
+    await oldEntry(d, 3, at(7));
+    await oldEntry(d, 0, at(9));
+    await oldEntry(d, 1, at(12));
+    const order = (await readDay(d, DATE)).map((m) => m.id);
+    expect(order).toEqual([0, 1, 3].map((slot) => dayId.diaryMeal(DATE, slot)));
+    const lunch = (await readDay(d, DATE)).find((m) => m.slot === 1)!;
+    await chooseMealName(d, lunch, 'Kuchen bei Oma');
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => m.id)).toEqual(order);
+    expect(day[1]).toMatchObject({ name: 'Kuchen bei Oma', eatenAt: at(12) });
   });
 });

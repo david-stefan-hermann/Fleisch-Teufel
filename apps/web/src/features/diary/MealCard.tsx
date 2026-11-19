@@ -13,6 +13,7 @@ import { Camera, ChevronDown, ChevronRight, ClipboardPaste, ListPlus, Plus } fro
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { MarqueeText } from '@/components/MarqueeText';
 import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -30,6 +31,7 @@ import { fmt0, fmt2, fmtGrams, fmtIngredients, fmtTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MacroSummary } from './MacroSummary';
 import { DiaryMealMenu } from './DiaryMealMenu';
+import { MealNameMenu } from './MealNameMenu';
 import { MealSuggestions } from './MealSuggestions';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
 import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
@@ -89,7 +91,8 @@ export function MealCard({
         titleClassName="min-w-0"
         title={
           <span className="flex min-h-11 min-w-0 items-baseline gap-1">
-            <span className="min-w-0 truncate">{name}</span>
+            {/* A meal of waiting analyses only has no record yet that could take a name. */}
+            {entries.length > 0 ? <MealNameMenu meal={meal} /> : <MarqueeText text={name} />}
             {entries.length > 0 && (
               // The meal's own page: nutrient overview and its entries.
               <Link
@@ -167,8 +170,8 @@ export function EmptyMealCard({
   return (
     <Section
       className="mb-[18px]"
-      titleClassName="min-w-0 truncate"
-      title={next.name}
+      titleClassName="min-w-0"
+      title={<MarqueeText text={next.name} />}
       action={
         <div className="flex shrink-0 items-center">
           {clipboard && (

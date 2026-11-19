@@ -782,3 +782,40 @@ input[type='date']::-webkit-datetime-edit {
     animation: none !important;
   }
 }
+
+/* A name too long for its place runs through it (`MarqueeText`). The box reaches 6 px to the left, so the
+   soft edge lies beside the first letter while the name rests. */
+.marquee {
+  display: block;
+  min-width: 0;
+  margin-left: -6px;
+  padding-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.marquee[data-running] {
+  text-overflow: clip;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6px, #000 calc(100% - 16px), transparent);
+}
+.marquee[data-running] .marquee-track {
+  display: inline-flex;
+  width: max-content;
+  gap: 32px;
+  animation: marquee var(--marquee-duration) linear infinite;
+}
+@keyframes marquee {
+  0%,
+  22% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-1 * var(--marquee-distance)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee[data-running] .marquee-track {
+    animation: none;
+  }
+}

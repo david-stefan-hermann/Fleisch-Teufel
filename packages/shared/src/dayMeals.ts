@@ -61,6 +61,9 @@ export interface BuildDayMealsInput<P> {
 
 const fold = (name: string) => name.trim().toLocaleLowerCase('de');
 
+/** Two spellings of one meal name. */
+export const sameMealName = (a: string, b: string): boolean => fold(a) === fold(b);
+
 /** Whether a moment belongs to the day: on its calendar day or in the night after it. */
 function fitsDay(date: ISODate, at: number): boolean {
   const d = new Date(at);

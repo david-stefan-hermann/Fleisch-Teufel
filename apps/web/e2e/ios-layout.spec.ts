@@ -73,6 +73,61 @@ test('no zoom: viewport forbids scaling, html blocks pinch, inputs are at least 
 test.describe('375 px (iPhone mini and SE)', () => {
   test.use({ viewport: { width: 375, height: 667 } });
 
+  test('a long meal name runs inside its header, with reduced motion it stands still', async ({ page }) => {
+    await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+    await page.getByLabel('E-Mail').fill(`marquee-${Date.now()}@example.com`);
+    await page.getByLabel('Passwort').fill('e2e-password-123');
+    await page.getByRole('button', { name: 'Konto erstellen' }).click();
+    await expect(page).toHaveURL(/\/onboarding$/);
+
+    // The app may still be settling on the onboarding page and interrupt this navigation.
+    await expect(async () => {
+      await page.goto('/photo?form=1&meal=1');
+      await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible({ timeout: 2_000 });
+    }).toPass();
+    await page.getByLabel('Was hast du gegessen?').fill('Suppe');
+    await page.getByLabel('Kalorien').fill('1385');
+    await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+    await expect(page.getByText('Suppe', { exact: true })).toBeVisible();
+    await page.goto('/');
+
+    const long = 'Kuchen bei Oma nach dem langen Spazierga'; // 40 characters
+    await page.getByRole('button', { name: 'Mittagessen, Name ändern' }).click();
+    await page.getByRole('menuitem', { name: 'Eigener Name' }).click();
+    await page.getByLabel('Name', { exact: true }).fill(long);
+    await page.getByRole('button', { name: 'Speichern' }).click();
+
+    const slot = page.locator('[data-meal]').first();
+    const marquee = slot.locator('.marquee');
+    await expect(marquee).toHaveAttribute('data-running', '');
+    await expect(marquee.locator('[aria-hidden="true"]')).toHaveText(long);
+    const animations = () =>
+      marquee.locator('.marquee-track').evaluate((el) => el.getAnimations().map((a) => a.playState));
+    expect(await animations()).toEqual(['running']);
+
+    // The page does not scroll sideways, the buttons stay in the card.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    const card = (await slot.locator('section').boundingBox())!;
+    const header = [
+      slot.getByRole('button', { name: /, Name ändern$/ }),
+      slot.getByRole('link', { name: /kcal$/ }),
+      slot.getByRole('button', { name: /^Aktionen für / }),
+      slot.getByRole('link', { name: /^Essen zu / }),
+    ];
+    for (const control of header) {
+      const box = (await control.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(card.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width);
+    }
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(marquee).not.toHaveAttribute('data-running', '');
+    await expect(marquee.locator('[aria-hidden="true"]')).toHaveCount(0);
+    expect(await animations()).toEqual([]);
+  });
+
   test('reports, goals, progress and the diary header fit without cutting numbers', async ({
     page,
   }, info) => {

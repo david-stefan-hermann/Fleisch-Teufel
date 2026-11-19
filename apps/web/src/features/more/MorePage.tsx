@@ -17,11 +17,13 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { MEAL_COUNT, type Settings } from '@ft/shared';
 import type { ReactNode } from 'react';
 import { useSession, useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
 import { Switch } from '@/components/ui/switch';
+import { ownMealNames } from '@/db/diaryMeals';
 import { trashCount } from '@/db/trash';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
@@ -30,6 +32,11 @@ import { fmtReceived, useStepsStatus } from '@/lib/steps';
 
 const THEME_LABEL = { system: 'Wie das System', light: 'Hell', dark: 'Dunkel' } as const;
 const ICON_LABEL = { auto: 'wie die App', light: 'hell', dark: 'dunkel' } as const;
+
+function mealNamesHint(settings: Settings): string {
+  const own = ownMealNames(settings).length;
+  return own > 0 ? `${MEAL_COUNT} Standard · ${own} eigene` : `${MEAL_COUNT} Standard`;
+}
 
 function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: string; hint?: string }) {
   return (
@@ -77,8 +84,8 @@ export function MorePage() {
           <Row
             to="/settings/meals"
             icon={<ListOrdered aria-hidden />}
-            label="Mahlzeiten"
-            hint={settings?.mealNames.join(' · ')}
+            label="Mahlzeiten-Namen"
+            hint={settings && mealNamesHint(settings)}
           />
         </ul>
       </Section>

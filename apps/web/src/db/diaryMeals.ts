@@ -6,8 +6,10 @@ import {
   buildDayMeals,
   dayId,
   EXTRA_MEAL_NAME,
+  MAX_CUSTOM_MEAL_NAMES,
   newMealEatenAt,
   nextMealName,
+  sameMealName,
   SETTINGS_ID,
   slotForNewMeal,
   uuidv7,
@@ -17,8 +19,10 @@ import {
   type FoodEntry,
   type ISODate,
   type PendingMealItem,
+  type Settings,
 } from '@ft/shared';
 import type { AiQueueItem, UserDb } from './dexie';
+import { DEFAULT_SETTINGS, saveSettings } from './settings';
 import { saveRecord, patchRecord, upsertRecord } from './write';
 
 /** A meal of a day on this device: the analyses that still wait stand in it. */
@@ -323,6 +327,64 @@ export async function renameDiaryMeal(db: UserDb, meal: DayMeal, name: string): 
     ...(prev ?? recordOf(meal)),
     name: name.trim(),
   }));
+}
+
+/** The names a meal can be given besides the four standard ones, without repeating any of those. */
+export function ownMealNames(settings: Pick<Settings, 'mealNames' | 'customMealNames'>): string[] {
+  const own: string[] = [];
+  for (const name of settings.customMealNames ?? []) {
+    const taken = [...settings.mealNames, EXTRA_MEAL_NAME, ...own];
+    if (!taken.some((n) => sameMealName(n, name))) own.push(name);
+  }
+  return own;
+}
+
+/**
+ * Names a meal and keeps a new name for the picker, in one transaction. `listed` is false when the
+ * list of own names is full: the meal has its name all the same.
+ */
+export async function chooseMealName(
+  db: UserDb,
+  meal: DayMeal,
+  chosen: string,
+): Promise<{ listed: boolean }> {
+  const name = chosen.trim();
+  return db.transaction('rw', [db.diaryMeals, db.settings, db.outbox], async () => {
+    const current = (await db.diaryMeals.get(meal.id))?.name ?? meal.name;
+    if (current !== name) await renameDiaryMeal(db, meal, name);
+    const settings = (await db.settings.get(SETTINGS_ID)) ?? DEFAULT_SETTINGS;
+    const own = ownMealNames(settings);
+    const known = [...settings.mealNames, EXTRA_MEAL_NAME, ...own].some((n) => sameMealName(n, name));
+    if (known) return { listed: true };
+    if (own.length >= MAX_CUSTOM_MEAL_NAMES) return { listed: false };
+    await saveSettings(db, { customMealNames: [...own, name] });
+    return { listed: true };
+  });
+}
+
+/** Takes a name out of the picker. Meals that carry it keep it. */
+export async function removeOwnMealName(db: UserDb, name: string): Promise<void> {
+  await db.transaction('rw', [db.settings, db.outbox], async () => {
+    const settings = (await db.settings.get(SETTINGS_ID)) ?? DEFAULT_SETTINGS;
+    const own = ownMealNames(settings);
+    await saveSettings(db, { customMealNames: own.filter((n) => !sameMealName(n, name)) });
+  });
+}
+
+/**
+ * Renames the four standard meals for meals to come. Meals without a record read their name from the
+ * settings, so the names from before the first rename stay with them.
+ */
+export async function saveStandardMealNames(db: UserDb, names: readonly string[]): Promise<void> {
+  await db.transaction('rw', [db.settings, db.outbox], async () => {
+    const settings = (await db.settings.get(SETTINGS_ID)) ?? DEFAULT_SETTINGS;
+    const mealNames = names.map((n) => n.trim());
+    if (mealNames.every((n, i) => n === settings.mealNames[i])) return;
+    await saveSettings(db, {
+      mealNames,
+      legacyMealNames: settings.legacyMealNames ?? settings.mealNames,
+    });
+  });
 }
 
 /** Sets the time of a meal. `timeEdited` is false only when undoing the first change. */

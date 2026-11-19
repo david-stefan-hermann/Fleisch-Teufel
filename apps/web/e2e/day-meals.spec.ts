@@ -55,6 +55,14 @@ async function fillQuickForm(page: Page, text: string, kcal: number) {
   await expect(page.getByText(`${kcal} kcal eingetragen`)).toBeVisible();
 }
 
+/** Right after registering the app may still settle on the onboarding page and interrupt a navigation. */
+async function openQuickForm(page: Page, meal: number) {
+  await expect(async () => {
+    await page.goto(`/photo?form=1&meal=${meal}`);
+    await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+}
+
 const row = (page: Page, meal: string, text: string) =>
   mealCard(page, meal).getByRole('link', { name: new RegExp(`^${text}`) });
 
@@ -274,4 +282,96 @@ test('the last entry swiped away on the meal page leaves the page open, undo fil
   await expect(page.getByText('Mahlzeit nicht gefunden')).toHaveCount(0);
   await undo(page, 'Haferbrei gelöscht');
   await expect(entry).toBeVisible();
+});
+
+test('the name of a meal: picker, own names on a second device, settings', async ({ page, browser }) => {
+  await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+  const email = `names-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+  const password = 'e2e-password-123';
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+  await page.getByLabel('E-Mail').fill(email);
+  await page.getByLabel('Passwort').fill(password);
+  await page.getByRole('button', { name: 'Konto erstellen' }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+
+  await openQuickForm(page, 1);
+  await fillQuickForm(page, 'Suppe', 300);
+  await page.goto('/');
+
+  // kcal and arrow still open the page of the meal.
+  await page.getByRole('link', { name: 'Mittagessen, 300 kcal' }).click();
+  await expect(page).toHaveURL(/\/diary-meal\?/);
+  await page.goBack();
+
+  // The four names and "Eigener Name"; the current one is marked, the automatic one is not offered.
+  const nameButton = (name: string) => page.getByRole('button', { name: `${name}, Name ändern` });
+  await nameButton('Mittagessen').click();
+  const options = page.getByRole('menuitemcheckbox');
+  await expect(options).toHaveText(['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks']);
+  await expect(page.getByRole('menuitemcheckbox', { name: 'Mittagessen' })).toBeChecked();
+  await expect(page.getByRole('menuitem', { name: 'Eigener Name' })).toBeVisible();
+  await page.getByRole('menuitemcheckbox', { name: 'Abendessen' }).click();
+  await expect(nameButton('Abendessen')).toBeVisible();
+
+  await nameButton('Abendessen').click();
+  await page.getByRole('menuitem', { name: 'Eigener Name' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Eigener Name' });
+  await dialog.getByLabel('Name').fill('Kuchen bei Oma');
+  await dialog.getByRole('button', { name: 'Speichern' }).click();
+  await expect(nameButton('Kuchen bei Oma')).toBeVisible();
+  await expect(row(page, 'Kuchen bei Oma', 'Suppe')).toBeVisible();
+
+  // Uploaded: a second device offers the own name.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { changes } = await (await fetch('/api/sync/pull?since=0')).json();
+        return changes.some(
+          (c: { table: string; data: { customMealNames?: string[] | null } }) =>
+            c.table === 'settings' && c.data.customMealNames?.includes('Kuchen bei Oma'),
+        );
+      }),
+    )
+    .toBe(true);
+  const other = await browser.newContext();
+  await other.addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+  const phone2 = await other.newPage();
+  await phone2.goto('/login');
+  await phone2.getByLabel('E-Mail').fill(email);
+  await phone2.getByLabel('Passwort').fill(password);
+  await phone2.getByRole('button', { name: 'Anmelden' }).click();
+  await phone2.getByRole('button', { name: 'Kuchen bei Oma, Name ändern' }).click();
+  await expect(phone2.getByRole('menuitemcheckbox', { name: 'Kuchen bei Oma' })).toBeChecked();
+  await other.close();
+
+  // Deleted in the settings: gone from the picker, the meal keeps it.
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Mahlzeiten-Namen/ })).toContainText('4 Standard · 1 eigene');
+  await page.getByRole('link', { name: /Mahlzeiten-Namen/ }).click();
+  await page.getByRole('button', { name: '„Kuchen bei Oma“ löschen' }).click();
+  const confirm = page.getByRole('dialog', { name: '„Kuchen bei Oma“ löschen?' });
+  await expect(confirm).toContainText('Eingetragene Mahlzeiten behalten diesen Namen.');
+  await confirm.getByRole('button', { name: 'Löschen' }).click();
+  await expect(page.getByRole('heading', { name: 'Eigene Namen' })).toBeHidden();
+
+  await page.goto('/');
+  await nameButton('Kuchen bei Oma').click();
+  await expect(options).toHaveText(['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks']);
+});
+
+test('renaming a standard name leaves the meals already logged as they are', async ({ page }) => {
+  await register(page);
+  await openQuickForm(page, 0);
+  await fillQuickForm(page, 'Haferbrei', 300);
+
+  await page.goto('/settings/meals');
+  await page.getByLabel('Mahlzeit 1').fill('Morgens');
+  await page.getByRole('button', { name: 'Speichern' }).click();
+  await expect(page).toHaveURL(/\/more$/);
+
+  await page.goto('/');
+  await expect(mealCard(page, 'Frühstück')).toBeVisible();
+  await page.getByRole('button', { name: 'Frühstück, Name ändern' }).click();
+  await expect(page.getByRole('menuitemcheckbox').first()).toHaveText('Morgens');
 });

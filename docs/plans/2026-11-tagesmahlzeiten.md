@@ -14,8 +14,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 3     | 44c195d | Schreibschicht auf dem Gerät                            | fertig |
 | 4     | 709fb96 | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
 | 5     | b344dfc | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
-| 6     | s. Log  | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
-| 7     |         | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
+| 6     | 914e05c | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
+| 7     | s. Log  | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
 | 8     |         | Uhrzeit-Dialog und Nacht                                | offen  |
 | 9     |         | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
 | 10    |         | Assistent                                               | offen  |
@@ -72,6 +72,19 @@ Block 6:
 - Übergang bis Block 7: Bei vierstelligen kcal und sichtbarem Einfügen-Symbol wird ein langer Name bei 375 px abgeschnitten („Mittage…“).
 - Übergang bis Block 9: Einfügen, „Zuletzt hier“ und „Wie gestern“ schreiben weiter nur über `meal`. Hat ein Tag zwei Mahlzeiten mit
   demselben Index, landet der Eintrag nach Regel 3 in der jüngsten passenden, nicht zwingend in der angetippten Karte.
+
+Block 7:
+
+- Der Übergang aus Block 6 ist geschlossen: Ein zu langer Name läuft als Laufschrift durch, auch bei vierstelligen kcal mit Einfügen-Symbol.
+- `saveStandardMealNames` liest die Einstellungen in der Schreibtransaktion statt aus der Kopie der Seite. Sonst könnte ein zweites Gerät
+  `legacyMealNames` überschreiben. Unveränderte Namen schreiben nichts.
+- „Weitere Mahlzeit“ wird wie die Standard-Namen nicht als eigener Name gemerkt, die Mahlzeit trägt ihn trotzdem. Namen werden ohne Groß/Klein verglichen (`sameMealName`, neu in shared).
+- Wird ein Standard-Name so umbenannt, wie schon ein eigener heißt, zeigt die Auswahl ihn einmal (`ownMealNames`).
+- Die leere Karte nutzt `MarqueeText` ebenfalls, ein Standard-Name kann 40 Zeichen lang sein. Der Titel von `/diary-meal` bleibt reiner Text.
+- `NameDialog` kommt ohne Beschreibung aus (Mockup B2). `MealCard.tsx`, `NameDialog.tsx` und `packages/shared/src/dayMeals.ts` kamen zur Dateiliste dazu.
+- Die Tests der Namen stehen in `day-meals-write.test.ts` statt in `write.test.ts`, dort liegen die Helfer für Mahlzeiten.
+- Übergang bis Block 9: Einfügen, „Zuletzt hier“ und „Wie gestern“ schreiben nur über `meal`. Entsteht so nach einer Umbenennung eine Mahlzeit ohne Datensatz, trägt sie den Namen aus `legacyMealNames`.
+- Übergang bis Block 10 und 11: Assistent, Tagesbild, CSV und „Tag abschließen“ lesen weiter `settings.mealNames[slot]` und zeigen nach einer Umbenennung auch für alte Tage den neuen Namen.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 
