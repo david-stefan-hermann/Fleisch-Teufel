@@ -1,7 +1,8 @@
-import { MAX_ANALYSIS_PHOTOS } from '@ft/shared';
+import { dayId, MAX_ANALYSIS_PHOTOS } from '@ft/shared';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
+import { mealIdOf, prepareMealTarget } from '@/db/diaryMeals';
 import { logQuickEntry } from '@/db/entries';
 import {
   emptyQuickEntry,
@@ -30,11 +31,14 @@ import type { CapturedShot } from './types';
 export function usePhotoFlow({
   date,
   meal,
+  dm,
   openReview,
   closeForm,
 }: {
   date: string;
   meal: number;
+  /** The meal of the day (`new`: the next one); without it `meal` alone says where entries go. */
+  dm?: string;
   /** Opens the review of a queue item; `replace` puts it in place of the form in the history. */
   openReview: (id: number, replace?: boolean) => void;
   /** Leaves "Eingeben" for the camera it was opened from. */
@@ -70,7 +74,10 @@ export function usePhotoFlow({
     const id = waiting.current;
     waiting.current = null;
     if (id !== null) void leaveAnalysis(db, id);
-    void returnToDiary({ date, focus: { rows: id === null ? [] : [`pending:${id}`], meal } });
+    void returnToDiary({
+      date,
+      focus: { rows: id === null ? [] : [`pending:${id}`], mealId: dayId.diaryMeal(date, meal) },
+    });
   }
 
   /** Compresses taken or picked photos and adds them to the preview. */
@@ -119,10 +126,11 @@ export function usePhotoFlow({
   /** "Eintragen" of the form: a quick entry with the typed values; the text is its note and title. */
   async function logEntry() {
     if (!quickEntryValid(entry)) return;
-    const values = quickEntryValues(entry, meal);
-    const id = await logQuickEntry(db, date, values);
+    const target = await prepareMealTarget(db, { date, meal, dm });
+    const values = quickEntryValues(entry, target.meal);
+    const id = await logQuickEntry(db, date, values, target);
     toast.success(`${fmt0(values.kcal)} kcal eingetragen`);
-    await returnToDiary({ date, focus: { rows: [id], meal: values.meal } });
+    await returnToDiary({ date, focus: { rows: [id], mealId: mealIdOf(target) } });
   }
 
   /**
@@ -163,7 +171,10 @@ export function usePhotoFlow({
             ? 'Offline gespeichert. Die Beschreibung steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.'
             : 'Offline gespeichert. Das Foto steht im Tagebuch und wird analysiert, sobald du wieder verbunden bist.',
         );
-        return void returnToDiary({ date, focus: { rows: [`pending:${id}`], meal: toMeal } });
+        return void returnToDiary({
+          date,
+          focus: { rows: [`pending:${id}`], mealId: dayId.diaryMeal(date, toMeal) },
+        });
       }
       if (item?.status === 'failed') toast.error(item.error ?? 'Analyse fehlgeschlagen');
       // The description waits under "Offene Analysen" now (to repeat or discard), not in the form.

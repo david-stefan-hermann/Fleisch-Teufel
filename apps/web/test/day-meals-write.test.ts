@@ -5,12 +5,14 @@ import {
   moveEntriesToDiaryMeal,
   prepareMealTarget,
   readDay,
+  readMealChoice,
+  readNextMeal,
   renameDiaryMeal,
   restoreEntryMeals,
   setDiaryMealTime,
 } from '@/db/diaryMeals';
 import { UserDb } from '@/db/dexie';
-import { logItems } from '@/db/entries';
+import { logItems, updateFoodEntry } from '@/db/entries';
 import { deleteRecord, saveRecord } from '@/db/write';
 
 const DATE = '2026-11-19';
@@ -192,5 +194,97 @@ describe('changing meals', () => {
     await d.outbox.clear();
     expect(await moveEntriesToDiaryMeal(d, [a.id, gone.id, 'missing'], meal!)).toEqual([]);
     expect(await d.outbox.count()).toBe(0);
+  });
+});
+
+describe('choosing a meal', () => {
+  it('names the next meal of an empty day and a link that only has an index', async () => {
+    const d = db();
+    expect(await readNextMeal(d, DATE)).toEqual({ name: 'Frühstück', slot: 0 });
+    const fresh = await readMealChoice(d, { date: DATE, meal: 0, dm: 'new' }, at(8));
+    expect(fresh.current).toEqual({ id: 'new', name: 'Frühstück', slot: 0, eatenAt: null });
+    const old = await readMealChoice(d, { date: DATE, meal: 1 }, at(8));
+    expect(old.current).toEqual({
+      id: dayId.diaryMeal(DATE, 1),
+      name: 'Mittagessen',
+      slot: 1,
+      eatenAt: null,
+    });
+  });
+
+  it('shows the meal an old link will write into', async () => {
+    const d = db();
+    const target = await prepareMealTarget(d, { date: DATE, meal: 0, dm: 'new', name: 'Brunch' }, at(10));
+    await logItems(d, [item], target);
+    const { current } = await readMealChoice(d, { date: DATE, meal: target.meal }, at(11));
+    expect(current).toMatchObject({ id: target.diaryMealId, name: 'Brunch', eatenAt: at(10) });
+    const key = dayId.diaryMeal(DATE, target.meal);
+    const viaKey = await readMealChoice(d, { date: DATE, meal: target.meal, dm: key }, at(11));
+    expect(viaKey.current.id).toBe(target.diaryMealId);
+  });
+
+  it('offers the next free name once the day has meals', async () => {
+    const d = db();
+    await oldEntry(d, 0, at(8));
+    const choice = await readMealChoice(d, { date: DATE, meal: 0, dm: 'new' }, at(12));
+    expect(choice.meals.map((m) => m.name)).toEqual(['Frühstück']);
+    expect(choice.next).toEqual({ name: 'Mittagessen', slot: 1 });
+  });
+});
+
+describe('editing an entry', () => {
+  const fields = { ...item, name: 'Birne' };
+
+  it('leaves the meal alone unless another one was picked', async () => {
+    const d = db();
+    const target = await prepareMealTarget(d, { date: DATE, meal: 0, dm: 'new' }, at(8));
+    const [id] = await logItems(d, [item], target);
+    const entry = (await d.foodEntries.get(id!))!;
+    // Moved on another device while the form was open.
+    await d.foodEntries.update(id!, { meal: 2, diaryMealId: null });
+    await updateFoodEntry(d, entry, fields, null);
+    expect(await d.foodEntries.get(id!)).toMatchObject({ name: 'Birne', meal: 2, diaryMealId: null });
+  });
+
+  it('keeps fields the form does not know and a deletion from elsewhere', async () => {
+    const d = db();
+    const entry = await oldEntry(d, 1, at(12), { mealId: 'saved', note: 'bleibt' });
+    await deleteRecord(d, 'foodEntries', entry.id);
+    await updateFoodEntry(d, entry, fields, null);
+    expect(await d.foodEntries.get(entry.id)).toMatchObject({
+      name: 'Birne',
+      mealId: 'saved',
+      note: 'bleibt',
+      deleted: true,
+    });
+  });
+
+  it('moves into a picked meal and both meals keep their time', async () => {
+    const d = db();
+    const first = await oldEntry(d, 0, at(8));
+    const second = await oldEntry(d, 0, at(8, 30));
+    await oldEntry(d, 1, at(12));
+    await updateFoodEntry(d, first, fields, {
+      date: DATE,
+      meal: 1,
+      dm: dayId.diaryMeal(DATE, 1),
+    });
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => [m.id, m.eatenAt])).toEqual([
+      [dayId.diaryMeal(DATE, 0), at(8)],
+      [dayId.diaryMeal(DATE, 1), at(12)],
+    ]);
+    expect(day[0]!.entries.map((e) => e.id)).toEqual([second.id]);
+    expect(day[1]!.entries).toHaveLength(2);
+  });
+
+  it('begins a new meal when one was picked', async () => {
+    const d = db();
+    const entry = await oldEntry(d, 0, at(8));
+    await oldEntry(d, 0, at(8, 10));
+    await updateFoodEntry(d, entry, fields, { date: DATE, meal: 1, dm: 'new' });
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => m.name).sort()).toEqual(['Frühstück', 'Mittagessen']);
+    expect(day.find((m) => m.name === 'Mittagessen')!.entries.map((e) => e.id)).toEqual([entry.id]);
   });
 });

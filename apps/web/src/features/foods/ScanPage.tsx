@@ -27,7 +27,7 @@ type State =
   | { kind: 'error'; code: string };
 
 export function ScanPage() {
-  const { date, meal, into, code: initialCode } = useSearch({ from: '/authed/scan' });
+  const { date, meal, dm, into, code: initialCode } = useSearch({ from: '/authed/scan' });
   const navigate = useNavigate();
   const ai = useAiStatus();
   /** New custom food with the scanned code; `label`: open the label camera right away. */
@@ -40,11 +40,12 @@ export function ScanPage() {
           barcode: code,
           date,
           meal,
+          dm,
           ...(into ? { into } : {}),
           ...(label ? { label: '1' as const } : {}),
         },
       }),
-    [navigate, date, meal, into],
+    [navigate, date, meal, dm, into],
   );
   const db = useDb();
   const [state, setState] = useState<State>(
@@ -68,14 +69,14 @@ export function ScanPage() {
         await navigate({
           to: '/food/$foodId',
           params: { foodId: r.food.id },
-          search: { date, meal, ...(into ? { into } : {}) },
+          search: { date, meal, dm, ...(into ? { into } : {}) },
           replace: true,
         });
       else if (r.status === 'not_found' || r.status === 'offline' || r.status === 'timeout')
         setState({ kind: r.status === 'not_found' ? 'notfound' : r.status, code });
       else setState({ kind: 'error', code });
     },
-    [navigate, date, meal, into],
+    [navigate, date, meal, dm, into],
   );
   // State changes only happen once the lookup resolves (keeps the effect below free of sync setState).
   const lookup = useCallback(

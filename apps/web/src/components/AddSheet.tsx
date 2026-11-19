@@ -20,6 +20,7 @@ import { useAssistant } from '@/features/assistant/AssistantProvider';
 import { useSkin } from '@/features/assistant/skins/useSkin';
 import { ASSISTANT_SCALE, useAppearance, type AssistantSize } from '@/lib/appearance';
 import { rememberLogStart } from '@/lib/logFlow';
+import { readNextMeal } from '@/db/diaryMeals';
 import { logTargetFor } from '@/lib/meals';
 import { cn } from '@/lib/utils';
 import { warmUpCamera } from './cameraWarmup';
@@ -28,7 +29,7 @@ import { useToday } from '@/hooks/data';
 
 /**
  * Target of the sheet: day and meal for "Essen eintragen". Without a meal `logTargetFor` decides:
- * the meal of the last entry while it is younger than 20 minutes, else the meal of the hour.
+ * the meal of the last entry for up to 30 minutes, else a new meal.
  */
 export interface AddSheetTarget {
   date?: string;
@@ -75,21 +76,24 @@ function AddSheet({
   const search = useSearch({ strict: false }) as { date?: string };
   const todayNow = useToday();
   const db = useDb();
-  // What was logged last (today, and yesterday for the minutes after midnight) and which photos
-  // still wait in a meal: read while the sheet is open, used when a tile is tapped.
+  const shownDay = target.date ?? search.date ?? todayNow;
+  // What was logged last (today, yesterday for the minutes after midnight, and the day on the screen),
+  // which photos still wait in a meal and what a new meal of that day would be: read while the sheet
+  // is open, used when a tile is tapped.
   const recent = useLiveQuery(
     async () =>
       open
         ? {
             entries: await db.foodEntries
               .where('date')
-              .between(addDays(todayNow, -1), todayNow, true, true)
+              .anyOf([...new Set([addDays(todayNow, -1), todayNow, shownDay])])
               .filter((e) => !e.deleted)
               .toArray(),
             pending: await db.aiQueue.filter((i) => !i.result).toArray(),
+            next: await readNextMeal(db, shownDay),
           }
         : null,
-    [db, open, todayNow],
+    [db, open, todayNow, shownDay],
   );
   /** Day and meal of the tap (the clock is read then, not while rendering). */
   const targetNow = () => {
@@ -103,6 +107,7 @@ function AddSheet({
       now,
       entries: recent?.entries ?? [],
       pending: recent?.pending ?? [],
+      newMealSlot: recent?.next.slot,
     });
   };
   /** Logging returns to the page the sheet was opened on, when that is the diary of the day. */

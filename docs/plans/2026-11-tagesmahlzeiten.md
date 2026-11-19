@@ -11,8 +11,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | ----- | ------- | ------------------------------------------------------- | ------ |
 | 1     | 16d149e | Datenmodell, Migration `0020`, Dexie v7, Sync           | fertig |
 | 2     | 573e8b6 | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | fertig |
-| 3     | 64dc4a4 | Schreibschicht auf dem Gerät                            | fertig |
-| 4     |         | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | offen  |
+| 3     | 44c195d | Schreibschicht auf dem Gerät                            | fertig |
+| 4     | s. Log  | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
 | 5     |         | KI-Warteschlange, verzögerte Analysen, Entwürfe         | offen  |
 | 6     |         | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
 | 7     |         | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
@@ -24,6 +24,22 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 13    |         | Doku                                                    | offen  |
 
 **Abweichungen während der Umsetzung**: hier eintragen, nicht still entscheiden.
+
+Block 4:
+
+- `logTargetFor` bleibt rein und liest `diaryMeals` und Einstellungen nicht selbst: Der Aufrufer gibt `newMealSlot` mit
+  (`readNextMeal`), `AddSheet` liest dafür den angezeigten Tag.
+- `execute.ts` passt nicht nur den Aufruf an: Ohne genannte Mahlzeit löst der Assistent `dm` schon vor seiner Transaktion
+  mit `prepareMealTarget` auf, alle Operationen eines Turns gehen in dieselbe Mahlzeit. Block 10 baut darauf auf.
+- Neu `placeMovedEntry`: Wählt jemand beim Bearbeiten eines Eintrags eine andere Mahlzeit, behalten beide Mahlzeiten
+  Name und Uhrzeit wie nach dem Ziehen (Entscheidung 4).
+- `AddFoodPage`: Das „+“ einer Zeile lässt die Seite offen. Nach dem ersten Eintrag in eine neue Mahlzeit steht deren Id in
+  der URL, das nächste „+“ legt also keine zweite an.
+- Übergang bis Block 5: Analysen schreiben weiter nur über `meal` (Regel 3), `dm` geht beim Einreihen verloren.
+- Übergang bis Block 6: Das Tagebuch zeigt noch die vier Fächer. `data-meal` trägt dort `dm:<Datum>:<Index>`, eine neue
+  Mahlzeit wird also nur über ihre Zeilen gefunden. `ReviewStep` und `MealCard` sind deshalb nur dafür angefasst.
+- Bekannte Grenze: Hat eine ältere App einen Eintrag in ein anderes Fach gezogen, zeigt `entryMealKey` noch auf die alte
+  Mahlzeit, das „+“ der Tab-Leiste landet bis 30 Minuten danach dort.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

@@ -24,10 +24,16 @@ import {
 } from '@ft/shared';
 import type { AiItem } from './aiDraft';
 import type { UserDb } from './dexie';
-import { applyLogTarget, type LogTarget } from './diaryMeals';
+import {
+  applyLogTarget,
+  placeMovedEntry,
+  prepareMealTarget,
+  type LogTarget,
+  type MealRef,
+} from './diaryMeals';
 import { addItemToMealDraft } from './mealDraft';
 import { storePhoto, storePhotoBytes } from './photos';
-import { patchRecord, restoreRecord, saveRecord } from './write';
+import { patchRecord, restoreRecord, saveRecord, upsertRecord } from './write';
 
 export type NewFoodEntry = Omit<
   FoodEntry,
@@ -70,6 +76,30 @@ export async function logFoodEntry(
     });
   });
   return id;
+}
+
+/** What the food page changes of an entry it edits. */
+export type EditedFoodFields = Omit<NewFoodEntry, 'meal' | 'mealId' | 'aiAnalysisId'>;
+
+/**
+ * "Änderungen übernehmen" of the food page: the fields over the record as stored. The entry changes
+ * its meal only with `move` (the person picked another one).
+ */
+export async function updateFoodEntry(
+  db: UserDb,
+  entry: FoodEntry,
+  fields: EditedFoodFields,
+  move: MealRef | null,
+): Promise<void> {
+  const target = move && (await prepareMealTarget(db, move));
+  await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.settings, db.outbox], async () => {
+    const place = target ? await placeMovedEntry(db, entry.id, target) : null;
+    await upsertRecord(db, 'foodEntries', entry.id, (prev) => ({
+      ...(prev ?? entry),
+      ...fields,
+      ...place,
+    }));
+  });
 }
 
 /** What the quick entry form holds: the text and the typed values. */

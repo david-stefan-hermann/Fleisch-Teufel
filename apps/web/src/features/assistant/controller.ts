@@ -41,7 +41,7 @@ export interface ControllerDeps {
   voice: boolean;
   /** The day the diary shows now (today on other pages). */
   shownDate: () => ISODate;
-  openPhoto: (search: { date: ISODate; meal: number }) => void;
+  openPhoto: (search: { date: ISODate; meal: number; dm?: string }) => void;
 }
 
 export class AssistantController {

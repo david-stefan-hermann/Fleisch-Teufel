@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type AnyClipboard } from '@/db/clipboard';
 import type { AiQueueItem } from '@/db/dexie';
-import { readDay } from '@/db/diaryMeals';
+import { readDay, readMealChoice, type MealChoice } from '@/db/diaryMeals';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
@@ -70,6 +70,12 @@ export function useDayEntries(date: ISODate): FoodEntry[] | undefined {
 export function useDayMeals(date: ISODate): DayMeal[] | undefined {
   const db = useDb();
   return useLiveQuery(() => readDay(db, date), [db, date]);
+}
+
+/** The meals a page can log into on a day, and what its `meal` and `dm` stand for. */
+export function useMealChoice(date: ISODate, meal: number, dm?: string): MealChoice | undefined {
+  const db = useDb();
+  return useLiveQuery(() => readMealChoice(db, { date, meal, dm }), [db, date, meal, dm]);
 }
 
 export function useDayExercises(date: ISODate): ExerciseEntry[] | undefined {

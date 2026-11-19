@@ -3,13 +3,13 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Keyboard, LoaderCircle, Search, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
+import type { MealPick } from '@/db/diaryMeals';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
 import { DayNote } from '@/components/DayNote';
 import { HeaderMealPicker } from '@/components/HeaderMealPicker';
 import { Page } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { QuickEntryFields, quickEntryHasText, quickEntryValid } from '@/features/foods/QuickEntryFields';
-import { useSettings } from '@/hooks/data';
 import { endpoints } from '@/lib/api';
 import { goBackOr } from '@/lib/history';
 import { CameraCapture } from './CameraStep';
@@ -40,15 +40,14 @@ export function PhotoPage() {
   // The meal picked in the header wins over the one of the link. It is written into the URL of
   // whichever step of this page shows (camera, form), so the search, the scanner and the way back
   // from them know it too.
-  const [picked, setPicked] = useState<number | null>(null);
-  const meal = picked ?? search.meal;
+  const [picked, setPicked] = useState<MealPick | null>(null);
+  const { meal, dm } = picked ?? search;
   useEffect(() => {
-    if (picked !== null && picked !== search.meal)
-      void navigate({ search: (s) => ({ ...s, meal: picked }), replace: true });
-  }, [picked, search.meal, navigate]);
+    if (picked && (picked.meal !== search.meal || picked.dm !== search.dm))
+      void navigate({ search: (s) => ({ ...s, meal: picked.meal, dm: picked.dm }), replace: true });
+  }, [picked, search.meal, search.dm, navigate]);
   const router = useRouter();
   const db = useDb();
-  const settings = useSettings();
   const queue = useLiveQuery(() => db.aiQueue.orderBy('createdAt').reverse().toArray(), [db]);
   // The open analysis lives in the URL, so returning from the food search lands in it again.
   // From "Eingeben" the review takes the place of the finished form in the history.
@@ -72,7 +71,7 @@ export function PhotoPage() {
     );
   const activeId = review ?? null;
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
-  const flow = usePhotoFlow({ date, meal, openReview, closeForm });
+  const flow = usePhotoFlow({ date, meal, dm, openReview, closeForm });
   const { shots, adding, analyzing, logging, entry } = flow;
 
   useEffect(() => {
@@ -117,14 +116,7 @@ export function PhotoPage() {
       title="Essen eintragen"
       back
       // The meal everything on this page logs into (photo, form, search, barcode), changed right here.
-      actions={
-        <HeaderMealPicker
-          meal={meal}
-          names={settings?.mealNames ?? []}
-          onChange={setPicked}
-          disabled={busy}
-        />
-      }
+      actions={<HeaderMealPicker date={date} meal={meal} dm={dm} onChange={setPicked} disabled={busy} />}
       // In the preview, back drops the photos and returns to the camera; during the analysis it
       // leaves for the diary. The form is a step of its own in the history: back is the camera.
       onBack={analyzing ? flow.leaveToDiary : preview ? flow.clearShots : undefined}
@@ -203,7 +195,7 @@ export function PhotoPage() {
             busy={adding}
             onShots={(blobs) => void flow.addShots(blobs)}
             // A page of its own: back from the product returns to the camera.
-            onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, code } })}
+            onBarcode={(code) => void navigate({ to: '/scan', search: { date, meal, dm, code } })}
           />
           {/* The two other ways to log, where the thumb is: typing it in, or the food search. */}
           <div data-ai-avoid className="mt-3 grid grid-cols-2 gap-2">
@@ -211,7 +203,7 @@ export function PhotoPage() {
               <Keyboard aria-hidden /> Eingeben
             </Button>
             <Button variant="outline" size="lg" asChild>
-              <Link to="/add" search={{ date, meal }}>
+              <Link to="/add" search={{ date, meal, dm }}>
                 <Search aria-hidden /> Suchen
               </Link>
             </Button>

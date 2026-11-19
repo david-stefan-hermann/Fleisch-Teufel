@@ -16,6 +16,7 @@ import { TabBar } from '@/components/TabBar';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { recordError } from '@/lib/errorLog';
 import { intoParam, trainingIntoParam } from '@/lib/into';
+import { dmParam } from '@/lib/meals';
 import { useSessionContext } from './session';
 import { AppBanners } from './AppBanners';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -56,12 +57,15 @@ export interface IntoSearch {
 export interface MealSearch {
   date: string;
   meal: number;
+  /** The meal of the day (`new`: the next one). Without it `meal` alone says where entries go. */
+  dm?: string;
 }
 
 const validateDate = (s: Record<string, unknown>): DateSearch => clean({ date: dateParam(s.date) });
 const validateMeal = (s: Record<string, unknown>): MealSearch => ({
   date: dateParam(s.date) ?? today(),
   meal: mealParam(s.meal),
+  ...clean({ dm: dmParam(s.dm) }),
 });
 
 type Opt<T> = { [K in keyof T]?: T[K] };
@@ -175,6 +179,7 @@ export const routes = {
       name?: string;
       date?: string;
       meal?: number;
+      dm?: string;
       into?: string;
       from?: 'food';
       /** '1': open the label camera right away (scan page, unknown product). */
@@ -191,6 +196,7 @@ export const routes = {
         name: strParam(s.name),
         date: dateParam(s.date),
         meal: s.meal === undefined ? undefined : mealParam(s.meal),
+        dm: dmParam(s.dm),
       }),
     component: lazyRouteComponent(() => import('@/features/foods/CustomFoodPage'), 'CustomFoodPage'),
   }),
@@ -216,10 +222,11 @@ export const routes = {
     // `into`: the food search adds the meal's ingredients to that target instead of logging it.
     validateSearch: (
       s: Record<string, unknown>,
-    ): { date?: string; meal?: number; from?: 'log'; into?: string } =>
+    ): { date?: string; meal?: number; dm?: string; from?: 'log'; into?: string } =>
       clean({
         date: dateParam(s.date),
         meal: s.meal === undefined ? undefined : mealParam(s.meal),
+        dm: dmParam(s.dm),
         from: s.from === 'log' ? ('log' as const) : undefined,
         into: intoParam(s.into),
       }),

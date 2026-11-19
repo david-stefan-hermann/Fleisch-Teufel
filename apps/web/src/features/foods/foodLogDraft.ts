@@ -9,6 +9,8 @@ export interface FoodLogDraft {
   portion: Portion;
   quantity: number | null;
   meal: number;
+  /** The meal of the day; drafts stashed by an older app version have only `meal`. */
+  dm?: string;
 }
 
 interface Stored extends FoodLogDraft {
@@ -41,7 +43,12 @@ export function peekFoodLogDraft(pathname: string, entryKey: string | undefined)
       typeof s.meal === 'number';
     if (!valid) return null;
     // Older drafts may carry `extraDays` (multi-day logging, removed in round 7); it is ignored.
-    return { portion: s.portion!, quantity: s.quantity!, meal: s.meal! };
+    return {
+      portion: s.portion!,
+      quantity: s.quantity!,
+      meal: s.meal!,
+      ...(typeof s.dm === 'string' && { dm: s.dm }),
+    };
   } catch {
     return null;
   }

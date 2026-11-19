@@ -19,6 +19,7 @@ import {
   type Intensity,
 } from '@ft/shared';
 import type { AppliedOp, UndoStep, UserDb } from '@/db/dexie';
+import { prepareMealTarget, readNextMeal, type LogTarget, type MealRef } from '@/db/diaryMeals';
 import {
   aiMealItems,
   diaryParts,
@@ -56,31 +57,49 @@ export interface ApplyResult {
 
 const DEFAULT_SPORT = { minutes: 30, intensity: 'moderate' as Intensity };
 
-/** Day and meal for an operation without a meal: the rules of the "+" in the tab bar. */
-async function targetResolver(db: UserDb, env: ApplyEnv) {
-  const recent = await db.foodEntries
+/**
+ * Day and meal for an operation without a meal: the rules of the "+" in the tab bar. The day is the
+ * "+"'s shown day: today follows its rules fully (over midnight that can be yesterday's meal), on
+ * another day named on purpose the last entry made for that day counts.
+ */
+async function pickMeal(db: UserDb, date: ISODate, env: Pick<ApplyEnv, 'now' | 'today'>): Promise<MealRef> {
+  const entries = await db.foodEntries
     .where('date')
-    .anyOf([env.today, addDays(env.today, -1)])
+    .anyOf([...new Set([env.today, addDays(env.today, -1), date])])
     .toArray();
   const pending = (await db.aiQueue.toArray()).filter((i) => !i.result);
-  const chosen = new Map<ISODate, { date: ISODate; meal: number }>();
-  return (date: ISODate, meal: number | null): { date: ISODate; meal: number } => {
-    if (meal !== null) return { date, meal };
-    // All operations of one turn that name no meal go to the same one.
-    const known = chosen.get(date);
-    if (known) return known;
-    // The day is the "+"'s shown day: today follows its rules fully (over midnight that can be
-    // yesterday's meal), another day named on purpose stays and the clock picks the meal.
-    const picked = logTargetFor({
-      shownDate: date,
-      today: env.today,
-      now: env.now,
-      entries: recent,
-      pending,
-    });
-    chosen.set(date, picked);
-    return picked;
-  };
+  const { slot } = await readNextMeal(db, date);
+  return logTargetFor({
+    shownDate: date,
+    today: env.today,
+    now: env.now,
+    entries,
+    pending,
+    newMealSlot: slot,
+  });
+}
+
+/**
+ * The target of every operation of a turn, settled before its transaction. All operations of one
+ * turn that name no meal go to the same one.
+ */
+async function targetResolver(db: UserDb, ops: readonly AssistantOp[], env: ApplyEnv) {
+  const chosen = new Map<ISODate, LogTarget>();
+  for (const op of ops) {
+    const open =
+      op.kind === 'copyEntries'
+        ? op.toMeal === null && op.toDate
+        : (op.kind === 'logFood' ||
+            op.kind === 'logEstimate' ||
+            op.kind === 'logQuick' ||
+            op.kind === 'logSavedMeal') &&
+          op.meal === null &&
+          op.date;
+    if (open && !chosen.has(open))
+      chosen.set(open, await prepareMealTarget(db, await pickMeal(db, open, env), env.now));
+  }
+  return (date: ISODate, meal: number | null): LogTarget =>
+    meal === null ? chosen.get(date)! : { date, meal };
 }
 
 /** Day and meal for an operation (the camera of "Ich hab Fotos"): its own, else the rules of the "+". */
@@ -89,9 +108,12 @@ export async function targetFor(
   date: ISODate,
   meal: number | null,
   env: Omit<ApplyEnv, 'mealNames'>,
-): Promise<{ date: ISODate; meal: number }> {
-  return (await targetResolver(db, { ...env, mealNames: [] }))(date, meal);
+): Promise<MealRef> {
+  return meal === null ? pickMeal(db, date, env) : { date, meal };
 }
+
+/** Where an operation wrote, as the turn keeps it. */
+const placeOf = ({ date, meal }: LogTarget) => ({ date, meal });
 
 async function typeOptions(db: UserDb): Promise<TypeOption[]> {
   const own = (await db.exerciseTypes.toArray()).filter((t) => !t.deleted);
@@ -132,7 +154,7 @@ export async function applyOps(
 ): Promise<ApplyResult> {
   // Everything that is not an IndexedDB read of the write tables comes first: the transaction would
   // close while it waits for anything else.
-  const resolve = await targetResolver(db, env);
+  const resolve = await targetResolver(db, ops, env);
   const weights = (await db.weightEntries.toArray()).filter((w) => !w.deleted);
   const options = await typeOptions(db);
   const lastSport = new Map<string, ExerciseEntry | undefined>();
@@ -144,7 +166,7 @@ export async function applyOps(
 
   const dayLabel = (date: ISODate) =>
     date === env.today ? '' : `${fmtRelativeDay(date, env.today, true)}, `;
-  const where = (t: { date: ISODate; meal: number }) => `${dayLabel(t.date)}${env.mealNames[t.meal]}`;
+  const where = (t: LogTarget) => `${dayLabel(t.date)}${t.create?.name ?? env.mealNames[t.meal]}`;
 
   const result: ApplyResult = { applied: [], undo: [], skipped: 0, camera: null };
   const liveEntries = async (ids: readonly string[]) =>
@@ -178,7 +200,7 @@ export async function applyOps(
               detail: `${where(target)}: ${items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: items.reduce((s, it) => s + kcalOf(it), 0),
               guessed: op.items.some((i) => i.guessed),
-              target,
+              target: placeOf(target),
               entryIds: ids,
             });
             break;
@@ -188,14 +210,19 @@ export async function applyOps(
             const target = resolve(op.date, op.meal);
             const text =
               op.kind === 'logEstimate' ? `${op.name} (${fmtGrams(op.grams)}, geschätzt)` : op.text;
-            const id = await logQuickEntry(db, target.date, {
-              meal: target.meal,
-              text,
-              kcal: op.kcal,
-              proteinG: op.proteinG,
-              carbsG: op.carbsG,
-              fatG: op.fatG,
-            });
+            const id = await logQuickEntry(
+              db,
+              target.date,
+              {
+                meal: target.meal,
+                text,
+                kcal: op.kcal,
+                proteinG: op.proteinG,
+                carbsG: op.carbsG,
+                fatG: op.fatG,
+              },
+              target,
+            );
             const entry = (await db.foodEntries.get(id))!;
             result.undo.push({ kind: 'delete', table: 'foodEntries', ids: [id] });
             result.applied.push({
@@ -204,7 +231,7 @@ export async function applyOps(
               detail: `${where(target)}: ${entry.name}, ${fmt0(op.kcal)} kcal`,
               kcal: op.kcal,
               guessed: op.kind === 'logEstimate',
-              target,
+              target: placeOf(target),
               entryIds: [id],
             });
             break;
@@ -226,7 +253,7 @@ export async function applyOps(
               text: `${where(target)}: ${meal.name}`,
               detail: `${where(target)}: ${meal.items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: meal.items.reduce((s, it) => s + kcalOf(it), 0),
-              target,
+              target: placeOf(target),
               entryIds: ids,
             });
             break;
@@ -298,7 +325,7 @@ export async function applyOps(
               text: `${where(target)}: ${entryNames(entries)}`,
               detail: `${where(target)}: ${entries.map((e) => `${e.name}, ${amountOf(e)}`).join(' · ')}`,
               kcal: entries.reduce((s, e) => s + kcalOf(e), 0),
-              target,
+              target: placeOf(target),
               entryIds: ids,
             });
             break;

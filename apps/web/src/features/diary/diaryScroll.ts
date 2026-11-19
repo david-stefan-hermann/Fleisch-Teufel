@@ -15,8 +15,8 @@ export interface DiaryFocus {
   date: string;
   /** Ids of the new entries (or `pending:<localId>` for a waiting analysis), the first one found counts. */
   rows: readonly string[];
-  /** The diary meal, when no row is found (yet). */
-  meal?: number;
+  /** The id of the diary meal, when no row is found (yet). */
+  mealId?: string;
 }
 
 let position: { date: string; y: number } | null = null;
@@ -67,7 +67,7 @@ function focusElement(f: DiaryFocus): Element | null {
       document.querySelector(`[data-rows~="${attr(id)}"]`);
     if (el) return el;
   }
-  return f.meal === undefined ? null : document.querySelector(`[data-meal="${f.meal}"]`);
+  return f.mealId === undefined ? null : document.querySelector(`[data-meal="${attr(f.mealId)}"]`);
 }
 
 /**

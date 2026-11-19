@@ -26,14 +26,14 @@ import {
  * without an entry goes there.
  */
 export function QuickAddPage() {
-  const { date, meal, entryId } = useSearch({ from: '/authed/quick-add' });
+  const { date, meal, dm, entryId } = useSearch({ from: '/authed/quick-add' });
   const db = useDb();
   const entry = useLiveQuery(
     async () => (entryId ? ((await db.foodEntries.get(entryId)) ?? null) : null),
     [db, entryId],
   );
   if (entry === undefined) return null;
-  if (!entryId) return <Navigate to="/photo" search={{ date, meal, form: true }} replace />;
+  if (!entryId) return <Navigate to="/photo" search={{ date, meal, dm, form: true }} replace />;
   // Like the food page: an unknown or deleted entry is never edited (and so revived).
   if (!entry || entry.deleted) return <NotFoundPage title="Schnelleintrag" what="Eintrag nicht gefunden" />;
   return <QuickEntryEditor key={entry.id} entry={entry} />;

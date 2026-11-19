@@ -24,10 +24,11 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { NumberField } from '@/components/NumberField';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { mealIdOf, prepareMealTarget, type MealPick } from '@/db/diaryMeals';
 import { entryAmountLabel } from '@/features/diary/MealCard';
-import { useGoals, useSettings } from '@/hooks/data';
+import { MealTargetSelect } from '@/features/diary/MealTargetSelect';
+import { useGoals } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmtFixed, fmtGrams, fmtIngredients } from '@/lib/format';
 import { addFoodsToDraft, type AiItem } from '@/db/aiDraft';
@@ -56,18 +57,19 @@ export function MealLogView({
   meal,
   date,
   mealIndex,
+  dm,
   into = null,
 }: {
   meal: Meal;
   date: string;
   mealIndex: number;
+  dm?: string;
   into?: FoodInto | null;
 }) {
   const db = useDb();
   const navigate = useNavigate();
   const router = useRouter();
   const returnToDiary = useReturnToDiary();
-  const settings = useSettings();
   const goals = useGoals();
   const [excluded, setExcluded] = useState<ReadonlySet<number>>(() => new Set());
   const [factor, setFactor] = useState(1);
@@ -79,7 +81,7 @@ export function MealLogView({
     const f = g && g > 0 && cookedWeight ? mealFactorForGrams(meal, g) : null;
     if (f !== null) setFactor(f);
   };
-  const [target, setTarget] = useState(mealIndex);
+  const [target, setTarget] = useState<MealPick>({ meal: mealIndex, dm });
   // One ingredient row at a time shows its nutrients.
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const targets = targetsForDate(goals ?? [], date);
@@ -135,14 +137,14 @@ export function MealLogView({
 
   const { busy, run } = useSubmitting();
   async function log() {
-    const ids = await logItems(
-      db,
-      kept,
-      { date, meal: target },
-      { factor, mealId: meal.id, photoIds: meal.photoId ? [meal.photoId] : null },
-    );
+    const place = await prepareMealTarget(db, { date, ...target });
+    const ids = await logItems(db, kept, place, {
+      factor,
+      mealId: meal.id,
+      photoIds: meal.photoId ? [meal.photoId] : null,
+    });
     toast.success(`${meal.name}: ${fmtIngredients(ids.length)} eingetragen`);
-    await returnToDiary({ date, focus: { rows: ids, meal: target } });
+    await returnToDiary({ date, focus: { rows: ids, mealId: mealIdOf(place) } });
   }
 
   async function add(target: FoodInto) {
@@ -161,7 +163,7 @@ export function MealLogView({
             : 'Die Analyse gibt es nicht mehr.',
       );
     toast.success(`„${meal.name}“: ${fmtIngredients(scaled.length)} hinzugefügt`);
-    returnFromInto(router.history, () => openTarget(navigate, target, date, mealIndex));
+    returnFromInto(router.history, () => openTarget(navigate, target, date, mealIndex, dm));
   }
 
   return (
@@ -298,21 +300,13 @@ export function MealLogView({
             />
           )}
           {!into && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="meal-target">Mahlzeit</Label>
-              <Select value={String(target)} onValueChange={(v) => setTarget(Number(v))}>
-                <SelectTrigger id="meal-target" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(settings?.mealNames ?? []).map((n, i) => (
-                    <SelectItem key={i} value={String(i)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <MealTargetSelect
+              id="meal-target"
+              date={date}
+              meal={target.meal}
+              dm={target.dm}
+              onChange={setTarget}
+            />
           )}
         </div>
       </Section>

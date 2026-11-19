@@ -1,5 +1,6 @@
 import {
   computeItem,
+  dayId,
   get,
   MAX_ANALYSIS_PHOTOS,
   N,
@@ -211,7 +212,7 @@ export function ResultEditor({
     const ids = await logReview(db, { item, name, items, meal, savedMealId });
     // Logged already (a second tap that got through, or the queue run): nothing to say twice.
     if (ids === null) {
-      await returnToDiary({ date: item.date, focus: { rows: [], meal } });
+      await returnToDiary({ date: item.date, focus: { rows: [], mealId: dayId.diaryMeal(item.date, meal) } });
       return;
     }
     for (const r of resolved) await rememberFood(db, r.food);
@@ -220,7 +221,7 @@ export function ResultEditor({
     if (choices.length > 0) void endpoints.aiChoices(result.analysisId, choices).catch(() => {});
     toast.success(`„${name}“ eingetragen`);
     // "Back" from the diary must not reopen the review of a logged analysis.
-    await returnToDiary({ date: item.date, focus: { rows: ids, meal } });
+    await returnToDiary({ date: item.date, focus: { rows: ids, mealId: dayId.diaryMeal(item.date, meal) } });
   }
 
   return (

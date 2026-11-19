@@ -1,6 +1,7 @@
 import { dayId, uuidv7, type AssistantOp, type Food } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
+import { readDay } from '@/db/diaryMeals';
 import { logTrainings } from '@/db/entries';
 import { runUndo } from '@/db/undo';
 import { saveRecord } from '@/db/write';
@@ -8,7 +9,7 @@ import { applyOps, summaryText, type ApplyEnv } from '@/features/assistant/execu
 
 const db = () => new UserDb(`t-${uuidv7()}`);
 const TODAY = '2026-11-13';
-// 20:15 local time on TODAY: dinner by the clock.
+// 20:15 local time on TODAY.
 const NOW = new Date(2026, 10, 13, 20, 15).getTime();
 const env: ApplyEnv = {
   now: NOW,
@@ -80,10 +81,14 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
     expect(entries[0]!.groupName).toBe('Quark mit Banane');
   });
 
-  it('without a meal: the meal of an entry made minutes ago, else the clock', async () => {
+  it('without a meal: the meal of an entry made minutes ago, else a new meal', async () => {
     const d = db();
     const r = await applyOps(d, [logFood({ meal: null })], env);
-    expect(r.applied[0]!.target).toEqual({ date: TODAY, meal: 2 });
+    expect(r.applied[0]!.target).toEqual({ date: TODAY, meal: 0 });
+    expect(r.applied[0]!.text).toMatch(/^Frühstück: /);
+    const [meal] = await readDay(d, TODAY);
+    expect(meal).toMatchObject({ name: 'Frühstück', eatenAt: NOW, virtual: false });
+    expect((await live(d))[0]!.diaryMealId).toBe(meal!.id);
     const e = db();
     await saveRecord(e, 'foodEntries', {
       ...(await live(d))[0]!,
@@ -96,6 +101,13 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       { date: TODAY, meal: 3 },
       { date: TODAY, meal: 3 },
     ]);
+  });
+
+  it('all operations of a turn without a meal begin one new meal', async () => {
+    const d = db();
+    await applyOps(d, [logFood({ meal: null }), logFood({ meal: null })], env);
+    expect(await readDay(d, TODAY)).toHaveLength(1);
+    expect(new Set((await live(d)).map((e) => e.diaryMealId)).size).toBe(1);
   });
 
   it('over midnight a sentence without a meal goes to the meal of the entry made just before', async () => {

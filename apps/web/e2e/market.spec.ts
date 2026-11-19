@@ -190,7 +190,8 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   // The meal of the "+" stands at the right end of the header, not in the form; a tap changes it.
   await expect(page.getByLabel('Mahlzeit', { exact: true })).toHaveCount(0);
   const picker = page.getByRole('button', { name: /^Mahlzeit: / });
-  await expect(picker).toHaveText('Mittagessen');
+  await expect(picker).toContainText('Mittagessen');
+  await expect(picker).toContainText('Neu');
   const [h, m] = [
     (await page.getByRole('heading', { level: 1 }).boundingBox())!,
     (await picker.boundingBox())!,
@@ -198,15 +199,17 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   expect(m.x).toBeGreaterThan(h.x + h.width - 1);
   expect(m.x + m.width).toBeGreaterThan(page.viewportSize()!.width - 20);
   await picker.click();
-  await expect(page.getByRole('menuitemradio', { name: 'Mittagessen' })).toBeChecked();
-  await page.getByRole('menuitemradio', { name: 'Abendessen' }).click();
-  await expect(picker).toHaveText('Abendessen');
-  await expect(page).toHaveURL(/meal=2/);
+  await expect(page.getByRole('menuitemradio', { name: /^Mittagessen/ })).toBeChecked();
+  // The day has no meal yet: a new one, with the name it would get.
+  await page.getByRole('menuitemradio', { name: /^Neue Mahlzeit\s*Frühstück/ }).click();
+  await expect(picker).toContainText('Frühstück');
+  await expect(page).toHaveURL(/meal=0/);
+  await expect(page).toHaveURL(/dm=new/);
   // The camera before the form, the search and the scanner follow; what was typed stays.
   await page.goBack();
-  await expect(picker).toHaveText('Abendessen');
-  await expect(page).toHaveURL(/\/photo\?(?!.*form=).*meal=2/);
-  await expect(page.getByRole('link', { name: 'Suchen' })).toHaveAttribute('href', /meal=2/);
+  await expect(picker).toContainText('Frühstück');
+  await expect(page).toHaveURL(/\/photo\?(?!.*form=).*dm=new/);
+  await expect(page.getByRole('link', { name: 'Suchen' })).toHaveAttribute('href', /dm=new/);
   await page.goForward();
   await expect(page.getByLabel('Kalorien')).toHaveValue('950');
   // The AI is off on this server: the values are logged, nothing is analysed.
@@ -215,7 +218,7 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   await expect(page.getByText('950 kcal eingetragen')).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   const title = 'Beim Italiener gegessen. Pizza Salami, dazu ein kleiner…';
-  const row = mealCard(page, 'Abendessen').getByRole('link', { name: new RegExp(`^${title}`) });
+  const row = mealCard(page, 'Frühstück').getByRole('link', { name: new RegExp(`^${title}`) });
   await expect(
     mealCard(page, 'Mittagessen').getByRole('link', { name: new RegExp(`^${title}`) }),
   ).toHaveCount(0);

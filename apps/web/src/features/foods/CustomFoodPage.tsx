@@ -181,7 +181,12 @@ function CustomFoodForm({ existing, template }: { existing: CustomFood | null; t
       await navigate({
         to: '/food/$foodId',
         params: { foodId: record.id },
-        search: { date: search.date, meal: search.meal ?? 0, ...(search.into ? { into: search.into } : {}) },
+        search: {
+          date: search.date,
+          meal: search.meal ?? 0,
+          dm: search.dm,
+          ...(search.into ? { into: search.into } : {}),
+        },
         replace: true,
       });
     } else {

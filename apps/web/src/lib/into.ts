@@ -110,6 +110,7 @@ export function openTarget(
   target: Into,
   date: string,
   meal: number,
+  dm?: string,
 ): void {
   if (target.kind === 'meal')
     void navigate({ to: '/meals/$mealId', params: { mealId: target.mealId }, replace: true });
@@ -122,5 +123,5 @@ export function openTarget(
       search: { date },
       replace: true,
     });
-  else void navigate({ to: '/photo', search: { date, meal, review: target.localId }, replace: true });
+  else void navigate({ to: '/photo', search: { date, meal, dm, review: target.localId }, replace: true });
 }

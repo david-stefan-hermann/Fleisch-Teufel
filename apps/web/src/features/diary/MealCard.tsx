@@ -1,4 +1,5 @@
 import {
+  dayId,
   get,
   groupDiaryEntries,
   N,
@@ -80,7 +81,7 @@ export function MealCard({
   return (
     <Section
       ref={setDropRef}
-      data-meal={meal}
+      data-meal={dayId.diaryMeal(date, meal)}
       className={cn(
         'transition-[box-shadow,background-color] motion-reduce:transition-none',
         dropOver && 'bg-primary/5 ring-2 ring-primary/60',

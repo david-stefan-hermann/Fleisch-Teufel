@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addFoodToDraft } from '@/db/aiDraft';
 import type { UserDb } from '@/db/dexie';
+import { applyLogTarget, mealIdOf, prepareMealTarget } from '@/db/diaryMeals';
 import { addItemToMeal } from '@/db/entries';
 import { addItemToGroupDraft } from '@/db/groupDraft';
 import { mealItem } from '@/db/mealDraft';
@@ -33,7 +34,7 @@ import {
   type RecentFood,
   type SearchRow,
 } from '@/foods/foodService';
-import { useSettings, useToday } from '@/hooks/data';
+import { useMealChoice, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
@@ -79,11 +80,10 @@ export function AddFoodPage() {
   const navigate = useNavigate({ from: '/add' });
   const db = useDb();
   const today = useToday();
-  const settings = useSettings();
-  const { date, meal } = search;
+  const { date, meal, dm } = search;
   const into = parseFoodInto(search.into);
   /** Search params for links to the food page / scanner: keep the target (diary meal or `into`). */
-  const linkSearch: FoodLinkSearch = { date, meal, ...(search.into ? { into: search.into } : {}) };
+  const linkSearch: FoodLinkSearch = { date, meal, dm, ...(search.into ? { into: search.into } : {}) };
   const tab = TABS.find((t) => t.id === search.tab)?.id ?? DEFAULT_TAB;
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
@@ -203,7 +203,7 @@ export function AddFoodPage() {
       (filter === 'recent' || filter === 'frequent') && history ? filterRecent(q, history[filter]) : null,
     [filter, history, q],
   );
-  const mealName = settings?.mealNames[meal] ?? 'Mahlzeit';
+  const mealName = useMealChoice(date, meal, dm)?.current.name ?? 'Mahlzeit';
 
   const [mealsOpen, setMealsOpen] = useState(readMealsOpen);
   const toggleMeals = (open: boolean) => {
@@ -238,22 +238,32 @@ export function AddFoodPage() {
     }
     const { id: _id, updatedAt: _u, deleted: _d, ...rest } = r.last;
     const id = uuidv7();
-    await saveRecord(db, 'foodEntries', {
-      ...rest,
-      id,
-      date,
-      meal,
-      loggedAt: Date.now(),
-      mealId: null,
-      aiAnalysisId: null,
-      groupId: null,
-      groupName: null,
-      photoId: null,
-      photoIds: null,
+    const target = await prepareMealTarget(db, { date, meal, dm });
+    await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
+      await saveRecord(db, 'foodEntries', {
+        ...rest,
+        ...(await applyLogTarget(db, target)),
+        id,
+        date,
+        loggedAt: Date.now(),
+        mealId: null,
+        aiAnalysisId: null,
+        groupId: null,
+        groupName: null,
+        photoId: null,
+        photoIds: null,
+      });
     });
     toast.success(`${r.name} eingetragen`, {
       action: { label: 'Rückgängig', onClick: () => void deleteRecord(db, 'foodEntries', id) },
     });
+    // This page stays open: the next "+" belongs to the meal that has just begun.
+    if (dm === 'new')
+      await navigate({
+        search: (s) => ({ ...s, meal: target.meal, dm: mealIdOf(target) }),
+        replace: true,
+        resetScroll: false,
+      });
   }
 
   return (
@@ -468,7 +478,7 @@ export function AddFoodPage() {
   );
 }
 
-type FoodLinkSearch = { date: string; meal: number; into?: string };
+type FoodLinkSearch = { date: string; meal: number; dm?: string; into?: string };
 
 /**
  * How many result rows of the query `q` have their upper edge on the screen (above the keyboard):

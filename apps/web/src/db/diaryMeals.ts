@@ -4,6 +4,8 @@
  */
 import {
   buildDayMeals,
+  dayId,
+  EXTRA_MEAL_NAME,
   newMealEatenAt,
   nextMealName,
   SETTINGS_ID,
@@ -36,6 +38,23 @@ export interface MealRef {
   name?: string;
 }
 
+/** The meal a page logs into, as its URL and its picker hold it. */
+export type MealPick = Pick<MealRef, 'meal' | 'dm'>;
+
+/** What a meal picker shows: the meals of the day, the one picked and the one that would come next. */
+export interface MealChoice {
+  meals: DayMeal[];
+  current: {
+    /** The id of the meal, `new` for the next meal of the day. */
+    id: string;
+    name: string;
+    slot: number;
+    /** Null while the meal has no entry yet. */
+    eatenAt: number | null;
+  };
+  next: { name: string; slot: number };
+}
+
 /** What an entry was attached to before a move, for "Rückgängig". */
 export type EntryMealPlace = Pick<FoodEntry, 'id' | 'meal' | 'diaryMealId'>;
 
@@ -54,8 +73,60 @@ export async function readDay(db: UserDb, date: ISODate): Promise<DayMeal[]> {
   return buildDayMeals({ date, entries, records, names: names.unrecorded });
 }
 
+/** The meal an entry without a meal of its own joins at `at` (see `buildDayMeals`). */
+function mealOfSlot(day: readonly DayMeal[], slot: number, at: number): DayMeal | undefined {
+  const ofSlot = day.filter((m) => m.slot === slot).sort((a, b) => a.eatenAt - b.eatenAt);
+  const recorded = ofSlot.filter((m) => !m.virtual);
+  const from = recorded.length > 0 ? recorded : ofSlot;
+  return from.filter((m) => m.eatenAt <= at).at(-1) ?? from[0];
+}
+
+/** The next automatic meal of a day: its name and the index its entries write. */
+export async function readNextMeal(db: UserDb, date: ISODate): Promise<MealChoice['next']> {
+  const [day, { standard }] = await Promise.all([readDay(db, date), mealNames(db)]);
+  const name = nextMealName(standard, day);
+  return { name, slot: slotForNewMeal(name, standard, day) };
+}
+
+/** Resolves a picked meal the way `prepareMealTarget` will, for showing it. */
+export async function readMealChoice(
+  db: UserDb,
+  { date, meal, dm }: MealRef,
+  at = Date.now(),
+): Promise<MealChoice> {
+  const [meals, next, { unrecorded }] = await Promise.all([
+    readDay(db, date),
+    readNextMeal(db, date),
+    mealNames(db),
+  ]);
+  const shownMeal = (m: DayMeal): MealChoice['current'] => ({
+    id: m.id,
+    name: m.name,
+    slot: m.slot,
+    eatenAt: m.eatenAt,
+  });
+  if (dm === 'new') return { meals, next, current: { id: 'new', ...next, eatenAt: null } };
+  const shown = dm ? meals.find((m) => m.id === dm) : undefined;
+  if (shown) return { meals, next, current: shownMeal(shown) };
+  const record = dm ? await db.diaryMeals.get(dm) : undefined;
+  if (record) {
+    const { id, name, slot, eatenAt } = record;
+    return { meals, next, current: { id, name, slot, eatenAt } };
+  }
+  const slot = (dm ? unrecordedSlot(dm) : null) ?? meal;
+  const joined = mealOfSlot(meals, slot, at);
+  if (joined) return { meals, next, current: shownMeal(joined) };
+  const current = {
+    id: dayId.diaryMeal(date, slot),
+    name: unrecorded[slot] ?? EXTRA_MEAL_NAME,
+    slot,
+    eatenAt: null,
+  };
+  return { meals, next, current };
+}
+
 /** Settles the target before the write transaction starts: it may only wait for IndexedDB. */
-export async function prepareMealTarget(db: UserDb, ref: MealRef, at: number): Promise<LogTarget> {
+export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now()): Promise<LogTarget> {
   const { date, meal, dm } = ref;
   if (!dm) return { date, meal, diaryMealId: null };
   const day = await readDay(db, date);
@@ -76,6 +147,11 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at: number): P
   const record = await db.diaryMeals.get(dm);
   if (record) return { date, meal: record.slot, diaryMealId: record.id };
   return { date, meal: unrecordedSlot(dm) ?? meal, diaryMealId: null };
+}
+
+/** The id of the meal a target writes into. */
+export function mealIdOf(target: Pick<LogTarget, 'date' | 'meal' | 'diaryMealId'>): string {
+  return target.diaryMealId ?? dayId.diaryMeal(target.date, target.meal);
 }
 
 /** The index in a `dm:<date>:<index>` id; null for any other id. */
@@ -137,6 +213,24 @@ export async function moveEntriesToDiaryMeal(
     }
     return moved;
   });
+}
+
+/**
+ * Inside the write transaction of an edited entry whose meal was changed in its form: both meals keep
+ * their name and time like after a drag. Gives the entry's new fields.
+ */
+export async function placeMovedEntry(
+  db: UserDb,
+  id: string,
+  target: LogTarget,
+): Promise<{ meal: number; diaryMealId: string | null }> {
+  const day = await readDay(db, target.date);
+  const source = day.find((m) => m.entries.some((e) => e.id === id));
+  const into = day.find((m) => m.id === mealIdOf(target));
+  if (source) await keepMeal(db, source);
+  if (!into) return applyLogTarget(db, target);
+  await keepMeal(db, into);
+  return { meal: into.slot, diaryMealId: into.id };
 }
 
 /** "Rückgängig" of a move. */

@@ -97,7 +97,7 @@ export function Section({
   className?: string;
   ref?: Ref<HTMLElement>;
   /** Anchor of a diary meal card (`diaryScroll`). */
-  'data-meal'?: number;
+  'data-meal'?: string;
 }) {
   return (
     <section

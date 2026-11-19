@@ -38,6 +38,7 @@ export function MealPage() {
         meal={meal}
         date={search.date}
         mealIndex={search.meal}
+        dm={search.dm}
         into={parseFoodInto(search.into)}
       />
     );

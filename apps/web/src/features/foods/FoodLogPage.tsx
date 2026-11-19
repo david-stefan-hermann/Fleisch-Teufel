@@ -1,6 +1,7 @@
 import {
   computeItem,
   defaultPortion,
+  entryMealKey,
   type Food,
   type FoodEntry,
   type Portion,
@@ -33,14 +34,15 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { addFoodToDraft } from '@/db/aiDraft';
-import { addItemToMeal, logFoodEntry } from '@/db/entries';
+import { mealIdOf, prepareMealTarget, type MealPick } from '@/db/diaryMeals';
+import { addItemToMeal, logFoodEntry, updateFoodEntry } from '@/db/entries';
 import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/db/groupDraft';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
+import { MealTargetSelect } from '@/features/diary/MealTargetSelect';
 import { findFood, rememberFood, userPortions, type FoodMiss } from '@/foods/foodService';
-import { useGoals, useSettings, useToday } from '@/hooks/data';
+import { useGoals, useMealChoice, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
 import { goBackOr } from '@/lib/history';
@@ -51,7 +53,12 @@ import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLog
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
 export function FoodLogPage() {
   const params = useParams({ strict: false }) as { foodId?: string; entryId?: string };
-  const search = useSearch({ strict: false }) as { date?: string; meal?: number; into?: string };
+  const search = useSearch({ strict: false }) as {
+    date?: string;
+    meal?: number;
+    dm?: string;
+    into?: string;
+  };
   const db = useDb();
   // A deleted entry counts as not found: never edit (and so revive) it, e.g. back from the diary.
   const entry = useLiveQuery(async () => {
@@ -128,6 +135,7 @@ export function FoodLogPage() {
       entry={entry ?? null}
       defaultDate={search.date}
       defaultMeal={search.meal}
+      defaultDm={search.dm}
       into={entry ? null : parseFoodInto(search.into)}
     />
   );
@@ -138,6 +146,7 @@ interface FormProps {
   entry: FoodEntry | null;
   defaultDate?: string;
   defaultMeal?: number;
+  defaultDm?: string;
   /** Add to a saved meal / AI analysis instead of the diary. */
   into: FoodInto | null;
 }
@@ -146,6 +155,7 @@ interface Initial {
   portion: Portion;
   quantity: number | null;
   meal?: number;
+  dm?: string;
 }
 
 /** Loads the data the form needs for its initial values, then mounts the editor. */
@@ -198,6 +208,7 @@ function FoodLogEditor({
   entry,
   defaultDate,
   defaultMeal,
+  defaultDm,
   into,
   customPortions,
   initial,
@@ -218,12 +229,18 @@ function FoodLogEditor({
     }
     return null;
   }, [db, into?.kind, into?.kind === 'meal' ? into.mealId : into?.kind === 'group' ? into.groupId : null]);
-  const settings = useSettings();
   const goals = useGoals();
   const portions = useMemo(() => portionsFor(food, customPortions), [food, customPortions]);
   const date = entry?.date ?? defaultDate ?? todayNow;
   const targets = targetsForDate(goals ?? [], date);
-  const [meal, setMeal] = useState(initial.meal ?? entry?.meal ?? defaultMeal ?? 0);
+  // Null until the person picks a meal: an edited entry stays where it is, wherever it moves meanwhile.
+  const [picked, setPicked] = useState<MealPick | null>(
+    initial.meal === undefined ? null : { meal: initial.meal, dm: initial.dm },
+  );
+  const { meal, dm } =
+    picked ??
+    (entry ? { meal: entry.meal, dm: entryMealKey(entry) } : { meal: defaultMeal ?? 0, dm: defaultDm });
+  const mealName = useMealChoice(date, meal, dm)?.current.name ?? 'Mahlzeit';
   const [amount, setAmount] = useState<Amount>({ portion: initial.portion, quantity: initial.quantity });
   const [portionDialog, setPortionDialog] = useState(false);
 
@@ -270,14 +287,14 @@ function FoodLogEditor({
     }
     if (food.id) await rememberFood(db, food);
     toast.success(`${food.name} hinzugefügt`);
-    returnFromInto(router.history, () => openTarget(navigate, target, date, meal));
+    returnFromInto(router.history, () => openTarget(navigate, target, date, meal, dm));
   }
 
   const { busy: saving, run } = useSubmitting();
   async function save() {
     if (!valid) return;
     if (into) return addToTarget(into);
-    const base = {
+    const fields = {
       foodId: food.id || null,
       source: (entry?.source === 'ai' ? 'ai' : food.source) as FoodEntry['source'],
       name: food.name,
@@ -288,22 +305,24 @@ function FoodLogEditor({
       quantity: q,
       per100: food.nutrients,
       nutrients,
-      meal,
-      mealId: entry?.mealId ?? null,
-      aiAnalysisId: entry?.aiAnalysisId ?? null,
     };
     if (entry) {
-      await saveRecord(db, 'foodEntries', { ...entry, ...base });
+      const moved =
+        picked !== null &&
+        (picked.dm === undefined ? picked.meal !== entry.meal : picked.dm !== entryMealKey(entry));
+      await updateFoodEntry(db, entry, fields, moved ? { date: entry.date, meal, dm } : null);
       toast.success('Änderungen übernommen');
       if (food.id) await rememberFood(db, food);
       // Back to where the entry was opened (diary, meal page, expanded group).
       return leaveEntry(entry.date);
     }
-    const id = await logFoodEntry(db, base, date);
+    const target = await prepareMealTarget(db, { date, meal, dm });
+    const base = { ...fields, meal: target.meal, mealId: null, aiAnalysisId: null };
+    const id = await logFoodEntry(db, base, date, target);
     toast.success(`${food.name} eingetragen`);
     if (food.id) await rememberFood(db, food);
     // "Back" from the diary must not reopen the search or the filled food page (an invitation to log twice).
-    await returnToDiary({ date, focus: { rows: [id], meal } });
+    await returnToDiary({ date, focus: { rows: [id], mealId: mealIdOf(target) } });
   }
 
   /** Leaves the page of an entry that was changed or deleted: the page before, never this one again. */
@@ -342,7 +361,7 @@ function FoodLogEditor({
                 : into.kind === 'group'
                   ? 'Zum Eintrag hinzufügen'
                   : 'Zur Analyse hinzufügen'
-              : `Zu ${settings?.mealNames[meal] ?? 'Mahlzeit'} eintragen`}
+              : `Zu ${mealName} eintragen`}
         </Button>
       }
       actions={
@@ -354,7 +373,7 @@ function FoodLogEditor({
                 <Link
                   to="/custom-food/$id"
                   params={{ id: 'new' }}
-                  search={{ copy: food.id, date, meal, ...(into ? { into: formatInto(into) } : {}) }}
+                  search={{ copy: food.id, date, meal, dm, ...(into ? { into: formatInto(into) } : {}) }}
                   aria-label="Werte korrigieren"
                 >
                   <Pencil aria-hidden />
@@ -375,6 +394,7 @@ function FoodLogEditor({
                       portion: effectivePortion,
                       quantity,
                       meal,
+                      dm,
                     });
                   }}
                 >
@@ -421,23 +441,7 @@ function FoodLogEditor({
             onCommit={setAmount}
             onNewPortion={food.id ? () => setPortionDialog(true) : undefined}
           />
-          {!into && (
-            <div className="grid gap-1.5">
-              <Label htmlFor="meal">Mahlzeit</Label>
-              <Select value={String(meal)} onValueChange={(v) => setMeal(Number(v))}>
-                <SelectTrigger id="meal" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(settings?.mealNames ?? []).map((n, i) => (
-                    <SelectItem key={i} value={String(i)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {!into && <MealTargetSelect id="meal" date={date} meal={meal} dm={dm} onChange={setPicked} />}
         </div>
       </Section>
 
