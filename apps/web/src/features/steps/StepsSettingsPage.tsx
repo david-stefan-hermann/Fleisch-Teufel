@@ -2,7 +2,7 @@ import { DEFAULT_STEPS_MINIMUM } from '@ft/shared';
 import { ChevronDown, Copy, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { isIos } from '@/app/pwa';
+import { isAndroid, isIos } from '@/app/pwa';
 import { useSession } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
@@ -25,6 +25,7 @@ import {
   fmtReceived,
   refreshStepsStatus,
   stepsApi,
+  stepsHealthConnectUrl,
   stepsImportUrl,
   STEPS_SHORTCUT_NAME,
   useStepsRunning,
@@ -36,9 +37,10 @@ import { cn } from '@/lib/utils';
 const RECENT_SHOWN = 5;
 
 /**
- * Mehr → Schritte: the personal access for the iOS shortcut that sends steps from Apple Health,
- * the minimum from which a day gets an entry, and the shortcut's actions as numbered steps (they are
- * set up by hand once, like the iOS install). The token is shown right after it was made, never again.
+ * Mehr → Schritte: the personal access for what sends the steps (the iOS shortcut from Apple Health,
+ * HC Webhook from Health Connect on Android), the minimum from which a day gets an entry, and the
+ * setup as numbered steps (done by hand once, like the iOS install). The token is shown right after
+ * it was made, never again.
  */
 export function StepsSettingsPage() {
   const { db, sync } = useSession();
@@ -50,6 +52,8 @@ export function StepsSettingsPage() {
   const [guideOpen, setGuideOpen] = useState<boolean | null>(null);
   const { busy, run } = useSubmitting();
   const ios = isIos();
+  const android = isAndroid();
+  const sender = android ? 'HC Webhook' : 'Der Kurzbefehl';
 
   useEffect(() => {
     void refreshStepsStatus(db);
@@ -76,12 +80,12 @@ export function StepsSettingsPage() {
 
   return (
     <Page title="Schritte" back withTabBar={false}>
-      <Section title="Apple Health">
+      <Section title={android ? 'Health Connect' : 'Apple Health'}>
         {status === undefined ? null : token ? (
           <div className="grid gap-3 px-4 pb-4">
-            <Secret label="Zugang" value={token} />
+            <Secret label={android ? 'Wert' : 'Zugang'} value={android ? `Bearer ${token}` : token} />
             <p className="-mt-1.5 text-xs text-muted-foreground">Nur jetzt sichtbar.</p>
-            <Secret label="Adresse" value={stepsImportUrl()} />
+            <Secret label="Adresse" value={android ? stepsHealthConnectUrl() : stepsImportUrl()} />
           </div>
         ) : configured ? (
           <>
@@ -160,7 +164,7 @@ export function StepsSettingsPage() {
 
       <Collapsible open={open} onOpenChange={setGuideOpen}>
         <Section
-          title="Kurzbefehl"
+          title={android ? 'HC Webhook' : 'Kurzbefehl'}
           action={
             <CollapsibleTrigger asChild>
               <Button
@@ -176,9 +180,7 @@ export function StepsSettingsPage() {
             </CollapsibleTrigger>
           }
         >
-          <CollapsibleContent>
-            <ShortcutGuide />
-          </CollapsibleContent>
+          <CollapsibleContent>{android ? <HcWebhookGuide /> : <ShortcutGuide />}</CollapsibleContent>
         </Section>
       </Collapsible>
 
@@ -190,8 +192,8 @@ export function StepsSettingsPage() {
             <DialogTitle>{confirm === 'delete' ? 'Zugang löschen?' : 'Zugang ersetzen?'}</DialogTitle>
             <DialogDescription>
               {confirm === 'delete'
-                ? 'Der Kurzbefehl kann dann keine Schritte mehr senden. Eingetragene Schritte bleiben.'
-                : 'Der bisherige Zugang hört sofort auf zu gelten; der Kurzbefehl braucht den neuen.'}
+                ? `${sender} kann dann keine Schritte mehr senden. Eingetragene Schritte bleiben.`
+                : `Der bisherige Zugang hört sofort auf zu gelten; ${android ? 'HC Webhook' : 'der Kurzbefehl'} braucht den neuen.`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -212,7 +214,7 @@ export function StepsSettingsPage() {
   );
 }
 
-/** A value to copy into the shortcut (token, address). */
+/** A value to copy into the shortcut or HC Webhook (token, address). */
 function Secret({ label, value }: { label: string; value: string }) {
   async function copy() {
     try {
@@ -241,6 +243,34 @@ function Secret({ label, value }: { label: string; value: string }) {
 const K = ({ children }: { children: string }) => (
   <code className="rounded bg-muted px-1 py-px font-mono text-xs text-foreground">{children}</code>
 );
+
+/** The setup of HC Webhook: Android has no way to send Health Connect data from a web app. */
+function HcWebhookGuide() {
+  const item = 'pl-1 [&>span]:block';
+  const sub = 'mt-0.5 text-xs text-muted-foreground';
+  return (
+    <ol className="list-decimal space-y-2.5 pr-4 pb-4 pl-9 text-sm marker:text-muted-foreground">
+      <li className={item}>
+        <span className="font-medium">HC Webhook aus dem Play Store installieren</span>
+        <span className={sub}>Zugriff auf Health Connect erlauben: Schritte und Distanz</span>
+      </li>
+      <li className={item}>
+        <span className="font-medium">Datentypen</span>
+        <span className={sub}>Schritte und Distanz an · Auflösung jeweils Täglich</span>
+      </li>
+      <li className={item}>
+        <span className="font-medium">Webhooks → Adresse hinzufügen</span>
+        <span className={cn(sub, 'leading-relaxed')}>
+          Kopfzeile hinzufügen: Schlüssel <K>Authorization</K>, Wert von oben
+        </span>
+      </li>
+      <li className={item}>
+        <span className="font-medium">Intervall (Minuten)</span>
+        <span className={sub}>z. B. 60</span>
+      </li>
+    </ol>
+  );
+}
 
 /** The shortcut's actions and the automation: steps iOS makes everyone do by hand. */
 function ShortcutGuide() {

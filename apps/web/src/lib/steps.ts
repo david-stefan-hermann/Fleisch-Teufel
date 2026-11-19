@@ -30,6 +30,8 @@ export const stepsApi = {
 
 /** Where the shortcut sends to. */
 export const stepsImportUrl = () => `${window.location.origin}/api/steps/import`;
+/** Where HC Webhook on Android posts Health Connect's daily values. */
+export const stepsHealthConnectUrl = () => `${window.location.origin}/api/steps/health-connect`;
 
 /** The status last seen on this device (undefined while loading, null when never asked). */
 export function useStepsStatus(): StepsStatus | null | undefined {

@@ -1,5 +1,6 @@
 import { dayId, type ExerciseEntry } from '@ft/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { healthConnectBody } from '../src/steps/healthConnect.js';
 import { stepsDays } from '../src/steps/import.js';
 import { parseDay, parseDistanceM, parseList, parseNumber, StepsParseError } from '../src/steps/parse.js';
 import { createTestContext, registeredClient, TestClient, type TestCtx } from './helpers.js';
@@ -58,6 +59,73 @@ describe('reading the shortcut', () => {
 
   it('refuses lists of different length', () => {
     expect(() => stepsDays({ stepDates: ['2026-11-08'], stepValues: ['1', '2'] })).toThrow(/1 dates but 2/);
+  });
+});
+
+describe('reading HC Webhook (Android)', () => {
+  const sentAt = '2026-11-10T14:02:30.000+01:00';
+  const today = { start_time: '2026-11-10T00:00:00+01:00', end_time: '2026-11-10T14:02:11+01:00' };
+  const yesterday = { start_time: '2026-11-09T00:00:00+01:00', end_time: '2026-11-10T00:00:00+01:00' };
+
+  it('takes whole days and the running day, with their distance', () => {
+    const { body, warnings } = healthConnectBody({
+      timestamp: sentAt,
+      steps: [
+        { count: 9000, ...yesterday },
+        { count: 4321, ...today },
+      ],
+      distance: [{ meters: 6100.4, ...yesterday }],
+    });
+    expect(stepsDays(body)).toEqual([
+      { date: '2026-11-09', steps: 9000, distanceM: 6100 },
+      { date: '2026-11-10', steps: 4321, distanceM: null },
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('leaves out the day the 48 hour window cuts, so a correct value never gets smaller', () => {
+    const { body, warnings } = healthConnectBody({
+      timestamp: sentAt,
+      steps: [
+        { count: 1200, start_time: '2026-11-08T14:02:11+01:00', end_time: '2026-11-09T00:00:00+01:00' },
+        { count: 9000, ...yesterday },
+      ],
+    });
+    expect(stepsDays(body).map((d) => d.date)).toEqual(['2026-11-09']);
+    expect(warnings).toEqual([]);
+  });
+
+  it('counts a day that is sent twice once, the later reading wins', () => {
+    const { body } = healthConnectBody({
+      timestamp: sentAt,
+      steps: [
+        { count: 4321, ...today },
+        { count: 4000, start_time: today.start_time, end_time: '2026-11-10T14:00:00+01:00' },
+      ],
+    });
+    expect(stepsDays(body)).toEqual([{ date: '2026-11-10', steps: 4321, distanceM: null }]);
+  });
+
+  it('keeps the whole day across a change of the clocks', () => {
+    const { body } = healthConnectBody({
+      timestamp: '2026-10-26T09:00:00+01:00',
+      steps: [
+        { count: 7000, start_time: '2026-10-25T00:00:00+02:00', end_time: '2026-10-26T00:00:00+01:00' },
+      ],
+    });
+    expect(stepsDays(body).map((d) => d.steps)).toEqual([7000]);
+  });
+
+  it('refuses short intervals and UTC times with a hint instead of writing them as a day', () => {
+    for (const row of [
+      { start_time: '2026-11-10T00:00:00+01:00', end_time: '2026-11-10T00:15:00+01:00' },
+      { start_time: '2026-11-09T23:00:00Z', end_time: '2026-11-10T23:00:00Z' },
+    ]) {
+      const { body, warnings } = healthConnectBody({ timestamp: sentAt, steps: [{ count: 80, ...row }] });
+      expect(stepsDays(body)).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toMatch(/Täglich/);
+    }
   });
 });
 
@@ -367,5 +435,45 @@ describe('steps import', () => {
     // A day off (time zones around midnight) is still the phone's day.
     r = await send('2026-11-02');
     expect(r.json.warnings.some((w: string) => w.startsWith('Datum des Telefons'))).toBe(false);
+  });
+});
+
+describe('steps from HC Webhook', () => {
+  const date = '2026-09-14';
+  const sync = (count: number) => ({
+    timestamp: `${date}T12:00:30.000+02:00`,
+    app_version: '1.9.32',
+    timezone: 'Europe/Berlin',
+    steps: [{ count, start_time: `${date}T00:00:00+02:00`, end_time: `${date}T12:00:00+02:00` }],
+    distance: [{ meters: 3000, start_time: `${date}T00:00:00+02:00`, end_time: `${date}T12:00:00+02:00` }],
+  });
+
+  it('writes the day with the personal access and updates it on the next sync', async () => {
+    const owner = await registeredClient(ctx, 'steps-android@example.com');
+    const token = await newToken(owner);
+    clock = Date.parse(`${date}T12:00:00Z`);
+    const phone = new TestClient(ctx.app, { authorization: `Bearer ${token}` });
+    const first = await phone.post('/api/steps/health-connect', sync(4000));
+    expect(first.status).toBe(200);
+    expect(first.json.days).toEqual([{ date, steps: 4000, written: true }]);
+    await phone.post('/api/steps/health-connect', sync(5000));
+    const entry = await stepsEntry(owner, date);
+    expect(entry?.steps).toBe(5000);
+    expect(entry?.distanceM).toBe(3000);
+  });
+
+  it('answers the test button of the app without writing its sample data', async () => {
+    const owner = await registeredClient(ctx, 'steps-android-test@example.com');
+    const token = await newToken(owner);
+    const phone = new TestClient(ctx.app, { authorization: `Bearer ${token}` });
+    const r = await phone.post('/api/steps/health-connect', { ...sync(12345), test: true });
+    expect(r.status).toBe(200);
+    expect(r.json.days).toEqual([]);
+    expect(await stepsEntry(owner, date)).toBeUndefined();
+  });
+
+  it('needs the access', async () => {
+    const r = await new TestClient(ctx.app).post('/api/steps/health-connect', sync(4000));
+    expect(r.status).toBe(401);
   });
 });

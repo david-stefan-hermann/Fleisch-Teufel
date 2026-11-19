@@ -494,6 +494,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   does not fit the steps; a day whose entry would be invalid is left out with a warning, the others are
   written; a phone `now` more than a day off the server date is replaced by it) and the server logs refused and
   too large calls.
+- Steps from Android: the app HC Webhook (Play Store, Health Connect has no web API) posts to `POST /api/steps/health-connect`
+  with the same personal token (`steps/healthConnect.ts` turns the sync into the lists of the import). Only rows that cover a
+  day count (midnight to midnight, or midnight up to the sync): the oldest day of its 48 hour window is cut and would make a
+  correct value smaller; its test button (`test: true`) writes nothing. `StepsSettingsPage` shows address, `Bearer` value and
+  setup on Android (`isAndroid`); there is no ↻ there.
 - Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
   notification a day at a chosen local time, only when nothing is logged that day, per device
   (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/

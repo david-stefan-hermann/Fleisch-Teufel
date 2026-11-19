@@ -22,6 +22,7 @@ import { requireUser } from '../auth/session.js';
 import { apiTokens, exerciseEntries, userSettings, weightEntries } from '../db/schema.js';
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
+import { healthConnectBody, healthConnectSchema } from '../steps/healthConnect.js';
 import {
   phoneDateIgnored,
   stepsDays,
@@ -30,6 +31,7 @@ import {
   stepsWarnings,
   hasUsableDistance,
   type StepsDay,
+  type StepsImportBody,
 } from '../steps/import.js';
 import { StepsParseError } from '../steps/parse.js';
 import { lockUser, push, toWire } from '../sync/service.js';
@@ -182,6 +184,49 @@ export function stepsRoutes(deps: Deps) {
     return c.json({ error: status === 400 ? 'validation' : 'internal', message }, status);
   }
 
+  /** Writes the days of a call, notes it on the token and answers what happened. */
+  async function importDays(
+    c: Context<AppEnv & StepsEnv>,
+    tokenId: string,
+    data: StepsImportBody,
+    notes: string[] = [],
+  ) {
+    const userId = c.get('stepsUser');
+    const serverToday = new Date((deps.clock ?? Date.now)()).toISOString().slice(0, 10);
+    let days: StepsDay[];
+    let ignoredDate: string | null;
+    try {
+      days = stepsDays(data, serverToday);
+      ignoredDate = phoneDateIgnored(data, serverToday);
+    } catch (e) {
+      if (e instanceof StepsParseError) return refuse(tokenId, e.message, 400, c);
+      throw e;
+    }
+    let result: Awaited<ReturnType<typeof importSteps>>;
+    try {
+      result = await importSteps(db, userId, days);
+    } catch (e) {
+      log.error('steps import failed', { error: e instanceof Error ? e.message : String(e) });
+      return refuse(tokenId, 'Fehler auf dem Server.', 500, c);
+    }
+    const warnings = [
+      ...notes,
+      ...(ignoredDate
+        ? [`Datum des Telefons (${ignoredDate}) weicht ab, Datum des Servers (${serverToday}) verwendet.`]
+        : []),
+      ...result.skipped.map((d) => `${d.date}: ${d.reason}, Tag nicht übernommen.`),
+      ...stepsWarnings(days.filter((d) => !result.skipped.some((s) => s.date === d.date))),
+    ];
+    const written = result.days.filter((d) => d.written).length;
+    const withDistance = days.filter(hasUsableDistance).length;
+    if (result.skipped.length || ignoredDate)
+      log.warn('steps import: days left out', { skipped: result.skipped, ignoredDate });
+    log.info('steps import', { days: days.length, written, withDistance, warnings: warnings.length });
+    await remember(tokenId, { days: days.length, written, withDistance, error: null, warnings });
+    const out: StepsImportResult = { ok: true, days: result.days, warnings };
+    return c.json(out);
+  }
+
   app.post('/import', requireApiToken(db, failures), async (c) => {
     const tokenId = c.get('stepsToken');
     const wait = imports.take(tokenId);
@@ -198,39 +243,22 @@ export function stepsRoutes(deps: Deps) {
           : `Felder passen nicht: ${(json.issues ?? []).map((i) => `${i.path}: ${i.message}`).join('; ')}`;
       return refuse(tokenId, message, 400, c);
     }
-    const serverToday = new Date((deps.clock ?? Date.now)()).toISOString().slice(0, 10);
-    let days: StepsDay[];
-    let ignoredDate: string | null;
-    try {
-      days = stepsDays(body.data, serverToday);
-      ignoredDate = phoneDateIgnored(body.data, serverToday);
-    } catch (e) {
-      if (e instanceof StepsParseError) return refuse(tokenId, e.message, 400, c);
-      throw e;
+    return importDays(c, tokenId, body.data);
+  });
+
+  /** HC Webhook on Android: the same access and the same import, from Health Connect's daily values. */
+  app.post('/health-connect', requireApiToken(db, failures), async (c) => {
+    const tokenId = c.get('stepsToken');
+    const wait = imports.take(tokenId);
+    if (wait > 0) return c.json({ error: 'too_many_requests', retryAfterMs: wait }, 429);
+    const body = await parseJson(c, healthConnectSchema);
+    if (!body.ok) return refuse(tokenId, 'HC Webhook: Format nicht lesbar (JSON wählen).', 400, c);
+    if (body.data.test) {
+      const out: StepsImportResult = { ok: true, days: [], warnings: [] };
+      return c.json(out);
     }
-    const userId = c.get('stepsUser');
-    let result: Awaited<ReturnType<typeof importSteps>>;
-    try {
-      result = await importSteps(db, userId, days);
-    } catch (e) {
-      log.error('steps import failed', { error: e instanceof Error ? e.message : String(e) });
-      return refuse(tokenId, 'Fehler auf dem Server.', 500, c);
-    }
-    const warnings = [
-      ...(ignoredDate
-        ? [`Datum des Telefons (${ignoredDate}) weicht ab, Datum des Servers (${serverToday}) verwendet.`]
-        : []),
-      ...result.skipped.map((d) => `${d.date}: ${d.reason}, Tag nicht übernommen.`),
-      ...stepsWarnings(days.filter((d) => !result.skipped.some((s) => s.date === d.date))),
-    ];
-    const written = result.days.filter((d) => d.written).length;
-    const withDistance = days.filter(hasUsableDistance).length;
-    if (result.skipped.length || ignoredDate)
-      log.warn('steps import: days left out', { skipped: result.skipped, ignoredDate });
-    log.info('steps import', { days: days.length, written, withDistance, warnings: warnings.length });
-    await remember(tokenId, { days: days.length, written, withDistance, error: null, warnings });
-    const out: StepsImportResult = { ok: true, days: result.days, warnings };
-    return c.json(out);
+    const { body: data, warnings } = healthConnectBody(body.data);
+    return importDays(c, tokenId, data, warnings);
   });
 
   const user = requireUser(db);

@@ -79,7 +79,7 @@ endgültig gelöscht, siehe oben; `null` = wird im Papierkorb gezeigt, solange `
 Schritte-Eintrags, sonst `null`), `settings.stepsMinimum` (ab wie vielen Schritten ein Tag einen Eintrag bekommt,
 `null` = 1 000) und `settings.addStepsCalories` (Schritte aufs Ziel anrechnen, `null` = ja).
 
-**Der Server schreibt selbst**: Der Schritte-Import (`POST /api/steps/import`, iOS-Kurzbefehl mit eigenem Zugang)
+**Der Server schreibt selbst**: Der Schritte-Import (`POST /api/steps/import`, iOS-Kurzbefehl mit eigenem Zugang, oder `POST /api/steps/health-connect`, HC Webhook auf Android)
 legt je Tag einen Trainingseintrag mit der festen ID `s:<Datum>` an und aktualisiert ihn. Er schreibt über
 dasselbe `push` wie ein Gerät, in einer Transaktion unter der Sperre des Nutzers und mit
 `nextVersion(gespeichert, jetzt)`, damit er auch gegen eine Version gewinnt, die ein vorgehendes Gerät
