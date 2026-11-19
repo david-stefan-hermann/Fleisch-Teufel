@@ -99,6 +99,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   photoId: null,
   photoIds: null,
   note: null,
+  diaryMealId: null,
   ...over,
 });
 

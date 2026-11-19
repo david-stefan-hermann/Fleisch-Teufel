@@ -1919,6 +1919,7 @@ describe('DayShareImage', () => {
     photoId: null,
     photoIds: null,
     note: null,
+    diaryMealId: null,
     updatedAt: 1,
     deleted: false,
     ...extra,

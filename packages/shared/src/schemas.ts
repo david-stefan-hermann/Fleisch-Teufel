@@ -48,6 +48,9 @@ export const intensitySchema = z.enum(['light', 'moderate', 'vigorous']);
 export const MEAL_COUNT = 4;
 export const DEFAULT_MEAL_NAMES = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'] as const;
 export const SETTINGS_ID = 'profile';
+/** Own meal names kept for the name picker (settings `customMealNames`). */
+export const MAX_CUSTOM_MEAL_NAMES = 30;
+const mealNameSchema = z.string().trim().min(1).max(40);
 
 /** Raster of the weight tape in kg (settings `weightStepKg`); null in the record means the default. */
 export const WEIGHT_STEPS = [0.01, 0.05, 0.1] as const;
@@ -68,7 +71,7 @@ export const settingsSchema = z.object({
   weeklyRateKg: z.number().min(-1.5).max(1),
   /** One of the four goals (`GOALS`); null: set up before goals existed, or never set up. */
   goalKind: z.enum(GOAL_KINDS).nullable().default(null),
-  mealNames: z.array(z.string().trim().min(1).max(40)).length(MEAL_COUNT),
+  mealNames: z.array(mealNameSchema).length(MEAL_COUNT),
   addExerciseCalories: z.boolean(),
   onboardedAt: z.number().int().nullable(),
   /** Chosen macro template (goal editor). Defaults to null for records from older app versions. */
@@ -94,6 +97,10 @@ export const settingsSchema = z.object({
   stepsMinimum: z.number().int().min(0).max(100_000).nullable().default(null),
   /** Whether steps raise the day's budget, apart from trainings (null = yes). */
   addStepsCalories: z.boolean().nullable().default(null),
+  /** Names the person typed for a meal, offered again in the name picker (null = none yet). */
+  customMealNames: z.array(mealNameSchema).max(MAX_CUSTOM_MEAL_NAMES).nullable().default(null),
+  /** The four names before the first rename: what meals without a record are called (null = `mealNames`). */
+  legacyMealNames: z.array(mealNameSchema).length(MEAL_COUNT).nullable().default(null),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -229,8 +236,31 @@ export const foodEntrySchema = z.object({
    * app versions.
    */
   note: z.string().trim().max(MAX_HINT_LENGTH).nullable().default(null),
+  /**
+   * The meal of the day this entry belongs to (`diaryMeals` id). Null for entries of a meal without a
+   * record and for records from older app versions: those belong to their `meal` index.
+   */
+  diaryMealId: idSchema.nullable().default(null),
 });
 export type FoodEntry = z.infer<typeof foodEntrySchema>;
+
+/** One meal of a day. Exists once it has something of its own to remember (name, time, moved entries). */
+export const diaryMealSchema = z.object({
+  ...base,
+  date: isoDateSchema,
+  name: mealNameSchema,
+  /** Epoch ms. Set once from the first entry, afterwards only by the person. */
+  eatenAt: z.number().int().nonnegative(),
+  /** The index 0..3 its entries carry in `foodEntries.meal`. Never changes. */
+  slot: z
+    .number()
+    .int()
+    .min(0)
+    .max(MEAL_COUNT - 1),
+  /** The person set the time: a day from before meals had times sorts by time from then on. */
+  timeEdited: z.boolean().default(false),
+});
+export type DiaryMeal = z.infer<typeof diaryMealSchema>;
 
 export const exerciseTypeSchema = z.object({
   ...base,
@@ -334,6 +364,7 @@ export const SYNC_SCHEMAS = {
   customFoods: customFoodSchema,
   foodPortions: foodPortionSchema,
   meals: mealSchema,
+  diaryMeals: diaryMealSchema,
   foodEntries: foodEntrySchema,
   exerciseTypes: exerciseTypeSchema,
   exerciseEntries: exerciseEntrySchema,
@@ -358,6 +389,7 @@ export const dayId = {
   note: (date: string) => `n:${date}`,
   goal: (validFrom: string) => `g:${validFrom}`,
   steps: (date: string) => `s:${date}`,
+  diaryMeal: (date: string, slot: number) => `dm:${date}:${slot}`,
 };
 
 // ---------------------------------------------------------------- sync protocol
@@ -650,6 +682,10 @@ export function requiredId(table: SyncTable, record: Record<string, unknown>): s
       return dayId.goal(String(record.validFrom));
     case 'exerciseEntries':
       return record.typeKey === STEPS_TYPE_KEY ? dayId.steps(String(record.date)) : null;
+    case 'diaryMeals':
+      return String(record.id).startsWith('dm:')
+        ? dayId.diaryMeal(String(record.date), Number(record.slot))
+        : null;
     default:
       return null;
   }

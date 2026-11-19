@@ -103,6 +103,8 @@ export const userSettings = pgTable(
     weightRangeKg: doublePrecision(),
     stepsMinimum: integer(),
     addStepsCalories: boolean(),
+    customMealNames: jsonb().$type<string[]>(),
+    legacyMealNames: jsonb().$type<string[]>(),
   },
   syncExtras,
 );
@@ -180,6 +182,20 @@ export const foodEntries = pgTable(
     photoId: text(),
     photoIds: jsonb().$type<string[]>(),
     note: text(),
+    diaryMealId: text(),
+  },
+  (t) => [...syncExtras(t), index().on(t.userId, t.date)],
+);
+
+export const diaryMeals = pgTable(
+  'diary_meals',
+  {
+    ...syncColumns(),
+    date: date({ mode: 'string' }).notNull(),
+    name: text().notNull(),
+    eatenAt: bigint({ mode: 'number' }).notNull(),
+    slot: integer().notNull(),
+    timeEdited: boolean().notNull().default(false),
   },
   (t) => [...syncExtras(t), index().on(t.userId, t.date)],
 );
@@ -485,6 +501,7 @@ export const syncTables = {
   customFoods,
   foodPortions,
   meals,
+  diaryMeals,
   foodEntries,
   exerciseTypes,
   exerciseEntries,

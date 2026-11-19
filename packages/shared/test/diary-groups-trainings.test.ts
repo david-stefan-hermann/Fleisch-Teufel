@@ -48,6 +48,7 @@ const entry = (id: string, loggedAt: number, kcal: number, groupId: string | nul
   photoId: null as string | null,
   photoIds: null as string[] | null,
   note: null,
+  diaryMealId: null,
 });
 
 describe('groupDiaryEntries', () => {

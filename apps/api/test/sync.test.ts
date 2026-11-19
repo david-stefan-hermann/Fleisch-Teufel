@@ -37,6 +37,7 @@ const entry = (over: Partial<FoodEntry> = {}): FoodEntry => ({
   photoId: null,
   photoIds: null,
   note: null,
+  diaryMealId: null,
   ...over,
 });
 
@@ -88,6 +89,8 @@ describe('sync', () => {
       weightRangeKg: 2,
       stepsMinimum: 2500,
       addStepsCalories: false,
+      customMealNames: ['Kuchen bei Oma'],
+      legacyMealNames: ['Frühstück', 'Mittag', 'Abend', 'Snacks'],
     };
     const goal = {
       id: dayId.goal('2026-10-01'),
@@ -352,6 +355,7 @@ describe('sync', () => {
       photoId: null,
       photoIds: null,
       note: null,
+      diaryMealId: null,
     });
     expect(changes.find((c) => c.data.id === oldExercise.id)?.data).toEqual({
       ...oldExercise,
@@ -368,7 +372,12 @@ describe('sync', () => {
       pinned: null,
       purgedAt: null,
     });
-    expect(changes.find((c) => c.table === 'settings')?.data).toEqual({ ...oldSettings, goalKind: null });
+    expect(changes.find((c) => c.table === 'settings')?.data).toEqual({
+      ...oldSettings,
+      goalKind: null,
+      customMealNames: null,
+      legacyMealNames: null,
+    });
   });
 
   it('keeps users isolated even with identical ids', async () => {
@@ -573,6 +582,102 @@ describe('sync', () => {
     expect(again.json.changes.length).toBeGreaterThan(0);
     // Every account sees the new epoch.
     expect((await bob.get('/api/sync/pull?since=0')).json.epoch).toBe(r.json.epoch);
+  });
+
+  it('syncs the meals of a day with their fixed or free ids', async () => {
+    const fixed = {
+      id: dayId.diaryMeal('2026-11-19', 1),
+      updatedAt: 5,
+      deleted: false,
+      date: '2026-11-19',
+      name: 'Kuchen bei Oma',
+      eatenAt: 1_763_553_600_000,
+      slot: 1,
+      timeEdited: true,
+    };
+    const free = { ...fixed, id: uuidv7(), slot: 3, timeEdited: false };
+    const linked = entry({ date: '2026-11-19', meal: 1, diaryMealId: fixed.id });
+    const settings = {
+      id: 'profile',
+      updatedAt: Date.now(),
+      deleted: false,
+      sex: null,
+      birthDate: null,
+      heightCm: null,
+      activityLevel: 'light',
+      targetWeightKg: null,
+      weeklyRateKg: 0,
+      mealNames: ['A', 'B', 'C', 'D'],
+      addExerciseCalories: true,
+      onboardedAt: null,
+      customMealNames: ['Kuchen bei Oma'],
+      legacyMealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+    };
+    const pushed = await alice.post('/api/sync/push', {
+      records: [
+        { table: 'diaryMeals', data: fixed },
+        { table: 'diaryMeals', data: free },
+        { table: 'foodEntries', data: linked },
+        { table: 'settings', data: settings },
+      ],
+    });
+    expect(pushed.json.rejected).toEqual([]);
+
+    const { changes } = await pullAll(alice);
+    const of = (id: string) => changes.find((x) => x.data.id === id)?.data;
+    expect(of(fixed.id)).toEqual(fixed);
+    expect(of(free.id)).toEqual(free);
+    expect(of(linked.id).diaryMealId).toBe(fixed.id);
+    expect(of('profile')).toMatchObject({
+      customMealNames: settings.customMealNames,
+      legacyMealNames: settings.legacyMealNames,
+    });
+    // Another account sees none of it.
+    expect((await pullAll(bob)).changes.some((x) => x.data.id === free.id)).toBe(false);
+  });
+
+  it('reads entries and meals of older shapes with the defaults', async () => {
+    const { diaryMealId: _, ...old } = entry();
+    const meal = {
+      id: uuidv7(),
+      updatedAt: 5,
+      deleted: false,
+      date: '2026-11-19',
+      name: 'Alt',
+      eatenAt: 1,
+      slot: 0,
+    };
+    const r = await alice.post('/api/sync/push', {
+      records: [
+        { table: 'foodEntries', data: old },
+        { table: 'diaryMeals', data: meal },
+      ],
+    });
+    expect(r.json.rejected).toEqual([]);
+    const { changes } = await pullAll(alice);
+    expect(changes.find((x) => x.data.id === old.id)?.data.diaryMealId).toBeNull();
+    expect(changes.find((x) => x.data.id === meal.id)?.data.timeEdited).toBe(false);
+  });
+
+  it('refuses a fixed meal id that does not fit its day and index', async () => {
+    const data = {
+      updatedAt: 5,
+      deleted: false,
+      date: '2026-11-19',
+      name: 'Falsch',
+      eatenAt: 1,
+      slot: 2,
+    };
+    const r = await alice.post('/api/sync/push', {
+      records: [
+        { table: 'diaryMeals', data: { ...data, id: dayId.diaryMeal('2026-11-18', 2) } },
+        { table: 'diaryMeals', data: { ...data, id: dayId.diaryMeal('2026-11-19', 1) } },
+      ],
+    });
+    expect(r.json.rejected.map((x: { error: string }) => x.error)).toEqual([
+      `id must be ${dayId.diaryMeal('2026-11-19', 2)}`,
+      `id must be ${dayId.diaryMeal('2026-11-19', 2)}`,
+    ]);
   });
 
   it('validates the cursor', async () => {

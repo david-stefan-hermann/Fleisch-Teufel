@@ -40,6 +40,7 @@ export type NewFoodEntry = Omit<
   | 'photoId'
   | 'photoIds'
   | 'note'
+  | 'diaryMealId'
 >;
 
 /** A logged item that may carry the note of the quick entry it was copied from (`entryToItem`). */
@@ -58,6 +59,7 @@ export async function logFoodEntry(db: UserDb, item: NewFoodEntry, date: string)
     photoId: null,
     photoIds: null,
     note: null,
+    diaryMealId: null,
   });
   return id;
 }
@@ -115,6 +117,7 @@ export async function logQuickEntry(db: UserDb, date: ISODate, values: QuickEntr
     groupName: null,
     photoId: null,
     photoIds: null,
+    diaryMealId: null,
   });
   return id;
 }
@@ -371,6 +374,7 @@ export async function logItems(
         date: target.date,
         meal: target.meal,
         loggedAt: now + i,
+        diaryMealId: null,
         mealId: opts.mealId ?? null,
         aiAnalysisId: opts.aiAnalysisId ?? null,
         groupId,

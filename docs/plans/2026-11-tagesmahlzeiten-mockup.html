@@ -1,0 +1,2504 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tagesmahlzeiten</title>
+    <style>
+      /* Meals of a day without fixed slots. Tokens, phone frames and building blocks come from the steps
+         mockup; the screens are rendered by the script at the end from sample data. */
+
+      :root {
+        color-scheme: light;
+        --page: oklch(0.93 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.45 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.88 0.01 60);
+        --new-bg: oklch(0.96 0.03 230);
+        --new-border: oklch(0.82 0.06 230);
+        --ask-bg: oklch(0.97 0.035 85);
+        --ask-border: oklch(0.85 0.08 85);
+        --frame: oklch(0.25 0.005 40);
+
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --popover: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --secondary: oklch(0.955 0.008 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --accent: oklch(0.94 0.012 50);
+        --border: oklch(0.91 0.008 60);
+        --input: oklch(0.89 0.01 60);
+        --destructive: oklch(0.55 0.2 27);
+        --exercise: oklch(0.5 0.12 230);
+        --copy: oklch(0.6 0.01 50);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.3 0.008 40);
+          --new-bg: oklch(0.24 0.04 230);
+          --new-border: oklch(0.4 0.07 230);
+          --ask-bg: oklch(0.26 0.04 85);
+          --ask-border: oklch(0.42 0.07 85);
+          --frame: oklch(0.3 0.005 40);
+
+          --background: oklch(0.18 0.006 40);
+          --foreground: oklch(0.95 0.006 60);
+          --card: oklch(0.225 0.008 40);
+          --popover: oklch(0.24 0.008 40);
+          --primary: oklch(0.64 0.17 25);
+          --primary-foreground: oklch(0.15 0.01 40);
+          --secondary: oklch(0.27 0.008 40);
+          --muted: oklch(0.27 0.008 40);
+          --muted-foreground: oklch(0.7 0.012 50);
+          --accent: oklch(0.3 0.01 40);
+          --border: oklch(0.32 0.008 40);
+          --input: oklch(0.36 0.01 40);
+          --destructive: oklch(0.68 0.17 27);
+          --exercise: oklch(0.67 0.12 230);
+          --copy: oklch(0.5 0.008 50);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.3 0.008 40);
+        --new-bg: oklch(0.24 0.04 230);
+        --new-border: oklch(0.4 0.07 230);
+        --ask-bg: oklch(0.26 0.04 85);
+        --ask-border: oklch(0.42 0.07 85);
+        --frame: oklch(0.3 0.005 40);
+
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --popover: oklch(0.24 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --secondary: oklch(0.27 0.008 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --accent: oklch(0.3 0.01 40);
+        --border: oklch(0.32 0.008 40);
+        --input: oklch(0.36 0.01 40);
+        --destructive: oklch(0.68 0.17 27);
+        --exercise: oklch(0.67 0.12 230);
+        --copy: oklch(0.5 0.008 50);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.45 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding-block: 24px 64px;
+        padding-inline: 16px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+        text-wrap: balance;
+      }
+      .wrap > h2 {
+        font-size: 19px;
+        margin: 48px 0 6px;
+        text-wrap: balance;
+      }
+      .lead {
+        color: var(--page-muted);
+        margin: 0 0 16px;
+        max-width: 80ch;
+        text-wrap: pretty;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 16px 0;
+        max-width: 92ch;
+      }
+      .note.ask {
+        background: var(--ask-bg);
+        border-color: var(--ask-border);
+      }
+      .note ul,
+      .note ol {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+      .note li + li {
+        margin-top: 4px;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 22px;
+        margin: 16px 0 24px;
+        padding: 12px 14px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 14px;
+        box-shadow: 0 4px 16px oklch(0 0 0 / 0.08);
+      }
+      @media (min-width: 900px) {
+        .controls {
+          position: sticky;
+          top: 8px;
+          z-index: 20;
+        }
+      }
+      .ctl {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ctl > span {
+        font-weight: 600;
+      }
+      .seg {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .seg button {
+        font: inherit;
+        min-height: 32px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .seg button[aria-pressed='true'] {
+        background: var(--page-ink);
+        color: var(--page);
+        border-color: var(--page-ink);
+      }
+      button:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+        outline-offset: 2px;
+      }
+
+      /* Phones */
+      .phones {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px 24px;
+        justify-content: center;
+        align-items: flex-start;
+        margin-top: 16px;
+      }
+      .phones > figure {
+        margin: 0;
+        max-width: 100%;
+      }
+      .phone {
+        width: 375px;
+        max-width: 100%;
+        border-radius: 36px;
+        padding: 10px;
+        background: var(--frame);
+        box-shadow: 0 10px 30px oklch(0 0 0 / 0.2);
+      }
+      .screen {
+        position: relative;
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .screen:has(.dialog) {
+        min-height: 620px;
+      }
+      .kbox .top b {
+        white-space: nowrap;
+      }
+      figcaption {
+        text-align: center;
+        color: var(--page-muted);
+        font-size: 13px;
+        margin: 10px auto 0;
+        max-width: 375px;
+        text-wrap: pretty;
+      }
+      figcaption b {
+        display: block;
+        color: var(--page-ink);
+        font-size: 15px;
+      }
+
+      /* App: header, cards, rows */
+      .tabular {
+        font-variant-numeric: tabular-nums;
+      }
+      .hdr {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .hdr h1 {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ibtn {
+        width: 40px;
+        height: 40px;
+        flex: none;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+      }
+      .ibtn.off {
+        opacity: 0.35;
+      }
+      .ibtn.hl {
+        position: relative;
+      }
+      .ibtn.hl::after {
+        content: '';
+        position: absolute;
+        inset: 1px;
+        border-radius: 12px;
+        border: 2px dashed var(--new-border);
+      }
+      svg.i {
+        display: block;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .main {
+        padding: 12px 16px 16px;
+      }
+      .date {
+        margin: 0 0 12px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .card {
+        margin-bottom: 16px;
+        overflow: hidden;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+      }
+      .sec-head {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 8px 16px 0;
+      }
+      .sec-head h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .sec-head h2 .k {
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .sec-head .acts {
+        display: flex;
+        align-items: center;
+        margin-right: -8px;
+      }
+      .rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .rows > li + li {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .row {
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+      }
+      .row.part {
+        padding-left: 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .row .txt {
+        min-width: 0;
+        flex: 1;
+      }
+      .row .name {
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .row .name > span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .sub.exp {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        cursor: pointer;
+      }
+      .kc {
+        flex: none;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .kc.ex {
+        color: var(--exercise);
+      }
+      .mf {
+        color: var(--muted-foreground);
+      }
+      .badge {
+        flex: none;
+        padding: 0 6px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 18px;
+        background: var(--secondary);
+        color: var(--muted-foreground);
+      }
+      .dashed {
+        margin: 0 16px 16px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+
+      /* Package block under "Ausgewählt" */
+      .blk-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 4px 8px 0 16px;
+        font-weight: 600;
+      }
+      .blk-head .n {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+      }
+      .blk-head .n > span:not(.badge) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .blk-head .kc {
+        font-weight: 600;
+      }
+      .fields {
+        display: grid;
+        gap: 14px;
+        padding: 4px 16px 16px 28px;
+        background: color-mix(in oklch, var(--muted) 45%, transparent);
+      }
+      .fields.flat {
+        padding-left: 16px;
+        background: none;
+      }
+      .lbl {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+      .tg {
+        display: flex;
+        border: 1px solid var(--input);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .tg span {
+        flex: 1;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .tg span + span {
+        border-left: 1px solid var(--input);
+      }
+      .tg span.on {
+        background: var(--accent);
+      }
+      .inp {
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        font-size: 16px;
+        background: var(--background);
+      }
+      .inp .u {
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .inp.ph {
+        color: var(--muted-foreground);
+      }
+      .inp.own {
+        border-color: var(--exercise);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--exercise) 22%, transparent);
+      }
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .btn {
+        height: 40px;
+        border-radius: 10px;
+        border: 0;
+        padding: 0 16px;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .btn.sm {
+        height: 32px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+      .btn.sec {
+        background: var(--secondary);
+        color: var(--foreground);
+      }
+      .btn.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .btn.out {
+        background: var(--background);
+        color: var(--foreground);
+        border: 1px solid var(--input);
+      }
+      .btn.lg {
+        height: 48px;
+        width: 100%;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .btn.lg {
+        white-space: nowrap;
+      }
+      .btn.lg .k {
+        font-weight: 400;
+        opacity: 0.8;
+      }
+      .btn[disabled] {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .kbox {
+        border-radius: 12px;
+        background: var(--muted);
+        padding: 12px;
+      }
+      .fields .kbox {
+        background: var(--card);
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .kbox .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 14px;
+      }
+      .kbox .inp {
+        width: 132px;
+        height: 40px;
+        font-weight: 700;
+        color: var(--exercise);
+      }
+      .kbox p {
+        margin: 6px 0 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .tlink {
+        padding: 0;
+        border: 0;
+        background: none;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+
+      /* Chips "Zuletzt & häufig" */
+      .cap {
+        margin: 0 0 8px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        overflow: hidden;
+        margin: 0 -16px;
+        padding: 0 16px 2px;
+      }
+      .chip {
+        flex: none;
+        max-width: 190px;
+        height: 44px;
+        display: grid;
+        align-content: center;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--background);
+      }
+      .chip.on {
+        border-color: color-mix(in oklch, var(--exercise) 60%, transparent);
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+      }
+      .chip .t {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .chip .d {
+        font-size: 11px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .search {
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .search .inp {
+        justify-content: flex-start;
+        padding-left: 36px;
+        background: var(--card);
+      }
+      .search svg {
+        position: absolute;
+        left: 12px;
+        top: 14px;
+        color: var(--muted-foreground);
+      }
+      .pick {
+        list-style: none;
+        margin: 0 16px 16px;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .pick li {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 12px;
+        font-size: 14px;
+      }
+      .pick li.on {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .pick li .m {
+        font-size: 12px;
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+      .footer {
+        padding: 12px 16px 16px;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: color-mix(in oklch, var(--background) 92%, transparent);
+      }
+      .hint {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        text-wrap: pretty;
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .switch {
+        flex: none;
+        width: 44px;
+        height: 26px;
+        border-radius: 99px;
+        background: var(--input);
+        position: relative;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 99px;
+        background: var(--background);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.2);
+      }
+      .switch.on {
+        background: var(--primary);
+      }
+      .switch.on::after {
+        left: 21px;
+      }
+
+      /* Dialog, toast, swipe */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: rgb(0 0 0 / 0.5);
+      }
+      .dialog {
+        position: absolute;
+        z-index: 6;
+        top: 72px;
+        left: 16px;
+        right: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 24px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--background);
+        box-shadow: 0 10px 25px rgb(0 0 0 / 0.2);
+      }
+      .dialog h3 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.2;
+        font-weight: 600;
+        text-align: center;
+      }
+      .dialog .desc {
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+        text-align: center;
+        text-wrap: pretty;
+      }
+      .radio {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 44px;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 500;
+        text-align: left;
+        cursor: pointer;
+      }
+      .radio .dot {
+        flex: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 99px;
+        border: 1px solid var(--input);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .radio[aria-checked='true'] .dot {
+        border-color: var(--primary);
+      }
+      .radio[aria-checked='true'] .dot::after {
+        content: '';
+        width: 10px;
+        height: 10px;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .dfoot {
+        display: flex;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .dfoot .btn {
+        width: 100%;
+      }
+      .toast {
+        margin: 0 16px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .toast b {
+        flex: none;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: var(--foreground);
+        color: var(--background);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .swipe {
+        display: flex;
+      }
+      .swipe .copy {
+        flex: none;
+        width: 72px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: var(--copy);
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .swipe .row {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* ---- new in this mockup: tabs, list sections, wheel, chip rows, info lines ---- */
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2px;
+        padding: 3px;
+        margin-bottom: 12px;
+        border-radius: 10px;
+        background: var(--muted);
+      }
+      .tabs span {
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .tabs span.on {
+        background: var(--background);
+        color: var(--foreground);
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+      }
+      .lcap {
+        margin: 0;
+        padding: 10px 16px 4px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      .row .meta {
+        font-size: 12px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .row .tail {
+        flex: none;
+        display: grid;
+        justify-items: end;
+        gap: 2px;
+      }
+      mark {
+        background: color-mix(in oklch, var(--primary) 18%, transparent);
+        color: inherit;
+        border-radius: 3px;
+      }
+      .wheel {
+        position: relative;
+        width: 124px;
+        height: 132px;
+        border-radius: 10px;
+        overflow: hidden;
+        mask-image: linear-gradient(transparent, black 30%, black 70%, transparent);
+      }
+      .wheel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: var(--accent);
+      }
+      .wheel div {
+        position: relative;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .wheel div.on {
+        color: var(--foreground);
+        font-weight: 500;
+      }
+      .amount {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: center;
+      }
+      .amount .wheel {
+        width: 100%;
+      }
+      .amount.one {
+        grid-template-columns: 1fr;
+      }
+      .amount.one .wheel {
+        mask-image: linear-gradient(transparent, black 25%, black 75%, transparent);
+      }
+      .amount.one .wheel div {
+        font-size: 18px;
+      }
+      .lblrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .lblrow .lbl {
+        margin: 0;
+      }
+      .lblrow .btn.sm {
+        height: 28px;
+        padding: 0 10px;
+        font-size: 12px;
+        gap: 4px;
+      }
+      .lblrow .btn.sm[aria-pressed='true'] {
+        background: var(--foreground);
+        color: var(--background);
+      }
+      .exact {
+        display: grid;
+        gap: 6px;
+      }
+      .exact .inp {
+        font-weight: 600;
+      }
+      .exact p {
+        margin: 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .amount .inp {
+        font-weight: 600;
+      }
+      .amount .eq {
+        margin: 6px 0 0;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .info .badge {
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+      }
+      .chipgrid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chipgrid .chip {
+        max-width: 100%;
+      }
+      .saved {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 8px;
+        height: 24px;
+        border-radius: 99px;
+        background: color-mix(in oklch, var(--exercise) 15%, transparent);
+        color: var(--exercise);
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .daynote {
+        margin: -4px 0 12px;
+        font-size: 13px;
+        color: var(--muted-foreground);
+      }
+      .tabbar {
+        height: 64px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        align-items: center;
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+        font-size: 10px;
+        color: var(--muted-foreground);
+        text-align: center;
+      }
+      .tabbar span {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+      }
+      .tabbar span.on {
+        color: var(--primary);
+      }
+      .tabbar .fab {
+        width: 48px;
+        height: 48px;
+        border-radius: 99px;
+        background: var(--primary);
+        color: var(--primary-foreground);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto;
+      }
+      .sheet {
+        position: absolute;
+        z-index: 6;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 16px 24px;
+        border-radius: 20px 20px 0 0;
+        background: var(--background);
+        box-shadow: 0 -10px 30px rgb(0 0 0 / 0.2);
+      }
+      .sheet .tiles {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1fr;
+        gap: 10px;
+      }
+      .sheet .tile {
+        height: 84px;
+        display: grid;
+        align-content: center;
+        justify-items: center;
+        gap: 6px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        font-size: 13px;
+        font-weight: 500;
+        text-align: center;
+      }
+      .sheet .tile.pri {
+        background: var(--primary);
+        color: var(--primary-foreground);
+        border-color: var(--primary);
+      }
+      .sheet .tile.hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: 2px;
+      }
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        align-items: center;
+        margin: 0 0 16px;
+        font-size: 14px;
+      }
+      .flow span {
+        padding: 4px 10px;
+        border-radius: 8px;
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+      }
+      .flow i {
+        font-style: normal;
+        color: var(--page-muted);
+      }
+      .diff {
+        width: 100%;
+        max-width: 92ch;
+        border-collapse: collapse;
+        font-size: 14px;
+        margin: 8px 0 16px;
+      }
+      .diff th,
+      .diff td {
+        text-align: left;
+        vertical-align: top;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--note-border);
+      }
+      .diff th {
+        font-weight: 600;
+        color: var(--page-muted);
+        font-size: 13px;
+      }
+
+      /* ---- new in this mockup: steps row, refresh, settings, week strip, share image ---- */
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spin svg {
+        animation: spin 1s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin svg {
+          animation-duration: 3s;
+        }
+      }
+      .ibtn.sm {
+        width: 36px;
+        height: 36px;
+        color: var(--muted-foreground);
+      }
+      :root {
+        --steps: oklch(0.52 0.13 155);
+      }
+      :root[data-theme='dark'] {
+        --steps: oklch(0.74 0.13 155);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          --steps: oklch(0.74 0.13 155);
+        }
+      }
+      .kc.st {
+        color: var(--steps);
+      }
+      .row .lead-ic {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        border-radius: 99px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: color-mix(in oklch, var(--steps) 14%, transparent);
+        color: var(--steps);
+      }
+      .row .name .own-mark {
+        flex: none;
+      }
+      .swipe .del {
+        flex: none;
+        width: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        background: var(--destructive);
+        color: white;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .swipe .row.shift {
+        margin-left: -80px;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .hero > div {
+        background: var(--card);
+        padding: 14px 16px;
+      }
+      .hero .v {
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.2;
+        font-variant-numeric: tabular-nums;
+      }
+      .hero .l {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .kv {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 48px;
+        padding: 6px 16px;
+        font-size: 14px;
+      }
+      .kv + .kv {
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .kv .r {
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .pad {
+        padding: 4px 16px 16px;
+        display: grid;
+        gap: 8px;
+      }
+      .btn.dz {
+        background: var(--background);
+        color: var(--destructive);
+        border: 1px solid var(--input);
+      }
+      .btn.full {
+        width: 100%;
+      }
+      .secret {
+        display: grid;
+        gap: 6px;
+      }
+      .secret .lbl {
+        margin: 0;
+      }
+      .mono {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 8px 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--input);
+        background: var(--background);
+        font:
+          13px/1.35 ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        word-break: break-all;
+      }
+      .mono span {
+        flex: 1;
+        min-width: 0;
+      }
+      .steps-ol {
+        margin: 0;
+        padding: 0 16px 16px 36px;
+        font-size: 14px;
+      }
+      .steps-ol li + li {
+        margin-top: 8px;
+      }
+      .steps-ol .sub {
+        display: block;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      code.k {
+        font:
+          12px ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: var(--muted);
+      }
+      .morerow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 56px;
+        padding: 8px 16px;
+      }
+      .morerow .txt {
+        flex: 1;
+        min-width: 0;
+      }
+      .morerow .h {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .morerow.hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: -4px;
+        border-radius: 12px;
+      }
+      .week {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        padding: 8px 8px 10px;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+      }
+      .week > div {
+        display: grid;
+        justify-items: center;
+        gap: 2px;
+        padding: 4px 0;
+        border-radius: 10px;
+        font-size: 11px;
+        color: var(--muted-foreground);
+      }
+      .week > div b {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .week > div.on {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .week > div.on b {
+        color: var(--primary-foreground);
+      }
+      .dots {
+        height: 6px;
+        display: flex;
+        gap: 3px;
+      }
+      .dots i {
+        width: 6px;
+        height: 6px;
+        border-radius: 99px;
+      }
+      .dots i.f {
+        background: var(--primary);
+      }
+      .dots i.t {
+        background: var(--exercise);
+      }
+      .week > div.on .dots i {
+        background: var(--primary-foreground);
+      }
+      .chip.get {
+        border-style: dashed;
+      }
+      .shareimg {
+        padding: 16px;
+        background: var(--background);
+      }
+      .shareimg .sh-date {
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      .shareimg .sh-foot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        margin: 0;
+        background: color-mix(in oklch, var(--border) 70%, transparent);
+      }
+      .stats > div {
+        background: var(--card);
+        padding: 10px 16px;
+      }
+      .stats dt {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .stats dd {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .stats dd small {
+        display: block;
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--muted-foreground);
+      }
+      .stats .hl {
+        outline: 2px dashed var(--new-border);
+        outline-offset: -4px;
+      }
+      .vs {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 99px;
+        font-size: 12px;
+        font-weight: 600;
+        background: var(--new-bg);
+        border: 1px solid var(--new-border);
+      }
+
+      /* ---- new in this mockup: meal header, menus, time picker, food page, drag states ---- */
+      .nw {
+        outline: 2px dashed var(--new-border);
+        outline-offset: 1px;
+        border-radius: 8px;
+      }
+      .card.nwc {
+        outline: 2px dashed var(--new-border);
+        outline-offset: 2px;
+      }
+      .card.open {
+        position: relative;
+        z-index: 7;
+        overflow: visible;
+      }
+      .mh {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-height: 48px;
+        padding: 0 8px;
+      }
+      .mh-l {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        justify-items: start;
+        gap: 2px;
+      }
+      .mline {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        max-width: 100%;
+        min-width: 0;
+        padding-left: 8px;
+      }
+      .mname {
+        display: inline-block;
+        min-width: 0;
+        margin: 0 -6px;
+        padding: 2px 6px;
+        border: 0;
+        border-radius: 8px;
+        background: none;
+        color: inherit;
+        font: inherit;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 24px;
+        cursor: pointer;
+      }
+      .mname span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mname span.mq {
+        margin-left: -6px;
+        padding-left: 6px;
+        text-overflow: clip;
+        -webkit-mask-image: linear-gradient(
+          to right,
+          transparent,
+          #000 6px,
+          #000 calc(100% - 16px),
+          transparent
+        );
+        mask-image: linear-gradient(to right, transparent, #000 6px, #000 calc(100% - 16px), transparent);
+      }
+      .mname span.mq-track {
+        display: inline-flex;
+        width: max-content;
+        overflow: visible;
+        text-overflow: clip;
+        animation: mq var(--mq-t) linear infinite;
+      }
+      .mq-track b {
+        flex: none;
+        padding-right: 32px;
+        font-weight: inherit;
+      }
+      @keyframes mq {
+        0%,
+        22% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(calc(-1 * var(--mq-d)));
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .mname span.mq-track {
+          animation: none;
+        }
+      }
+      .mname.open {
+        background: var(--accent);
+      }
+      .mslot {
+        margin-bottom: 18px;
+      }
+      .mslot > .card {
+        margin-bottom: 0;
+      }
+      .mstamp {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        height: 22px;
+        padding-left: 16px;
+      }
+      .mtime {
+        margin: -8px -8px;
+        padding: 8px;
+        border: 0;
+        background: none;
+        color: var(--muted-foreground);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 16px;
+        font-variant-numeric: tabular-nums;
+        cursor: pointer;
+      }
+      .mtime.on {
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .mtime.plain {
+        cursor: default;
+      }
+      .mkcal {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex: none;
+        font-size: 14px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+      }
+      .mkcal svg {
+        align-self: center;
+      }
+      .mh .acts {
+        flex: none;
+        display: flex;
+        align-items: center;
+      }
+      .tail {
+        flex: none;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .tail .kc {
+        display: block;
+      }
+      .tail small {
+        display: block;
+        font-size: 11px;
+        color: var(--muted-foreground);
+        white-space: nowrap;
+      }
+      .menu {
+        position: absolute;
+        z-index: 8;
+        top: 46px;
+        width: 236px;
+        padding: 4px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        color: var(--foreground);
+        box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+        font-size: 14px;
+        font-weight: 400;
+      }
+      .menu.l {
+        left: 8px;
+      }
+      .menu.r {
+        right: 8px;
+      }
+      .mi {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 8px;
+        border-radius: 6px;
+      }
+      .mi .ck {
+        flex: none;
+        width: 16px;
+        display: flex;
+      }
+      .mi .t {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .mi .m {
+        flex: none;
+        font-size: 12px;
+        color: var(--muted-foreground);
+        font-variant-numeric: tabular-nums;
+      }
+      .mi.on {
+        background: var(--accent);
+      }
+      .mi.dz {
+        color: var(--destructive);
+      }
+      .mi.nw {
+        outline-offset: -2px;
+      }
+      .msep {
+        height: 1px;
+        margin: 4px -4px;
+        background: var(--border);
+      }
+      .addmeal {
+        height: 44px;
+        margin: 0 0 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        border: 1px dashed var(--input);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted-foreground);
+      }
+      .addmeal.nw {
+        border-color: transparent;
+        border-radius: 12px;
+      }
+      .calc {
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border-radius: 16px;
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+        background: var(--card);
+      }
+      .calc .nums {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .calc .nums div:nth-child(2) {
+        text-align: center;
+      }
+      .calc .nums div:nth-child(3) {
+        text-align: right;
+      }
+      .calc b {
+        display: block;
+        font-size: 18px;
+        font-variant-numeric: tabular-nums;
+      }
+      .calc span {
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .calc .bar {
+        height: 6px;
+        margin-top: 8px;
+        border-radius: 99px;
+        overflow: hidden;
+        background: var(--muted);
+      }
+      .calc .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 99px;
+        background: var(--primary);
+      }
+      .timewheels {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 8px;
+      }
+      .timewheels .wheel {
+        width: 100%;
+      }
+      .timewheels > b {
+        font-size: 20px;
+      }
+      .tg span.nwt {
+        outline: 2px dashed var(--new-border);
+        outline-offset: -3px;
+        border-radius: 8px;
+      }
+      .dlg-field {
+        display: grid;
+        gap: 6px;
+      }
+      .dlg-field .lbl {
+        margin: 0;
+      }
+      .sbar {
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .hdr.rel {
+        position: relative;
+      }
+      .hpick {
+        flex: none;
+        max-width: 158px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border: 0;
+        border-radius: 8px;
+        background: none;
+        color: var(--muted-foreground);
+        font: inherit;
+        cursor: pointer;
+      }
+      .hpick .hp {
+        min-width: 0;
+        display: grid;
+        justify-items: end;
+        line-height: 1.2;
+      }
+      .hpick .hp span {
+        max-width: 118px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+        color: var(--foreground);
+      }
+      .hpick .hp small {
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .hpick .badge {
+        background: var(--new-bg);
+        color: var(--foreground);
+        line-height: 16px;
+      }
+      .hdr .menu {
+        top: 52px;
+      }
+      .cam {
+        position: relative;
+        height: 340px;
+        background: oklch(0.2 0.006 40);
+      }
+      .cam::before {
+        content: '';
+        position: absolute;
+        inset: 32px 40px 104px;
+        border-radius: 16px;
+        border: 2px solid oklch(1 0 0 / 0.35);
+      }
+      .cam .shut {
+        position: absolute;
+        left: 50%;
+        bottom: 20px;
+        width: 64px;
+        height: 64px;
+        margin-left: -32px;
+        border-radius: 99px;
+        background: oklch(0.98 0 0);
+        box-shadow:
+          0 0 0 3px oklch(0.2 0.006 40),
+          0 0 0 6px oklch(0.98 0 0);
+      }
+      .camacts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 12px 16px 16px;
+      }
+      .row.lifted {
+        opacity: 0.35;
+      }
+      .card.drop {
+        background: color-mix(in oklch, var(--primary) 6%, var(--card));
+        box-shadow: 0 0 0 2px color-mix(in oklch, var(--primary) 60%, transparent);
+      }
+      .ghost {
+        margin: 8px 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--popover);
+        box-shadow: 0 10px 24px rgb(0 0 0 / 0.28);
+        transform: rotate(-1.5deg);
+      }
+      .tablewrap {
+        overflow-x: auto;
+        margin-top: 8px;
+      }
+      .tablewrap .diff {
+        margin: 0;
+        min-width: 620px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tablewrap .nwcol {
+        background: var(--new-bg);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Tagesmahlzeiten: Mockup v4</h1>
+      <p class="lead">
+        Ein Tag hat keine vier festen Fächer mehr, sondern so viele Mahlzeiten, wie gegessen wurde. Jede
+        Mahlzeit hat einen Namen und eine Uhrzeit, die Liste folgt der Uhrzeit. Beispieltag: Donnerstag, 19.
+        November, Ziel 2.300 kcal.
+      </p>
+
+      <div class="controls">
+        <div class="ctl">
+          <span>Farbschema</span>
+          <div class="seg" id="theme">
+            <button data-v="system" aria-pressed="true">System</button>
+            <button data-v="light" aria-pressed="false">Hell</button>
+            <button data-v="dark" aria-pressed="false">Dunkel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">
+        <b>Entschieden</b>
+        <ol>
+          <li>
+            Keine festen Fächer. Mahlzeiten entstehen von selbst, Namen in dieser Reihenfolge: Frühstück,
+            Mittagessen, Abendessen, Snacks, dann „Weitere Mahlzeit“.
+          </li>
+          <li>
+            Liegt der letzte Eintrag mehr als 30 Minuten zurück, beginnt eine neue Mahlzeit. Das „+“ einer
+            Mahlzeit gewinnt immer.
+          </li>
+          <li>
+            Tipp auf den Namen: Auswahl mit den 4 Namen und „Eigener Name“. Eigene Namen bleiben in der
+            Auswahl und lassen sich in den Einstellungen löschen.
+          </li>
+          <li>Die Uhrzeit kommt vom ersten Eintrag, ist änderbar und ändert sich nie von selbst.</li>
+          <li>
+            Sortiert wird immer nach Uhrzeit. Mahlzeiten lassen sich nicht ziehen. Namen ändern sich nie von
+            selbst.
+          </li>
+          <li>Auf einen anderen Tag: „Kopieren“ im ⋯ Menü und Einfügen, keine eigene Funktion.</li>
+          <li>Leerer Tag: eine einzige leere Karte für die nächste Mahlzeit.</li>
+          <li>
+            Löschen einer Mahlzeit löscht ihre Einträge, mit Rückgängig. Leer gezogene Mahlzeiten verschwinden
+            von selbst.
+          </li>
+          <li>Mahlzeiten lassen sich von Hand anlegen. Einzelne Einträge bleiben ziehbar wie heute.</li>
+        </ol>
+      </div>
+
+      <h2>A. Tagebuch</h2>
+      <p class="lead">
+        Der Kopf einer Mahlzeit hat zwei Zeilen: Name mit Auswahl, darunter Uhrzeit und kcal. Rechts stehen
+        Einfügen (nur wenn etwas kopiert ist), ⋯ und +. Gestrichelt ist, was neu ist.
+      </p>
+      <div class="phones" id="A"></div>
+
+      <h2>B. Name wählen</h2>
+      <p class="lead">
+        Der Tipp auf den Namen öffnet die Auswahl. Ein eigener Name steht danach dauerhaft in der Liste, auf
+        allen Geräten.
+      </p>
+      <div class="phones" id="B"></div>
+
+      <h2>C. Uhrzeit ändern</h2>
+      <p class="lead">
+        Der Tipp auf die Uhrzeit öffnet zwei Rädchen wie bei den Mengen. Nach dem Übernehmen sortiert sich die
+        Liste neu, der Name bleibt. Eine Mahlzeit nach Mitternacht kann zum Vortag gehören.
+      </p>
+      <div class="phones" id="C"></div>
+
+      <h2>D. Automatische Mahlzeiten beim Eintragen</h2>
+      <p class="lead">
+        Der Kopf der Seite „Essen eintragen“ zeigt, wohin der Eintrag geht. Die Uhrzeit oben im Rahmen ist die
+        aktuelle Zeit des Beispiels.
+      </p>
+      <div class="phones" id="D"></div>
+
+      <h2>E. Hinzufügen und Löschen</h2>
+      <p class="lead">
+        „Mahlzeit hinzufügen“ steht am Ende der Liste. Gelöscht wird ohne Rückfrage, das Rückgängig im Toast
+        holt Mahlzeit und Einträge zurück.
+      </p>
+      <div class="phones" id="E"></div>
+
+      <h2>F. Einstellungen: Mahlzeiten-Namen</h2>
+      <p class="lead">
+        Die heutige Seite „Mahlzeiten“ unter Mehr bekommt einen zweiten Abschnitt für die eigenen Namen.
+      </p>
+      <div class="phones" id="F"></div>
+
+      <h2>G. Andere Stellen</h2>
+      <p class="lead">
+        „Wie gestern“ und „Zuletzt hier“ hängen heute am festen Fach und brauchen eine neue Zuordnung. Das
+        geteilte Tagesbild und die CSV bekommen die Uhrzeit.
+      </p>
+      <div class="phones" id="G"></div>
+
+      <div class="note">
+        <b>G3 CSV „Einträge“</b>
+        <div class="tablewrap" id="csv"></div>
+        <p class="hint" style="margin-top: 8px; color: var(--page-muted)">
+          „Mahlzeit“ enthält den Namen der Mahlzeit, „Uhrzeit“ ihre Uhrzeit (nicht die des einzelnen
+          Eintrags). Neue Spalten kommen ans Ende, damit bestehende Tabellen ihre Spalten behalten. Sortiert
+          nach Datum und Uhrzeit, die Nacht auf den Folgetag steht am Ende ihres Tages.
+        </p>
+      </div>
+
+      <h2>Gilt so, wenn du nichts sagst</h2>
+      <div class="note">
+        <ul>
+          <li>
+            <b>Nächster Name</b>: der erste Name der Reihenfolge, den der Tag noch nicht hat. Heißt die zweite
+            Mahlzeit von Hand „Snacks“, wird die dritte „Mittagessen“.
+          </li>
+          <li>
+            <b>Die erste Mahlzeit heißt immer „Frühstück“</b>, auch um 13:00, weil die Reihenfolge nicht auf
+            die Uhr schaut.
+          </li>
+          <li>
+            <b>Mahlzeiten-Seite</b>: Der Name öffnet jetzt die Auswahl, deshalb führt der Tipp auf die kcal
+            zur heutigen Seite <code>/diary-meal</code>.
+          </li>
+          <li>
+            <b>Leere Karte und „Mahlzeit hinzufügen“</b> legen nichts an. Die Mahlzeit entsteht mit ihrem
+            ersten Eintrag.
+          </li>
+          <li>
+            <b>Nacht</b>: „Nacht auf Fr.“ lässt sich für 00:00 bis 04:59 wählen und sortiert ans Ende des
+            Tages.
+          </li>
+        </ul>
+      </div>
+
+      <h2>Offene Fragen</h2>
+      <div class="note ask">
+        <ol>
+          <li>
+            <b>„Wie gestern“</b>: Welche Mahlzeit von gestern ist gemeint? Vorschlag: gleicher Name, sonst die
+            mit der nächstliegenden Uhrzeit.
+          </li>
+          <li>
+            <b>Vergangene Tage</b>: Welche Uhrzeit bekommt eine Mahlzeit, die nachträglich eingetragen wird?
+            Vorschlag: die typische Uhrzeit ihrer Position (Frühstück 08:00, Mittagessen 12:30, Abendessen
+            18:30, Snacks 15:30), danach änderbar.
+          </li>
+          <li>
+            <b>Standard-Namen</b>: Bleiben die 4 Namen umbenennbar wie heute? Vorschlag: ja (F2), eine
+            Umbenennung gilt nur für neue Mahlzeiten.
+          </li>
+          <li>
+            <b>Vollständiger Tag</b>: Reichen weiter 2 Mahlzeiten, auch wenn es zwei Snacks sind? Vorschlag:
+            ja, „Tag abschließen“ bleibt für alles andere.
+          </li>
+        </ol>
+      </div>
+
+      <h2>Bekannte Grenzen</h2>
+      <ul class="lead" style="padding-left: 20px">
+        <li>Ältere App-Versionen zeigen höchstens vier Mahlzeiten, bis sie aktualisiert sind.</li>
+        <li>
+          Offline können zwei Geräte gleichzeitig eine Mahlzeit für denselben Moment anlegen. Dann stehen zwei
+          Mahlzeiten da, die Einträge lassen sich zusammenziehen.
+        </li>
+      </ul>
+    </div>
+
+    <script>
+      // ---------- helpers ----------
+      const nf0 = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+      const nf1 = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const fmt0 = (n) => nf0.format(Math.round(n));
+      const ICONS = {
+        chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+        chevronRight: '<path d="m9 18 6-6-6-6"/>',
+        chevronDown: '<path d="m6 9 6 6 6-6"/>',
+        chevronUp: '<path d="m18 15-6-6-6 6"/>',
+        download:
+          '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
+        plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+        x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+        pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+        bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+        trash:
+          '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+        dumbbell:
+          '<path d="M14.4 14.4 9.6 9.6"/><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"/><path d="m21.5 21.5-1.4-1.4"/><path d="M3.9 3.9 2.5 2.5"/><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"/>',
+        refresh: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/>',
+        foot: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>',
+        copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+        bell: '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M22 8c0-2.3-.8-4.3-2-6"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/><path d="M4 2C2.8 3.7 2 5.7 2 8"/>',
+        palette:
+          '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+        undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+        book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+        chart: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="m19 9-5 5-4-4-3 3"/>',
+        menu: '<path d="M4 12h16"/><path d="M4 6h16"/><path d="M4 18h16"/>',
+        scale:
+          '<path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>',
+        share:
+          '<path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
+        cloud: '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+      };
+      const ic = (name, size = 20, style = '') =>
+        `<svg class="i" width="${size}" height="${size}" viewBox="0 0 24 24" style="${style}" aria-hidden="true">${ICONS[name]}</svg>`;
+      const MF = 'color:var(--muted-foreground)';
+      const PRI = 'color:var(--primary)';
+      const LINE = 'border-top:1px solid color-mix(in oklch,var(--border) 70%,transparent)';
+
+      // ---------- pieces of the app ----------
+      const phone = (title, caption, body) =>
+        `<figure><div class="phone"><div class="screen">${body}</div></div><figcaption><b>${title}</b>${caption}</figcaption></figure>`;
+      const header = (title, acts = '', back = true) =>
+        `<div class="hdr">${back ? `<span class="ibtn">${ic('chevronLeft', 24)}</span>` : '<span style="width:8px"></span>'}<h1>${title}</h1>${acts}</div>`;
+      const card = (title, inner, { k = '', acts = '', badge = '', hl = false } = {}) =>
+        `<section class="card"${hl ? ' style="outline:2px dashed var(--new-border);outline-offset:2px"' : ''}>${title ? `<div class="sec-head"><h2><span>${title}</span>${k ? `<span class="k tabular">${k}</span>` : ''}${badge}</h2>${acts ? `<div class="acts">${acts}</div>` : ''}</div>` : ''}${inner}</section>`;
+      const chip = (title, detail, { icon = '', cls = '' } = {}) =>
+        `<span class="chip ${cls}"><span class="t">${icon ? ic(icon, 14, MF) : ''}${title}</span><span class="d">${detail}</span></span>`;
+      const tabbar = () =>
+        `<div class="tabbar"><span class="on">${ic('book', 22)}Tagebuch</span><span>${ic('chart', 22)}Fortschritt</span><span><span class="fab">${ic('plus', 24)}</span></span><span>${ic('scale', 22)}Gewicht</span><span>${ic('menu', 22)}Mehr</span></div>`;
+      const toast = (text, action = 'Rückgängig') =>
+        `<div class="toast"><span>${text}</span>${action ? `<b>${action}</b>` : ''}</div>`;
+
+      // ---------- additional icons ----------
+      Object.assign(ICONS, {
+        paste:
+          '<path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+        more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+        history:
+          '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+        save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+        clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+        check: '<path d="M20 6 9 17l-5-5"/>',
+        search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+        pencil:
+          '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+        moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+      });
+
+      // ---------- sample data ----------
+      const TARGET = 2300;
+      const E = (name, sub, kcal, p, k, f, group = false) => ({ name, sub, kcal, p, k, f, group });
+      const FOOD = {
+        hafer: E('Haferflocken', '60 g', 222, 8, 35, 4),
+        milch: E('Milch 1,5 %', '200 ml', 94, 7, 10, 3),
+        banane: E('Banane', '1 × Stück (120 g) · 120 g', 113, 1, 24, 0),
+        bowl: E('Hähnchen-Bowl', '3 Zutaten', 509, 52, 58, 7, true),
+        brot: E('Vollkornbrot', '2 × Scheibe (45 g) · 90 g', 196, 7, 36, 1),
+        gouda: E('Gouda', '40 g', 143, 10, 0, 11),
+        tomate: E('Tomate', '100 g', 18, 1, 3, 0),
+        apfel: E('Apfel', '1 × Stück (150 g) · 150 g', 78, 0, 17, 0),
+        skyr: E('Skyr natur', '200 g', 126, 22, 8, 0),
+        nuss: E('Walnüsse', '20 g', 131, 3, 2, 13),
+        kuchen: E('Apfelkuchen', '1 × Stück (120 g) · 120 g', 310, 4, 44, 13),
+        kaffee: E('Kaffee mit Milch', '200 ml', 30, 2, 3, 1),
+        shake: E('Proteinshake', '30 g', 118, 24, 2, 2),
+      };
+      const FR = { name: 'Frühstück', time: '07:40', items: [FOOD.hafer, FOOD.milch, FOOD.banane] };
+      const MI = { name: 'Mittagessen', time: '12:35', items: [FOOD.bowl] };
+      const AB = { name: 'Abendessen', time: '18:50', items: [FOOD.brot, FOOD.gouda, FOOD.tomate] };
+      const SN = { name: 'Snacks', time: '16:05', items: [FOOD.skyr, FOOD.nuss] };
+      const SN_AM = { name: 'Snacks', time: '10:15', items: [FOOD.apfel] };
+      const OMA = { name: 'Kuchen bei Oma', time: '15:30', items: [FOOD.kuchen, FOOD.kaffee] };
+      const WEITERE = { name: 'Weitere Mahlzeit', time: '22:40', items: [FOOD.shake] };
+      const OWN_NAMES = ['Kuchen bei Oma', 'Nach dem Training'];
+      const STANDARD = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'];
+      const NIGHT = 'Nacht auf Fr.';
+
+      const sumKcal = (m) => m.items.reduce((s, e) => s + e.kcal, 0);
+      /** Sort key: minutes of the day, the night after it counts behind 23:59. */
+      const sortKey = (m) => {
+        const [h, min] = m.time.split(':').map(Number);
+        return h * 60 + min + (m.night ? 1440 : 0);
+      };
+      const byTime = (list) => [...list].sort((a, b) => sortKey(a) - sortKey(b));
+
+      // ---------- pieces ----------
+      const iconBtn = (name, style = MF) => `<span class="ibtn">${ic(name, 20, style)}</span>`;
+      const entryRow = (e, cls = '') =>
+        `<div class="row ${cls}"><div class="txt"><div class="name"><span>${e.name}</span></div><div class="sub" ${e.group ? 'style="display:flex;align-items:center;gap:2px"' : ''}>${e.sub}${e.group ? ic('chevronDown', 14) : ''}</div></div><div class="tail"><span class="kc">${fmt0(e.kcal)}</span><small>P ${e.p} · K ${e.k} · F ${e.f}</small></div></div>`;
+      const rows = (items) => `<ul class="rows">${items.map((e) => `<li>${entryRow(e)}</li>`).join('')}</ul>`;
+      const mi = (label, { on = false, m = '', cls = '', icon = '' } = {}) =>
+        `<div class="mi ${on ? 'on' : ''} ${cls}"><span class="ck">${on ? ic('check', 16) : icon ? ic(icon, 16) : ''}</span><span class="t">${label}</span>${m ? `<span class="m">${m}</span>` : ''}</div>`;
+      const msep = '<div class="msep"></div>';
+      const nameMenu = (current, own = []) =>
+        `<div class="menu l">${STANDARD.map((n) => mi(n, { on: n === current })).join('')}${msep}${own.length ? own.map((n) => mi(n, { on: n === current, cls: 'nw' })).join('') + msep : ''}${mi('Eigener Name', { icon: 'pencil', cls: own.length ? '' : 'nw' })}</div>`;
+      const dotsMenu = `<div class="menu r">${mi('Kopieren', { icon: 'copy' })}${mi('Als Meal speichern', { icon: 'save' })}${mi('Wie gestern eintragen', { icon: 'history' })}${msep}${mi('Mahlzeit löschen', { icon: 'trash', cls: 'dz nw' })}</div>`;
+      const nightBadge = `<span class="badge" style="display:inline-flex;align-items:center;gap:3px">${ic('moon', 11)}Fr.</span>`;
+
+      /** One meal of the day. `o.hl` marks name and time as new, `o.readonly` is the shared image. */
+      function mealCard(m, o = {}) {
+        const kcal = sumKcal(m);
+        const empty = m.items.length === 0;
+        const cls = [o.menu ? 'open' : '', o.nwc ? 'nwc' : '', o.drop ? 'drop' : ''].join(' ');
+        const nameEl = o.readonly
+          ? `<span class="mname" style="cursor:default"><span>${m.name}</span></span>`
+          : `<button class="mname ${o.nameOpen ? 'open' : ''}"><span>${m.name}</span></button>`;
+        const timeEl = o.readonly
+          ? `<span class="mtime plain">${m.time}</span>`
+          : `<button class="mtime ${o.timeHl ? 'on' : ''}">${m.time}</button>`;
+        const stamp = empty ? '' : `<div class="mstamp">${timeEl}${m.night ? nightBadge : ''}</div>`;
+        const kcalEl = empty
+          ? ''
+          : `<span class="mkcal">${fmt0(kcal)} kcal${o.readonly ? '' : ic('chevronRight', 16)}</span>`;
+        const acts = o.readonly
+          ? ''
+          : `<div class="acts">${o.paste ? iconBtn('paste', PRI) : ''}${empty ? '' : iconBtn('more')}${iconBtn('plus', PRI)}</div>`;
+        return `<div class="mslot">${stamp}<section class="card ${cls}"><div class="mh"><div class="mh-l"><div class="mline">${nameEl}${kcalEl}</div></div>${acts}${o.menu || ''}</div>${o.inner ?? rows(m.items)}${o.after || ''}</section></div>`;
+      }
+      const hereChips = (inner, top = true) =>
+        `<div style="padding:${top ? '12px' : '0'} 16px 14px;${top ? LINE : ''}"><p class="cap">Zuletzt hier</p><div class="chips">${inner}</div></div>`;
+      const calCard = (meals) => {
+        const eaten = meals.reduce((s, m) => s + sumKcal(m), 0);
+        return `<div class="calc"><div class="nums"><div><b>${fmt0(TARGET)}</b><span>Ziel</span></div><div><b>${fmt0(eaten)}</b><span>Essen</span></div><div><b>${fmt0(TARGET - eaten)}</b><span>Übrig</span></div></div><div class="bar"><i style="width:${Math.min(100, (eaten / TARGET) * 100)}%"></i></div></div>`;
+      };
+      const week = () => {
+        const days = [
+          ['Mo', 16, 1],
+          ['Di', 17, 1],
+          ['Mi', 18, 1],
+          ['Do', 19, 1],
+          ['Fr', 20, 0],
+          ['Sa', 21, 0],
+          ['So', 22, 0],
+        ];
+        return `<div class="week">${days.map(([d, n, food]) => `<div class="${n === 19 ? 'on' : ''}">${d}<b>${n}</b><span class="dots">${food ? '<i class="f"></i>' : ''}</span></div>`).join('')}</div>`;
+      };
+      const diaryHdr = (paste = false) =>
+        `<div class="hdr"><span class="ibtn">${ic('chevronLeft', 24)}</span><h1 style="text-align:center">${paste ? 'Do., 19.11.' : 'Do., 19. Nov.'}</h1><span class="ibtn">${ic('chevronRight', 24)}</span>${paste ? iconBtn('paste') : ''}${iconBtn('cloud')}${iconBtn('share')}</div>`;
+      const addMeal = (hl = false) =>
+        `<div class="addmeal ${hl ? 'nw' : ''}">${ic('plus', 16)}Mahlzeit hinzufügen</div>`;
+
+      /** A diary page. Meals are always sorted by time here; `opts[name]` passes options to one card. */
+      function diary(
+        meals,
+        { cal = true, paste = false, add = true, addHl = false, tst = '', opts = {}, training = false } = {},
+      ) {
+        const cards = byTime(meals)
+          .map((m) => mealCard(m, { paste, ...(opts[m.name + m.time] || opts[m.name] || {}) }))
+          .join('');
+        return `${diaryHdr(paste)}${week()}<div class="main">${cal ? calCard(meals) : ''}${cards}${add ? addMeal(addHl) : ''}${training ? card('Training', dashedTraining, { acts: `<span class="ibtn">${ic('plus', 20, PRI)}</span>` }) : ''}</div>${tst}${tabbar()}`;
+      }
+      const dashedTraining = `<div class="dashed" style="margin-top:4px">${ic('dumbbell', 16)} Training eintragen</div>`;
+
+      /** Time picker with the wheels of the amount editor. */
+      function timeDialog(title, [h0, h1, h2], [m0, m1, m2], night) {
+        const wheel = (a, b, c) =>
+          `<div class="wheel"><div>${a}</div><div class="on">${b}</div><div>${c}</div></div>`;
+        return `<div class="overlay"></div><div class="dialog"><h3>${title}</h3><div class="timewheels nw">${wheel(h0, h1, h2)}<b>:</b>${wheel(m0, m1, m2)}</div><div class="tg"><span class="${night ? '' : 'on'}">Do., 19. Nov.</span><span class="${night ? 'on nwt' : 'nwt'}">${NIGHT}</span></div><div class="dfoot"><button class="btn out">Abbrechen</button><button class="btn pri">Änderungen übernehmen</button></div></div>`;
+      }
+
+      // ---------- A ----------
+      function renderA() {
+        const emptyMeal = { name: 'Frühstück', time: '', items: [] };
+        const emptyInner = `<div class="dashed" style="margin-top:4px">Essen eintragen</div>${hereChips(chip('Wie gestern', '07:35 · 429 kcal', { icon: 'history' }) + chip('Haferflocken', '60 g · 222 kcal') + chip('Banane', '120 g · 113 kcal'), false)}`;
+        document.getElementById('A').innerHTML =
+          phone(
+            'A1 Leerer Tag',
+            'Eine einzige Karte für die nächste Mahlzeit, mit „+“ und Vorschlägen. Noch keine Uhrzeit: Die kommt mit dem ersten Eintrag.',
+            `${diaryHdr()}${week()}<div class="main">${calCard([])}${mealCard(emptyMeal, { nwc: true, inner: emptyInner })}${card('Training', dashedTraining, { acts: `<span class="ibtn">${ic('plus', 20, PRI)}</span>` })}</div>${tabbar()}`,
+          ) +
+          phone(
+            'A2 Tag läuft',
+            'Name, Uhrzeit, kcal, Einfügen, ⋯ und +. Der Tipp auf die kcal öffnet die Seite der Mahlzeit. Die Vorschläge „Zuletzt hier“ sind hier ausgeblendet (siehe G1).',
+            diary([FR, MI], { training: true, opts: { Frühstück: { hl: true } } }),
+          ) +
+          phone(
+            'A3 Zwei Snacks',
+            'Zweimal „Snacks“ sind zwei eigene Mahlzeiten mit eigener Uhrzeit. Beide Namen wurden von Hand gewählt.',
+            diary([FR, SN_AM, MI, SN], {
+              opts: { 'Snacks10:15': { timeHl: true }, 'Snacks16:05': { timeHl: true } },
+            }),
+          ) +
+          phone(
+            'A4 Sechs Mahlzeiten',
+            'Ab der fünften automatischen Mahlzeit heißt jede „Weitere Mahlzeit“. Der eigene Name steht an seinem Platz in der Zeitfolge.',
+            diary([FR, MI, OMA, AB, { ...SN, time: '21:10' }, WEITERE], {
+              opts: { 'Kuchen bei Oma': { hl: true }, 'Weitere Mahlzeit': { hl: true } },
+            }),
+          );
+      }
+
+      // ---------- B ----------
+      function renderB() {
+        const nameDialog = `<div class="overlay"></div><div class="dialog"><div><h3>Eigener Name</h3></div><div class="dlg-field"><div class="lbl">Name</div><div class="inp own"><span>Kuchen bei Oma</span></div></div><div class="dfoot"><button class="btn out">Abbrechen</button><button class="btn pri">Speichern</button></div></div>`;
+        document.getElementById('B').innerHTML =
+          phone(
+            'B1 Auswahl offen',
+            'Die 4 Namen und „Eigener Name“. Der aktuelle Name ist markiert. „Weitere Mahlzeit“ wird nur automatisch vergeben und steht nicht in der Liste.',
+            diary([FR, MI, AB], { opts: { Mittagessen: { nameOpen: true, menu: nameMenu('Mittagessen') } } }),
+          ) +
+          phone(
+            'B2 Eigener Name',
+            'Der gewohnte Namens-Dialog. „Speichern“ benennt die Mahlzeit um und merkt sich den Namen.',
+            diary([FR, MI, AB]) + nameDialog,
+          ) +
+          phone(
+            'B3 Mit eigenen Namen',
+            'Gespeicherte eigene Namen stehen zwischen den 4 Namen und „Eigener Name“.',
+            diary([FR, { ...OMA, time: '12:35' }, AB], {
+              opts: { 'Kuchen bei Oma': { nameOpen: true, menu: nameMenu('Kuchen bei Oma', OWN_NAMES) } },
+            }),
+          );
+      }
+
+      // ---------- C ----------
+      function renderC() {
+        const moved = { ...FR, time: '14:00' };
+        const late = { ...SN, time: '00:30', night: true };
+        document.getElementById('C').innerHTML =
+          phone(
+            'C1 Uhrzeit wählen',
+            'Tipp auf „07:40“. Stunden und Minuten auf je einem Rädchen, minutengenau.',
+            diary([FR, MI, AB], { opts: { Frühstück: { timeHl: true } } }) +
+              timeDialog('Frühstück', ['13', '14', '15'], ['59', '00', '01'], false),
+          ) +
+          phone(
+            'C2 Neu sortiert',
+            '„Frühstück“ steht jetzt hinter „Mittagessen“ und heißt weiter „Frühstück“. Rückgängig stellt 07:40 wieder her.',
+            diary([moved, MI, AB], {
+              opts: { Frühstück: { timeHl: true } },
+              tst: toast('Frühstück auf 14:00 geändert'),
+            }),
+          ) +
+          phone(
+            'C3 Nach Mitternacht',
+            'Die Mahlzeit gehört zum Donnerstag, gegessen wurde in der Nacht auf Freitag.',
+            diary([FR, MI, AB, { ...SN, time: '23:10' }]) +
+              timeDialog('Snacks', ['23', '00', '01'], ['29', '30', '31'], true),
+          ) +
+          phone(
+            'C4 Nacht am Ende des Tages',
+            '00:30 steht hinter 18:50, weil die Nacht zum Vortag zählt. Die Marke mit dem Mond zeigt den Kalendertag (Freitag).',
+            diary([FR, MI, AB, late], {
+              opts: { Snacks: { timeHl: true } },
+              tst: toast('Snacks auf 00:30 geändert'),
+            }),
+          );
+      }
+
+      // ---------- D ----------
+      function renderD() {
+        const pick = (name, sub, isNew = false) =>
+          `<button class="hpick nw"><span class="hp"><span>${name}</span>${isNew ? `<span class="badge">${sub}</span>` : `<small>${sub}</small>`}</span>${ic('chevronDown', 16)}</button>`;
+        const page = (clock, picker, menu = '') =>
+          `<div class="sbar">${clock}</div><div class="hdr rel"><span class="ibtn">${ic('chevronLeft', 24)}</span><h1>Essen eintragen</h1>${picker}${menu}</div><div class="cam"><span class="shut"></span></div><div class="camacts"><button class="btn sec">${ic('pencil', 16)}Eingeben</button><button class="btn sec">${ic('search', 16)}Suchen</button></div>`;
+        const menu = `<div class="menu r">${mi('Frühstück', { m: '07:40' })}${mi('Mittagessen', { on: true, m: '12:35' })}${msep}${mi('Neue Mahlzeit', { icon: 'plus', m: 'Abendessen', cls: 'nw' })}</div>`;
+        document.getElementById('D').innerHTML =
+          phone(
+            'D1 Unter 30 Minuten',
+            'Letzter Eintrag 12:52, jetzt 13:05: Das Ziel ist die laufende Mahlzeit.',
+            page('13:05', pick('Mittagessen', '12:35')),
+          ) +
+          phone(
+            'D2 Über 30 Minuten',
+            'Letzter Eintrag 12:52, jetzt 18:50: Das Ziel ist eine neue Mahlzeit mit dem nächsten freien Namen. Ihre Uhrzeit setzt der erste Eintrag.',
+            page('18:50', pick('Abendessen', 'Neu', true)),
+          ) +
+          phone(
+            'D3 Auswahl im Kopf',
+            'Die Mahlzeiten des Tages mit Uhrzeit, darunter „Neue Mahlzeit“ mit dem Namen, den sie bekäme.',
+            page('13:05', pick('Mittagessen', '12:35'), menu),
+          ) +
+          phone(
+            'D4 „+“ einer Mahlzeit',
+            'Das „+“ von „Mittagessen“ um 18:50: Es gewinnt immer, die 30 Minuten spielen keine Rolle.',
+            page('18:50', pick('Mittagessen', '12:35')),
+          );
+      }
+
+      // ---------- E ----------
+      function renderE() {
+        const snackApple = { name: 'Snacks', time: '16:05', items: [FOOD.apfel] };
+        const miWithApple = { ...MI, items: [FOOD.bowl, FOOD.apfel] };
+        const lifted = `<ul class="rows"><li>${entryRow(FOOD.apfel, 'lifted')}</li></ul>`;
+        document.getElementById('E').innerHTML =
+          phone(
+            'E1 Mahlzeit hinzufügen',
+            'Am Ende der Liste. Der Tipp öffnet „Essen eintragen“ für eine neue Mahlzeit (wie D2), auch innerhalb der 30 Minuten.',
+            diary([FR, MI], { addHl: true }),
+          ) +
+          phone(
+            'E2 ⋯ Menü',
+            'Wie heute, nur heißt der letzte Punkt „Mahlzeit löschen“ statt „Alle Einträge löschen“.',
+            diary([FR, MI, AB], { opts: { Mittagessen: { menu: dotsMenu } } }),
+          ) +
+          phone(
+            'E3 Gelöscht',
+            'Die Karte ist weg, die Einträge auch. Rückgängig bringt beides mit Name und Uhrzeit zurück.',
+            diary([FR, AB], { tst: toast('Mittagessen gelöscht') }),
+          ) +
+          phone(
+            'E4a Eintrag ziehen',
+            'Langes Drücken wie heute. Die Ziel-Mahlzeit leuchtet auf. Ihre Uhrzeit bleibt, auch wenn der gezogene Eintrag älter ist.',
+            diary([MI, snackApple], {
+              opts: {
+                Mittagessen: {
+                  drop: true,
+                  after: `<div class="ghost">${entryRow(FOOD.apfel)}</div>`,
+                },
+                Snacks: { inner: lifted },
+              },
+            }),
+          ) +
+          phone(
+            'E4b Leere Mahlzeit verschwindet',
+            '„Snacks“ hatte nur den Apfel und ist weg. Rückgängig holt die Mahlzeit mit Name und Uhrzeit zurück.',
+            diary([miWithApple], { tst: toast('Apfel zu Mittagessen verschoben') }),
+          );
+      }
+
+      // ---------- F ----------
+      function renderF() {
+        const moreRow = (icon, label, hint, hl = false) =>
+          `<li><div class="morerow ${hl ? 'hl' : ''}">${ic(icon, 20, MF)}<div class="txt"><div style="font-weight:500">${label}</div>${hint ? `<div class="h">${hint}</div>` : ''}</div>${ic('chevronRight', 16, MF)}</div></li>`;
+        const field = (label, value) =>
+          `<div class="dlg-field"><div class="lbl">${label}</div><div class="inp"><span>${value}</span></div></div>`;
+        const ownRow = (n) =>
+          `<li><div class="row" style="min-height:48px;padding-block:2px"><div class="txt"><div class="name"><span>${n}</span></div></div><span class="ibtn">${ic('trash', 18, 'color:var(--destructive)')}</span></div></li>`;
+        const namesPage =
+          header('Mahlzeiten-Namen') +
+          `<div class="main">${card('Standard-Namen', `<div class="pad" style="gap:14px;padding-top:8px">${STANDARD.map((n, i) => field(`Mahlzeit ${i + 1}`, n)).join('')}<button class="btn out full">Standard</button></div>`)}${card('Eigene Namen', `<ul class="rows">${OWN_NAMES.map(ownRow).join('')}</ul>`, { hl: true })}</div><div class="footer"><button class="btn pri lg" disabled>Speichern</button></div>`;
+        document.getElementById('F').innerHTML =
+          phone(
+            'F1 Mehr',
+            'Die Zeile heißt jetzt „Mahlzeiten-Namen“ und zeigt, wie viele eigene Namen es gibt.',
+            header('Mehr', '', false) +
+              `<div class="main"><section class="card"><ul class="rows">${moreRow('book', 'Mahlzeiten-Namen', '4 Standard · 2 eigene', true)}${moreRow('bell', 'Erinnerung', '')}${moreRow('foot', 'Schritte', '')}${moreRow('palette', 'Aussehen', 'System')}${moreRow('cloud', 'Daten &amp; Sync', 'Synchronisiert')}${moreRow('trash', 'Papierkorb', '')}</ul></section></div>${tabbar()}`,
+          ) +
+          phone(
+            'F2 Mahlzeiten-Namen',
+            'Die 4 Namen sind umbenennbar wie heute. Darunter die eigenen Namen, jeder mit Löschen.',
+            namesPage,
+          ) +
+          phone(
+            'F3 Eigenen Namen löschen',
+            'Der Dialog nennt die Folge: Der Name verschwindet nur aus der Auswahl.',
+            namesPage +
+              `<div class="overlay"></div><div class="dialog"><div><h3>„Kuchen bei Oma“ löschen?</h3><p class="desc">Eingetragene Mahlzeiten behalten diesen Namen.</p></div><div class="dfoot"><button class="btn out">Abbrechen</button><button class="btn pri" style="background:var(--destructive)">Löschen</button></div></div>`,
+          );
+      }
+
+      // ---------- G ----------
+      function renderG() {
+        const emptyMeal = { name: 'Frühstück', time: '', items: [] };
+        const chipsEmpty = hereChips(
+          chip('Wie gestern', 'Frühstück 07:35 · 429 kcal', { icon: 'history' }) +
+            chip('Haferflocken', '60 g · 222 kcal') +
+            chip('Banane', '120 g · 113 kcal'),
+          false,
+        );
+        const chipsFull = hereChips(
+          chip('Banane', '120 g · 113 kcal') +
+            chip('Kaffee mit Milch', '200 ml · 30 kcal') +
+            chip('Skyr natur', '200 g · 126 kcal'),
+        );
+        const shared = [FR, MI, AB];
+        document.getElementById('G').innerHTML =
+          phone(
+            'G1a „Wie gestern“ auf der leeren Karte',
+            'Der Chip nennt die Mahlzeit von gestern, die er eintragen würde (Vorschlag: gleicher Name, sonst nächstliegende Uhrzeit).',
+            `${diaryHdr()}${week()}<div class="main">${mealCard(emptyMeal, { inner: `<div class="dashed" style="margin-top:4px">Essen eintragen</div>${chipsEmpty}` })}</div>${tabbar()}`,
+          ) +
+          phone(
+            'G1b „Zuletzt hier“ unter einer Mahlzeit',
+            'Die Vorschläge kommen von Mahlzeiten mit gleichem Namen aus den letzten 60 Tagen. „Wie gestern eintragen“ steht bei gefüllten Mahlzeiten im ⋯ Menü.',
+            diary([FR], { cal: false, add: false, opts: { Frühstück: { after: chipsFull } } }),
+          ) +
+          phone(
+            'G2 Geteiltes Tagesbild',
+            'Jede Mahlzeit trägt ihre Uhrzeit, ohne Knöpfe.',
+            `<div class="shareimg"><p class="sh-date">Donnerstag, 19. November 2026</p>${calCard(shared)}${shared.map((m) => mealCard(m, { readonly: true })).join('')}<div class="sh-foot">Fleisch-Teufel</div></div>`,
+          );
+        const csvRows = [
+          ['2026-11-19', 'Frühstück', 'Haferflocken', '222', '', '07:40'],
+          ['2026-11-19', 'Snacks', 'Apfel', '78', '', '10:15'],
+          ['2026-11-19', 'Mittagessen', 'Hähnchen-Bowl', '509', '', '12:35'],
+          ['2026-11-19', 'Snacks', 'Skyr natur', '126', '', '16:05'],
+          ['2026-11-19', 'Kuchen bei Oma', 'Apfelkuchen', '310', '', '00:30'],
+        ];
+        const heads = ['Datum', 'Mahlzeit', 'Lebensmittel', 'kcal', '…', 'Notiz', 'Uhrzeit'];
+        document.getElementById('csv').innerHTML =
+          `<table class="diff"><thead><tr>${heads.map((h) => `<th${h === 'Uhrzeit' ? ' class="nwcol"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${csvRows
+            .map(
+              ([d, m, f, k, n, t]) =>
+                `<tr><td>${d}</td><td>${m}</td><td>${f}</td><td>${k}</td><td>…</td><td>${n}</td><td class="nwcol">${t}</td></tr>`,
+            )
+            .join('')}</tbody></table>`;
+      }
+
+      // ---------- controls ----------
+      document.getElementById('theme').addEventListener('click', (e) => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        e.currentTarget
+          .querySelectorAll('button')
+          .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+        if (b.dataset.v === 'system') document.documentElement.removeAttribute('data-theme');
+        else document.documentElement.dataset.theme = b.dataset.v;
+      });
+      renderA();
+      renderB();
+      renderC();
+      renderD();
+      renderE();
+      renderF();
+      renderG();
+
+      // Names too long for the header run through it: slowly, after a pause, endlessly.
+      function runLongNames() {
+        for (const el of document.querySelectorAll('button.mname > span:not(.mq)')) {
+          if (el.scrollWidth <= el.clientWidth + 1) continue;
+          const name = el.textContent;
+          el.classList.add('mq');
+          el.innerHTML = `<span class="mq-track"><b>${name}</b><b aria-hidden="true">${name}</b></span>`;
+          const distance = el.querySelector('b').getBoundingClientRect().width;
+          el.style.setProperty('--mq-d', `${distance}px`);
+          el.style.setProperty('--mq-t', `${(distance / 28 / 0.78).toFixed(1)}s`);
+        }
+      }
+      new MutationObserver(runLongNames).observe(document.body, { childList: true, subtree: true });
+      document.fonts.ready.then(runLongNames);
+      runLongNames();
+    </script>
+  </body>
+</html>

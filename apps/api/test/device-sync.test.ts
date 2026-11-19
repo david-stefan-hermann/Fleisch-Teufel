@@ -99,6 +99,7 @@ const entry = (over: Partial<FoodEntry> = {}): Omit<FoodEntry, 'updatedAt' | 'de
   photoId: null,
   photoIds: null,
   note: null,
+  diaryMealId: null,
   ...over,
 });
 
@@ -271,6 +272,57 @@ describe('device ↔ server sync', () => {
     expect(await b.db.weightEntries.get('w:1999-01-01')).toBeUndefined();
     expect(engine.getState()).toMatchObject({ status: 'idle', needsUpdate: true });
     expect((await b.db.kv.get('sync.cursor'))?.value).toBeGreaterThan(0);
+  });
+
+  it('brings the meals of a day to an app that learned the table with its update', async () => {
+    const a = device('meals-writer');
+    const meal = {
+      id: dayId.diaryMeal('2026-10-07', 1),
+      date: '2026-10-07',
+      name: 'Kuchen bei Oma',
+      eatenAt: 1000,
+      slot: 1,
+      timeEdited: false,
+    };
+    await saveRecord(a.db, 'diaryMeals', meal);
+    await a.engine.sync();
+
+    // The app version before the table: the server's rows of it mean nothing to this device.
+    const db = new UserDb(`meals-reader-${uuidv7()}`);
+    const old = new SyncEngine(db, {
+      appVersion: '1',
+      fetch: async (path, init) => {
+        const res = await server(path, init);
+        if (!path.startsWith('/api/sync/pull')) return res;
+        const body = (await res.json()) as { changes: { table: string }[] };
+        for (const c of body.changes) if (c.table === 'diaryMeals') c.table = 'unknownToThisVersion';
+        return new Response(JSON.stringify(body), { status: 200 });
+      },
+    });
+    await old.sync();
+    expect(old.getState().needsUpdate).toBe(true);
+    expect(await db.diaryMeals.get(meal.id)).toBeUndefined();
+
+    const updated = device('meals-reader', { appVersion: '2', db });
+    await updated.engine.sync();
+    expect(await db.diaryMeals.get(meal.id)).toMatchObject({ name: 'Kuchen bei Oma', slot: 1 });
+    expect(updated.engine.getState().needsUpdate).toBe(false);
+  });
+
+  it('keeps a field of a newer app version when a meal is patched', async () => {
+    const a = device('meals-patch');
+    const id = uuidv7();
+    await saveRecord(a.db, 'diaryMeals', {
+      id,
+      date: '2026-10-07',
+      name: 'Mittag',
+      eatenAt: 1000,
+      slot: 1,
+      timeEdited: false,
+    });
+    await a.db.diaryMeals.update(id, { futureField: 'bleibt' } as never);
+    await patchRecord(a.db, 'diaryMeals', id, { name: 'Brunch' });
+    expect(await a.db.diaryMeals.get(id)).toMatchObject({ name: 'Brunch', futureField: 'bleibt' });
   });
 
   it('keeps "update the app" across starts and loads everything again after an update', async () => {

@@ -1806,6 +1806,7 @@ describe('closing all past days ("Alle vergangenen Tage abschließen")', () => {
     cookedGrams: null,
     photoIds: null,
     note: null,
+    diaryMealId: null,
     deleted,
   });
   const note = (date: string, completedAt: number | null, text = '') => ({

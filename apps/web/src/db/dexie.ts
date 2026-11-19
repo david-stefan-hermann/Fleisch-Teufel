@@ -18,6 +18,7 @@ import type {
   CustomExerciseType,
   CustomFood,
   DayNote,
+  DiaryMeal,
   ExerciseEntry,
   ExerciseTemplate,
   Food,
@@ -239,6 +240,7 @@ export class UserDb extends Dexie {
   customFoods!: EntityTable<CustomFood, 'id'>;
   foodPortions!: EntityTable<FoodPortion, 'id'>;
   meals!: EntityTable<Meal, 'id'>;
+  diaryMeals!: EntityTable<DiaryMeal, 'id'>;
   foodEntries!: EntityTable<FoodEntry, 'id'>;
   exerciseTypes!: EntityTable<CustomExerciseType, 'id'>;
   exerciseEntries!: EntityTable<ExerciseEntry, 'id'>;
@@ -293,6 +295,8 @@ export class UserDb extends Dexie {
     this.version(5).stores({ aiPhotos: '++id, localId' });
     // v6: the assistant's utterances (device log, waiting recordings, undo) and uploaded figures.
     this.version(6).stores({ assistantTurns: '++localId, createdAt, status', assistantSkins: 'id' });
+    // v7: the meals of a day. `foodEntries.diaryMealId` needs no index, a day is read by `date`.
+    this.version(7).stores({ diaryMeals: 'id, date' });
   }
 
   syncTable(name: SyncTable): Table<AnySyncRecord, string> {

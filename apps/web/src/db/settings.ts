@@ -22,6 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   weightRangeKg: null,
   stepsMinimum: null,
   addStepsCalories: null,
+  customMealNames: null,
+  legacyMealNames: null,
 };
 
 /**
