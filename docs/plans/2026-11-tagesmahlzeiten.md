@@ -11,7 +11,7 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | ----- | ------- | ------------------------------------------------------- | ------ |
 | 1     | 16d149e | Datenmodell, Migration `0020`, Dexie v7, Sync           | fertig |
 | 2     | 573e8b6 | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | fertig |
-| 3     | dieser  | Schreibschicht auf dem Gerät                            | fertig |
+| 3     | 64dc4a4 | Schreibschicht auf dem Gerät                            | fertig |
 | 4     |         | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | offen  |
 | 5     |         | KI-Warteschlange, verzögerte Analysen, Entwürfe         | offen  |
 | 6     |         | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
