@@ -36,7 +36,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { addFoodToDraft } from '@/db/aiDraft';
-import { mealIdOf, prepareMealTarget, type MealPick } from '@/db/diaryMeals';
+import { mealIdOf, type MealPick } from '@/db/diaryMeals';
 import { addItemToMeal, logFoodEntry, updateFoodEntry } from '@/db/entries';
 import { addItemToGroupDraft, groupEntries, groupName, readGroupDraft } from '@/db/groupDraft';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
@@ -47,7 +47,7 @@ import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
 import { goBackOr } from '@/lib/history';
 import { formatInto, openTarget, parseFoodInto, returnFromInto, type FoodInto } from '@/lib/into';
-import { useReturnToDiary } from '@/lib/logFlow';
+import { prepareFlowTarget, useReturnToDiary } from '@/lib/logFlow';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from './foodLogDraft';
 
 /** Handles both `/food/$foodId` (new entry) and `/entry/$entryId` (edit). */
@@ -316,7 +316,7 @@ function FoodLogEditor({
       // Back to where the entry was opened (diary, meal page, expanded group).
       return leaveEntry(entry.date);
     }
-    const target = await prepareMealTarget(db, { date, meal, dm });
+    const target = await prepareFlowTarget(db, { date, meal, dm });
     const base = { ...fields, meal: target.meal, mealId: null, aiAnalysisId: null };
     const id = await logFoodEntry(db, base, date, target);
     toast.success(`${food.name} eingetragen`);

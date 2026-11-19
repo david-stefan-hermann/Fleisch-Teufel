@@ -1,6 +1,7 @@
 /**
  * The meals of a day, built when a day is read. Entries of days from before meals had times keep
- * `diaryMealId: null` and form one meal per `meal` index that exists only here (id `dm:<date>:<index>`).
+ * `diaryMealId: null` and form one meal per `meal` index that exists only here (id `dm:<date>:<index>`);
+ * entries the app logs into such a meal name it by that id.
  * Pure: no clock and no database, times are read in the device's time zone.
  */
 import { addDays, parseISODate, toISODate, type ISODate } from './dates.js';
@@ -53,6 +54,10 @@ export interface BuildDayMealsInput<P> {
   date: ISODate;
   /** All entries of the day, tombstones included: they keep the time of a meal without a record. */
   entries: readonly FoodEntry[];
+  /**
+   * The day's meal records. Records of other days may be included: an entry that names one of them
+   * (an older app moved it to another day) is then placed by its index instead of waiting for it.
+   */
   records: readonly DiaryMeal[];
   pending?: readonly PendingMealItem<P>[];
   /** Names of meals without a record: `legacyMealNames ?? mealNames`. */
@@ -118,6 +123,12 @@ export function slotForNewMeal(
   return free >= 0 ? free : names.length - 1;
 }
 
+/** The date and index in a `dm:<date>:<index>` id; null for any other id. */
+export function parseUnrecordedMealId(id: string): { date: ISODate; slot: number } | null {
+  const match = /^dm:(\d{4}-\d{2}-\d{2}):(\d)$/.exec(id);
+  return match ? { date: match[1]!, slot: Number(match[2]) } : null;
+}
+
 export function entryMealKey(e: Pick<FoodEntry, 'date' | 'meal' | 'diaryMealId'>): string {
   return e.diaryMealId ?? dayId.diaryMeal(e.date, e.meal);
 }
@@ -158,7 +169,7 @@ export function usesSlotOrder(meals: readonly Pick<DayMeal, 'id' | 'timeEdited'>
 export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMeal<P>[] {
   const { date, names } = input;
   const records = input.records.filter((r) => r.date === date);
-  const byId = new Map(records.map((r) => [r.id, r]));
+  const byId = new Map(input.records.map((r) => [r.id, r]));
   const drafts = new Map<string, Draft<P>>();
 
   const draftOf = (id: string, make: () => Omit<Draft<P>, 'entries' | 'pending' | 'times' | 'night'>) => {
@@ -207,8 +218,12 @@ export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMea
     eatenAt?: number | null,
   ) => {
     if (!ref) return bySlot(slot, at);
+    // A meal of another day or index: an older app moved the entry and kept the id.
     const record = byId.get(ref);
-    if (record) return record.slot === slot ? ofRecord(record) : bySlot(slot, at);
+    if (record) return record.date === date && record.slot === slot ? ofRecord(record) : bySlot(slot, at);
+    const own = parseUnrecordedMealId(ref);
+    if (own) return own.date === date && own.slot === slot ? unrecorded(ref, slot) : bySlot(slot, at);
+    // Not arrived yet: a placeholder until the next pull brings it.
     return unrecorded(ref, slot, name, eatenAt);
   };
 
@@ -230,7 +245,9 @@ export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMea
     if (meal.virtual && Number.isNaN(eatenAt)) {
       // Deleted entries count: removing the first entry must not move the meal.
       const old = meal.id.startsWith('dm:')
-        ? dayEntries.filter((e) => e.meal === meal.slot && !e.diaryMealId).map((e) => e.loggedAt)
+        ? dayEntries
+            .filter((e) => e.meal === meal.slot && (!e.diaryMealId || e.diaryMealId === meal.id))
+            .map((e) => e.loggedAt)
         : [];
       const fitting = [...old, ...times].filter((at) => fitsDay(date, at));
       eatenAt = fitting.length ? Math.min(...fitting) : typicalEatenAt(date, meal.slot);
@@ -242,6 +259,29 @@ export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMea
   return meals.sort(
     (a, b) => (slotOrder ? 0 : a.eatenAt - b.eatenAt) || a.slot - b.slot || a.id.localeCompare(b.id),
   );
+}
+
+/** Records of other days that entries of `date` name (see `BuildDayMealsInput.records`). */
+export function referencedElsewhere(
+  entries: readonly FoodEntry[],
+  date: ISODate,
+  byId: ReadonlyMap<string, DiaryMeal>,
+): DiaryMeal[] {
+  const found = new Map<string, DiaryMeal>();
+  for (const e of entries) {
+    const r = e.diaryMealId ? byId.get(e.diaryMealId) : undefined;
+    if (r && r.date !== date) found.set(r.id, r);
+  }
+  return [...found.values()];
+}
+
+/** The number of meals with live entries a day shows; the names do not matter for the count. */
+export function countDayMeals(
+  date: ISODate,
+  entries: readonly FoodEntry[],
+  records: readonly DiaryMeal[],
+): number {
+  return buildDayMeals({ date, entries, records, names: [] }).filter((m) => m.entries.length > 0).length;
 }
 
 /**
@@ -262,12 +302,14 @@ export function mealsOfEntries(input: {
   };
   const entries = byDate(input.entries);
   const records = byDate(input.records);
+  const recordById = new Map(input.records.map((r) => [r.id, r]));
   const result = new Map<string, DayMeal>();
   for (const date of dates) {
+    const own = entries.get(date) ?? [];
     const day = buildDayMeals({
       date,
-      entries: entries.get(date) ?? [],
-      records: records.get(date) ?? [],
+      entries: own,
+      records: [...(records.get(date) ?? []), ...referencedElsewhere(own, date, recordById)],
       names: input.names,
     });
     for (const meal of day) for (const e of meal.entries) result.set(e.id, meal);

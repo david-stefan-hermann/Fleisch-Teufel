@@ -196,6 +196,7 @@ describe('numbers from the inventory of November 2026', () => {
     const to = '2026-11-10';
     const span = dateRange(addDays(to, -20), to);
     const rows = dailyRows({
+      diaryMeals: [],
       from: span[0]!,
       to,
       entries: span.flatMap((d) => [food(d, 0, 1300), food(d, 2, 1500)]),
@@ -221,7 +222,15 @@ describe('numbers from the inventory of November 2026', () => {
     const entries = span.flatMap((d) =>
       d === today ? [food(d, 0, 500), food(d, 1, 700)] : [food(d, 0, 1000), food(d, 2, 1500)],
     );
-    const rows = dailyRows({ from: span[0]!, to: today, entries, exercises: [], weights: [], goals: [goal] });
+    const rows = dailyRows({
+      diaryMeals: [],
+      from: span[0]!,
+      to: today,
+      entries,
+      exercises: [],
+      weights: [],
+      goals: [goal],
+    });
     const week = periodStats(rows.slice(-7), { today });
     expect(week.avg.kcal).toBe(2500);
     expect(week.completeDays).toBe(6);
@@ -248,6 +257,7 @@ describe('numbers from the inventory of November 2026', () => {
       weight('2026-11-08', 80.5),
     ];
     const rows = dailyRows({
+      diaryMeals: [],
       from,
       to,
       entries: dateRange(from, to).flatMap((d) => [food(d, 0, 1000), food(d, 2, 1200)]),

@@ -136,7 +136,8 @@ export async function daySuggestions(
     const meals = buildDayMeals({
       date: day,
       entries: dayEntries,
-      records: records.filter((r) => r.date === day),
+      // All of them: an entry can name a meal of another day (`buildDayMeals` takes the day's own).
+      records,
       names: legacy ?? standard,
     });
     if (day === before) yesterdayMeals = meals;

@@ -18,6 +18,7 @@ import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type AnyClipboard } from '@/db/clipboard';
 import { readDay, readMealChoice, type DiaryDayMeal, type MealChoice } from '@/db/diaryMeals';
+import { resolveFlowMeal } from '@/lib/logFlow';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
@@ -73,7 +74,11 @@ export function useDayMeals(date: ISODate): DiaryDayMeal[] | undefined {
 /** The meals a page can log into on a day, and what its `meal` and `dm` stand for. */
 export function useMealChoice(date: ISODate, meal: number, dm?: string): MealChoice | undefined {
   const db = useDb();
-  return useLiveQuery(() => readMealChoice(db, { date, meal, dm }), [db, date, meal, dm]);
+  // `dm: 'new'` is the meal the running logging flow already began, like when logging (`resolveFlowMeal`).
+  return useLiveQuery(
+    async () => readMealChoice(db, await resolveFlowMeal(db, { date, meal, dm })),
+    [db, date, meal, dm],
+  );
 }
 
 export function useDayExercises(date: ISODate): ExerciseEntry[] | undefined {

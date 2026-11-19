@@ -16,7 +16,17 @@ import { entryAmountLabel } from '@/features/diary/MealCard';
 import { readExpanded, setGroupExpanded, writeExpanded } from '@/features/diary/expandedGroups';
 import { dropFoodLogDraft, peekFoodLogDraft, stashFoodLogDraft } from '@/features/foods/foodLogDraft';
 import { goBackOr } from '@/lib/history';
-import { clearLogStart, rememberLogStart, returnToDiary, type LogFlowRouter } from '@/lib/logFlow';
+import {
+  clearLogStart,
+  flowMealFor,
+  prepareFlowTarget,
+  rememberFlowMeal,
+  rememberLogStart,
+  returnToDiary,
+  type LogFlowRouter,
+} from '@/lib/logFlow';
+import { UserDb } from '@/db/dexie';
+import { logItems } from '@/db/entries';
 import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
 import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
@@ -33,7 +43,7 @@ import {
   wheelValues,
 } from '@/lib/amounts';
 import { itemPortion, itemWithAmount } from '@/features/meals/IngredientCard';
-import { dayId, NEW_MEAL_GAP_MS, today, type MealItem } from '@ft/shared';
+import { dayId, NEW_MEAL_GAP_MS, today, uuidv7, type MealItem } from '@ft/shared';
 
 describe('format', () => {
   it('parses German and English decimals', () => {
@@ -356,6 +366,59 @@ describe('logging flow: back to the diary', () => {
     await returnToDiary(router, { date: TODAY });
     expect(went).toEqual([]);
     expect(navigated).toHaveLength(1);
+  });
+});
+
+describe('logging flow: one new meal', () => {
+  const DATE = '2026-11-19';
+  const apple: MealItem = {
+    foodId: null,
+    source: 'quick',
+    name: 'Apfel',
+    brand: null,
+    grams: null,
+    portionLabel: null,
+    portionGrams: null,
+    quantity: 1,
+    per100: null,
+    nutrients: { ENERCC: 50 },
+  };
+  const start = () =>
+    rememberLogStart({ location: { state: { __TSR_index: 3 } }, go: () => {} }, { path: '/', date: DATE });
+
+  beforeEach(() => sessionStorage.clear());
+
+  it('reads "new" as the meal the flow began on that day (pure)', () => {
+    const began = { date: DATE, id: 'm1' };
+    expect(flowMealFor({ date: DATE, dm: 'new' }, began)).toEqual({ date: DATE, dm: 'm1' });
+    expect(flowMealFor({ date: '2026-11-18', dm: 'new' }, began)).toEqual({ date: '2026-11-18', dm: 'new' });
+    expect(flowMealFor({ date: DATE, dm: 'other' }, began)).toEqual({ date: DATE, dm: 'other' });
+    expect(flowMealFor({ date: DATE, dm: 'new' }, null)).toEqual({ date: DATE, dm: 'new' });
+  });
+
+  it('a second step of the flow saying "new" logs into the meal the first one began', async () => {
+    const d = new UserDb(`flow-${uuidv7()}`);
+    start();
+    const first = await prepareFlowTarget(d, { date: DATE, meal: 0, dm: 'new' });
+    expect(first.create).toBeTruthy();
+    await logItems(d, [apple], first);
+    const second = await prepareFlowTarget(d, { date: DATE, meal: 0, dm: 'new' });
+    expect(second).toMatchObject({ diaryMealId: first.diaryMealId });
+    expect(second.create).toBeFalsy();
+    // Another day of the same flow, or a new flow, begins a meal of its own.
+    expect((await prepareFlowTarget(d, { date: '2026-11-20', meal: 0, dm: 'new' })).create).toBeTruthy();
+    start();
+    expect((await prepareFlowTarget(d, { date: DATE, meal: 0, dm: 'new' })).create).toBeTruthy();
+  });
+
+  it('begins a meal again when the remembered one never came to be', async () => {
+    const d = new UserDb(`flow-${uuidv7()}`);
+    rememberFlowMeal({ date: DATE, id: 'never-written' });
+    const target = await prepareFlowTarget(d, { date: DATE, meal: 0, dm: 'new' });
+    expect(target.create).toBeTruthy();
+    expect(target.diaryMealId).not.toBe('never-written');
+    clearLogStart();
+    expect(sessionStorage.getItem('ft.logStart')).toBeNull();
   });
 });
 

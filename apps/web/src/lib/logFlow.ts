@@ -1,5 +1,7 @@
 import { today } from '@ft/shared';
 import { useRouter } from '@tanstack/react-router';
+import { knowsMeal, prepareMealTarget, type LogTarget, type MealRef } from '@/db/diaryMeals';
+import type { UserDb } from '@/db/dexie';
 import { setDiaryFocus, type DiaryFocus } from '@/features/diary/diaryScroll';
 import type { IndexedHistory } from './history';
 
@@ -13,11 +15,18 @@ import type { IndexedHistory } from './history';
 const START_KEY = 'ft.logStart';
 
 interface LogStart {
-  /** `__TSR_index` of the page the flow started on. */
+  /** `__TSR_index` of the page the flow started on (-1: not known, the flow only began a meal). */
   index: number;
   path: string;
   /** The day that page showed. */
   date: string;
+  /** The new meal a step of this flow began: one flow begins at most one. */
+  newMeal?: FlowMeal;
+}
+
+export interface FlowMeal {
+  date: string;
+  id: string;
 }
 
 /** Remembers the page a logging flow starts on (the "+" of the diary, the add sheet). */
@@ -41,10 +50,9 @@ export function clearLogStart(): void {
   }
 }
 
-function takeLogStart(): LogStart | null {
+function readLogStart(): LogStart | null {
   try {
     const raw = sessionStorage.getItem(START_KEY);
-    sessionStorage.removeItem(START_KEY);
     const s = raw ? (JSON.parse(raw) as Partial<LogStart>) : null;
     return s && typeof s.index === 'number' && typeof s.path === 'string' && typeof s.date === 'string'
       ? (s as LogStart)
@@ -52,6 +60,51 @@ function takeLogStart(): LogStart | null {
   } catch {
     return null;
   }
+}
+
+function takeLogStart(): LogStart | null {
+  const start = readLogStart();
+  clearLogStart();
+  return start;
+}
+
+/**
+ * The meal a step of the flow means (pure): `dm: 'new'` on the day the flow already began a meal is
+ * that meal, so going back to the camera or the search and logging again joins it.
+ */
+export function flowMealFor<R extends Pick<MealRef, 'date' | 'dm'>>(
+  ref: R,
+  began: FlowMeal | null | undefined,
+): R {
+  return ref.dm === 'new' && began && began.date === ref.date ? { ...ref, dm: began.id } : ref;
+}
+
+/** After a step began a new meal: the rest of the flow logs into it (`flowMealFor`). */
+export function rememberFlowMeal(meal: FlowMeal): void {
+  try {
+    const start = readLogStart() ?? { index: -1, path: '', date: meal.date };
+    sessionStorage.setItem(START_KEY, JSON.stringify({ ...start, newMeal: meal } satisfies LogStart));
+  } catch {
+    // Private mode etc.: the next step begins another meal.
+  }
+}
+
+/** `flowMealFor` with the remembered flow, while that meal is still there. */
+export async function resolveFlowMeal<R extends MealRef>(db: UserDb, ref: R): Promise<R> {
+  const began = readLogStart()?.newMeal;
+  const resolved = flowMealFor(ref, began);
+  if (resolved === ref || !resolved.dm || !(await knowsMeal(db, ref.date, resolved.dm))) return ref;
+  return resolved;
+}
+
+/**
+ * `prepareMealTarget` for a step of a logging flow: `dm: 'new'` joins the meal the flow began, and a
+ * meal begun here is remembered for the next steps.
+ */
+export async function prepareFlowTarget(db: UserDb, ref: MealRef): Promise<LogTarget> {
+  const target = await prepareMealTarget(db, await resolveFlowMeal(db, ref));
+  if (target.create && target.diaryMealId) rememberFlowMeal({ date: target.date, id: target.diaryMealId });
+  return target;
 }
 
 /** The part of the router `returnToDiary` needs. */

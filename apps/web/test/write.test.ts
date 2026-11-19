@@ -932,9 +932,14 @@ describe('local writes', () => {
       before.map((e) => [e.loggedAt, e.groupId, e.date]),
     );
     expect(after[0]!.updatedAt).toBeGreaterThan(before[0]!.updatedAt);
-    // Both moved entries are queued for sync, the untouched one is not.
+    // Both meals got their record and the entries they show name them, the moved ones the target.
     const queued = (await d.outbox.toArray()).filter((o) => o.table === 'foodEntries');
-    expect(queued.map((o) => o.id).sort()).toEqual(group.map((e) => e.id).sort());
+    expect(queued).toHaveLength(4);
+    expect(after.map((e) => e!.diaryMealId)).toEqual([
+      dayId.diaryMeal('2026-10-07', 2),
+      dayId.diaryMeal('2026-10-07', 2),
+      dayId.diaryMeal('2026-10-07', 0),
+    ]);
 
     // Undo moves them back; moving to the meal they are in, or a deleted entry, writes nothing.
     await restoreEntryMeals(d, moved);
@@ -1053,6 +1058,7 @@ describe('local writes', () => {
 
   it('puts steps and distance at the end of the daily CSV', () => {
     const rows = dailyRows({
+      diaryMeals: [],
       from: '2026-11-09',
       to: '2026-11-10',
       entries: [],

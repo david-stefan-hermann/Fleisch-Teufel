@@ -3,7 +3,7 @@ import { goalForDate, microTarget, targetsForDate, uniformWeek } from '../src/go
 import { microStatus, QUICK_TITLE_MAX, quickEntryTitle, summarizeDay } from '../src/diary.js';
 import { dailyRows, dayBudget, periodStats } from '../src/reports.js';
 import { isStraySteps, stepsEntryOf } from '../src/exercise.js';
-import type { ExerciseEntry, FoodEntry, Goal } from '../src/schemas.js';
+import type { DiaryMeal, ExerciseEntry, FoodEntry, Goal } from '../src/schemas.js';
 
 const goal = (validFrom: string, kcal: number, weekend?: number): Goal => ({
   id: `g:${validFrom}`,
@@ -149,6 +149,7 @@ describe('day summary & reports', () => {
     expect(day(true, false)).toMatchObject({ creditedKcal: 250, budgetKcal: 2250 });
 
     const [row] = dailyRows({
+      diaryMeals: [],
       from: '2026-10-07',
       to: '2026-10-07',
       entries,
@@ -194,6 +195,7 @@ describe('day summary & reports', () => {
       }),
     ).toMatchObject({ exerciseKcal: 534, stepsKcal: 234 });
     const [row] = dailyRows({
+      diaryMeals: [],
       from: '2026-10-07',
       to: '2026-10-07',
       entries,
@@ -206,6 +208,7 @@ describe('day summary & reports', () => {
 
   it('aggregates periods over logged days only', () => {
     const rows = dailyRows({
+      diaryMeals: [],
       from: '2026-10-06',
       to: '2026-10-08',
       entries,
@@ -240,6 +243,7 @@ describe('day summary & reports', () => {
       diaryMealId,
     });
     const rows = dailyRows({
+      diaryMeals: [],
       from: '2026-11-18',
       to: '2026-11-19',
       entries: [
@@ -259,8 +263,39 @@ describe('day summary & reports', () => {
     expect(periodStats(rows).completeDays).toBe(1);
   });
 
+  it('counts the meals the diary shows: an entry without a meal joins the meal of its index', () => {
+    const day = '2026-11-19';
+    const meal = (id: string, date: string, slot: number): DiaryMeal => ({
+      id,
+      updatedAt: 1,
+      deleted: false,
+      date,
+      name: 'Snacks',
+      eatenAt: 0,
+      slot,
+      timeEdited: false,
+    });
+    const rows = dailyRows({
+      from: day,
+      to: day,
+      entries: [
+        { ...entry(day, 3, 100), id: 'own', diaryMealId: 'snack' },
+        // Logged by an older app into the same index: the diary shows it in "snack".
+        { ...entry(day, 3, 200), id: 'older', loggedAt: 2 },
+        // Moved here from another day by an older app, still naming that day's meal.
+        { ...entry(day, 3, 300), id: 'moved', diaryMealId: 'yesterday', loggedAt: 3 },
+      ],
+      diaryMeals: [meal('snack', day, 3), meal('yesterday', '2026-11-18', 3)],
+      exercises: [],
+      weights: [],
+      goals,
+    });
+    expect(rows[0]!.mealsLogged).toBe(1);
+  });
+
   it('averages every nutrient code and the weekday targets of logged days', () => {
     const rows = dailyRows({
+      diaryMeals: [],
       from: '2026-10-09',
       to: '2026-10-11',
       entries: [
@@ -280,7 +315,15 @@ describe('day summary & reports', () => {
 
   it('has empty averages without logged days', () => {
     const st = periodStats(
-      dailyRows({ from: '2026-10-09', to: '2026-10-10', entries: [], exercises: [], weights: [], goals: [] }),
+      dailyRows({
+        diaryMeals: [],
+        from: '2026-10-09',
+        to: '2026-10-10',
+        entries: [],
+        exercises: [],
+        weights: [],
+        goals: [],
+      }),
     );
     expect(st.avgNutrients).toEqual({});
     expect(st.avgTargets).toEqual({ kcal: 0, proteinG: 0, fatG: 0, carbsG: 0 });

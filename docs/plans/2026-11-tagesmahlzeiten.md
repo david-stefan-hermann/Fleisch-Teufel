@@ -154,7 +154,7 @@ Block 11:
 - `CompleteDayPage`: „… ist leer“ nennt Standard-Namen, die keine Mahlzeit mit Einträgen trägt; eine Mahlzeit mit dem Namen aus
   `legacyMealNames` desselben Index zählt mit. Bisher zählte eine Mahlzeit mit 0 kcal als leer, jetzt zählt jede mit Einträgen. Die
   Seite liest `summary.perMeal` nicht mehr.
-- Bekannte Grenze von `mealsLogged` (`entryMealKey`, wie geplant): Schreibt eine ältere App einen Eintrag ohne `diaryMealId` in einen
+- Bekannte Grenze von `mealsLogged` (`entryMealKey`, wie geplant; nach dem Review behoben, siehe unten): Schreibt eine ältere App einen Eintrag ohne `diaryMealId` in einen
   Index, den schon eine neue Mahlzeit (uuidv7) belegt, zählt er als eigene Mahlzeit, obwohl das Tagebuch ihn dieser Mahlzeit zuordnet.
   Der Tag kann dadurch zu früh als vollständig gelten.
 - Zusätzliche Tests: E2E „Tag abschließen“ in `day-meals.spec.ts`, Uhrzeit im Tagesbild in `share-day.spec.ts`.
@@ -210,6 +210,24 @@ Block 13:
 - `README.md`: Funktionszeile „Tagebuch“; „Rückweg nach einer fehlgeschlagenen Migration“ trennt additive Migrationen (nur das Image)
   von nicht additiven oder einer beschädigten Datenbank (Snapshot wie unter „Restore“).
 - Der Hash dieses Commits steht im Log, ein Commit kann seinen eigenen Hash nicht enthalten.
+
+Nach dem Review (2026-11-19, nicht committet):
+
+- Regel 1 gilt jetzt auch für den Tag: Ein Eintrag, den eine ältere App per `date`/`meal` auf einen anderen Tag oder in ein
+  anderes Fach verschoben hat, behält zwar `diaryMealId`, wird aber über Regel 3 zugeordnet. `buildDay`, Vorschläge, CSV,
+  Berichte und der Server (`readServerDay`) laden die Datensätze anderer Tage, auf die Einträge zeigen (`mealRecordsFor`,
+  `referencedElsewhere`). `prepareMealTarget`, `readMealChoice`, Umbenennen und Uhrzeit nehmen einen Datensatz eines anderen
+  Tages nicht als den der Mahlzeit.
+- Einträge springen nicht mehr in eine neuere Mahlzeit desselben Index: Logs in eine virtuelle Mahlzeit tragen ihre Id
+  `dm:<Datum>:<Index>`; wird ihr Datensatz zum ersten Mal geschrieben (Umbenennen, Uhrzeit, Ziehen, `keep`), bekommen ihre
+  Einträge die Id. `keep` greift auch, wenn `dm:<Datum>:<Index>` schon einen Datensatz hat, und beim Ziehen in eine Mahlzeit,
+  die nur eine wartende Analyse begonnen hat. Rückgängig nach dem Ziehen setzt die Id der Quell-Mahlzeit.
+- Der bekannte Fehler von `mealsLogged` aus Block 11 ist behoben: `dailyRows` nimmt `diaryMeals` und zählt die Mahlzeiten wie
+  das Tagebuch (`countDayMeals`).
+- Ein Logging-Ablauf beginnt höchstens eine neue Mahlzeit: `prepareFlowTarget` merkt sie in `ft.logStart`, ein späteres
+  `dm: 'new'` desselben Tages meint sie, solange es sie gibt (Datensatz oder wartende Analyse).
+- Zeit-Dialog: „Änderungen übernehmen“ vergleicht Stunde, Minute und Nacht statt `eatenAt` mit Sekunden.
+- Die Zeile einer wartenden Analyse verlinkt die Mahlzeit, in der das Tagebuch sie zeigt (`waitingMealOf`).
 
 **Nur auf dem iPhone prüfbar** (die übrigen Punkte der Prüfliste decken Tests ab, auf dem Gerät trotzdem einmal ansehen):
 
@@ -341,16 +359,19 @@ Das ist die einzige Regel für Erscheinen und Verschwinden. Ein Datensatz ohne E
 **Zuordnung eines lebenden Eintrags `e`** (`buildDayMeals`, in dieser Reihenfolge):
 
 1. `e.diaryMealId` zeigt auf einen Datensatz `r` mit `r.date === e.date` und `r.slot === e.meal`: Er gehört zu `r`. Ob
-   `r.deleted` gesetzt ist, spielt keine Rolle.
-2. `e.diaryMealId` ist gesetzt, der Datensatz ist noch nicht angekommen: Platzhalter unter dieser Id (Name des Index,
-   Uhrzeit des ersten Eintrags). Das deckt eine Pull-Seite ab, die den Eintrag vor der Mahlzeit bringt.
-3. Sonst (`null`, oder eine ältere App hat den Eintrag in ein anderes Fach gezogen und `meal` passt nicht mehr): die
+   `r.deleted` gesetzt ist, spielt keine Rolle. Ebenso gehört ein Eintrag mit der Id `dm:<d>:<i>` ohne Datensatz zur
+   virtuellen Mahlzeit, wenn `d === e.date` und `i === e.meal`.
+2. `e.diaryMealId` ist eine UUID, deren Datensatz noch nicht angekommen ist: Platzhalter unter dieser Id (Name des Index,
+   Uhrzeit des ersten Eintrags). Das deckt eine Pull-Seite ab, die den Eintrag vor der Mahlzeit bringt. Ein Datensatz
+   eines anderen Tages ist kein ausstehender: `buildDay` lädt die Datensätze, auf die Einträge des Tages zeigen, mit.
+3. Sonst (`null`, oder eine ältere App hat den Eintrag in ein anderes Fach oder auf einen anderen Tag gezogen und
+   `meal` oder `date` passt nicht mehr, `diaryMealId` steht noch): die
    jüngste Mahlzeit dieses Index, deren `eatenAt` nicht nach `e.loggedAt` liegt, sonst die früheste dieses Index, sonst
    die virtuelle Mahlzeit `dm:<Datum>:<e.meal>`.
 
 **Name einer virtuellen Mahlzeit**: `(settings.legacyMealNames ?? settings.mealNames)[slot]`.
 
-**Uhrzeit einer virtuellen Mahlzeit**: das kleinste `loggedAt` aller Einträge dieses Index ohne `diaryMealId`, **einschließlich der
+**Uhrzeit einer virtuellen Mahlzeit**: das kleinste `loggedAt` aller Einträge dieses Index ohne `diaryMealId` oder mit ihrer Id, **einschließlich der
 Grabsteine**, das zum Tag passt (Kalendertag `date`, oder Folgetag vor 05:00). Grabsteine zählen mit, damit das Löschen
 des ersten Eintrags die Uhrzeit nicht verschiebt (Entscheidung 4). Passt keines, gilt die typische Uhrzeit des Index.
 
@@ -367,8 +388,9 @@ Mahlzeit eine Id `dm:…` hat und keine `timeEdited` trägt. Sonst gilt `eatenAt
 einmal und dauerhaft, sobald die Person dort eine Uhrzeit ändert oder eine neue Mahlzeit (uuidv7) anlegt.
 
 **Wann ein Datensatz entsteht**: beim ersten Eintrag einer neuen Mahlzeit (uuidv7), und für eine virtuelle Mahlzeit erst
-beim Umbenennen, beim Ändern der Uhrzeit und beim Ziehen eines Eintrags hinein oder hinaus (`dm:<Datum>:<Index>`). Ein
-Eintrag, der über „+“ in eine virtuelle Mahlzeit kommt, bleibt bei `diaryMealId: null`.
+beim Umbenennen, beim Ändern der Uhrzeit, beim Ziehen eines Eintrags hinein oder hinaus und wenn eine neue Mahlzeit ihren
+Index bekommt (`dm:<Datum>:<Index>`); die Einträge, die der Tag in ihr zeigt, bekommen dabei ihre Id. Ein Eintrag, der über
+„+“ in eine virtuelle Mahlzeit kommt, trägt ihre Id `dm:<Datum>:<Index>`, ohne dass ein Datensatz entsteht.
 
 **`slot` einer neuen Mahlzeit** (`slotForNewMeal`): der Index des Standard-Namens, wenn der frei ist, sonst der erste
 freie, sonst 3. Eine fünfte Mahlzeit teilt sich damit Index 3. Einträge schreiben immer `meal: slot`.
@@ -386,6 +408,7 @@ freie, sonst 3. Eine fünfte Mahlzeit teilt sich damit Index 3. Einträge schrei
 | Eintrag kommt vor seiner Mahlzeit an                      | Platzhalter, nach dem nächsten Pull der richtige Name                               | `device-sync.test.ts`  |
 | Ältere App schreibt in einen Tag mit neuen Mahlzeiten     | Eintrag mit `null` landet über Regel 3 in der Mahlzeit dieses Index                 | `device-sync.test.ts`  |
 | Ältere App zieht einen Eintrag in ein anderes Fach        | `meal` passt nicht mehr zu `slot`, Regel 3 ordnet ihn dem neuen Fach zu             | `day-meals.test.ts`    |
+| Ältere App verschiebt einen Eintrag auf einen anderen Tag | `date` passt nicht mehr zum Datensatz, Regel 3 ordnet ihn über den Index zu         | `day-meals.test.ts`    |
 | Ältere App bearbeitet einen Eintrag ohne das neue Feld    | Server speichert `null`, Regel 3 findet dieselbe Mahlzeit über den Index            | `device-sync.test.ts`  |
 | JSON-Sicherung von vor dem Umbau                          | `restoreBackup` überspringt die fehlende Tabelle, Einträge werden virtuell          | `device-sync.test.ts`  |
 | JSON-Sicherung nach dem Umbau                             | `importRecord` hält `updatedAt`, LWW entscheidet je Datensatz                       | `device-sync.test.ts`  |

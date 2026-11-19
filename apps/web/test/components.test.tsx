@@ -2335,6 +2335,21 @@ describe('diary meal cards', () => {
     );
   });
 
+  it('"Änderungen übernehmen" waits for a change of what the dialog shows, not of the seconds', async () => {
+    // The time of the first entry: never a whole minute.
+    renderCard(meal({ eatenAt: new Date(2026, 10, 19, 12, 35, 27, 431).getTime() }));
+    fireEvent.click(await screen.findByRole('button', { name: /Uhrzeit ändern/ }));
+    const dialog = await screen.findByRole('dialog');
+    const apply = () =>
+      within(dialog).getByRole('button', { name: 'Änderungen übernehmen' }) as HTMLButtonElement;
+    expect(apply().disabled).toBe(true);
+    const hour = within(dialog).getByRole('listbox', { name: 'Stunde' });
+    fireEvent.keyDown(hour, { key: 'ArrowDown' });
+    await waitFor(() => expect(apply().disabled).toBe(false));
+    fireEvent.keyDown(hour, { key: 'ArrowUp' });
+    await waitFor(() => expect(apply().disabled).toBe(true));
+  });
+
   it('the time of a meal of waiting analyses only cannot be changed', async () => {
     const waiting = { localId: 1 } as unknown as AiQueueItem;
     renderCard(meal({ entries: [], pending: [waiting] }));

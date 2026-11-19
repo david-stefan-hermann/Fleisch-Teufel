@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
+import { waitingMealOf } from '@/db/diaryMeals';
 import type { AiQueueItem } from '@/db/dexie';
 import { restoreQueueItem, retryQueueItem, takeQueueItem } from '@/features/ai/queue';
 import { useAiImages } from '@/features/ai/useAiImage';
@@ -30,6 +31,8 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
   const failed = item.status === 'failed';
   const offline = useOffline();
   const name = item.text.trim() || 'Foto-Analyse';
+  // The meal the diary shows the row in (`readDay`), so the link opens that one.
+  const shownIn = waitingMealOf(item);
   const state =
     item.status === 'analyzing'
       ? 'Wird analysiert…'
@@ -67,7 +70,7 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
         <div className="min-w-0 flex-1">
           <Link
             to="/photo"
-            search={{ date: item.date, meal: item.meal, dm: item.diaryMealId ?? undefined }}
+            search={{ date: item.date, meal: shownIn.meal, dm: shownIn.diaryMealId ?? undefined }}
             onClick={() => rememberStart(item.date)}
             draggable={false}
             className="block truncate font-medium after:absolute after:inset-0 focus-visible:outline-none"

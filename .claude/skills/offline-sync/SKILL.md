@@ -47,7 +47,8 @@ deterministic id and add it to `requiredId()` so offline devices converge.
 - Diary entries go into a diary meal (`docs/sync.md`, "Mahlzeiten des Tages"): settle the target with
   `prepareMealTarget` **before** the transaction, then call `applyLogTarget` inside it; every transaction that
   writes `foodEntries` this way needs `db.diaryMeals` in its scope. Never bulk-write `diaryMealId` onto old
-  entries: they stay `null` and are placed by `buildDayMeals`.
+  entries: they stay `null` and are placed by `buildDayMeals`, until the record of their own meal is written
+  (then only that meal's entries get its id, in the same transaction).
 - Read with `useLiveQuery` (dexie-react-hooks) so pulls from other devices re-render automatically.
 - Keep `apps/web/src/db/*` and `apps/web/src/sync/*` free of `@/` imports: the API test suite imports
   them to run real device ↔ server tests.

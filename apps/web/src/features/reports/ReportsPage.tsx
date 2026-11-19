@@ -19,6 +19,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import { Chart } from '@/components/Chart';
+import { mealRecordsFor } from '@/db/diaryMeals';
 import { earliestDate } from '@/db/earliest';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { Page, Section } from '@/components/Page';
@@ -100,7 +101,8 @@ export function ReportsPage() {
         .filter((n) => !n.deleted)
         .toArray(),
     ]);
-    return { from: p.from, to: p.to, entries, exercises, weights, notes };
+    const diaryMeals = await mealRecordsFor(db, p.from, p.to, entries);
+    return { from: p.from, to: p.to, entries, diaryMeals, exercises, weights, notes };
   }, [db, p.from, p.to]);
   const shown = data ? { from: data.from, to: data.to } : null;
 
@@ -113,6 +115,7 @@ export function ReportsPage() {
       from: data.from,
       to,
       entries: data.entries,
+      diaryMeals: data.diaryMeals,
       exercises: data.exercises,
       weights: data.weights,
       goals,
@@ -298,7 +301,8 @@ function ExportSection({
     if (kind === 'entries') {
       const [entries, records, settings] = await Promise.all([
         db.foodEntries.toArray().then(inDates),
-        db.diaryMeals.toArray().then(inDates),
+        // All days: an entry can name a meal of another day (moved by an older app).
+        db.diaryMeals.toArray(),
         db.settings.get(SETTINGS_ID),
       ]);
       // The meals as the diary shows them: old days keep the names they had before a rename.
@@ -324,6 +328,7 @@ function ExportSection({
           from: first < today ? first : today,
           to: today,
           entries: await db.foodEntries.filter((e) => !e.deleted).toArray(),
+          diaryMeals: await db.diaryMeals.toArray(),
           exercises: await db.exerciseEntries.filter((e) => !e.deleted).toArray(),
           weights: await db.weightEntries.filter((w) => !w.deleted).toArray(),
           goals: await db.goals.filter((x) => !x.deleted).toArray(),

@@ -11,6 +11,7 @@ import {
 } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useDb } from '@/app/session';
+import { mealRecordsFor } from '@/db/diaryMeals';
 import { useToday } from '@/hooks/data';
 
 export interface ExpenditureState {
@@ -54,7 +55,8 @@ export function useExpenditure(date: ISODate): ExpenditureState | undefined {
         .toArray(),
       db.settings.get(SETTINGS_ID),
     ]);
-    const rows = dailyRows({ from, to: date, entries, exercises, weights, goals, notes });
+    const diaryMeals = await mealRecordsFor(db, from, date, entries);
+    const rows = dailyRows({ from, to: date, entries, diaryMeals, exercises, weights, goals, notes });
     const result = estimateExpenditure({
       rows,
       weights,

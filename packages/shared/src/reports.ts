@@ -1,12 +1,20 @@
 import { dateRange, diffDays, type ISODate } from './dates.js';
-import { entryMealKey } from './dayMeals.js';
+import { countDayMeals, referencedElsewhere } from './dayMeals.js';
 import { creditedTrainingKcal } from './diary.js';
 import { isStepsEntry, isStraySteps, stepsEntryOf } from './exercise.js';
 import { linearTrend, type WeightPoint } from './forecast.js';
 import { targetsForDate } from './goals.js';
 import { N, type NutrientMap } from './nutrients.js';
 import { get, multiplyNutrients, round, sumNutrients } from './nutrition.js';
-import type { DayNote, DayTarget, ExerciseEntry, FoodEntry, Goal, WeightEntry } from './schemas.js';
+import type {
+  DayNote,
+  DayTarget,
+  DiaryMeal,
+  ExerciseEntry,
+  FoodEntry,
+  Goal,
+  WeightEntry,
+} from './schemas.js';
 
 /**
  * A day counts as fully logged when it was closed ("Tag abschließen") or at least this many meals
@@ -18,7 +26,7 @@ export const MIN_MEALS_COMPLETE = 2;
 export interface DailyRow {
   date: ISODate;
   logged: boolean;
-  /** Distinct diary meals with at least one entry (two meals sharing an index count as two). */
+  /** Meals with entries as the diary shows them (two meals sharing an index count as two). */
   mealsLogged: number;
   /** The day was closed with "Tag abschließen". */
   completed: boolean;
@@ -44,6 +52,8 @@ export function dailyRows(params: {
   from: ISODate;
   to: ISODate;
   entries: readonly FoodEntry[];
+  /** The meal records (any days, tombstones too): `mealsLogged` counts the meals the diary shows. */
+  diaryMeals: readonly DiaryMeal[];
   exercises: readonly ExerciseEntry[];
   weights: readonly WeightEntry[];
   goals: readonly Goal[];
@@ -62,6 +72,10 @@ export function dailyRows(params: {
     if (e.deleted || e.date < params.from || e.date > params.to || isStraySteps(e)) continue;
     (exByDate.get(e.date) ?? exByDate.set(e.date, []).get(e.date)!).push(e);
   }
+  const mealsByDate = new Map<ISODate, DiaryMeal[]>();
+  for (const m of params.diaryMeals)
+    (mealsByDate.get(m.date) ?? mealsByDate.set(m.date, []).get(m.date)!).push(m);
+  const mealById = new Map(params.diaryMeals.map((m) => [m.id, m]));
   const wByDate = new Map<ISODate, number>();
   for (const w of params.weights) if (!w.deleted) wByDate.set(w.date, w.kg);
 
@@ -73,7 +87,12 @@ export function dailyRows(params: {
     return {
       date,
       logged: es.length > 0,
-      mealsLogged: new Set(es.map(entryMealKey)).size,
+      mealsLogged: es.length
+        ? countDayMeals(date, es, [
+            ...(mealsByDate.get(date) ?? []),
+            ...referencedElsewhere(es, date, mealById),
+          ])
+        : 0,
       completed: completed.has(date),
       nutrients: sumNutrients(es.map((e) => e.nutrients)),
       targetKcal: t.kcal,

@@ -155,6 +155,50 @@ describe('buildDayMeals', () => {
     expect(meals.map((m) => m.id)).toEqual([dayId.diaryMeal(DATE, 2)]);
   });
 
+  it('follows the index when an older app moved an entry to another day', () => {
+    const yesterday = record('y', 2, at(8), { date: '2026-11-18' });
+    const meals = build([entry('a', 2, at(19), { diaryMealId: 'y' })], [yesterday, record('d', 2, at(18))]);
+    expect(meals.map((m) => [m.id, m.entries.map((e) => e.id)])).toEqual([['d', ['a']]]);
+    // Without a meal of that index on the day it forms the meal without a record.
+    expect(build([entry('a', 2, at(19), { diaryMealId: 'y' })], [yesterday]).map((m) => m.id)).toEqual([
+      dayId.diaryMeal(DATE, 2),
+    ]);
+  });
+
+  it('places an entry naming the meal without a record of another day or index by its index', () => {
+    const otherDay = entry('a', 1, at(12), { diaryMealId: dayId.diaryMeal('2026-11-18', 1) });
+    const otherSlot = entry('b', 2, at(19), { diaryMealId: dayId.diaryMeal(DATE, 0) });
+    expect(build([otherDay, otherSlot]).map((m) => m.id)).toEqual([
+      dayId.diaryMeal(DATE, 1),
+      dayId.diaryMeal(DATE, 2),
+    ]);
+  });
+
+  it('keeps an entry naming the meal without a record of its index there, beside a newer meal', () => {
+    const meals = build(
+      [
+        entry('old', 3, at(9), { diaryMealId: dayId.diaryMeal(DATE, 3) }),
+        entry('later', 3, at(17), { diaryMealId: dayId.diaryMeal(DATE, 3) }),
+        entry('cake', 3, at(16), { diaryMealId: 'cake' }),
+      ],
+      [record('cake', 3, at(16))],
+    );
+    expect(meals.map((m) => [m.id, m.entries.map((e) => e.id)])).toEqual([
+      [dayId.diaryMeal(DATE, 3), ['old', 'later']],
+      ['cake', ['cake']],
+    ]);
+  });
+
+  it('times a meal without a record by its first entry, named or not, tombstones included', () => {
+    const dm = dayId.diaryMeal(DATE, 0);
+    const meals = build([
+      entry('gone', 0, at(7), { diaryMealId: dm, deleted: true }),
+      entry('old', 0, at(8)),
+      entry('new', 0, at(9), { diaryMealId: dm }),
+    ]);
+    expect(meals.map((m) => [m.id, m.eatenAt, m.entries.length])).toEqual([[dm, at(7), 2]]);
+  });
+
   it('keeps two meals of the same name apart', () => {
     const meals = build(
       [entry('a', 3, at(10), { diaryMealId: 'm1' }), entry('b', 3, at(16), { diaryMealId: 'm2' })],

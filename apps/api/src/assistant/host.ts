@@ -29,7 +29,7 @@ import {
   type Food,
   type FoodEntry,
 } from '@ft/shared';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql } from 'drizzle-orm';
 import { createFoodSearch } from '../ai/foodSearch.js';
 import {
   diaryMeals,
@@ -180,7 +180,23 @@ export async function createTurnHost(
       namesOfUnrecorded(),
     ]);
     const entries = rows as unknown as FoodEntry[];
-    const meals = buildDayMeals({ date: d, entries, records: records as unknown as DiaryMeal[], names });
+    // Meals of other days that entries name (an older app moved them): placed by their index then.
+    const known = new Set(records.map((r) => r.id));
+    const named = [...new Set(entries.map((e) => e.diaryMealId).filter((id): id is string => !!id))].filter(
+      (id) => !known.has(id),
+    );
+    const elsewhere = named.length
+      ? await db
+          .select()
+          .from(diaryMeals)
+          .where(and(eq(diaryMeals.userId, userId), inArray(diaryMeals.id, named)))
+      : [];
+    const meals = buildDayMeals({
+      date: d,
+      entries,
+      records: [...records, ...elsewhere] as unknown as DiaryMeal[],
+      names,
+    });
     const mealOfEntry = new Map(meals.flatMap((m) => m.entries.map((e) => [e.id, m.id] as const)));
     if (listsMeals && !dayMeals.has(d)) knowMeals(d, meals);
     return { rows: rows.filter((e) => !e.deleted), meals, mealOfEntry };

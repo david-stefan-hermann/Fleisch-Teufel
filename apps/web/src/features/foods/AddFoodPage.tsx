@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addFoodToDraft } from '@/db/aiDraft';
 import type { UserDb } from '@/db/dexie';
-import { applyLogTarget, mealIdOf, prepareMealTarget } from '@/db/diaryMeals';
+import { applyLogTarget, mealIdOf } from '@/db/diaryMeals';
 import { addItemToMeal } from '@/db/entries';
 import { addItemToGroupDraft } from '@/db/groupDraft';
 import { mealItem } from '@/db/mealDraft';
@@ -39,6 +39,7 @@ import { useSubmitting } from '@/hooks/useSubmitting';
 import { ApiError, OfflineError } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { parseFoodInto, type FoodInto } from '@/lib/into';
+import { prepareFlowTarget } from '@/lib/logFlow';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 
 type Tab = 'frequent' | 'recent' | 'mine';
@@ -238,7 +239,7 @@ export function AddFoodPage() {
     }
     const { id: _id, updatedAt: _u, deleted: _d, ...rest } = r.last;
     const id = uuidv7();
-    const target = await prepareMealTarget(db, { date, meal, dm });
+    const target = await prepareFlowTarget(db, { date, meal, dm });
     await db.transaction('rw', [db.foodEntries, db.diaryMeals, db.outbox], async () => {
       await saveRecord(db, 'foodEntries', {
         ...rest,

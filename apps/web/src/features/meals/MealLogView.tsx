@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { NumberField } from '@/components/NumberField';
 import { Slider } from '@/components/ui/slider';
-import { mealIdOf, prepareMealTarget, type MealPick } from '@/db/diaryMeals';
+import { mealIdOf, type MealPick } from '@/db/diaryMeals';
 import { entryAmountLabel } from '@/features/diary/MealCard';
 import { MealTargetSelect } from '@/features/diary/MealTargetSelect';
 import { useGoals } from '@/hooks/data';
@@ -38,7 +38,7 @@ import { addItemsToMealDraft } from '@/db/mealDraft';
 import { getFood } from '@/foods/foodService';
 import { isBasePortion } from '@/lib/amounts';
 import { openTarget, returnFromInto, type FoodInto } from '@/lib/into';
-import { useReturnToDiary } from '@/lib/logFlow';
+import { prepareFlowTarget, useReturnToDiary } from '@/lib/logFlow';
 import { DayNote } from '@/components/DayNote';
 import { logItems } from './logMeal';
 
@@ -137,7 +137,7 @@ export function MealLogView({
 
   const { busy, run } = useSubmitting();
   async function log() {
-    const place = await prepareMealTarget(db, { date, ...target });
+    const place = await prepareFlowTarget(db, { date, ...target });
     const ids = await logItems(db, kept, place, {
       factor,
       mealId: meal.id,

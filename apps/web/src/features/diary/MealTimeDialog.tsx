@@ -49,7 +49,9 @@ function MealTimeForm({ meal, onClose }: { meal: DiaryDayMeal; onClose: () => vo
   const [night, setNight] = useState(meal.night);
   const nightAllowed = canBeNight(hour);
   const eatenAt = eatenAtOf(meal.date, hour, minute, night && nightAllowed);
-  const changed = eatenAt !== meal.eatenAt;
+  // What the dialog shows against what it started with: `meal.eatenAt` has seconds (the first entry's time).
+  const changed =
+    hour !== start.getHours() || minute !== start.getMinutes() || (night && nightAllowed) !== meal.night;
 
   const turnHour = (h: number) => {
     setHour(h);

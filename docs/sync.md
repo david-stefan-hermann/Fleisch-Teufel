@@ -104,24 +104,28 @@ vier Standard-Namen von vor der ersten Umbenennung), alle mit Standardwert `null
 Tag und Index bilden solche Einträge eine **virtuelle Mahlzeit** mit der Id `dm:<Datum>:<Index>`, die nur beim
 Lesen entsteht (`buildDayMeals` in `packages/shared/src/dayMeals.ts`): Name aus `legacyMealNames ?? mealNames`,
 Uhrzeit vom frühesten `loggedAt` dieses Index, das zum Tag passt (Grabsteine zählen mit), sonst die typische
-Uhrzeit des Index. Ein Datensatz entsteht erst, wenn etwas Eigenes zu merken ist: eine neue Mahlzeit (UUID v7)
-zusammen mit ihrem ersten Eintrag in derselben Transaktion, eine virtuelle beim Umbenennen, beim Ändern der
-Uhrzeit oder wenn ein Eintrag hinein- oder hinausgezogen wird. Dann bekommt sie die **deterministische** Id
+Uhrzeit des Index. Einträge, die die App in eine virtuelle Mahlzeit schreibt, tragen deren Id `dm:<Datum>:<Index>`
+in `diaryMealId` (ohne Datensatz), damit eine neuere Mahlzeit desselben Index sie nie übernimmt. Ein Datensatz
+entsteht erst, wenn etwas Eigenes zu merken ist: eine neue Mahlzeit (UUID v7) zusammen mit ihrem ersten Eintrag in
+derselben Transaktion, eine virtuelle beim Umbenennen, beim Ändern der Uhrzeit, wenn ein Eintrag hinein- oder
+hinausgezogen wird oder eine neue Mahlzeit ihren Index bekommt. Die Einträge, die der Tag in ihr zeigt, bekommen
+dabei ihre Id (keine Massenmigration: nur diese Mahlzeit). Dann bekommt sie die **deterministische** Id
 `dm:<Datum>:<Index>` (`requiredId` prüft sie, eine UUID v7 ist frei): zwei Geräte, die dieselbe virtuelle
 Mahlzeit umbenennen, landen auf einem Datensatz, LWW entscheidet. Zwei Geräte, die offline je eine neue Mahlzeit
 beginnen, erzeugen zwei (bekannte Grenze, die Einträge lassen sich zusammenziehen).
 
 Zuordnung eines lebenden Eintrags: zu seinem Datensatz, wenn `diaryMealId` auf eine Mahlzeit desselben Tages und
-Index zeigt (auch eine gelöschte); zu einem Platzhalter unter dieser Id, solange der Datensatz noch nicht
-angekommen ist; sonst zur jüngsten Mahlzeit seines Index, deren `eatenAt` nicht nach `loggedAt` liegt, sonst zur
+Index zeigt (auch eine gelöschte), ebenso zur virtuellen Mahlzeit, wenn die Id `dm:<Datum>:<Index>` zu Tag und
+`meal` des Eintrags passt; zu einem Platzhalter unter einer UUID, solange ihr Datensatz noch nicht angekommen ist
+(ein Datensatz eines anderen Tages zählt nicht als ausstehend, `buildDay` lädt ihn mit); sonst zur jüngsten Mahlzeit seines Index, deren `eatenAt` nicht nach `loggedAt` liegt, sonst zur
 frühesten dieses Index, sonst zur virtuellen. **Sichtbar** ist eine Mahlzeit genau dann, wenn sie einen lebenden
 Eintrag oder eine wartende Analyse hat. „Mahlzeit löschen“ löscht nur die Einträge und schreibt keinen Grabstein
 für die Mahlzeit: Rückgängig, eine leer gezogene Mahlzeit und ein später ankommender Eintrag eines anderen Geräts
 sind damit derselbe Fall, die Karte steht mit Name und Uhrzeit wieder da.
 
 **Ältere App-Versionen** schreiben weiter Einträge mit `meal` und ohne `diaryMealId` (der Server speichert `null`);
-die dritte Regel ordnet sie über den Index zu, auch einen Eintrag, den sie in ein anderes Fach gezogen haben
-(`meal` passt dann nicht mehr zum `slot` des Datensatzes). Sie zeigen höchstens vier Fächer. Änderungen an
+die dritte Regel ordnet sie über den Index zu, auch einen Eintrag, den sie in ein anderes Fach oder auf einen
+anderen Tag gezogen haben (`meal` oder `date` passt dann nicht mehr zum Datensatz, `diaryMealId` bleibt stehen). Sie zeigen höchstens vier Fächer. Änderungen an
 `diaryMeals` kennen sie nicht, überspringen sie und melden „App-Update nötig“ (`sync.needsUpdate`); nach dem
 Update holt ein voller Pull alles nach. Eine Sicherung von vor dem Umbau hat keine `diaryMeals`, ihre Einträge
 werden virtuell. Der Server schreibt keine Mahlzeiten; der Assistent liest sie nur (`get_day`), die Operationen

@@ -66,20 +66,27 @@ Serve the production web build through the API (same origin, service worker acti
   each with a name and a time, sorted by time; there are no fixed slots. Synced table `diaryMeals` (`name`,
   `eatenAt`, `slot`, `timeEdited`) plus `foodEntries.diaryMealId`; `foodEntries.meal` (0 to 3, the meal's `slot`,
   `slotForNewMeal`) is still always written for older app versions. Entries without `diaryMealId` form a virtual
-  meal `dm:<date>:<slot>` that exists only when read (name from `legacyMealNames ?? mealNames`, time the earliest
+  meal `dm:<date>:<slot>` that exists only when read; entries the app logs into it name it by that id (still no
+  record), so a newer meal of the index never takes them (name from `legacyMealNames ?? mealNames`, time the earliest
   `loggedAt` of that index fitting the day, tombstones included, else the typical time of the index). `buildDayMeals`
-  (shared `dayMeals.ts`, pure) alone assigns entries to meals: their record, a placeholder while the record has not
-  arrived, else the youngest meal of the index not after `loggedAt`. A meal is visible exactly while it has a live
+  (shared `dayMeals.ts`, pure) alone assigns entries to meals: their record or `dm:` id only when it is of the entry's
+  day and index (an older app moves entries by `date`/`meal` and keeps the id), a placeholder while a record has
+  not arrived (`buildDay` also loads the records of other days that entries name, `mealRecordsFor`), else the
+  youngest meal of the index not after `loggedAt`. A meal is visible exactly while it has a live
   entry or a waiting analysis; "Mahlzeit löschen" deletes its entries (undo), never the meal record, and a meal
   dragged empty disappears. A day from before the change keeps the order of its slots (`usesSlotOrder`) until a
   time is set there or a new meal joins it. Records are written only when there is something to keep: a new meal
-  (uuidv7) with its first entry, a virtual one under its `dm:` id when renamed, timed or an entry is dragged in or
-  out. Read a day with `readDay`/`useDayMeals` (`db/diaryMeals.ts`, `readPlannedDay` for pickers: a meal begun
+  (uuidv7) with its first entry, a virtual one under its `dm:` id when renamed, timed, an entry is dragged in or
+  out or a new meal takes its index (`keep`); the entries it shows then get its id. Read a day with `readDay`/`useDayMeals` (`db/diaryMeals.ts`, `readPlannedDay` for pickers: a meal begun
   by an analysis in review stays choosable). Where entries go is settled before the write transaction:
   `prepareMealTarget(db, { date, meal, dm })` returns a `LogTarget` (`dm: 'new'` gets id, name and time now,
-  `create`; `keep` writes down a virtual meal that shares the new meal's index so its entries stay), every log
+  `create`; `keep` writes down the meal `dm:<date>:<slot>` that shares the new meal's index, recorded or not, and attaches
+  its entries), every log
   function takes it and calls `applyLogTarget` in its transaction (whose scope needs `db.diaryMeals`). Links and
-  forms carry `dm` (`new` or a meal id) next to `meal`; a link with only `meal` still means that slot. The card:
+  forms carry `dm` (`new` or a meal id) next to `meal`; a link with only `meal` still means that slot. One logging
+  flow begins at most one new meal: its steps settle targets with `prepareFlowTarget` (`lib/logFlow.ts`), which
+  keeps a begun meal in `ft.logStart`; a later `dm: 'new'` of that day means it while it exists (`resolveFlowMeal`,
+  also in `useMealChoice`). The card:
   the time above it (`MealStamp`; tap: `MealTimeDialog`, hour and minute wheels, 00:00 to 04:59 may be "Nacht
   auf <Tag>": the meal stays on its day, sorts to its end and carries a moon; `setDiaryMealTime` sets
   `timeEdited`), the name (`MealNameMenu`: the four standard names, own names from the synced
@@ -455,8 +462,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   prefills an own food with the same barcode; search and online results hide the OFF twin of an own barcode
   (`ownBarcodes`, `shadowedByOwn` in `foods/foodService.ts`), the barcode lookup prefers own foods anyway.
 - Complete days (`isCompleteDay(row, { today })`, shared `reports.ts`): closed with "Tag abschließen" or at least
-  `MIN_MEALS_COMPLETE` (2) meals logged (`mealsLogged` counts diary meals by `entryMealKey`: two "Snacks" are
-  two); the running day only once closed (pass `today`). Report averages and "im Ziel" count complete days (fallback: logged
+  `MIN_MEALS_COMPLETE` (2) meals logged (`mealsLogged` counts the meals the diary shows, `countDayMeals`: two
+  "Snacks" are two; `dailyRows` takes `diaryMeals`, read them with `mealRecordsFor`); the running day only once closed (pass `today`). Report averages and "im Ziel" count complete days (fallback: logged
   days, `PeriodStats.basis`), the kcal chart draws incomplete days grey, the CSV has a column "Vollständig". The
   entries CSV (`entriesCsv` with `mealOf` from `mealsOfEntries`) names each entry's meal, sorts by the meal's time
   and ends with the column "Uhrzeit"; existing columns keep their place. "Tag abschließen" (`CompleteDayPage`)

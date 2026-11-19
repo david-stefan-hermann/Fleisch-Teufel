@@ -157,7 +157,8 @@ Postgres ist konsistent, weil Postgres beim Start das WAL nachspielt). Jedes Ger
   **nicht** zurückrollen: Er würde alles verwerfen, was seit dem Update auf allen Konten eingetragen wurde.
   Geräte mit der neuen App bekommen beim Hochladen von Datensätzen einer Tabelle, die der alte Server nicht
   kennt, einen Fehler (400); es geht nichts verloren, die Outbox bleibt erhalten, nach dem Update-Banner läuft der
-  Sync wieder.
+  Sync wieder. Einträge, die in dieser Zeit geschrieben werden, können auf den anderen Geräten ihre Mahlzeit
+  verlieren (der alte Server speichert sie ohne `diaryMealId`); sie stehen dort dann in der Mahlzeit ihres Index.
 - **Nicht additive Migration** (ändert oder löscht Daten, Spalten oder Tabellen) **oder beschädigte Datenbank**:
   Stack stoppen, den Snapshot wie unter **Restore** zurückrollen (samt neuer Sync-Epoche), dann mit dem alten
   Image starten. Die Geräte laden danach alles Neuere von selbst wieder hoch.

@@ -2,7 +2,7 @@ import { MAX_ANALYSIS_PHOTOS } from '@ft/shared';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { mealIdOf, prepareMealTarget } from '@/db/diaryMeals';
+import { mealIdOf } from '@/db/diaryMeals';
 import { logQuickEntry } from '@/db/entries';
 import {
   emptyQuickEntry,
@@ -14,7 +14,7 @@ import {
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { errorMessage } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
-import { useReturnToDiary } from '@/lib/logFlow';
+import { prepareFlowTarget, rememberFlowMeal, resolveFlowMeal, useReturnToDiary } from '@/lib/logFlow';
 import { compressImage, IMAGE_PRESETS } from './image';
 import { enqueueDescription, enqueuePhotos, leaveAnalysis, processQueue } from './queue';
 import type { CapturedShot } from './types';
@@ -99,14 +99,28 @@ export function usePhotoFlow({
     setShots((s) => [...s, ...added].slice(0, MAX_ANALYSIS_PHOTOS));
   }
 
+  /**
+   * Queues into the meal this logging flow began (`dm: 'new'` after a first step began one); a new
+   * meal the queued item begins is remembered for the next steps.
+   */
+  async function inFlowMeal(enqueue: (dm: string | undefined) => Promise<number>): Promise<number> {
+    const to = (await resolveFlowMeal(db, { date, meal, dm })).dm;
+    const id = await enqueue(to);
+    const item = await db.aiQueue.get(id);
+    if (item?.newMeal && item.diaryMealId) rememberFlowMeal({ date, id: item.diaryMealId });
+    return id;
+  }
+
   /** Queues the preview photos with the hint (and the entries they replace) and waits for the result. */
   async function analyze(text: string, replaces: string[] = []) {
     if (analyzing || shots.length === 0) return;
     await follow(false, () =>
-      enqueuePhotos(
-        db,
-        { date, meal, dm, text, ...(replaces.length > 0 && { replaces }) },
-        shots.map((s) => s.blob),
+      inFlowMeal((to) =>
+        enqueuePhotos(
+          db,
+          { date, meal, dm: to, text, ...(replaces.length > 0 && { replaces }) },
+          shots.map((s) => s.blob),
+        ),
       ),
     );
   }
@@ -123,14 +137,16 @@ export function usePhotoFlow({
       carbsG: entry.carbs ?? undefined,
       fatG: entry.fat ?? undefined,
     };
-    await follow(true, () => enqueueDescription(db, { date, meal, dm, text: entry.text, typed }));
+    await follow(true, () =>
+      inFlowMeal((to) => enqueueDescription(db, { date, meal, dm: to, text: entry.text, typed })),
+    );
   }
 
   const { busy: logging, run } = useSubmitting();
   /** "Eintragen" of the form: a quick entry with the typed values; the text is its note and title. */
   async function logEntry() {
     if (!quickEntryValid(entry)) return;
-    const target = await prepareMealTarget(db, { date, meal, dm });
+    const target = await prepareFlowTarget(db, { date, meal, dm });
     const values = quickEntryValues(entry, target.meal);
     const id = await logQuickEntry(db, date, values, target);
     toast.success(`${fmt0(values.kcal)} kcal eingetragen`);

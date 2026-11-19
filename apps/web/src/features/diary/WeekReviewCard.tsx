@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronRight, X } from 'lucide-react';
 import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
+import { mealRecordsFor } from '@/db/diaryMeals';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/hooks/data';
 import { fmt0, fmt2, NO_VALUE } from '@/lib/format';
@@ -47,7 +48,17 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
       db.weightEntries.filter((w) => !w.deleted).toArray(),
       db.goals.filter((g) => !g.deleted).toArray(),
     ]);
-    const rows = dailyRows({ from: monday, to: sunday, entries, exercises, weights, goals, notes });
+    const diaryMeals = await mealRecordsFor(db, monday, sunday, entries);
+    const rows = dailyRows({
+      from: monday,
+      to: sunday,
+      entries,
+      diaryMeals,
+      exercises,
+      weights,
+      goals,
+      notes,
+    });
     return { dismissed: false as const, rows, weights };
   }, [db, monday, sunday, today]);
   if (!data || data.dismissed || !settings) return null;

@@ -9,6 +9,7 @@ import {
   MAX_CUSTOM_MEAL_NAMES,
   newMealEatenAt,
   nextMealName,
+  parseUnrecordedMealId,
   sameMealName,
   SETTINGS_ID,
   slotForNewMeal,
@@ -36,10 +37,16 @@ export interface LogTarget {
   /** Written with the first entry when the meal has no record yet. */
   create?: { name: string; eatenAt: number } | null;
   /**
-   * A meal without a record that shares the index of the new one: written down with it and its
-   * entries attached to it, or they would join the new meal.
+   * The meal `dm:<date>:<index>` when it shares the index of the new one: written down with it (if it
+   * has no record yet) and its entries (`entryIds`, those the day shows in it) attached to it, or the
+   * ones without a meal id would join the new meal.
    */
-  keep?: Omit<DiaryMeal, 'updatedAt' | 'deleted'> | null;
+  keep?: KeptMeal | null;
+}
+
+/** A meal written down before a new meal of its index, with the entries the day shows in it. */
+export interface KeptMeal extends Omit<DiaryMeal, 'updatedAt' | 'deleted'> {
+  entryIds: readonly string[];
 }
 
 /** A meal as a link or a form names it: `dm` is its id, or `new` for the next meal of the day. */
@@ -98,24 +105,57 @@ function queuedAt(item: AiQueueItem, meal: number, picked: string | null): Pendi
   };
 }
 
-/** A waiting analysis in the meal it will be logged into: a choice in its review goes first. */
-function waitingIn(item: AiQueueItem): PendingMealItem<AiQueueItem> {
+/**
+ * The meal a waiting analysis stands in: a choice in its review goes first; "Neue Mahlzeit" picked
+ * there has no id yet, the item then stands in the meal of its index.
+ */
+export function waitingMealOf(item: AiQueueItem): { meal: number; diaryMealId: string | null } {
   const picked = item.draft?.diaryMealId ?? item.diaryMealId ?? null;
-  return queuedAt(item, item.draft?.meal ?? item.meal, picked === 'new' ? null : picked);
+  return { meal: item.draft?.meal ?? item.meal, diaryMealId: picked === 'new' ? null : picked };
+}
+
+/** A waiting analysis in the meal it will be logged into. */
+function waitingIn(item: AiQueueItem): PendingMealItem<AiQueueItem> {
+  const { meal, diaryMealId } = waitingMealOf(item);
+  return queuedAt(item, meal, diaryMealId);
 }
 
 const queueOfDay = (db: UserDb, date: ISODate, keep: (item: AiQueueItem) => boolean) =>
   db.aiQueue.filter((i) => i.date === date && keep(i)).sortBy('createdAt');
+
+/**
+ * The meal records of the days `from` to `to` and the records of other days their entries name
+ * (an older app moved an entry and kept its meal id): `buildDayMeals` tells those apart from a
+ * meal that has not arrived yet only when it has them.
+ */
+export async function mealRecordsFor(
+  db: UserDb,
+  from: ISODate,
+  to: ISODate,
+  entries: readonly Pick<FoodEntry, 'diaryMealId'>[],
+): Promise<DiaryMeal[]> {
+  const records = await db.diaryMeals.where('date').between(from, to, true, true).toArray();
+  const known = new Set(records.map((r) => r.id));
+  const named = [...new Set(entries.map((e) => e.diaryMealId ?? null))].filter(
+    (id): id is string => !!id && !known.has(id),
+  );
+  if (named.length === 0) return records;
+  const other = await db.diaryMeals.bulkGet(named);
+  return [...records, ...other.filter((r): r is DiaryMeal => !!r)];
+}
 
 async function buildDay(
   db: UserDb,
   date: ISODate,
   pending: readonly PendingMealItem<AiQueueItem>[],
 ): Promise<DiaryDayMeal[]> {
-  const [entries, records, names] = await Promise.all([
+  const [entries, names] = await Promise.all([
     db.foodEntries.where('date').equals(date).toArray(),
-    db.diaryMeals.where('date').equals(date).toArray(),
     mealNames(db),
+  ]);
+  const records = await mealRecordsFor(db, date, date, [
+    ...entries,
+    ...pending.map((p) => ({ diaryMealId: p.diaryMealId })),
   ]);
   return buildDayMeals({ date, entries, records, pending, names: names.unrecorded });
 }
@@ -182,12 +222,12 @@ export async function readMealChoice(
   if (dm === 'new') return { meals, next, current: { id: 'new', ...next, eatenAt: null } };
   const shown = dm ? meals.find((m) => m.id === dm) : undefined;
   if (shown) return { meals, next, current: shownMeal(shown) };
-  const record = dm ? await db.diaryMeals.get(dm) : undefined;
+  const record = dm ? await recordOfDay(db, dm, date) : undefined;
   if (record) {
     const { id, name, slot, eatenAt } = record;
     return { meals, next, current: { id, name, slot, eatenAt } };
   }
-  const slot = (dm ? unrecordedSlot(dm) : null) ?? meal;
+  const slot = (dm ? slotOfDay(dm, date) : null) ?? meal;
   const joined = mealOfSlot(meals, slot, at);
   if (joined) return { meals, next, current: shownMeal(joined) };
   const current = {
@@ -217,8 +257,9 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
     };
   }
   const shown = day.find((m) => m.id === dm);
-  // A meal without a record stays without one: its entries find it through their index.
-  if (shown?.virtual && unrecordedSlot(dm) !== null) return { date, meal: shown.slot, diaryMealId: null };
+  // A meal without a record stays without one; its entries name it, so a newer meal of the same
+  // index never takes them.
+  if (shown?.virtual && unrecordedSlot(dm) !== null) return { date, meal: shown.slot, diaryMealId: dm };
   if (shown) {
     // Whoever logs first into a meal an analysis began writes its record.
     const create = queuedNewMeal(shown);
@@ -229,15 +270,40 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
       ...(create && { create, ...keepSharing(day, date, shown.slot) }),
     };
   }
-  const record = await db.diaryMeals.get(dm);
+  const record = await recordOfDay(db, dm, date);
   if (record) return { date, meal: record.slot, diaryMealId: record.id };
-  return { date, meal: unrecordedSlot(dm) ?? meal, diaryMealId: null };
+  const slot = slotOfDay(dm, date);
+  if (slot === null) return { date, meal, diaryMealId: null };
+  // The meal without a record of that index is empty: the meal `readMealChoice` shows.
+  const joined = mealOfSlot(day, slot, at);
+  return { date, meal: slot, diaryMealId: joined?.id ?? dm };
 }
 
-/** A new meal of an index that a meal without a record has: that one is written down with it. */
+/** Whether a meal of the day is known here: its record, or an analysis that waits to begin it. */
+export async function knowsMeal(db: UserDb, date: ISODate, id: string): Promise<boolean> {
+  if (await recordOfDay(db, id, date)) return true;
+  return (await db.aiQueue.filter((i) => i.date === date && i.diaryMealId === id).count()) > 0;
+}
+
+/** A record only when it belongs to the day: an id of another day counts as unknown. */
+async function recordOfDay(db: UserDb, id: string, date: ISODate): Promise<DiaryMeal | undefined> {
+  const record = await db.diaryMeals.get(id);
+  return record?.date === date ? record : undefined;
+}
+
+/** The index in a `dm:<date>:<index>` id of this day; null for any other id. */
+function slotOfDay(id: string, date: ISODate): number | null {
+  const parsed = parseUnrecordedMealId(id);
+  return parsed?.date === date ? parsed.slot : null;
+}
+
+/**
+ * A new meal of an index that the meal `dm:<date>:<index>` has (with or without a record): that one is
+ * written down with it and keeps its entries.
+ */
 function keepSharing(day: readonly DiaryDayMeal[], date: ISODate, slot: number): Pick<LogTarget, 'keep'> {
-  const sharing = day.find((m) => m.virtual && m.id === dayId.diaryMeal(date, slot));
-  return sharing ? { keep: recordOf(sharing) } : {};
+  const sharing = day.find((m) => m.id === dayId.diaryMeal(date, slot));
+  return sharing ? { keep: { ...recordOf(sharing), entryIds: sharing.entries.map((e) => e.id) } } : {};
 }
 
 /** The id of the meal a target writes into. */
@@ -247,8 +313,7 @@ export function mealIdOf(target: Pick<LogTarget, 'date' | 'meal' | 'diaryMealId'
 
 /** The index in a `dm:<date>:<index>` id; null for any other id. */
 function unrecordedSlot(id: string): number | null {
-  const match = /^dm:[^:]+:(\d)$/.exec(id);
-  return match ? Number(match[1]) : null;
+  return parseUnrecordedMealId(id)?.slot ?? null;
 }
 
 /** Inside the write transaction: creates the meal of the target if needed, gives the entry's fields. */
@@ -272,14 +337,29 @@ export async function applyLogTarget(
 }
 
 /**
- * A new meal takes the index of a meal that has no record: that one gets its record, and its entries
- * name it, so they stay where they are whatever time they were logged at.
+ * A new meal takes the index of the meal `dm:<date>:<index>`: that one gets its record if it has none,
+ * and its entries name it, so they stay where they are whatever time they were logged at.
  */
-async function keepSharedSlot(db: UserDb, meal: NonNullable<LogTarget['keep']>): Promise<void> {
+async function keepSharedSlot(db: UserDb, keep: KeptMeal): Promise<void> {
+  const { entryIds, ...meal } = keep;
   if (!(await db.diaryMeals.get(meal.id))) await saveRecord(db, 'diaryMeals', meal);
-  const entries = await db.foodEntries.where('[date+meal]').equals([meal.date, meal.slot]).toArray();
-  for (const e of entries) {
-    if (!e.deleted && !e.diaryMealId) await patchRecord(db, 'foodEntries', e.id, { diaryMealId: meal.id });
+  await attachEntries(db, meal, entryIds);
+}
+
+/**
+ * The entries a day shows in a meal name it from now on (when its record is written): an entry found
+ * only through its index would otherwise join a newer meal of that index.
+ */
+async function attachEntries(
+  db: UserDb,
+  meal: Pick<DiaryMeal, 'id' | 'date' | 'slot'>,
+  ids: readonly string[],
+): Promise<void> {
+  for (const id of ids) {
+    const e = await db.foodEntries.get(id);
+    if (!e || e.deleted || e.date !== meal.date || e.meal !== meal.slot || e.diaryMealId === meal.id)
+      continue;
+    await patchRecord(db, 'foodEntries', id, { diaryMealId: meal.id });
   }
 }
 
@@ -290,13 +370,23 @@ function recordOf(meal: DayMeal): Omit<DiaryMeal, 'updatedAt' | 'deleted'> {
 
 /**
  * Writes down a meal that exists only through its entries or a waiting analysis, so its name and
- * time stay as they are.
+ * time stay as they are, and attaches the entries it shows. A meal an analysis began shares its index
+ * with the meal without a record like a new meal does (`keepSharing`); `day` is read without the queue.
  */
-async function keepMeal(db: UserDb, meal: DiaryDayMeal): Promise<void> {
-  const unrecorded = unrecordedSlot(meal.id) !== null || queuedNewMeal(meal) !== null;
-  if (unrecorded && !(await db.diaryMeals.get(meal.id))) {
-    await saveRecord(db, 'diaryMeals', recordOf(meal));
+async function keepMeal(db: UserDb, meal: DiaryDayMeal, day: readonly DiaryDayMeal[]): Promise<void> {
+  const begun = queuedNewMeal(meal) !== null;
+  if (unrecordedSlot(meal.id) === null && !begun) return;
+  if (await db.diaryMeals.get(meal.id)) return;
+  if (begun) {
+    const { keep } = keepSharing(day, meal.date, meal.slot);
+    if (keep && keep.id !== meal.id) await keepSharedSlot(db, keep);
   }
+  await saveRecord(db, 'diaryMeals', recordOf(meal));
+  await attachEntries(
+    db,
+    meal,
+    meal.entries.map((e) => e.id),
+  );
 }
 
 /** Moves entries into a meal of their day. Returns where the moved ones were. */
@@ -315,9 +405,10 @@ export async function moveEntriesToDiaryMeal(
       if (prev.meal === target.slot && prev.diaryMealId === target.id) continue;
       const source = day.find((m) => m.entries.some((e) => e.id === id));
       if (source?.id === target.id) continue;
-      if (source) await keepMeal(db, source);
-      await keepMeal(db, target);
-      moved.push({ id, meal: prev.meal, diaryMealId: prev.diaryMealId ?? null });
+      if (source) await keepMeal(db, source, day);
+      await keepMeal(db, target, day);
+      // Undo puts it back into the meal it showed in, by id: by its index alone it could join the target.
+      moved.push({ id, meal: prev.meal, diaryMealId: source?.id ?? prev.diaryMealId ?? null });
       await patchRecord(db, 'foodEntries', id, { meal: target.slot, diaryMealId: target.id });
     }
     return moved;
@@ -337,9 +428,9 @@ export async function placeMovedEntry(
   const day = await buildDay(db, target.date, []);
   const source = day.find((m) => m.entries.some((e) => e.id === id));
   const into = day.find((m) => m.id === mealIdOf(target));
-  if (source) await keepMeal(db, source);
+  if (source) await keepMeal(db, source, day);
   if (!into) return applyLogTarget(db, target);
-  await keepMeal(db, into);
+  await keepMeal(db, into, day);
   return { meal: into.slot, diaryMealId: into.id };
 }
 
@@ -354,10 +445,29 @@ export async function restoreEntryMeals(db: UserDb, places: readonly EntryMealPl
 }
 
 export async function renameDiaryMeal(db: UserDb, meal: DayMeal, name: string): Promise<void> {
-  await upsertRecord(db, 'diaryMeals', meal.id, (prev) => ({
-    ...(prev ?? recordOf(meal)),
-    name: name.trim(),
-  }));
+  await writeMeal(db, meal, { name: name.trim() });
+}
+
+/**
+ * Changes a meal of a day; a meal without a record gets it now and its entries name it. A record of
+ * another day under the same id is not this meal's.
+ */
+async function writeMeal(
+  db: UserDb,
+  meal: DayMeal,
+  patch: Partial<Pick<DiaryMeal, 'name' | 'eatenAt' | 'timeEdited'>>,
+): Promise<void> {
+  await db.transaction('rw', [db.diaryMeals, db.foodEntries, db.outbox], async () => {
+    const own = (prev: DiaryMeal | undefined) => (prev?.date === meal.date ? prev : undefined);
+    const first = !own(await db.diaryMeals.get(meal.id));
+    await upsertRecord(db, 'diaryMeals', meal.id, (prev) => ({ ...(own(prev) ?? recordOf(meal)), ...patch }));
+    if (first)
+      await attachEntries(
+        db,
+        meal,
+        meal.entries.map((e) => e.id),
+      );
+  });
 }
 
 /** The names a meal can be given besides the four standard ones, without repeating any of those. */
@@ -380,8 +490,9 @@ export async function chooseMealName(
   chosen: string,
 ): Promise<{ listed: boolean }> {
   const name = chosen.trim();
-  return db.transaction('rw', [db.diaryMeals, db.settings, db.outbox], async () => {
-    const current = (await db.diaryMeals.get(meal.id))?.name ?? meal.name;
+  return db.transaction('rw', [db.diaryMeals, db.foodEntries, db.settings, db.outbox], async () => {
+    const stored = await db.diaryMeals.get(meal.id);
+    const current = (stored?.date === meal.date ? stored.name : undefined) ?? meal.name;
     if (current !== name) await renameDiaryMeal(db, meal, name);
     const settings = (await db.settings.get(SETTINGS_ID)) ?? DEFAULT_SETTINGS;
     const own = ownMealNames(settings);
@@ -425,9 +536,5 @@ export async function setDiaryMealTime(
   eatenAt: number,
   timeEdited = true,
 ): Promise<void> {
-  await upsertRecord(db, 'diaryMeals', meal.id, (prev) => ({
-    ...(prev ?? recordOf(meal)),
-    eatenAt,
-    timeEdited,
-  }));
+  await writeMeal(db, meal, { eatenAt, timeEdited });
 }
