@@ -32,6 +32,7 @@ import {
   clearMealDraft,
   draftFromMeal,
   isMealDraftStale,
+  patchMealDraft,
   isDirty,
   readMealDraft,
   readMealDraftPhoto,
@@ -117,23 +118,27 @@ function MealEditorForm({
     ...initial,
     items: initial.items.map((it: KeyedItem) => ({ ...it, key: it.key ?? uuidv7() })),
   }));
-  /** Write-through: local state for smooth typing, the `kv` draft for surviving navigation. */
-  const commit = (next: MealDraft) => {
-    setDraft(next);
-    void writeMealDraft(db, next);
+  /**
+   * Write-through: local state for smooth typing, the `kv` draft for surviving navigation. Only the
+   * changed fields go in, on top of the current state and the stored draft: a handler that finishes
+   * late (a photo pick) must not bring back what another change replaced meanwhile.
+   */
+  const commit = (patch: Partial<Omit<MealDraft, 'mealId'>>) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    void patchMealDraft(db, draft, patch);
   };
   // "Gesamtmenge" scales the amounts of the last manual change (`scaleBase`), like the AI review.
   const [scale, setScale] = useState(1);
   const [scaleBase, setScaleBase] = useState<MealItem[]>(draft.items);
   const commitItems = (items: MealItem[]) => {
-    commit({ ...draft, items });
+    commit({ items });
     setScale(1);
     setScaleBase(items);
   };
   // While the slider is dragged only the screen follows; the draft is written when it is let go.
   const rescale = (factor: number) => {
     setScale(factor);
-    setDraft({ ...draft, items: scaleItems(scaleBase, factor) });
+    setDraft((d) => ({ ...d, items: scaleItems(scaleBase, factor) }));
   };
 
   const isNew = draft.isNew === true;
@@ -186,7 +191,7 @@ function MealEditorForm({
       toast.error('Das Meal gibt es nicht mehr.');
       return false;
     }
-    setDraft({ ...draft, photo: 'keep' });
+    setDraft((d) => ({ ...d, photo: 'keep' }));
     toast.success(`„${name}“ gespeichert`);
     return true;
   }
@@ -261,7 +266,7 @@ function MealEditorForm({
             maxLength={120}
             value={draft.name}
             placeholder={isNew ? 'z. B. Overnight Oats' : undefined}
-            onChange={(e) => commit({ ...draft, name: e.target.value })}
+            onChange={(e) => commit({ name: e.target.value })}
           />
         </div>
       </Section>
@@ -272,10 +277,10 @@ function MealEditorForm({
           removable={draft.items.length > 1}
           targets={targets}
           onChange={(next) =>
-            setDraft({
-              ...draft,
-              items: draft.items.map((it, j) => (j === i ? { ...next, key: item.key } : it)),
-            })
+            setDraft((d) => ({
+              ...d,
+              items: d.items.map((it, j) => (j === i ? { ...next, key: item.key } : it)),
+            }))
           }
           onCommit={(next) =>
             commitItems(draft.items.map((it, j) => (j === i ? { ...next, key: item.key } : it)))
@@ -305,13 +310,13 @@ function MealEditorForm({
               value={[scale]}
               onValueChange={([v]) => v !== undefined && rescale(v)}
               // From the commit value, not the draft of this render (keyboard steps change and commit at once).
-              onValueCommit={([v]) => void writeMealDraft(db, { ...draft, items: scaleItems(scaleBase, v!) })}
+              onValueCommit={([v]) => void patchMealDraft(db, draft, { items: scaleItems(scaleBase, v!) })}
             />
             <ScalePresets
               value={scale}
               onPick={(f) => {
                 setScale(f);
-                commit({ ...draft, items: scaleItems(scaleBase, f) });
+                commit({ items: scaleItems(scaleBase, f) });
               }}
             />
           </div>
@@ -325,7 +330,7 @@ function MealEditorForm({
             unit="g"
             integer
             value={cooked}
-            onValueChange={(v) => commit({ ...draft, cookedGrams: v && v > 0 ? Math.round(v) : null })}
+            onValueChange={(v) => commit({ cookedGrams: v && v > 0 ? Math.round(v) : null })}
             hint={rawGrams > 0 ? `Zutaten roh ${fmtGrams(rawGrams)}` : undefined}
           />
           {per100 && (
@@ -375,7 +380,8 @@ function PhotoSection({
   draft: MealDraft;
   photo: MealDraftPhoto | null;
   name: string;
-  onChange: (draft: MealDraft) => void;
+  /** Patches the draft: only the photo field, never a copy of the draft from this render. */
+  onChange: (patch: Pick<MealDraft, 'photo'>) => void;
 }) {
   const db = useDb();
   const camera = useRef<HTMLInputElement>(null);
@@ -394,7 +400,7 @@ function PhotoSection({
         type: blob.type || 'image/jpeg',
         at: Date.now(),
       });
-      onChange({ ...draft, photo: 'pending' });
+      onChange({ photo: 'pending' });
     } catch {
       toast.error('Das Bild konnte nicht gelesen werden. Versuche ein anderes Foto.');
     } finally {
@@ -404,7 +410,7 @@ function PhotoSection({
 
   async function removePhoto() {
     await setMealDraftPhoto(db, meal.id, null);
-    onChange({ ...draft, photo: meal.photoId ? 'remove' : 'keep' });
+    onChange({ photo: meal.photoId ? 'remove' : 'keep' });
   }
 
   const input = (ref: typeof camera, capture: boolean) => (

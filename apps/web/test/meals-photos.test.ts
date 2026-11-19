@@ -29,6 +29,7 @@ import {
   draftFromMeal,
   isDirty,
   isMealDraftStale,
+  patchMealDraft,
   readMealDraft,
   readMealDraftPhoto,
   saveMealDraft,
@@ -198,6 +199,26 @@ describe('saved meal editing (draft until "Speichern")', () => {
     expect((await d.meals.get('m1'))!.photoId).toBeNull();
     await expect(saveMealDraft(d, { ...draft, items: [] })).rejects.toThrow();
     expect(await saveMealDraft(d, { ...draft, mealId: 'missing' })).toBe(false);
+  });
+
+  it('keeps both of two draft writes that start from the same old draft (photo pick and amount)', async () => {
+    const d = await setup();
+    const base = draftFromMeal((await d.meals.get('m1'))!);
+    await writeMealDraft(d, base);
+    // The photo pick captured `base` before compressing; the amount wheel commits meanwhile. Each
+    // write patches its own field of the stored draft, so neither undoes the other in any order.
+    const amount = [{ ...base.items[0]!, grams: 115, quantity: 115 }];
+    await Promise.all([
+      patchMealDraft(d, base, { items: amount }),
+      patchMealDraft(d, base, { photo: 'pending' }),
+    ]);
+    expect(await readMealDraft(d, 'm1')).toMatchObject({ photo: 'pending', items: amount });
+    await patchMealDraft(d, base, { name: 'Porridge' });
+    expect(await readMealDraft(d, 'm1')).toMatchObject({ name: 'Porridge', photo: 'pending', items: amount });
+    // Without a stored draft the patch goes on top of the given one.
+    await clearMealDraft(d, 'm1');
+    await patchMealDraft(d, base, { cookedGrams: 300 });
+    expect(await readMealDraft(d, 'm1')).toEqual({ ...base, cookedGrams: 300 });
   });
 
   it('discards a draft with both keys', async () => {

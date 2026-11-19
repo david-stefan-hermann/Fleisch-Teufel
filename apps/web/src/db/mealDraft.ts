@@ -73,6 +73,22 @@ export async function writeMealDraft(db: UserDb, draft: MealDraft): Promise<void
   await db.kv.put({ key: draftKey(draft.mealId), value: draft });
 }
 
+/**
+ * Changes only the given fields of the stored draft, read and written in one transaction: the editor
+ * writes from async handlers (a photo pick waits for compression while the amount wheel commits), and
+ * a whole draft from an older render would undo the other change. `base` is used while none is stored.
+ */
+export async function patchMealDraft(
+  db: UserDb,
+  base: MealDraft,
+  patch: Partial<Omit<MealDraft, 'mealId'>>,
+): Promise<void> {
+  await db.transaction('rw', db.kv, async () => {
+    const current = (await readMealDraft(db, base.mealId)) ?? base;
+    await writeMealDraft(db, { ...current, ...patch });
+  });
+}
+
 export async function readMealDraftPhoto(db: UserDb, mealId: string): Promise<MealDraftPhoto | null> {
   const row = await db.kv.get(draftPhotoKey(mealId));
   return (row?.value as MealDraftPhoto | undefined) ?? null;
