@@ -7,6 +7,7 @@ import {
   get,
   N,
   round,
+  sameMealName,
   tdee,
 } from '@ft/shared';
 import { Link, useNavigate, useParams, useRouter } from '@tanstack/react-router';
@@ -16,7 +17,14 @@ import { useDb } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { upsertRecord } from '@/db/write';
-import { useCurrentWeight, useDayNote, useDaySummary, useSettings } from '@/hooks/data';
+import {
+  useCurrentWeight,
+  useDayMeals,
+  useDayNote,
+  useDaySummary,
+  useMealChoice,
+  useSettings,
+} from '@/hooks/data';
 import { useExpenditure } from '@/hooks/useExpenditure';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmt0, fmt1, fmtDayLong } from '@/lib/format';
@@ -34,7 +42,9 @@ export function CompleteDayPage() {
   const note = useDayNote(date);
   const weight = useCurrentWeight(date);
   const expenditure = useExpenditure(date);
-  if (!summary || !settings || note === undefined || expenditure === undefined)
+  const meals = useDayMeals(date);
+  const next = useMealChoice(date, 0, 'new')?.next;
+  if (!summary || !settings || note === undefined || expenditure === undefined || !meals || !next)
     return (
       <Page title="Tag abschließen" back withTabBar={false}>
         {null}
@@ -55,8 +65,16 @@ export function CompleteDayPage() {
     (profile
       ? Math.round(tdee(profile, settings.activityLevel))
       : summary.targets.kcal - dailyDeltaForWeeklyRate(currentWeeklyRate(settings, weight)));
-  // A meal without entries while the day is far under budget: most likely not logged, not skipped.
-  const emptyMeals = summary.perMeal.flatMap((m, i) => (get(m, N.kcal) > 0 ? [] : [i]));
+  // A standard meal the day does not have while it is far under budget: most likely not logged, not
+  // skipped. An old day may still carry the name a standard meal had before it was renamed.
+  const emptyMeals = settings.mealNames.filter(
+    (name, i) =>
+      !meals.some((m) => {
+        if (m.entries.length === 0) return false;
+        const legacy = settings.legacyMealNames?.[i];
+        return sameMealName(m.name, name) || (!!legacy && sameMealName(m.name, legacy));
+      }),
+  );
   const maybeMissing =
     summary.entryCount > 0 && emptyMeals.length > 0 && eaten < summary.budgetKcal * 0.6 ? emptyMeals : [];
   const forecast =
@@ -104,12 +122,12 @@ export function CompleteDayPage() {
         <Section>
           <p className="p-4 text-sm text-pretty">
             {maybeMissing.length === 1
-              ? `${settings.mealNames[maybeMissing[0]!]} ist leer.`
-              : `${maybeMissing.map((i) => settings.mealNames[i]).join(', ')} sind leer.`}{' '}
+              ? `${maybeMissing[0]} ist leer.`
+              : `${maybeMissing.join(', ')} sind leer.`}{' '}
             Nichts gegessen, oder nur nicht eingetragen?{' '}
             <Link
               to="/photo"
-              search={{ date, meal: maybeMissing[0]!, form: true }}
+              search={{ date, meal: next.slot, dm: 'new', form: true }}
               className="font-medium text-primary underline underline-offset-2"
             >
               Schnell schätzen

@@ -18,8 +18,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 7     | 3eb335e | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
 | 8     | ffbacaa | Uhrzeit-Dialog und Nacht                                | fertig |
 | 9     | 32e0f0f | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
-| 10    | s. Log  | Assistent                                               | fertig |
-| 11    |         | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
+| 10    | c2451b3 | Assistent                                               | fertig |
+| 11    | s. Log  | Berichte, CSV, Tagesbild, Tag abschließen               | fertig |
 | 12    |         | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
 | 13    |         | Doku                                                    | offen  |
 
@@ -141,6 +141,23 @@ Block 10:
   bekommt sie als `previousTarget.diaryMealId`.
 - `AssistantProvider.tsx` brauchte keine Änderung.
 - Übergang bis Block 13: `CLAUDE.md` beschreibt den Assistenten noch mit vier Mahlzeiten.
+
+Block 11:
+
+- Die Übergänge aus Block 7 und 10 für Tagesbild, CSV und „Tag abschließen“ sind geschlossen: Alle drei lesen die Mahlzeiten wie das
+  Tagebuch (`buildDayMeals`, Namen aus `legacyMealNames ?? mealNames`).
+- Neu `mealsOfEntries` in `dayMeals.ts`: die Mahlzeit jedes lebenden Eintrags über beliebig viele Tage, für die CSV. `entriesCsv` nimmt
+  dafür eine Funktion `mealOf` statt der Namensliste.
+- Das Tagesbild nimmt `DayShareData.meals` statt `mealNames` und `entries`; die kcal einer Mahlzeit kommen aus ihren Einträgen statt aus
+  `summary.perMeal` (zwei „Snacks“ teilen sich dort einen Index). Die Zeile über der Karte ist ein gemeinsamer Baustein `MealStamp`
+  (`MealCard.tsx`), den Tagebuch und Bild nutzen. `DiaryPage` liest `useDayEntries` nicht mehr.
+- `CompleteDayPage`: „… ist leer“ nennt Standard-Namen, die keine Mahlzeit mit Einträgen trägt; eine Mahlzeit mit dem Namen aus
+  `legacyMealNames` desselben Index zählt mit. Bisher zählte eine Mahlzeit mit 0 kcal als leer, jetzt zählt jede mit Einträgen. Die
+  Seite liest `summary.perMeal` nicht mehr.
+- Bekannte Grenze von `mealsLogged` (`entryMealKey`, wie geplant): Schreibt eine ältere App einen Eintrag ohne `diaryMealId` in einen
+  Index, den schon eine neue Mahlzeit (uuidv7) belegt, zählt er als eigene Mahlzeit, obwohl das Tagebuch ihn dieser Mahlzeit zuordnet.
+  Der Tag kann dadurch zu früh als vollständig gelten.
+- Zusätzliche Tests: E2E „Tag abschließen“ in `day-meals.spec.ts`, Uhrzeit im Tagesbild in `share-day.spec.ts`.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

@@ -21,7 +21,9 @@ export async function collectShareData(
   db: UserDb,
   base: Omit<DayShareData, 'savedMeals' | 'photos' | 'savedTrainings'>,
 ): Promise<DayShareData> {
-  const groups = base.parts.food ? groupDiaryEntries(base.entries).filter((r) => r.kind === 'group') : [];
+  const groups = base.parts.food
+    ? groupDiaryEntries(base.meals.flatMap((m) => m.entries)).filter((r) => r.kind === 'group')
+    : [];
   const mealIds = [...new Set(groups.map((g) => g.mealId).filter((id): id is string => !!id))];
   const meals = mealIds.length ? await db.meals.bulkGet(mealIds) : [];
   const savedMeals = new Map(

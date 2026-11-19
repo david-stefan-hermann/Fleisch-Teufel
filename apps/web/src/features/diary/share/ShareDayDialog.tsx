@@ -1,4 +1,4 @@
-import type { DaySummary, ExerciseEntry, FoodEntry, ISODate } from '@ft/shared';
+import type { DayMeal, DaySummary, ExerciseEntry, ISODate } from '@ft/shared';
 import { Share } from 'lucide-react';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
@@ -32,8 +32,7 @@ export interface ShareDayDialogProps {
   exerciseCredited: boolean;
   /** Setting "Schritte aufs Ziel anrechnen" (the steps row says "nicht angerechnet" when off). */
   stepsCredited?: boolean;
-  mealNames: string[];
-  entries: FoodEntry[];
+  meals: DayMeal[];
   exercises: ExerciseEntry[];
   note: string;
 }

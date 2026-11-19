@@ -42,6 +42,18 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
   await expect(spinning).toBeVisible();
   await expect(page.getByRole('banner').getByRole('button', { name: /^Synchronisiert/ })).toBeVisible();
 
+  // The picture shows each meal with its time above it, like the diary (watched while it is built).
+  const time = await page.locator('[data-meal] button[aria-label*="Uhrzeit ändern"]').first().textContent();
+  expect(time).toMatch(/^\d\d:\d\d$/);
+  await page.evaluate((time) => {
+    const w = window as unknown as { __mealInImage?: boolean };
+    w.__mealInImage = false;
+    new MutationObserver(() => {
+      const text = document.querySelector('body > div[style*="-10000px"]')?.textContent ?? '';
+      if (text.includes(`${time}Frühstück`)) w.__mealInImage = true;
+    }).observe(document.body, { childList: true, subtree: true });
+  }, time);
+
   await page.getByRole('button', { name: 'Tag teilen' }).click();
   const dialog = page.getByRole('dialog', { name: 'Tag teilen' });
   await expect(dialog.getByRole('checkbox', { name: 'Essen' })).toBeChecked();
@@ -65,6 +77,9 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
     { name: `fleisch-teufel_tagebuch_${today}.png`, type: 'image/png', size: expect.any(Number) },
   ]);
   expect((shared[0] as { size: number }).size).toBeGreaterThan(5_000);
+  expect(await page.evaluate(() => (window as unknown as { __mealInImage: boolean }).__mealInImage)).toBe(
+    true,
+  );
 
   // Steps from Apple Health count as training: with them the part can be chosen, and the picture
   // carries the steps row (rendered off screen, watched while it is built).

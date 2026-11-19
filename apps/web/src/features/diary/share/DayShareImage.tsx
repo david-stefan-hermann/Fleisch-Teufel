@@ -4,11 +4,11 @@ import {
   groupTrainingEntries,
   isStepsEntry,
   stepsEntryOf,
-  MEAL_COUNT,
   N,
+  sumNutrients,
+  type DayMeal,
   type DaySummary,
   type ExerciseEntry,
-  type FoodEntry,
   type ISODate,
 } from '@ft/shared';
 import { Utensils } from 'lucide-react';
@@ -19,7 +19,7 @@ import { CalorieOverview } from '../CalorieCard';
 import { trainingTitle } from '@/features/exercise/training';
 import { StepsRowBody } from '@/features/steps/StepsRow';
 import { ExerciseRowBody, TrainingGroupRowBody, trainingGroupTitle } from '../ExerciseCard';
-import { EntryRowBody, GroupRowBody } from '../MealCard';
+import { EntryRowBody, GroupRowBody, MealStamp } from '../MealCard';
 
 export interface ShareParts {
   food: boolean;
@@ -32,8 +32,8 @@ export interface DayShareData {
   summary: DaySummary;
   exerciseCredited: boolean;
   stepsCredited?: boolean;
-  mealNames: string[];
-  entries: FoodEntry[];
+  /** The meals of the day as the diary shows them (names, times, entries). */
+  meals: DayMeal[];
   exercises: ExerciseEntry[];
   note: string;
   /** Name and photo of the saved meals the groups come from. */
@@ -50,11 +50,12 @@ const ROW = 'flex min-h-14 items-center gap-3 px-4 py-2';
 /**
  * The shared day as one long picture, like a screenshot of the diary without what only matters in
  * the app: the date instead of header and calendar, the calorie overview (closed, no button), the
- * meals with entries (groups closed), trainings and the note when chosen, a small footer. Only props,
+ * meals with entries (their times above them, groups closed), trainings and the note when chosen, a
+ * small footer. Only props,
  * no router, no live queries: it is rendered into its own root and rasterized (`renderDayImage`).
  */
 export function DayShareImage({ data }: { data: DayShareData }) {
-  const { date, summary, entries, exercises, note, parts } = data;
+  const { date, summary, meals, exercises, note, parts } = data;
   const trainingKcal = exercises.reduce((s, e) => s + e.kcal, 0);
   const steps = stepsEntryOf(exercises, date);
   const trainings = exercises.filter((e) => !isStepsEntry(e));
@@ -66,19 +67,14 @@ export function DayShareImage({ data }: { data: DayShareData }) {
           <section className="mb-4 rounded-2xl border border-border/70 bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)]">
             <CalorieOverview summary={summary} exerciseCredited={data.exerciseCredited} />
           </section>
-          {Array.from({ length: MEAL_COUNT }, (_, m) => {
-            const list = entries.filter((e) => e.meal === m);
-            if (list.length === 0) return null;
-            return (
-              <MealSection
-                key={m}
-                name={data.mealNames[m] ?? `Mahlzeit ${m + 1}`}
-                kcal={get(summary.perMeal[m] ?? {}, N.kcal)}
-                entries={list}
-                data={data}
-              />
-            );
-          })}
+          {meals
+            .filter((m) => m.entries.length > 0)
+            .map((m) => (
+              <div key={m.id} className="mb-[18px]">
+                <MealStamp meal={m} />
+                <MealSection meal={m} data={data} />
+              </div>
+            ))}
         </>
       )}
       {parts.training && exercises.length > 0 && (
@@ -121,30 +117,22 @@ export function DayShareImage({ data }: { data: DayShareData }) {
 
 function Title({ name, kcal }: { name: string; kcal: number }) {
   return (
-    <span className="flex items-baseline gap-2">
-      {name}
+    <span className="flex min-w-0 items-baseline gap-2">
+      {/* No marquee in a picture: a long name is cut off. */}
+      <span className="truncate">{name}</span>
       {kcal > 0 && (
-        <span className="tabular text-sm font-normal text-muted-foreground">{fmt0(kcal)} kcal</span>
+        <span className="tabular shrink-0 text-sm font-normal text-muted-foreground">{fmt0(kcal)} kcal</span>
       )}
     </span>
   );
 }
 
-function MealSection({
-  name,
-  kcal,
-  entries,
-  data,
-}: {
-  name: string;
-  kcal: number;
-  entries: FoodEntry[];
-  data: DayShareData;
-}) {
+function MealSection({ meal, data }: { meal: DayMeal; data: DayShareData }) {
+  const kcal = get(sumNutrients(meal.entries.map((e) => e.nutrients)), N.kcal);
   return (
-    <Section title={<Title name={name} kcal={kcal} />}>
+    <Section className="mb-0" titleClassName="min-w-0" title={<Title name={meal.name} kcal={kcal} />}>
       <ul className="divide-y divide-border/70">
-        {groupDiaryEntries(entries).map((row) => {
+        {groupDiaryEntries(meal.entries).map((row) => {
           if (row.kind === 'entry') {
             return (
               <li key={row.entry.id} className={ROW}>

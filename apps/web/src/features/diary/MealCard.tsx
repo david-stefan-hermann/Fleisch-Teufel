@@ -5,6 +5,7 @@ import {
   N,
   photoIdsOf,
   sumNutrients,
+  type DayMeal,
   type FoodEntry,
   type ISODate,
   type NutrientMap,
@@ -148,31 +149,52 @@ export function MealCard({
   );
 }
 
+const TIME_TEXT = 'tabular -m-2 p-2 text-[13px] leading-4 font-medium text-muted-foreground';
+
 /**
- * The time above a meal card: a tap opens the time dialog. A meal eaten in the night after its day
- * carries a moon with that weekday. A meal of waiting analyses only has no record to take a time.
+ * The line above a meal card: its time (`time` replaces the plain text) and, for a meal eaten in the
+ * night after its day, a moon with that weekday. Also in the shared day image.
+ */
+export function MealStamp({
+  meal,
+  time,
+}: {
+  meal: Pick<DayMeal, 'date' | 'eatenAt' | 'night'>;
+  time?: ReactNode;
+}) {
+  return (
+    <div className="flex h-[22px] items-center gap-1.5 pl-4">
+      {time ?? <span className={TIME_TEXT}>{fmtTime(meal.eatenAt)}</span>}
+      {meal.night && (
+        <span className="inline-flex items-center gap-[3px] rounded-full bg-secondary px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
+          <Moon className="size-[11px]" aria-hidden />
+          {fmtWeekdayShort(addDays(meal.date, 1))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The time above a meal card: a tap opens the time dialog. A meal of waiting analyses only has no
+ * record to take a time.
  */
 function MealTimeLine({ meal }: { meal: DiaryDayMeal }) {
   const [open, setOpen] = useState(false);
+  if (meal.entries.length === 0) return <MealStamp meal={meal} />;
   const time = fmtTime(meal.eatenAt);
-  const night = meal.night && (
-    <span className="inline-flex items-center gap-[3px] rounded-full bg-secondary px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground">
-      <Moon className="size-[11px]" aria-hidden />
-      {fmtWeekdayShort(addDays(meal.date, 1))}
-    </span>
-  );
   const label = meal.night ? `${time}, Nacht auf ${fmtWeekdayShort(addDays(meal.date, 1))}` : time;
-  const text = 'tabular -m-2 p-2 text-[13px] leading-4 font-medium text-muted-foreground';
   return (
-    <div className="flex h-[22px] items-center gap-1.5 pl-4">
-      {meal.entries.length > 0 ? (
+    <MealStamp
+      meal={meal}
+      time={
         <>
           <button
             type="button"
             aria-label={`${meal.name} um ${label}, Uhrzeit ändern`}
             onClick={() => setOpen(true)}
             className={cn(
-              text,
+              TIME_TEXT,
               'rounded-lg hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
             )}
           >
@@ -180,11 +202,8 @@ function MealTimeLine({ meal }: { meal: DiaryDayMeal }) {
           </button>
           <MealTimeDialog meal={meal} open={open} onOpenChange={setOpen} />
         </>
-      ) : (
-        <span className={text}>{time}</span>
-      )}
-      {night}
-    </div>
+      }
+    />
   );
 }
 

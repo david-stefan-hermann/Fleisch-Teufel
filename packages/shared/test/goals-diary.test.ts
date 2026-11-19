@@ -234,6 +234,32 @@ describe('day summary & reports', () => {
     expect(st.avgTargets).toEqual({ kcal: 2000, proteinG: 150, fatG: 70, carbsG: 200 });
   });
 
+  it('counts diary meals, not indexes: two snacks are two meals', () => {
+    const snack = (id: string, diaryMealId: string | null) => ({
+      ...entry('2026-11-19', 3, 200),
+      id,
+      diaryMealId,
+    });
+    const rows = dailyRows({
+      from: '2026-11-18',
+      to: '2026-11-19',
+      entries: [
+        // An old day: entries without a meal of their own form one meal per index.
+        { ...entry('2026-11-18', 3, 100), id: 'o1' },
+        { ...entry('2026-11-18', 3, 100), id: 'o2' },
+        // Two meals named "Snacks" share index 3; two entries of one of them still count once.
+        snack('a', 'meal-a'),
+        snack('b', 'meal-b'),
+        snack('c', 'meal-b'),
+      ],
+      exercises: [],
+      weights: [],
+      goals,
+    });
+    expect(rows.map((r) => r.mealsLogged)).toEqual([1, 2]);
+    expect(periodStats(rows).completeDays).toBe(1);
+  });
+
   it('averages every nutrient code and the weekday targets of logged days', () => {
     const rows = dailyRows({
       from: '2026-10-09',

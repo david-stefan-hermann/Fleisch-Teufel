@@ -510,3 +510,25 @@ test('a meal copied on one day goes into the empty card of another; "Wie gestern
   await expect(card.getByRole('link', { name: /^Haferbrei/ })).toHaveCount(2);
   await expect(page.locator('[data-meal]')).toHaveCount(1);
 });
+
+test('"Tag abschließen" names the standard meals the day does not have, "Schnell schätzen" begins the next', async ({
+  page,
+}) => {
+  await startAtNoon(page);
+  await openFoodPage(page);
+  await logQuick(page, 'Haferbrei', 300);
+  const today = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+
+  await page.goto(`/day/${today}/complete`);
+  await expect(page.getByText('Mittagessen, Abendessen, Snacks sind leer.')).toBeVisible();
+  await page.getByRole('link', { name: 'Schnell schätzen' }).click();
+  await expect(page).toHaveURL(/dm=new/);
+  await expect(picker(page)).toContainText('Mittagessen');
+  await fillQuickForm(page, 'Linseneintopf', 500);
+  await page.goto('/');
+  await expect(row(page, 'Mittagessen', 'Linseneintopf')).toBeVisible();
+  await expect(row(page, 'Frühstück', 'Haferbrei')).toBeVisible();
+});

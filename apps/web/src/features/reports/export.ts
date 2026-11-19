@@ -7,6 +7,7 @@ import {
   type CsvDialect,
   isCompleteDay,
   type DailyRow,
+  type DayMeal,
   type EntrySource,
   type ExerciseEntry,
   type FoodEntry,
@@ -80,31 +81,53 @@ export function sourceLabel(e: Pick<FoodEntry, 'source' | 'foodId'>): string {
   return SOURCE_LABELS[e.source] ?? e.source;
 }
 
-export function entriesCsv(entries: FoodEntry[], mealNames: string[], dialect: CsvDialect): string {
-  const sorted = [...entries].sort(
-    (a, b) => a.date.localeCompare(b.date) || a.meal - b.meal || a.loggedAt - b.loggedAt,
+/** The meal an entry stands in, as far as the CSV needs it (`mealsOfEntries`). */
+export type CsvMeal = Pick<DayMeal, 'name' | 'eatenAt'>;
+
+const clockTime = (at: number) => {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+/**
+ * One row per entry, by day, the time of its meal (the night after a day at its end) and logging
+ * order. "Mahlzeit" is the meal's name, "Uhrzeit" the time of the meal, not of the entry.
+ */
+export function entriesCsv(
+  entries: FoodEntry[],
+  mealOf: (e: FoodEntry) => CsvMeal | undefined,
+  dialect: CsvDialect,
+): string {
+  const rows = entries.map((e) => ({ e, meal: mealOf(e) }));
+  rows.sort(
+    (a, b) =>
+      a.e.date.localeCompare(b.e.date) ||
+      (a.meal?.eatenAt ?? 0) - (b.meal?.eatenAt ?? 0) ||
+      a.e.loggedAt - b.e.loggedAt,
   );
   return toCsv(
-    sorted,
+    rows,
     [
-      { header: 'Datum', value: (e) => e.date },
-      { header: 'Mahlzeit', value: (e) => mealNames[e.meal] ?? e.meal },
-      { header: 'Lebensmittel', value: (e) => e.name },
-      { header: 'Marke', value: (e) => e.brand },
-      { header: 'Quelle', value: sourceLabel },
-      { header: 'Menge (g)', value: (e) => e.grams },
-      { header: 'Portion', value: (e) => e.portionLabel },
-      { header: 'Anzahl', value: (e) => e.quantity },
-      { header: 'kcal', value: (e) => get(e.nutrients, N.kcal) },
-      { header: 'Protein (g)', value: (e) => get(e.nutrients, N.protein) },
-      { header: 'Kohlenhydrate (g)', value: (e) => get(e.nutrients, N.carbs) },
-      { header: 'Fett (g)', value: (e) => get(e.nutrients, N.fat) },
-      { header: 'Ballaststoffe (g)', value: (e) => e.nutrients[N.fiber] },
-      { header: 'Zucker (g)', value: (e) => e.nutrients[N.sugar] },
-      { header: 'Ges. Fettsäuren (g)', value: (e) => e.nutrients[N.satFat] },
-      { header: 'Salz (g)', value: (e) => e.nutrients[N.salt] },
+      { header: 'Datum', value: ({ e }) => e.date },
+      { header: 'Mahlzeit', value: ({ meal }) => meal?.name ?? '' },
+      { header: 'Lebensmittel', value: ({ e }) => e.name },
+      { header: 'Marke', value: ({ e }) => e.brand },
+      { header: 'Quelle', value: ({ e }) => sourceLabel(e) },
+      { header: 'Menge (g)', value: ({ e }) => e.grams },
+      { header: 'Portion', value: ({ e }) => e.portionLabel },
+      { header: 'Anzahl', value: ({ e }) => e.quantity },
+      { header: 'kcal', value: ({ e }) => get(e.nutrients, N.kcal) },
+      { header: 'Protein (g)', value: ({ e }) => get(e.nutrients, N.protein) },
+      { header: 'Kohlenhydrate (g)', value: ({ e }) => get(e.nutrients, N.carbs) },
+      { header: 'Fett (g)', value: ({ e }) => get(e.nutrients, N.fat) },
+      { header: 'Ballaststoffe (g)', value: ({ e }) => e.nutrients[N.fiber] },
+      { header: 'Zucker (g)', value: ({ e }) => e.nutrients[N.sugar] },
+      { header: 'Ges. Fettsäuren (g)', value: ({ e }) => e.nutrients[N.satFat] },
+      { header: 'Salz (g)', value: ({ e }) => e.nutrients[N.salt] },
       // New columns go to the end, so existing sheets keep their columns. The text of a quick entry.
-      { header: 'Notiz', value: (e) => e.note ?? '' },
+      { header: 'Notiz', value: ({ e }) => e.note ?? '' },
+      // The time of the meal.
+      { header: 'Uhrzeit', value: ({ meal }) => (meal ? clockTime(meal.eatenAt) : '') },
     ],
     dialect,
   );

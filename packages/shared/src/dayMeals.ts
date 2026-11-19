@@ -243,3 +243,34 @@ export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMea
     (a, b) => (slotOrder ? 0 : a.eatenAt - b.eatenAt) || a.slot - b.slot || a.id.localeCompare(b.id),
   );
 }
+
+/**
+ * The meal of every live entry, over any number of days (exports): each day built as the diary
+ * builds it. `entries` should hold the tombstones too, they keep the time of a meal without a record.
+ */
+export function mealsOfEntries(input: {
+  entries: readonly FoodEntry[];
+  records: readonly DiaryMeal[];
+  names: readonly string[];
+}): Map<string, DayMeal> {
+  const dates = new Set(input.entries.filter((e) => !e.deleted).map((e) => e.date));
+  const byDate = <T extends { date: ISODate }>(list: readonly T[]) => {
+    const map = new Map<ISODate, T[]>();
+    for (const x of list)
+      if (dates.has(x.date)) (map.get(x.date) ?? map.set(x.date, []).get(x.date)!).push(x);
+    return map;
+  };
+  const entries = byDate(input.entries);
+  const records = byDate(input.records);
+  const result = new Map<string, DayMeal>();
+  for (const date of dates) {
+    const day = buildDayMeals({
+      date,
+      entries: entries.get(date) ?? [],
+      records: records.get(date) ?? [],
+      names: input.names,
+    });
+    for (const meal of day) for (const e of meal.entries) result.set(e.id, meal);
+  }
+  return result;
+}

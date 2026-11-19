@@ -1,4 +1,5 @@
 import { dateRange, diffDays, type ISODate } from './dates.js';
+import { entryMealKey } from './dayMeals.js';
 import { creditedTrainingKcal } from './diary.js';
 import { isStepsEntry, isStraySteps, stepsEntryOf } from './exercise.js';
 import { linearTrend, type WeightPoint } from './forecast.js';
@@ -17,7 +18,7 @@ export const MIN_MEALS_COMPLETE = 2;
 export interface DailyRow {
   date: ISODate;
   logged: boolean;
-  /** Distinct meals (diary meal indexes) with at least one entry. */
+  /** Distinct diary meals with at least one entry (two meals sharing an index count as two). */
   mealsLogged: number;
   /** The day was closed with "Tag abschließen". */
   completed: boolean;
@@ -72,7 +73,7 @@ export function dailyRows(params: {
     return {
       date,
       logged: es.length > 0,
-      mealsLogged: new Set(es.map((e) => e.meal)).size,
+      mealsLogged: new Set(es.map(entryMealKey)).size,
       completed: completed.has(date),
       nutrients: sumNutrients(es.map((e) => e.nutrients)),
       targetKcal: t.kcal,

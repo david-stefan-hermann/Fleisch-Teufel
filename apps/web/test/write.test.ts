@@ -1,11 +1,15 @@
 import {
   dayId,
   dailyRows,
+  eatenAtOf,
   groupDiaryEntries,
+  mealsOfEntries,
   rescaleItem,
   uuidv7,
   type AiAnalysisResult,
+  type DiaryMeal,
   type Food,
+  type FoodEntry,
   type MealItem,
   trainingItemsOf,
 } from '@ft/shared';
@@ -433,10 +437,119 @@ describe('local writes', () => {
       carbsG: null,
       fatG: null,
     });
-    const csv = entriesCsv(await d.foodEntries.toArray(), ['Frühstück'], 'excel-de');
+    const entries = await d.foodEntries.toArray();
+    const meals = mealsOfEntries({ entries, records: [], names: ['Frühstück'] });
+    const csv = entriesCsv(entries, (e) => meals.get(e.id), 'excel-de');
     const [header, row] = csv.trim().split(/\r?\n/);
-    expect(header!.split(';').at(-1)).toBe('Notiz');
-    expect(row!.split(';').at(-1)).toBe('Brötchen beim Bäcker');
+    expect(header!.split(';').at(-2)).toBe('Notiz');
+    expect(row!.split(';').at(-2)).toBe('Brötchen beim Bäcker');
+  });
+
+  it('exports meal names and times: old columns in place, "Uhrzeit" last, the night at the end of its day', () => {
+    const DAY = '2026-11-19';
+    const entry = (
+      id: string,
+      date: string,
+      meal: number,
+      at: number,
+      diaryMealId: string | null,
+    ): FoodEntry => ({
+      id,
+      updatedAt: 1,
+      deleted: false,
+      date,
+      meal,
+      loggedAt: at,
+      foodId: null,
+      source: 'quick',
+      name: id,
+      brand: null,
+      grams: null,
+      portionLabel: null,
+      portionGrams: null,
+      quantity: 1,
+      per100: null,
+      nutrients: { ENERCC: 100 },
+      mealId: null,
+      aiAnalysisId: null,
+      groupId: null,
+      groupName: null,
+      photoId: null,
+      photoIds: null,
+      note: null,
+      diaryMealId,
+    });
+    const record = (id: string, name: string, slot: number, eatenAt: number): DiaryMeal => ({
+      id,
+      updatedAt: 1,
+      deleted: false,
+      date: DAY,
+      name,
+      eatenAt,
+      slot,
+      timeEdited: false,
+    });
+    const night = eatenAtOf(DAY, 0, 30, true);
+    const entries = [
+      entry('Apfelkuchen', DAY, 2, night, 'd'),
+      entry('Skyr', DAY, 3, eatenAtOf(DAY, 16, 5), 'c'),
+      entry('Apfel', DAY, 3, eatenAtOf(DAY, 10, 15), 'a'),
+      entry('Bowl', DAY, 1, eatenAtOf(DAY, 12, 35), 'b'),
+      // Logged before the first rename: no meal of its own, the old name of its index.
+      entry('Haferflocken', DAY, 0, eatenAtOf(DAY, 7, 40), null),
+      entry('Brot', '2026-11-20', 0, eatenAtOf('2026-11-20', 8, 0), null),
+      { ...entry('Gelöscht', DAY, 0, eatenAtOf(DAY, 7, 0), null), deleted: true },
+    ];
+    const records = [
+      record('a', 'Snacks', 3, eatenAtOf(DAY, 10, 15)),
+      record('b', 'Mittagessen', 1, eatenAtOf(DAY, 12, 35)),
+      record('c', 'Snacks', 3, eatenAtOf(DAY, 16, 5)),
+      record('d', 'Kuchen bei Oma', 2, night),
+    ];
+    // `legacyMealNames`: the standard names were renamed since.
+    const meals = mealsOfEntries({
+      entries,
+      records,
+      names: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+    });
+    const csv = entriesCsv(
+      entries.filter((e) => !e.deleted),
+      (e) => meals.get(e.id),
+      'excel-de',
+    );
+    const [header, ...rows] = csv
+      .trim()
+      .split(/\r?\n/)
+      .map((l) => l.split(';'));
+    expect(header).toEqual([
+      'Datum',
+      'Mahlzeit',
+      'Lebensmittel',
+      'Marke',
+      'Quelle',
+      'Menge (g)',
+      'Portion',
+      'Anzahl',
+      'kcal',
+      'Protein (g)',
+      'Kohlenhydrate (g)',
+      'Fett (g)',
+      'Ballaststoffe (g)',
+      'Zucker (g)',
+      'Ges. Fettsäuren (g)',
+      'Salz (g)',
+      'Notiz',
+      'Uhrzeit',
+    ]);
+    expect(rows.map((r) => [r[0], r[1], r[2], r.at(-1)])).toEqual([
+      // The deleted first entry still sets the time of the old meal.
+      [DAY, 'Frühstück', 'Haferflocken', '07:00'],
+      [DAY, 'Snacks', 'Apfel', '10:15'],
+      [DAY, 'Mittagessen', 'Bowl', '12:35'],
+      [DAY, 'Snacks', 'Skyr', '16:05'],
+      [DAY, 'Kuchen bei Oma', 'Apfelkuchen', '00:30'],
+      ['2026-11-20', 'Frühstück', 'Brot', '08:00'],
+    ]);
   });
 
   it('logs one food on one day', async () => {

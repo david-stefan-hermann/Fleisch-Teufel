@@ -1,8 +1,11 @@
 import {
   addDays,
   dailyRows,
+  DEFAULT_MEAL_NAMES,
   endOfMonth,
+  mealsOfEntries,
   periodStats,
+  SETTINGS_ID,
   startOfMonth,
   startOfWeek,
   targetsForDate,
@@ -255,13 +258,7 @@ export function ReportsPage() {
         </div>
       </Section>
 
-      <ExportSection
-        from={p.from}
-        to={p.to > today ? today : p.to}
-        today={today}
-        rows={rows}
-        mealNames={settings?.mealNames ?? []}
-      />
+      <ExportSection from={p.from} to={p.to > today ? today : p.to} today={today} rows={rows} />
     </Page>
   );
 }
@@ -281,13 +278,11 @@ function ExportSection({
   to,
   today,
   rows,
-  mealNames,
 }: {
   from: string;
   to: string;
   today: ISODate;
   rows: DailyRow[] | null;
-  mealNames: string[];
 }) {
   const db = useDb();
   const [scope, setScope] = useState<'period' | 'all'>('period');
@@ -295,11 +290,25 @@ function ExportSection({
   const suffix = scope === 'all' ? 'gesamt' : `${from}_${to}`;
 
   async function run(kind: 'entries' | 'daily' | 'weights' | 'exercise') {
+    const inDates = <T extends { date: string }>(list: T[]) =>
+      list.filter((x) => scope === 'all' || (x.date >= from && x.date <= to));
     const inRange = <T extends { date: string; deleted: boolean }>(list: T[]) =>
-      list.filter((x) => !x.deleted && (scope === 'all' || (x.date >= from && x.date <= to)));
+      inDates(list).filter((x) => !x.deleted);
     let csv: string;
-    if (kind === 'entries') csv = entriesCsv(inRange(await db.foodEntries.toArray()), mealNames, dialect);
-    else if (kind === 'weights') csv = weightsCsv(inRange(await db.weightEntries.toArray()), dialect);
+    if (kind === 'entries') {
+      const [entries, records, settings] = await Promise.all([
+        db.foodEntries.toArray().then(inDates),
+        db.diaryMeals.toArray().then(inDates),
+        db.settings.get(SETTINGS_ID),
+      ]);
+      // The meals as the diary shows them: old days keep the names they had before a rename.
+      const meals = mealsOfEntries({
+        entries,
+        records,
+        names: settings?.legacyMealNames ?? settings?.mealNames ?? DEFAULT_MEAL_NAMES,
+      });
+      csv = entriesCsv(inRange(entries), (e) => meals.get(e.id), dialect);
+    } else if (kind === 'weights') csv = weightsCsv(inRange(await db.weightEntries.toArray()), dialect);
     else if (kind === 'exercise')
       csv = exerciseCsv(
         inRange(await db.exerciseEntries.toArray()),

@@ -9,7 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useClipboard,
   useDaySuggestions,
-  useDayEntries,
   useDayExercises,
   useDayMeals,
   useDayNote,
@@ -40,7 +39,6 @@ export function DiaryPage() {
   const search = useSearch({ from: '/authed/' });
   const date = search.date ?? today;
   const summary = useDaySummary(date);
-  const entries = useDayEntries(date);
   const exercises = useDayExercises(date);
   const meals = useDayMeals(date);
   const next = useMealChoice(date, 0, 'new')?.next;
@@ -50,14 +48,14 @@ export function DiaryPage() {
   const goals = useGoals();
   const note = useDayNote(date);
   const [sharing, setSharing] = useState(false);
-  const canShare = !!summary && !!entries && !!exercises && !!settings && note !== undefined;
+  const canShare = !!summary && !!meals && !!exercises && !!settings && note !== undefined;
   const navigate = useNavigate();
   // The diary is reached: a logging flow remembered earlier must not trigger anything later.
   useEffect(clearLogStart, []);
   // Position and new rows are set once nothing changes the height of the meal cards any more.
   useDiaryScroll(
     date,
-    !!summary && !!entries && !!exercises && !!settings && !!meals && !!next && suggestions !== undefined,
+    !!summary && !!exercises && !!settings && !!meals && !!next && suggestions !== undefined,
   );
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
   const longDate = fmtRelativeDay(date, today);
@@ -149,7 +147,7 @@ export function DiaryPage() {
           </div>
         </Link>
       )}
-      {!summary || !entries || !exercises || !settings || !meals || !next ? (
+      {!summary || !exercises || !settings || !meals || !next ? (
         <div className="grid gap-4">
           <Skeleton className="h-56 rounded-2xl" />
           <Skeleton className="h-28 rounded-2xl" />
@@ -202,8 +200,7 @@ export function DiaryPage() {
               summary={summary}
               exerciseCredited={settings.addExerciseCalories}
               stepsCredited={settings.addStepsCalories !== false}
-              mealNames={settings.mealNames}
-              entries={entries}
+              meals={meals}
               exercises={exercises}
               note={note?.note ?? ''}
             />

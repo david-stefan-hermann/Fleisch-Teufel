@@ -1,4 +1,4 @@
-import { summarizeDay, targetsForDate, uuidv7 } from '@ft/shared';
+import { buildDayMeals, eatenAtOf, summarizeDay, targetsForDate, uuidv7 } from '@ft/shared';
 import {
   createMemoryHistory,
   createRootRoute,
@@ -1996,6 +1996,7 @@ describe('DayShareImage', () => {
     deleted: false,
     ...extra,
   });
+  const MEAL_NAMES = ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'];
   const entries = [
     entry('e1', 0, 'Skyr', 200, { groupId: 'g1', groupName: 'Skyr mit Beeren' }),
     entry('e2', 0, 'Beeren', 60, { groupId: 'g1', groupName: 'Skyr mit Beeren' }),
@@ -2048,8 +2049,7 @@ describe('DayShareImage', () => {
     date: '2026-11-02',
     summary: summarizeDay({ date: '2026-11-02', entries, exercises, goals: [], settings: undefined }),
     exerciseCredited: true,
-    mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
-    entries,
+    meals: buildDayMeals({ date: '2026-11-02', entries, records: [], names: MEAL_NAMES }),
     exercises,
     note: 'Viel Hunger.\nWenig Schlaf.',
     savedMeals: new Map(),
@@ -2073,6 +2073,52 @@ describe('DayShareImage', () => {
     expect(screen.queryByText('Radfahren')).toBeNull();
     expect(screen.queryByText('Notiz')).toBeNull();
     expect(screen.getByText('Fleisch-Teufel')).toBeTruthy();
+  });
+
+  it('puts the time above every meal, the moon on a night meal, two snacks apart', () => {
+    const D = '2026-11-02';
+    const record = (id: string, name: string, slot: number, eatenAt: number) => ({
+      id,
+      updatedAt: 1,
+      deleted: false,
+      date: D,
+      name,
+      eatenAt,
+      slot,
+      timeEdited: false,
+    });
+    const day = [
+      entry('e11', 3, 'Apfel', 78, { diaryMealId: 'a' }),
+      entry('e12', 3, 'Skyr', 126, { diaryMealId: 'c' }),
+      entry('e13', 2, 'Apfelkuchen', 310, { diaryMealId: 'd' }),
+    ];
+    const records = [
+      record('a', 'Snacks', 3, eatenAtOf(D, 10, 15)),
+      record('c', 'Snacks', 3, eatenAtOf(D, 16, 5)),
+      record('d', 'Kuchen bei Oma mit der ganzen Familie und den Nachbarn', 2, eatenAtOf(D, 0, 30, true)),
+    ];
+    const { container } = render(
+      <DayShareImage
+        data={{
+          ...data({ food: true, training: false, note: false }),
+          meals: buildDayMeals({ date: D, entries: day, records, names: MEAL_NAMES }),
+        }}
+      />,
+    );
+    const meals = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(meals).toEqual([
+      'Snacks78 kcal',
+      'Snacks126 kcal',
+      'Kuchen bei Oma mit der ganzen Familie und den Nachbarn310 kcal',
+    ]);
+    expect(screen.getByText('10:15')).toBeTruthy();
+    expect(screen.getByText('16:05')).toBeTruthy();
+    // The night after the 2nd: on a Tuesday.
+    expect(screen.getByText('00:30').parentElement!.textContent).toBe('00:30Di.');
+    // No marquee: a long name is cut off.
+    expect(screen.getByText(/^Kuchen bei Oma/).className).toContain('truncate');
+    expect(container.querySelector('.marquee')).toBeNull();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
   it('adds training and note only when chosen; without food only those', () => {
