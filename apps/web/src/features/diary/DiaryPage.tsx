@@ -1,4 +1,4 @@
-import { addDays, MEAL_COUNT } from '@ft/shared';
+import { addDays } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight, Share, Target } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -11,10 +11,11 @@ import {
   useDaySuggestions,
   useDayEntries,
   useDayExercises,
+  useDayMeals,
   useDayNote,
   useDaySummary,
   useGoals,
-  usePendingAnalyses,
+  useMealChoice,
   useSettings,
   useToday,
 } from '@/hooks/data';
@@ -26,7 +27,7 @@ import { ClipboardMenu } from './ClipboardMenu';
 import { DiaryDnd } from './DiaryDnd';
 import { useDiaryScroll } from './diaryScroll';
 import { ExerciseCard } from './ExerciseCard';
-import { MealCard } from './MealCard';
+import { AddMealLink, EmptyMealCard, MealCard } from './MealCard';
 import { NoteCard } from './NoteCard';
 import { ShareDayDialog } from './share/ShareDayDialog';
 import { showsWeekReview, WeekReviewCard } from './WeekReviewCard';
@@ -40,7 +41,8 @@ export function DiaryPage() {
   const summary = useDaySummary(date);
   const entries = useDayEntries(date);
   const exercises = useDayExercises(date);
-  const pending = usePendingAnalyses(date);
+  const meals = useDayMeals(date);
+  const next = useMealChoice(date, 0, 'new')?.next;
   const clipboard = useClipboard();
   const suggestions = useDaySuggestions(date);
   const settings = useSettings();
@@ -54,7 +56,7 @@ export function DiaryPage() {
   // Position and new rows are set once nothing changes the height of the meal cards any more.
   useDiaryScroll(
     date,
-    !!summary && !!entries && !!exercises && !!settings && pending !== undefined && suggestions !== undefined,
+    !!summary && !!entries && !!exercises && !!settings && !!meals && !!next && suggestions !== undefined,
   );
   const go = (d: string) => void navigate({ to: '/', search: { date: d === today ? undefined : d } });
   const longDate = fmtRelativeDay(date, today);
@@ -146,7 +148,7 @@ export function DiaryPage() {
           </div>
         </Link>
       )}
-      {!summary || !entries || !exercises || !settings ? (
+      {!summary || !entries || !exercises || !settings || !meals || !next ? (
         <div className="grid gap-4">
           <Skeleton className="h-56 rounded-2xl" />
           <Skeleton className="h-28 rounded-2xl" />
@@ -160,21 +162,26 @@ export function DiaryPage() {
           {/* Set up before the four goals: offer the new calculation once (X hides it). */}
           {date === today && <RecalcGoalCard today={today} />}
           {/* Long press on an entry, then drop it on another meal to move it there. */}
-          <DiaryDnd mealNames={settings.mealNames}>
-            {Array.from({ length: MEAL_COUNT }, (_, m) => (
+          <DiaryDnd meals={meals}>
+            {meals.map((meal) => (
               <MealCard
-                key={m}
-                date={date}
-                meal={m}
-                name={settings.mealNames[m] ?? `Mahlzeit ${m + 1}`}
-                entries={entries.filter((e) => e.meal === m)}
-                totals={summary.perMeal[m] ?? {}}
-                pending={pending?.filter((p) => p.meal === m)}
+                key={meal.id}
+                meal={meal}
                 clipboard={foodClipboard(clipboard)}
-                suggestions={suggestions?.get(m)}
+                suggestions={suggestions?.get(meal.slot)}
               />
             ))}
           </DiaryDnd>
+          {meals.length === 0 ? (
+            <EmptyMealCard
+              date={date}
+              next={next}
+              clipboard={foodClipboard(clipboard)}
+              suggestions={suggestions?.get(next.slot)}
+            />
+          ) : (
+            <AddMealLink date={date} next={next} />
+          )}
           <ExerciseCard
             date={date}
             exercises={exercises}

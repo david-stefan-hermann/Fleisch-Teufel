@@ -17,14 +17,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useDb } from '@/app/session';
 import { readClipboard, type AnyClipboard } from '@/db/clipboard';
-import type { AiQueueItem } from '@/db/dexie';
-import {
-  isWaitingAnalysis,
-  readDay,
-  readMealChoice,
-  type DiaryDayMeal,
-  type MealChoice,
-} from '@/db/diaryMeals';
+import { readDay, readMealChoice, type DiaryDayMeal, type MealChoice } from '@/db/diaryMeals';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
@@ -133,19 +126,6 @@ export function useDaySummary(date: ISODate): DaySummary | undefined {
   const settings = useSettings();
   if (!entries || !exercises || !goals || !settings) return undefined;
   return summarizeDay({ date, entries, exercises, goals, settings });
-}
-
-/**
- * Photos of a day that are not analysed yet (waiting for a connection, running, failed): the
- * placeholder rows of the diary. They live on this device only and count in no sum.
- */
-export function usePendingAnalyses(date: ISODate): AiQueueItem[] | undefined {
-  const db = useDb();
-  return useLiveQuery(
-    // Not analysed yet, or analysed but its logging failed (shows "Wiederholen" like a failed analysis).
-    () => db.aiQueue.filter((i) => i.date === date && isWaitingAnalysis(i)).sortBy('createdAt'),
-    [db, date],
-  );
 }
 
 /** Dates in [from, to] that have at least one diary entry (week strip dots). */

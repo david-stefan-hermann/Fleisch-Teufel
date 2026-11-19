@@ -387,6 +387,7 @@ test('add menu: weight, food (highlighted, middle), training; the food page lead
     await expect(page.getByText(/^(Gestern|Morgen), /)).toHaveCount(0);
   }
   // The "+" of a meal always wins.
+  await quickAdd(page, 1, 'Suppe', '100');
   await page.goto('/');
   await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
@@ -424,35 +425,35 @@ async function quickAdd(page: Page, meal: number, name: string, kcal: string) {
 const mealCard = (page: Page, name: string) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name }) });
 
-test('the "+" of a meal opens the food page for that meal, ⋯ of an empty meal has nothing to do', async ({
+test('an empty day offers the next meal; the "+" of a meal opens the food page for that meal', async ({
   page,
 }) => {
   await register(page);
   await page.goto('/');
+  // One card for the next meal, nothing to do on it but logging.
+  await expect(page.getByRole('button', { name: /^Aktionen für / })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Essen zu Frühstück eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*dm=new/);
+  await page.goto('/');
+  await mealCard(page, 'Frühstück').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
+  await expect(page).toHaveURL(/\/photo\?.*dm=new/);
+
+  await quickAdd(page, 1, 'Suppe', '100');
   await page.getByRole('button', { name: 'Aktionen für Mittagessen' }).click();
-  for (const name of ['Kopieren', 'Als Meal speichern', 'Alle Einträge löschen'])
-    await expect(page.getByRole('menuitem', { name })).toBeDisabled();
+  for (const name of ['Kopieren', 'Als Meal speichern', 'Mahlzeit löschen'])
+    await expect(page.getByRole('menuitem', { name })).toBeEnabled();
   await expect(page.getByRole('menuitem', { name: 'Wie gestern eintragen' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
   await expect(page.getByRole('button', { name: 'Mahlzeit: Mittagessen' })).toBeVisible();
 
-  // The empty state of a meal goes there as well.
-  await page.goto('/');
-  await mealCard(page, 'Abendessen').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
-  await expect(page).toHaveURL(/\/photo\?.*meal=2/);
-
-  // So do the "+" and the empty state on the meal page, whose ⋯ menu has nothing to save while it is empty.
+  // The same "+" on the meal's own page; a meal the day does not have has no page.
+  await page.goto('/diary-meal?meal=1');
+  await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
+  await expect(page).toHaveURL(/\/photo\?.*meal=1/);
   await page.goto('/diary-meal?meal=3');
-  await page.getByRole('button', { name: 'Aktionen für Snacks' }).click();
-  await expect(page.getByRole('menuitem', { name: 'Als Meal speichern' })).toBeDisabled();
-  await page.keyboard.press('Escape');
-  await page.getByRole('main').getByRole('link', { name: 'Essen eintragen', exact: true }).click();
-  await expect(page).toHaveURL(/\/photo\?.*meal=3/);
-  await page.goto('/diary-meal?meal=3');
-  await page.getByRole('link', { name: 'Essen zu Snacks eintragen' }).click();
-  await expect(page).toHaveURL(/\/photo\?.*meal=3/);
+  await expect(page.getByText('Mahlzeit nicht gefunden')).toBeVisible();
 });
 
 test('back means the page before: the diary keeps its place, shows the new entry, never reopens a form', async ({
@@ -461,6 +462,7 @@ test('back means the page before: the diary keeps its place, shows the new entry
   await register(page);
   for (const meal of [0, 1])
     for (const n of [1, 2, 3, 4, 5]) await quickAdd(page, meal, `Happen ${meal}${n}`, '100');
+  await quickAdd(page, 2, 'Tee', '5');
   // A clean history inside the app: "Mehr", then the diary.
   await page.goto('/more');
   await page.getByRole('link', { name: 'Tagebuch' }).click();
@@ -631,6 +633,7 @@ test('a diary group: the row opens its editor, the chevron expands, the saved me
 
 test('drag an entry to another meal, with undo', async ({ page }) => {
   await register(page);
+  await quickAdd(page, 1, 'Suppe', '200');
   await quickAdd(page, 0, 'Banane', '105');
   const row = page.getByText('Banane', { exact: true });
   await row.evaluate((el) => el.scrollIntoView({ block: 'center' }));
@@ -651,7 +654,7 @@ test('drag an entry to another meal, with undo', async ({ page }) => {
   await expect(mealCard(page, 'Mittagessen')).toHaveClass(/ring-2/);
   await page.mouse.up();
 
-  await expect(page.getByText('Nach Mittagessen verschoben', { exact: true })).toBeVisible();
+  await expect(page.getByText('Banane zu Mittagessen verschoben', { exact: true })).toBeVisible();
   await expect(mealCard(page, 'Mittagessen').getByText('Banane', { exact: true })).toBeVisible();
   await expect(mealCard(page, 'Frühstück').getByText('Banane', { exact: true })).toHaveCount(0);
   // The drop did not open the entry, and no delete button was revealed on the way.
@@ -672,6 +675,7 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   await register(page);
   await quickAdd(page, 0, 'Joghurt', '150');
   await quickAdd(page, 0, 'Beeren', '50');
+  await quickAdd(page, 3, 'Nüsse', '100');
   await saveDiaryMeal(page, 'Frühstück', 'Bowl');
   await page.goto('/add?meal=1&tab=mine');
   await page.getByRole('link', { name: /Bowl/ }).click();
@@ -694,7 +698,7 @@ test('touch: long press drags a whole saved meal to another meal', async ({ page
   for (let i = 1; i <= 10; i++) await touch('touchMove', x, y0 + ((y1 - y0) * i) / 10);
   await touch('touchEnd');
 
-  await expect(page.getByText('Nach Snacks verschoben', { exact: true })).toBeVisible();
+  await expect(page.getByText('Bowl zu Snacks verschoben', { exact: true })).toBeVisible();
   const moved = mealCard(page, 'Snacks').getByRole('button', { name: /Bowl/ });
   await expect(moved).toBeVisible();
   // Both ingredients moved as one row; the drop did not expand the group.

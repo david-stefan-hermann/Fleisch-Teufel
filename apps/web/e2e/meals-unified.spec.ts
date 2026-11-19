@@ -43,8 +43,8 @@ async function lunch(page: Page) {
   await page.goto('/');
   await mealMenu(page, 'Frühstück', 'Als Meal speichern');
   await saveMealDialog(page, 'Bowl');
-  await mealMenu(page, 'Frühstück', 'Alle Einträge löschen');
-  await expect(page.getByText('Frühstück geleert')).toBeVisible();
+  await mealMenu(page, 'Frühstück', 'Mahlzeit löschen');
+  await expect(page.getByText('Frühstück gelöscht')).toBeVisible();
   await quickAdd(page, 1, 'Brot', '250');
   await page.goto('/add?meal=1&tab=mine');
   await page.getByRole('link', { name: /Bowl/ }).click();
@@ -77,6 +77,12 @@ test('diary meal ⋯: copy a whole meal to another day, save it as a meal, delet
     expect(b.x + b.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
   }
   await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await expect(page).toHaveURL(/date=/);
+  const yesterday = new URL(page.url()).searchParams.get('date');
+  await page.goto(`/photo?form=1&date=${yesterday}&meal=2`);
+  await page.getByLabel('Was hast du gegessen?').fill('Tee');
+  await page.getByLabel('Kalorien').fill('5');
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await page.getByRole('button', { name: '„Mittagessen“ in Abendessen eintragen' }).click();
   await expect(page.getByText('„Mittagessen“ in Abendessen eingetragen')).toBeVisible();
   const dinner = mealCard(page, 'Abendessen');
@@ -92,13 +98,13 @@ test('diary meal ⋯: copy a whole meal to another day, save it as a meal, delet
   );
   await saveMealDialog(page, 'Mittag komplett');
 
-  // Delete all entries, then undo.
-  await mealMenu(page, 'Mittagessen', 'Alle Einträge löschen');
-  await expect(page.getByText('Mittagessen geleert')).toBeVisible();
+  // Delete the meal, then undo.
+  await mealMenu(page, 'Mittagessen', 'Mahlzeit löschen');
+  await expect(page.getByText('Mittagessen gelöscht')).toBeVisible();
   await expect(lunchCard.getByText('Brot', { exact: true })).toHaveCount(0);
   await page
     .locator('[data-sonner-toast]')
-    .filter({ hasText: 'Mittagessen geleert' })
+    .filter({ hasText: 'Mittagessen gelöscht' })
     .getByRole('button', { name: 'Rückgängig' })
     .click();
   await expect(lunchCard.getByText('Brot', { exact: true })).toBeVisible();

@@ -305,19 +305,6 @@ export async function reorderTrainings(
   });
 }
 
-/**
- * Moves diary entries to another meal of the same day (drag and drop in the diary). `loggedAt` and
- * `groupId` stay, so a saved meal moves as one row and keeps its place in the time order.
- */
-export async function moveEntriesToMeal(db: UserDb, ids: readonly string[], meal: number): Promise<void> {
-  await db.transaction('rw', [db.foodEntries, db.outbox], async () => {
-    for (const id of ids) {
-      const prev = await db.foodEntries.get(id);
-      if (prev && !prev.deleted && prev.meal !== meal) await patchRecord(db, 'foodEntries', id, { meal });
-    }
-  });
-}
-
 /** The fields of a saved training from its activities: activity 1 in the flat fields, the rest in `extraItems`. */
 function trainingFields(items: readonly TrainingItem[]) {
   const [first, ...rest] = items;

@@ -13,8 +13,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 2     | 573e8b6 | Reine Tageslogik `packages/shared/src/dayMeals.ts`      | fertig |
 | 3     | 44c195d | Schreibschicht auf dem Gerät                            | fertig |
 | 4     | 709fb96 | Ziel wählen: 30 Minuten, URL, Kopfzeile, Formulare      | fertig |
-| 5     | s. Log  | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
-| 6     |         | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | offen  |
+| 5     | b344dfc | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
+| 6     | s. Log  | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
 | 7     |         | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | offen  |
 | 8     |         | Uhrzeit-Dialog und Nacht                                | offen  |
 | 9     |         | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
@@ -58,6 +58,20 @@ Block 5:
 - `QueueList.tsx` brauchte keine Änderung, `hooks/data.ts` und `db/diaryMeals.ts` kamen zur Dateiliste dazu.
 - Übergang bis Block 6: Das Tagebuch zeigt wartende Analysen weiter in den vier Fächern (`p.meal`), `useDayMeals` liefert sie
   schon in ihrer Mahlzeit.
+
+Block 6:
+
+- Die Uhrzeit ist bis Block 8 reiner Text, der Name bis Block 7. Maße und Tippfläche der Zeitzeile stehen schon wie im Mockup.
+- Eine Mahlzeit nur aus wartenden Analysen hat weder ⋯ noch kcal-Link (Mockup: `empty`). Es gibt dort nichts zu kopieren oder zu löschen.
+- Die leere Karte zeigt beim Kopieren das Einfügen-Symbol wie im Mockup, sonst ließe sich in einen leeren Tag nichts einfügen.
+- Die Ablagefläche beim Ziehen umfasst auch die Zeitzeile über der Karte, damit zwischen den Karten keine 40 px tote Fläche liegen.
+  Aufleuchten tut nur die Karte. `data-meal` steht deshalb am Wrapper, `Section` reicht keine weiteren Attribute mehr durch.
+- `/diary-meal`: Wird der letzte Eintrag dort weggewischt, bleibt die Seite leer stehen, damit „Rückgängig“ nicht auf `NotFoundPage` führt.
+  Erst ein neuer Aufruf zeigt `NotFoundPage`. Ein Link nur mit `meal` findet seine Mahlzeit über `useMealChoice`.
+- `usePendingAnalyses` ist entfallen, das Tagebuch liest wartende Analysen aus `useDayMeals`.
+- Übergang bis Block 7: Bei vierstelligen kcal und sichtbarem Einfügen-Symbol wird ein langer Name bei 375 px abgeschnitten („Mittage…“).
+- Übergang bis Block 9: Einfügen, „Zuletzt hier“ und „Wie gestern“ schreiben weiter nur über `meal`. Hat ein Tag zwei Mahlzeiten mit
+  demselben Index, landet der Eintrag nach Regel 3 in der jüngsten passenden, nicht zwingend in der angetippten Karte.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

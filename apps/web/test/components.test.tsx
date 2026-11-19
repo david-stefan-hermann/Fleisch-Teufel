@@ -1,5 +1,13 @@
 import { summarizeDay, targetsForDate, uuidv7 } from '@ft/shared';
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { StrictMode, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BarcodeScanner, TorchButton, type TorchState } from '@/components/BarcodeScanner';
@@ -10,6 +18,8 @@ import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { MacroSummary } from '@/features/diary/MacroSummary';
 import { DayShareImage, type DayShareData } from '@/features/diary/share/DayShareImage';
+import { DiaryDnd } from '@/features/diary/DiaryDnd';
+import { AddMealLink, EmptyMealCard, MealCard } from '@/features/diary/MealCard';
 import { NutrientsDisclosure } from '@/components/NutrientsDisclosure';
 import { NutrientEditor } from '@/components/NutrientEditor';
 import { initFromFood, resetKcal, setField } from '@/features/foods/customFoodForm';
@@ -27,7 +37,8 @@ import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { Wheel } from '@/components/Wheel';
 import { DurationWheel } from '@/components/DurationWheel';
-import { UserDb } from '@/db/dexie';
+import type { DiaryDayMeal } from '@/db/diaryMeals';
+import { UserDb, type AiQueueItem } from '@/db/dexie';
 import { ViewportVars } from '@/hooks/useVisualViewport';
 import { fmtGrams, NO_VALUE } from '@/lib/format';
 import { IngredientCard } from '@/features/meals/IngredientCard';
@@ -35,6 +46,8 @@ import type { ExerciseEntry, FoodEntry, MealItem } from '@ft/shared';
 
 // MealPhoto reads the database from the session; components here only need a throwaway one.
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
+// The row of a waiting analysis follows the running session; the cards only place it.
+vi.mock('@/features/diary/PendingAnalysisRow', () => ({ PendingAnalysisRow: () => null }));
 let sessionDb: UserDb;
 beforeEach(() => {
   sessionDb = new UserDb(`s-${uuidv7()}`);
@@ -2069,5 +2082,96 @@ describe('DayShareImage', () => {
 describe('labelErrorMessage', () => {
   it('names the label limit for too many photos', () => {
     expect(labelErrorMessage(new ApiError(400, 'too_many_images'))).toBe('Höchstens 5 Fotos je Etikett.');
+  });
+});
+
+describe('diary meal cards', () => {
+  const DATE = '2026-11-19';
+  const entry = {
+    id: 'e1',
+    date: DATE,
+    meal: 1,
+    loggedAt: new Date(2026, 10, 19, 12, 35).getTime(),
+    foodId: null,
+    source: 'quick',
+    name: 'Linseneintopf',
+    brand: null,
+    grams: null,
+    portionLabel: null,
+    portionGrams: null,
+    quantity: 1,
+    per100: null,
+    nutrients: { ENERCC: 509 },
+    updatedAt: 1,
+    deleted: false,
+  } as unknown as FoodEntry;
+  const meal = (over: Partial<DiaryDayMeal> = {}): DiaryDayMeal => ({
+    id: 'meal-1',
+    date: DATE,
+    name: 'Mittagessen',
+    eatenAt: new Date(2026, 10, 19, 12, 35).getTime(),
+    slot: 1,
+    virtual: false,
+    timeEdited: false,
+    night: false,
+    entries: [entry],
+    pending: [],
+    ...over,
+  });
+
+  /** Inside a minimal router: the cards are made of links. */
+  function renderInRouter(ui: ReactNode) {
+    const root = createRootRoute();
+    const diary = createRoute({ getParentRoute: () => root, path: '/', component: () => ui });
+    const router = createRouter({
+      routeTree: root.addChildren([diary]),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    });
+    return render(<RouterProvider router={router} />);
+  }
+  const renderCard = (m: DiaryDayMeal) =>
+    renderInRouter(
+      <DiaryDnd meals={[m]}>
+        <MealCard meal={m} />
+      </DiaryDnd>,
+    );
+
+  it('shows the time above the card and keeps name, kcal and actions in its header', async () => {
+    renderCard(meal());
+    const time = await screen.findByText('12:35');
+    const card = screen.getByRole('heading', { level: 2, name: /Mittagessen/ }).closest('section')!;
+    expect(card.contains(time)).toBe(false);
+    expect(time.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const open = within(card).getByRole('link', { name: 'Mittagessen, 509 kcal' });
+    expect(open.getAttribute('href')).toContain('/diary-meal');
+    expect(open.getAttribute('href')).toContain('dm=meal-1');
+    expect(within(card).getByRole('button', { name: 'Aktionen für Mittagessen' })).toBeTruthy();
+    expect(
+      within(card).getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).getAttribute('href'),
+    ).toContain('dm=meal-1');
+  });
+
+  it('a meal of waiting analyses alone has its name and time, nothing to open or delete', async () => {
+    const waiting = { localId: 1 } as unknown as AiQueueItem;
+    renderCard(meal({ entries: [], pending: [waiting] }));
+    expect(await screen.findByText('12:35')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /^Mittagessen,/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Aktionen für Mittagessen' })).toBeNull();
+  });
+
+  it('the empty card names the next meal, has no time and no ⋯, and starts a new meal', async () => {
+    renderInRouter(<EmptyMealCard date={DATE} next={{ name: 'Frühstück', slot: 0 }} />);
+    const card = (await screen.findByRole('heading', { level: 2, name: 'Frühstück' })).closest('section')!;
+    expect(card.textContent).not.toMatch(/\d\d:\d\d/);
+    expect(within(card).queryByRole('button', { name: /^Aktionen/ })).toBeNull();
+    for (const name of ['Essen zu Frühstück eintragen', 'Essen eintragen'])
+      expect(within(card).getByRole('link', { name }).getAttribute('href')).toContain('dm=new');
+  });
+
+  it('"Mahlzeit hinzufügen" starts a new meal', async () => {
+    renderInRouter(<AddMealLink date={DATE} next={{ name: 'Abendessen', slot: 2 }} />);
+    const link = await screen.findByRole('link', { name: 'Mahlzeit hinzufügen' });
+    expect(link.getAttribute('href')).toContain('dm=new');
   });
 });

@@ -854,11 +854,13 @@ test('a photo taken offline shows in the diary right away and is logged once ana
   // Offline: straight to the diary, where the photo waits in its meal without kcal.
   await expect(page.getByText(/^Offline gespeichert\./)).toBeVisible();
   await expect(page).toHaveURL(/\/\?date=|\/$/);
-  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+  const lunch = page.locator('section', {
+    has: page.getByRole('heading', { level: 2, name: 'Mittagessen' }),
+  });
   const waiting = lunch.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
   await expect(waiting).toContainText('Gespeichert, wird analysiert, sobald du online bist');
   await expect(waiting.getByLabel('noch keine Kalorien')).toBeVisible();
-  await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).not.toContainText('kcal');
+  await expect(lunch.getByRole('link', { name: /^Mittagessen/ })).toHaveCount(0);
   await expect.poll(() => waiting.locator('img').evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(192);
 
   // Back online the analysis runs and the result is logged by itself, as a normal group.
@@ -941,7 +943,9 @@ test('a photo taken offline for a new meal waits in it and creates it once analy
   await page.getByRole('button', { name: 'Analysieren' }).click();
   await expect(page.getByText(/^Offline gespeichert\./)).toBeVisible();
 
-  const breakfast = page.locator('section', { has: page.getByRole('link', { name: /^Frühstück/ }) });
+  const breakfast = page.locator('section', {
+    has: page.getByRole('heading', { level: 2, name: 'Frühstück' }),
+  });
   const waiting = breakfast.getByRole('listitem').filter({ hasText: 'Foto-Analyse' });
   await expect(waiting).toContainText('Gespeichert, wird analysiert, sobald du online bist');
 
@@ -1066,7 +1070,9 @@ test('leaving during the analysis goes to the diary; the result is logged there,
     await new Promise<void>((resolve) => releases.push(resolve));
     await r.fulfill({ json: result(dish) });
   });
-  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+  const lunch = page.locator('section', {
+    has: page.getByRole('heading', { level: 2, name: 'Mittagessen' }),
+  });
 
   // 1. The back arrow: straight to the diary, the photo waits there as "Wird analysiert…".
   await page.goto('/photo?meal=1');
@@ -1192,7 +1198,9 @@ test('several photos: preview, review and diary group editor add photos, ↻ sen
   await page.getByRole('button', { name: 'Meal eintragen' }).click();
 
   // Diary: one group row with three photos.
-  const lunch = page.locator('section', { has: page.getByRole('link', { name: /^Mittagessen/ }) });
+  const lunch = page.locator('section', {
+    has: page.getByRole('heading', { level: 2, name: 'Mittagessen' }),
+  });
   await expect(lunch.getByLabel('3 Fotos')).toBeVisible();
   await lunch.getByRole('link', { name: 'Schnitzel mit Tiramisu' }).click();
 
@@ -1239,6 +1247,8 @@ test('clipboard: swipe right copies a diary row, paste into other meals and days
   page,
 }) => {
   await register(page);
+  await quickAdd(page, 2, 'Tee', '5');
+  await quickAdd(page, 3, 'Nüsse', '100');
   await quickAdd(page, 0, 'Joghurt', '150');
   await quickAdd(page, 0, 'Beeren', '50');
   await saveDiaryMeal(page, 'Frühstück', 'Bowl');
@@ -1296,8 +1306,8 @@ test('clipboard: swipe right copies a diary row, paste into other meals and days
   await expect(menu.getByText('Beeren', { exact: true })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Als Meal speichern' })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: '„Beeren“ in Snacks eintragen' }).click();
-  await expect(page.getByText('„Beeren“ in Snacks eingetragen')).toBeVisible();
+  await page.getByRole('button', { name: '„Beeren“ in Frühstück eintragen' }).click();
+  await expect(page.getByText('„Beeren“ in Frühstück eingetragen')).toBeVisible();
   await expect(page.getByRole('button', { name: '1 Zutat von Beeren' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /Beeren/ })).toHaveCount(2);
 

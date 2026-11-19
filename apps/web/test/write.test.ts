@@ -19,7 +19,6 @@ import {
   logFoodEntry,
   logItems,
   logQuickEntry,
-  moveEntriesToMeal,
   readPhotoBytes,
   reorderTrainings,
   logTrainings,
@@ -31,6 +30,7 @@ import {
   saveMealFromItems,
   saveQuickEntry,
 } from '@/db/entries';
+import { moveEntriesToDiaryMeal, readDay, restoreEntryMeals } from '@/db/diaryMeals';
 import {
   addGroupDraftPhotos,
   addItemToGroupDraft,
@@ -804,32 +804,32 @@ describe('local writes', () => {
     const group = before.filter((e) => e.groupId);
     await d.outbox.clear();
 
-    await moveEntriesToMeal(
+    await logItems(d, [item], { date: '2026-10-07', meal: 2 });
+    await d.outbox.clear();
+    const mealOf = async (slot: number) => (await readDay(d, '2026-10-07')).find((m) => m.slot === slot)!;
+
+    const moved = await moveEntriesToDiaryMeal(
       d,
       group.map((e) => e.id),
-      2,
+      await mealOf(2),
     );
-    const after = await d.foodEntries.orderBy('loggedAt').toArray();
-    expect(after.map((e) => e.meal)).toEqual([2, 2, 0]);
-    expect(after.map((e) => [e.loggedAt, e.groupId, e.date])).toEqual(
+    const after = await d.foodEntries.bulkGet(before.map((e) => e.id));
+    expect(after.map((e) => e!.meal)).toEqual([2, 2, 0]);
+    expect(after.map((e) => [e!.loggedAt, e!.groupId, e!.date])).toEqual(
       before.map((e) => [e.loggedAt, e.groupId, e.date]),
     );
     expect(after[0]!.updatedAt).toBeGreaterThan(before[0]!.updatedAt);
     // Both moved entries are queued for sync, the untouched one is not.
-    expect((await d.outbox.toArray()).map((o) => o.id).sort()).toEqual(group.map((e) => e.id).sort());
+    const queued = (await d.outbox.toArray()).filter((o) => o.table === 'foodEntries');
+    expect(queued.map((o) => o.id).sort()).toEqual(group.map((e) => e.id).sort());
 
     // Undo moves them back; moving to the meal they are in, or a deleted entry, writes nothing.
-    await moveEntriesToMeal(
-      d,
-      group.map((e) => e.id),
-      0,
-    );
-    expect((await d.foodEntries.toArray()).every((e) => e.meal === 0)).toBe(true);
-    await d.outbox.clear();
-    await moveEntriesToMeal(d, [group[0]!.id], 0);
+    await restoreEntryMeals(d, moved);
+    expect((await d.foodEntries.bulkGet(group.map((e) => e.id))).every((e) => e!.meal === 0)).toBe(true);
     await deleteRecord(d, 'foodEntries', group[1]!.id);
     await d.outbox.clear();
-    await moveEntriesToMeal(d, [group[1]!.id, 'missing'], 3);
+    expect(await moveEntriesToDiaryMeal(d, [group[0]!.id], await mealOf(0))).toEqual([]);
+    expect(await moveEntriesToDiaryMeal(d, [group[1]!.id, 'missing'], await mealOf(2))).toEqual([]);
     expect(await d.outbox.count()).toBe(0);
     expect((await d.foodEntries.get(group[1]!.id))!.meal).toBe(0);
   });

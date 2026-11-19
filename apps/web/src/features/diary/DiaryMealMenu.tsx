@@ -22,7 +22,8 @@ import { copyYesterdayWithToast } from './MealSuggestions';
 /**
  * The ⋯ menu of a diary meal (card header in the diary and `/diary-meal`): copy the whole meal into the
  * clipboard, save it as a reusable meal (every ingredient on its own), log yesterday's meal again and
- * delete all its entries (with undo). Waiting analyses are not entries and stay out of all of it.
+ * delete the meal, which means its entries (with undo). Waiting analyses are not entries and stay out of
+ * all of it.
  */
 export function DiaryMealMenu({
   date,
@@ -31,6 +32,7 @@ export function DiaryMealMenu({
   entries,
   yesterdayKcal,
   iconClassName = 'size-5',
+  onDeleted,
 }: {
   date: ISODate;
   meal: number;
@@ -40,6 +42,8 @@ export function DiaryMealMenu({
   yesterdayKcal: number;
   /** Icon size: 20 px in a card header; page headers pass '' and get their 24 px. */
   iconClassName?: string;
+  /** After "Mahlzeit löschen", for a page that shows only this meal. */
+  onDeleted?: () => void;
 }) {
   const db = useDb();
   const { busy, run } = useSubmitting();
@@ -75,9 +79,14 @@ export function DiaryMealMenu({
           <DropdownMenuItem
             variant="destructive"
             disabled={empty || busy}
-            onSelect={() => void run(() => removeEntriesWithUndo(db, [...entries], `${mealName} geleert`))}
+            onSelect={() =>
+              void run(async () => {
+                await removeEntriesWithUndo(db, [...entries], `${mealName} gelöscht`);
+                onDeleted?.();
+              })
+            }
           >
-            <Trash2 aria-hidden /> Alle Einträge löschen
+            <Trash2 aria-hidden /> Mahlzeit löschen
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

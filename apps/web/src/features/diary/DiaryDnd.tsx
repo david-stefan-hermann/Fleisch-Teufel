@@ -30,7 +30,7 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { moveEntriesToMeal } from '@/db/entries';
+import { moveEntriesToDiaryMeal, restoreEntryMeals, type DiaryDayMeal } from '@/db/diaryMeals';
 import { errorMessage } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -41,7 +41,8 @@ export const DRAG_ACTIVATION = { delay: 300, tolerance: 8 } as const;
 /** What a dragged row carries: the entries it stands for and what the drag preview shows. */
 export interface DragRowData {
   ids: string[];
-  meal: number;
+  /** The id of the meal the row stands in. */
+  meal: string;
   name: string;
   detail: string;
   nutrients: NutrientMap;
@@ -65,27 +66,30 @@ export function useDiaryDrag() {
   return useContext(DragState);
 }
 
-export function DiaryDnd({ mealNames, children }: { mealNames: string[]; children: ReactNode }) {
+export function DiaryDnd({ meals, children }: { meals: readonly DiaryDayMeal[]; children: ReactNode }) {
   const db = useDb();
   const sensors = useDragSensors();
   const [active, setActive] = useState<DragRowData | null>(null);
   const moving = useRef(false);
-  const mealName = (m: number) => mealNames[m] ?? `Mahlzeit ${m + 1}`;
   const rowOf = (data: unknown) => data as DragRowData | undefined;
-  const mealOf = (data: unknown) => (data as { meal?: number } | undefined)?.meal;
+  const mealOf = (data: unknown) => {
+    const id = (data as { meal?: string } | undefined)?.meal;
+    return meals.find((m) => m.id === id);
+  };
 
   async function onDragEnd(e: DragEndEvent) {
     setActive(null);
     const row = rowOf(e.active.data.current);
     const target = mealOf(e.over?.data.current);
-    if (!row || target === undefined || target === row.meal) return;
+    if (!row || !target || target.id === row.meal) return;
     // One move at a time: a second drop while the first is written is ignored.
     if (moving.current) return;
     moving.current = true;
     try {
-      await moveEntriesToMeal(db, row.ids, target);
-      toast(`Nach ${mealName(target)} verschoben`, {
-        action: { label: 'Rückgängig', onClick: () => void moveEntriesToMeal(db, row.ids, row.meal) },
+      const moved = await moveEntriesToDiaryMeal(db, row.ids, target);
+      if (moved.length === 0) return;
+      toast(`${row.name} zu ${target.name} verschoben`, {
+        action: { label: 'Rückgängig', onClick: () => void restoreEntryMeals(db, moved) },
       });
     } catch (err) {
       toast.error(errorMessage(err));
@@ -100,14 +104,14 @@ export function DiaryDnd({ mealNames, children }: { mealNames: string[]; childre
     onDragOver: ({ active, over }) => {
       const name = rowOf(active.data.current)?.name ?? 'Eintrag';
       const m = mealOf(over?.data.current);
-      return m === undefined ? `${name} ist über keiner Mahlzeit.` : `${name} ist über ${mealName(m)}.`;
+      return m ? `${name} ist über ${m.name}.` : `${name} ist über keiner Mahlzeit.`;
     },
     onDragEnd: ({ active, over }) => {
       const row = rowOf(active.data.current);
       const m = mealOf(over?.data.current);
-      return m === undefined || m === row?.meal
+      return !m || m.id === row?.meal
         ? `${row?.name ?? 'Eintrag'} nicht verschoben.`
-        : `${row?.name ?? 'Eintrag'} nach ${mealName(m)} verschoben.`;
+        : `${row?.name ?? 'Eintrag'} zu ${m.name} verschoben.`;
     },
     onDragCancel: ({ active }) =>
       `Verschieben von ${rowOf(active.data.current)?.name ?? 'Eintrag'} abgebrochen.`,
@@ -171,8 +175,8 @@ export function DraggableRow({ id, data, children }: { id: string; data: DragRow
 }
 
 /** Drop target state of a meal card. */
-export function useMealDropZone(meal: number) {
+export function useMealDropZone(meal: string) {
   const { setNodeRef, isOver, active } = useDroppable({ id: `meal-${meal}`, data: { meal } });
   const from = (active?.data.current as DragRowData | undefined)?.meal;
-  return { setDropRef: setNodeRef, isOver: isOver && from !== meal, dragging: active !== null };
+  return { setDropRef: setNodeRef, isOver: isOver && from !== meal };
 }

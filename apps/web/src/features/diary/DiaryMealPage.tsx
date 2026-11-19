@@ -1,15 +1,25 @@
 import { sumNutrients, targetsForDate } from '@ft/shared';
-import { Link, useSearch } from '@tanstack/react-router';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { Plus, UtensilsCrossed } from 'lucide-react';
+import { useState } from 'react';
 import { useDb } from '@/app/session';
+import { NotFoundPage } from '@/components/NotFoundPage';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { foodClipboard } from '@/db/clipboard';
-import { useClipboard, useDaySuggestions, useGoals, useSettings, useToday } from '@/hooks/data';
+import type { DiaryDayMeal } from '@/db/diaryMeals';
+import {
+  useClipboard,
+  useDayMeals,
+  useDaySuggestions,
+  useGoals,
+  useMealChoice,
+  useToday,
+} from '@/hooks/data';
 import { fmtRelativeDay } from '@/lib/format';
+import { goBackOr } from '@/lib/history';
 import { useRememberLogStart } from '@/lib/logFlow';
 import { DiaryRows, PasteButton } from './MealCard';
 import { DiaryMealMenu } from './DiaryMealMenu';
@@ -20,33 +30,55 @@ import { warmUpCamera } from '@/components/cameraWarmup';
  * One diary meal (Frühstück, Mittagessen, ...) of a day, opened from its card header: the nutrient
  * overview of the meal against the day's targets, then its entries (swipe to delete, tap to edit) and
  * "Zuletzt hier". Header like the diary card: the paste icon (when something is copied) logs the
- * clipboard into this meal, ⋯ (`DiaryMealMenu`) copies, saves or empties it, "+" opens the food page.
+ * clipboard into this meal, ⋯ (`DiaryMealMenu`) copies, saves or deletes it, "+" opens the food page.
+ * A meal whose last entry goes while the page is open stays here, empty: undo brings it back.
  */
 export function DiaryMealPage() {
-  const { date, meal } = useSearch({ from: '/authed/diary-meal' });
+  const { date, meal: slot, dm } = useSearch({ from: '/authed/diary-meal' });
+  const meals = useDayMeals(date);
+  const choice = useMealChoice(date, slot, dm);
+  const [kept, setKept] = useState<DiaryDayMeal | null>(null);
+  const found = choice && meals?.find((m) => m.id === choice.current.id);
+  if (found && found !== kept) setKept(found);
+
+  if (!meals || !choice) return <MealPageLoading />;
+  const emptied = kept && kept.date === date && (!dm || kept.id === dm);
+  const meal = found ?? (emptied ? { ...kept, entries: [], pending: [] } : null);
+  if (!meal) return <NotFoundPage title="Mahlzeit" what="Mahlzeit nicht gefunden" />;
+  return <MealPageContent meal={meal} />;
+}
+
+function MealPageLoading() {
+  return (
+    <Page title="Mahlzeit" back="/" withTabBar={false}>
+      <div className="grid gap-4">
+        <Skeleton className="h-64 rounded-2xl" />
+        <Skeleton className="h-28 rounded-2xl" />
+      </div>
+    </Page>
+  );
+}
+
+function MealPageContent({ meal }: { meal: DiaryDayMeal }) {
+  const { id, date, name, slot, entries } = meal;
   const db = useDb();
+  const router = useRouter();
+  const navigate = useNavigate();
   const today = useToday();
-  const settings = useSettings();
   const goals = useGoals();
   const clipboard = foodClipboard(useClipboard());
   const suggestions = useDaySuggestions(date);
-  const entries = useLiveQuery(
-    () =>
-      db.foodEntries
-        .where('[date+meal]')
-        .equals([date, meal])
-        .filter((e) => !e.deleted)
-        .sortBy('loggedAt'),
-    [db, date, meal],
-  );
-  const name = settings?.mealNames[meal] ?? `Mahlzeit ${meal + 1}`;
   const rememberStart = useRememberLogStart();
   /** Not the diary: logging from here ends on the diary as a new page (no way back into the forms). */
   const startLogging = () => {
     warmUpCamera();
     rememberStart(date);
   };
-  const totals = sumNutrients((entries ?? []).map((e) => e.nutrients));
+  const totals = sumNutrients(entries.map((e) => e.nutrients));
+  const target = { date, meal: slot, dm: id };
+  /** The meal is gone: never stay on its page. */
+  const leave = () =>
+    goBackOr(router.history, 1, () => void navigate({ to: '/', search: { date }, replace: true }));
 
   return (
     <Page
@@ -65,25 +97,26 @@ export function DiaryMealPage() {
               db={db}
               clipboard={clipboard}
               date={date}
-              meal={meal}
+              meal={slot}
               mealName={name}
               iconClassName=""
             />
           )}
           <DiaryMealMenu
             date={date}
-            meal={meal}
+            meal={slot}
             mealName={name}
-            entries={entries ?? []}
-            yesterdayKcal={suggestions?.get(meal)?.yesterdayKcal ?? 0}
+            entries={entries}
+            yesterdayKcal={suggestions?.get(slot)?.yesterdayKcal ?? 0}
             iconClassName=""
+            onDeleted={leave}
           />
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/photo"
               preload="intent"
               onClick={startLogging}
-              search={{ date, meal }}
+              search={target}
               aria-label={`Essen zu ${name} eintragen`}
             >
               <Plus className="text-primary" aria-hidden />
@@ -92,7 +125,7 @@ export function DiaryMealPage() {
         </>
       }
     >
-      {!entries || !goals ? (
+      {!goals ? (
         <div className="grid gap-4">
           <Skeleton className="h-64 rounded-2xl" />
           <Skeleton className="h-28 rounded-2xl" />
@@ -111,19 +144,19 @@ export function DiaryMealPage() {
             {entries.length === 0 ? (
               <EmptyState icon={<UtensilsCrossed />} title="Noch nichts eingetragen">
                 <Button variant="outline" className="mt-2" asChild>
-                  <Link to="/photo" preload="intent" onClick={startLogging} search={{ date, meal }}>
+                  <Link to="/photo" preload="intent" onClick={startLogging} search={target}>
                     <Plus aria-hidden /> Essen eintragen
                   </Link>
                 </Button>
               </EmptyState>
             ) : (
-              <DiaryRows entries={entries} date={date} meal={meal} />
+              <DiaryRows entries={entries} date={date} meal={slot} mealId={id} />
             )}
             <MealSuggestions
               date={date}
-              meal={meal}
+              meal={slot}
               mealName={name}
-              data={suggestions?.get(meal)}
+              data={suggestions?.get(slot)}
               empty={entries.length === 0}
             />
           </Section>

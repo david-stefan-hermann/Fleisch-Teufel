@@ -1,9 +1,9 @@
 import {
-  dayId,
   get,
   groupDiaryEntries,
   N,
   photoIdsOf,
+  sumNutrients,
   type FoodEntry,
   type ISODate,
   type NutrientMap,
@@ -18,14 +18,15 @@ import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { copyMealToClipboard, copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
-import type { AiQueueItem, UserDb } from '@/db/dexie';
+import type { DiaryDayMeal, MealChoice } from '@/db/diaryMeals';
+import type { UserDb } from '@/db/dexie';
 import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
 import { useMealInfo } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { useAppearance } from '@/lib/appearance';
 import { useRememberLogStart } from '@/lib/logFlow';
-import { fmt0, fmt2, fmtGrams, fmtIngredients } from '@/lib/format';
+import { fmt0, fmt2, fmtGrams, fmtIngredients, fmtTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { MacroSummary } from './MacroSummary';
 import { DiaryMealMenu } from './DiaryMealMenu';
@@ -46,82 +47,140 @@ export function entryAmountLabel(
   return `${fmt2(e.quantity)} × ${e.portionLabel}${e.grams !== null ? ` · ${fmtGrams(e.grams)}` : ''}`;
 }
 
+/** The taps that open the food page: the camera starts, and logging returns to this diary. */
+function useStartLogging(date: ISODate) {
+  const rememberStart = useRememberLogStart();
+  return () => {
+    warmUpCamera();
+    rememberStart(date);
+  };
+}
+
+/** A meal of the day: its time above the card, then name, kcal, actions, entries and waiting analyses. */
 export function MealCard({
-  date,
   meal,
-  name,
-  entries,
-  totals,
-  pending = [],
   clipboard = null,
   suggestions,
 }: {
-  date: ISODate;
-  meal: number;
-  name: string;
-  entries: FoodEntry[];
-  totals: NutrientMap;
-  /** Photos of this meal that are not analysed yet (placeholder rows below the entries). */
-  pending?: AiQueueItem[];
+  meal: DiaryDayMeal;
   /** What was copied (swipe right); shows the paste icon next to "+". */
   clipboard?: Clipboard | null;
   /** "Zuletzt hier" of this meal (`useDaySuggestions`), undefined while loading. */
   suggestions?: MealSuggestionsData;
 }) {
   const db = useDb();
-  const { setDropRef, isOver: dropOver, dragging: dragActive } = useMealDropZone(meal);
-  const kcal = get(totals, N.kcal);
-  const rememberStart = useRememberLogStart();
-  /** The taps that open the food page: the camera starts, and logging returns to this diary. */
-  const startLogging = () => {
-    warmUpCamera();
-    rememberStart(date);
-  };
+  const { id, date, name, slot, entries, pending } = meal;
+  const { setDropRef, isOver: dropOver } = useMealDropZone(id);
+  const kcal = get(sumNutrients(entries.map((e) => e.nutrients)), N.kcal);
+  const startLogging = useStartLogging(date);
 
   return (
-    <Section
-      ref={setDropRef}
-      data-meal={dayId.diaryMeal(date, meal)}
-      className={cn(
-        'transition-[box-shadow,background-color] motion-reduce:transition-none',
-        dropOver && 'bg-primary/5 ring-2 ring-primary/60',
-      )}
-      title={
-        // The meal's own page: nutrient overview and its entries.
-        <Link
-          to="/diary-meal"
-          search={{ date, meal }}
-          className="-mx-2 flex min-h-11 items-center gap-2 rounded-lg px-2 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate">{name}</span>
-            {kcal > 0 && (
-              <span className="tabular shrink-0 text-sm font-normal text-muted-foreground">
-                {fmt0(kcal)} kcal
-              </span>
+    <div ref={setDropRef} data-meal={id} className="mb-[18px]">
+      <div className="flex h-[22px] items-center pl-4">
+        <span className="tabular -m-2 p-2 text-[13px] leading-4 font-medium text-muted-foreground">
+          {fmtTime(meal.eatenAt)}
+        </span>
+      </div>
+      <Section
+        className={cn(
+          'mb-0 transition-[box-shadow,background-color] motion-reduce:transition-none',
+          dropOver && 'bg-primary/5 ring-2 ring-primary/60',
+        )}
+        titleClassName="min-w-0"
+        title={
+          <span className="flex min-h-11 min-w-0 items-baseline gap-1">
+            <span className="min-w-0 truncate">{name}</span>
+            {entries.length > 0 && (
+              // The meal's own page: nutrient overview and its entries.
+              <Link
+                to="/diary-meal"
+                search={{ date, meal: slot, dm: id }}
+                aria-label={`${name}, ${fmt0(kcal)} kcal`}
+                className="-mr-2 flex min-h-11 shrink-0 items-center gap-2 rounded-lg pr-2 pl-1 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <span className="tabular text-sm font-normal text-muted-foreground">{fmt0(kcal)} kcal</span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              </Link>
             )}
           </span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        </Link>
-      }
+        }
+        action={
+          <div className="flex shrink-0 items-center">
+            {clipboard && (
+              <PasteButton db={db} clipboard={clipboard} date={date} meal={slot} mealName={name} />
+            )}
+            {entries.length > 0 && (
+              <DiaryMealMenu
+                date={date}
+                meal={slot}
+                mealName={name}
+                entries={entries}
+                yesterdayKcal={suggestions?.yesterdayKcal ?? 0}
+              />
+            )}
+            {/* At a meal only food makes sense: straight to the food page for this meal. */}
+            <Button variant="ghost" size="icon" asChild>
+              <Link
+                to="/photo"
+                preload="intent"
+                onClick={startLogging}
+                search={{ date, meal: slot, dm: id }}
+                aria-label={`Essen zu ${name} eintragen`}
+              >
+                <Plus className="size-5 text-primary" aria-hidden />
+              </Link>
+            </Button>
+          </div>
+        }
+      >
+        {entries.length > 0 && <DiaryRows entries={entries} date={date} meal={slot} mealId={id} draggable />}
+        {pending.length > 0 && (
+          <ul className={cn('divide-y divide-border/70', entries.length > 0 && 'border-t border-border/70')}>
+            {pending.map((item) => (
+              <li key={item.localId} data-row={`pending:${item.localId}`}>
+                <PendingAnalysisRow item={item} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <MealSuggestions date={date} meal={slot} mealName={name} data={suggestions} empty={false} />
+      </Section>
+    </div>
+  );
+}
+
+/** A day without meals: the card of the next one. Nothing exists until something is logged. */
+export function EmptyMealCard({
+  date,
+  next,
+  clipboard = null,
+  suggestions,
+}: {
+  date: ISODate;
+  next: MealChoice['next'];
+  clipboard?: Clipboard | null;
+  suggestions?: MealSuggestionsData;
+}) {
+  const db = useDb();
+  const startLogging = useStartLogging(date);
+  const target = { date, meal: next.slot, dm: 'new' };
+  return (
+    <Section
+      className="mb-[18px]"
+      titleClassName="min-w-0 truncate"
+      title={next.name}
       action={
-        <div className="flex items-center">
-          {clipboard && <PasteButton db={db} clipboard={clipboard} date={date} meal={meal} mealName={name} />}
-          <DiaryMealMenu
-            date={date}
-            meal={meal}
-            mealName={name}
-            entries={entries}
-            yesterdayKcal={suggestions?.yesterdayKcal ?? 0}
-          />
-          {/* At a meal only food makes sense: straight to the food page for this meal. */}
+        <div className="flex shrink-0 items-center">
+          {clipboard && (
+            <PasteButton db={db} clipboard={clipboard} date={date} meal={next.slot} mealName={next.name} />
+          )}
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/photo"
               preload="intent"
               onClick={startLogging}
-              search={{ date, meal }}
-              aria-label={`Essen zu ${name} eintragen`}
+              search={target}
+              aria-label={`Essen zu ${next.name} eintragen`}
             >
               <Plus className="size-5 text-primary" aria-hidden />
             </Link>
@@ -129,41 +188,35 @@ export function MealCard({
         </div>
       }
     >
-      {entries.length === 0 && pending.length === 0 ? (
-        <>
-          <Link
-            to="/photo"
-            preload="intent"
-            onClick={startLogging}
-            search={{ date, meal }}
-            className={cn(
-              'mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-              dragActive && 'border-primary/50 text-primary',
-            )}
-          >
-            {dragActive ? 'Hier ablegen' : 'Essen eintragen'}
-          </Link>
-          {/* What this meal usually gets: one tap logs it again. */}
-          <MealSuggestions date={date} meal={meal} mealName={name} data={suggestions} empty />
-        </>
-      ) : (
-        <>
-          {entries.length > 0 && <DiaryRows entries={entries} date={date} meal={meal} draggable />}
-          {pending.length > 0 && (
-            <ul
-              className={cn('divide-y divide-border/70', entries.length > 0 && 'border-t border-border/70')}
-            >
-              {pending.map((item) => (
-                <li key={item.localId} data-row={`pending:${item.localId}`}>
-                  <PendingAnalysisRow item={item} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <MealSuggestions date={date} meal={meal} mealName={name} data={suggestions} empty={false} />
-        </>
-      )}
+      <Link
+        to="/photo"
+        preload="intent"
+        onClick={startLogging}
+        search={target}
+        className="mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        Essen eintragen
+      </Link>
+      {/* What this meal usually gets: one tap logs it again. */}
+      <MealSuggestions date={date} meal={next.slot} mealName={next.name} data={suggestions} empty />
     </Section>
+  );
+}
+
+/** End of the meal list: the food page for a new meal of this day. */
+export function AddMealLink({ date, next }: { date: ISODate; next: MealChoice['next'] }) {
+  const startLogging = useStartLogging(date);
+  return (
+    <Link
+      to="/photo"
+      preload="intent"
+      onClick={startLogging}
+      search={{ date, meal: next.slot, dm: 'new' }}
+      className="mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      <Plus className="size-4" aria-hidden />
+      Mahlzeit hinzufügen
+    </Link>
   );
 }
 
@@ -264,11 +317,14 @@ export function DiaryRows({
   entries,
   date,
   meal,
+  mealId,
   draggable = false,
 }: {
   entries: FoodEntry[];
   date: ISODate;
   meal: number;
+  /** The id of the meal these rows stand in. */
+  mealId: string;
   draggable?: boolean;
 }) {
   const db = useDb();
@@ -284,7 +340,7 @@ export function DiaryRows({
               id={row.entry.id}
               data={{
                 ids: [row.entry.id],
-                meal,
+                meal: mealId,
                 name: row.entry.name,
                 detail: entryAmountLabel(row.entry),
                 nutrients: row.entry.nutrients,
@@ -315,6 +371,7 @@ export function DiaryRows({
               nutrients={row.nutrients}
               date={date}
               meal={meal}
+              mealId={mealId}
               draggable={draggable}
               onDelete={(list) => void removeEntriesWithUndo(db, list)}
               onCopy={(kind, label, list) => void copyWithToast(db, kind, label, list)}
@@ -452,6 +509,7 @@ function GroupRow({
   nutrients,
   date,
   meal,
+  mealId,
   draggable,
   onDelete,
   onCopy,
@@ -463,6 +521,7 @@ function GroupRow({
   nutrients: NutrientMap;
   date: ISODate;
   meal: number;
+  mealId: string;
   draggable: boolean;
   onDelete: (entries: FoodEntry[]) => void;
   onCopy: (kind: 'entry' | 'group', name: string, entries: FoodEntry[]) => void;
@@ -483,7 +542,7 @@ function GroupRow({
         id={`group:${groupId}`}
         data={{
           ids: entries.map((e) => e.id),
-          meal,
+          meal: mealId,
           name,
           detail: fmtIngredients(entries.length),
           nutrients,

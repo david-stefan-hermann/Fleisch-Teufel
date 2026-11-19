@@ -94,6 +94,23 @@ test.describe('375 px (iPhone mini and SE)', () => {
     await page.getByLabel('Fett').fill('47');
     await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
     await expect(page.getByText('Großes Frühstück', { exact: true })).toBeVisible();
+
+    // A meal: the time stands above the card, header and all its buttons stay inside the card.
+    const slot = page.locator('[data-meal]').first();
+    const card = (await slot.locator('section').boundingBox())!;
+    const time = (await slot.getByText(/^\d\d:\d\d$/).boundingBox())!;
+    expect(time.y + time.height).toBeLessThanOrEqual(card.y + 6);
+    expect(time.x).toBeGreaterThanOrEqual(card.x);
+    for (const control of [
+      slot.getByRole('link', { name: /^Frühstück, / }),
+      slot.getByRole('button', { name: 'Aktionen für Frühstück' }),
+      slot.getByRole('link', { name: 'Essen zu Frühstück eintragen' }),
+    ]) {
+      const b = (await control.boundingBox())!;
+      expect(b.x).toBeGreaterThanOrEqual(card.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
+    }
+    expect(await fitsScreen()).toBe(true);
     await page.evaluate(async () => {
       const d = new Date();
       const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

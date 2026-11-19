@@ -47,17 +47,13 @@ test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" co
   await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
   await expect(page.getByText('Kantine', { exact: true })).toBeVisible();
 
-  // Today: breakfast offers the food (last amount) and yesterday's breakfast; lunch only "Wie gestern"
-  // (a quick add is no food to suggest).
+  // Today: the card of the next meal offers the food (last amount) and yesterday's breakfast.
   await page.goto('/');
   const breakfast = mealCard(page, 'Frühstück');
   await expect(breakfast.getByText('Zuletzt hier')).toBeVisible();
   const chip = breakfast.getByRole('button', { name: new RegExp(`^${picked},.*eintragen$`) });
   await expect(chip).toBeVisible();
   await expect(breakfast.getByRole('button', { name: /^Wie gestern/ })).toBeVisible();
-  const lunch = mealCard(page, 'Mittagessen');
-  await expect(lunch.getByRole('button', { name: /^Wie gestern, 650 kcal/ })).toBeVisible();
-  await expect(lunch.getByRole('button', { name: /Kantine/ })).toHaveCount(0);
 
   // One tap logs it; the chips make way for the entries; undo brings them back.
   await chip.click();
@@ -68,9 +64,9 @@ test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" co
   await expect(breakfast.getByText('Zuletzt hier')).toBeVisible();
 
   // "Wie gestern" copies the whole meal.
-  await lunch.getByRole('button', { name: /^Wie gestern/ }).click();
-  await expect(lunch.getByRole('link', { name: /Kantine/ })).toBeVisible();
-  await expect(page.getByText('Mittagessen von gestern eingetragen')).toBeVisible();
+  await breakfast.getByRole('button', { name: /^Wie gestern/ }).click();
+  await expect(breakfast.getByRole('link', { name: new RegExp(picked) })).toBeVisible();
+  await expect(page.getByText('Frühstück von gestern eingetragen')).toBeVisible();
 });
 
 test('"Eingeben" with a text: analysed without a photo, typed values go along as a clue, same review', async ({
@@ -168,6 +164,11 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   page,
 }) => {
   await register(page);
+  await page.goto('/photo?form=1&meal=1');
+  await page.getByLabel('Was hast du gegessen?').fill('Suppe');
+  await page.getByLabel('Kalorien').fill('100');
+  await page.getByRole('button', { name: 'Eintragen', exact: true }).click();
+  await expect(page.getByText('Suppe', { exact: true })).toBeVisible();
   await page.goto('/');
   await page.getByRole('link', { name: 'Essen zu Mittagessen eintragen' }).click();
   await expect(page).toHaveURL(/\/photo\?.*meal=1/);
@@ -191,7 +192,7 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   await expect(page.getByLabel('Mahlzeit', { exact: true })).toHaveCount(0);
   const picker = page.getByRole('button', { name: /^Mahlzeit: / });
   await expect(picker).toContainText('Mittagessen');
-  await expect(picker).toContainText('Neu');
+  await expect(picker).not.toContainText('Neu');
   const [h, m] = [
     (await page.getByRole('heading', { level: 1 }).boundingBox())!,
     (await picker.boundingBox())!,
@@ -200,7 +201,7 @@ test('"Eingeben" with values: a quick entry titled with the beginning of the tex
   expect(m.x + m.width).toBeGreaterThan(page.viewportSize()!.width - 20);
   await picker.click();
   await expect(page.getByRole('menuitemradio', { name: /^Mittagessen/ })).toBeChecked();
-  // The day has no meal yet: a new one, with the name it would get.
+  // A new meal instead, with the name it would get.
   await page.getByRole('menuitemradio', { name: /^Neue Mahlzeit\s*Frühstück/ }).click();
   await expect(picker).toContainText('Frühstück');
   await expect(page).toHaveURL(/meal=0/);
