@@ -22,6 +22,7 @@ import {
 import { fmtRelativeDay } from '@/lib/format';
 import { clearLogStart } from '@/lib/logFlow';
 import { foodClipboard, trainingClipboard } from '@/db/clipboard';
+import { NEXT_MEAL_KEY } from '@/db/suggestions';
 import { CalorieCard } from './CalorieCard';
 import { ClipboardMenu } from './ClipboardMenu';
 import { DiaryDnd } from './DiaryDnd';
@@ -168,7 +169,7 @@ export function DiaryPage() {
                 key={meal.id}
                 meal={meal}
                 clipboard={foodClipboard(clipboard)}
-                suggestions={suggestions?.get(meal.slot)}
+                suggestions={suggestions?.get(meal.id)}
               />
             ))}
           </DiaryDnd>
@@ -177,7 +178,7 @@ export function DiaryPage() {
               date={date}
               next={next}
               clipboard={foodClipboard(clipboard)}
-              suggestions={suggestions?.get(next.slot)}
+              suggestions={suggestions?.get(NEXT_MEAL_KEY)}
             />
           ) : (
             <AddMealLink date={date} next={next} />

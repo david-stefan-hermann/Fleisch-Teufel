@@ -1,21 +1,31 @@
 /**
  * "Zuletzt hier": what a diary meal usually gets, from the diary itself. A food or a group (saved
- * meal, named group) logged in this meal index lately scores by how often and how recently it was
- * logged, the same weekday a little higher (the Sunday breakfast). One tap logs it again with the
+ * meal, named group) logged lately in meals of the same name scores by how often and how recently it
+ * was logged, the same weekday a little higher (the Sunday breakfast). One tap logs it again with the
  * last amount (`logSuggestion`). Shown under every diary meal, without what the meal already has.
  *
  * Free of `@/` aliases on purpose (the API test suite imports `db/*`).
  */
 import {
   addDays,
+  buildDayMeals,
+  closestMeal,
+  DEFAULT_MEAL_NAMES,
   diffDays,
   groupDiaryEntries,
+  isNightOf,
+  newMealEatenAt,
   photoIdsOf,
+  sameMealName,
+  SETTINGS_ID,
+  type DayMeal,
   type DiaryRow,
   type FoodEntry,
+  type ISODate,
   type MealItem,
 } from '@ft/shared';
 import type { UserDb } from './dexie';
+import { readDay, readNextMeal, type LogTarget } from './diaryMeals';
 import { diaryParts, entriesToMealItems, entryToItem, logParts } from './entries';
 
 /** How far back the diary is read. */
@@ -59,60 +69,118 @@ function suggestionKey(row: DiaryRow): string | null {
   return row.mealId ? `meal:${row.mealId}` : row.groupName ? `group:${row.groupName}` : null;
 }
 
-/** "Zuletzt hier" of one diary meal: the suggestions and the kcal of the same meal yesterday (0: nothing). */
+/** Key of the card of a day without meals in the result of `daySuggestions`. */
+export const NEXT_MEAL_KEY = 'new';
+
+/** The meal of the day before that "Wie gestern" would copy. */
+export interface YesterdayMeal {
+  id: string;
+  date: ISODate;
+  name: string;
+  eatenAt: number;
+  kcal: number;
+}
+
+/** "Zuletzt hier" of one diary meal: the suggestions and the meal of the day before that fits it. */
 export interface MealSuggestions {
   suggestions: MealSuggestion[];
-  yesterdayKcal: number;
+  yesterday: YesterdayMeal | null;
 }
 
 /**
- * Suggestions for every diary meal of a date (by meal index), best first, from one read of the diary.
- * Earlier days count; what is already in the meal on `date` is left out before cutting to `limit`
- * (the next best moves up), and so are quick adds and estimated foods (no food id).
+ * What tells meals apart for their history: the name, where a standard name and the one it had
+ * before the first rename count as one (a rename keeps the history).
+ */
+function historyKeyOf(standard: readonly string[], legacy: readonly string[] | null) {
+  return (name: string): string => {
+    const own = standard.findIndex((n) => sameMealName(n, name));
+    const old = own >= 0 ? own : (legacy?.findIndex((n) => sameMealName(n, name)) ?? -1);
+    return old >= 0 ? `#${old}` : `=${name.trim().toLocaleLowerCase('de')}`;
+  };
+}
+
+const kcalOf = (entries: readonly FoodEntry[]) => entries.reduce((s, e) => s + (e.nutrients.ENERCC ?? 0), 0);
+
+/**
+ * Suggestions for every diary meal of a date (keyed by meal id, the card of a day without meals by
+ * `NEXT_MEAL_KEY`), best first, from one read of the diary. Earlier days count, through the meals of
+ * the same name; what the meal already has on `date` is left out before cutting to `limit` (the next
+ * best moves up), and so are quick adds and estimated foods (no food id). "Wie gestern" is the meal
+ * of the day before with the same name, else the one nearest in time (`closestMeal`).
  */
 export async function daySuggestions(
   db: UserDb,
-  date: string,
+  date: ISODate,
   limit = 4,
-): Promise<Map<number, MealSuggestions>> {
+  at = Date.now(),
+): Promise<Map<string, MealSuggestions>> {
   const from = addDays(date, -SUGGESTION_DAYS);
-  const yesterday = addDays(date, -1);
-  const all = (
-    await db.foodEntries
-      .where('date')
-      .between(from, date, true, true)
-      .filter((e) => !e.deleted)
-      .toArray()
-  ).sort((a, b) => a.loggedAt - b.loggedAt);
-  const byMeal = new Map<number, FoodEntry[]>();
-  for (const e of all) (byMeal.get(e.meal) ?? byMeal.set(e.meal, []).get(e.meal)!).push(e);
-  const out = new Map<number, MealSuggestions>();
-  for (const [meal, entries] of byMeal) {
-    const today = entries.filter((e) => e.date === date);
-    const logged = new Set(groupDiaryEntries(today).map(suggestionKey));
-    const suggestions = await rank(
-      db,
-      entries.filter((e) => e.date < date),
-      date,
-      logged,
-      limit,
-    );
-    const yesterdayKcal = entries
-      .filter((e) => e.date === yesterday)
-      .reduce((s, e) => s + (e.nutrients.ENERCC ?? 0), 0);
-    out.set(meal, { suggestions, yesterdayKcal });
+  const before = addDays(date, -1);
+  const [entries, records, settings, today, next] = await Promise.all([
+    // Tombstones too: they keep the time of a meal without a record.
+    db.foodEntries.where('date').between(from, before, true, true).toArray(),
+    db.diaryMeals.where('date').between(from, before, true, true).toArray(),
+    db.settings.get(SETTINGS_ID),
+    readDay(db, date),
+    readNextMeal(db, date),
+  ]);
+  const standard = settings?.mealNames ?? [...DEFAULT_MEAL_NAMES];
+  const legacy = settings?.legacyMealNames ?? null;
+  const keyOf = historyKeyOf(standard, legacy);
+
+  const byDate = new Map<string, FoodEntry[]>();
+  for (const e of entries) (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
+  const history = new Map<string, FoodEntry[]>();
+  let yesterdayMeals: DayMeal[] = [];
+  for (const [day, dayEntries] of byDate) {
+    const meals = buildDayMeals({
+      date: day,
+      entries: dayEntries,
+      records: records.filter((r) => r.date === day),
+      names: legacy ?? standard,
+    });
+    if (day === before) yesterdayMeals = meals;
+    for (const m of meals) {
+      const key = keyOf(m.name);
+      (history.get(key) ?? history.set(key, []).get(key)!).push(...m.entries);
+    }
   }
+  for (const list of history.values()) list.sort((a, b) => a.loggedAt - b.loggedAt);
+
+  const yesterdayFor = (name: string, eatenAt: number): YesterdayMeal | null => {
+    const found = closestMeal(
+      { name: keyOf(name), eatenAt, night: isNightOf(date, eatenAt) },
+      yesterdayMeals.map((meal) => ({ ...meal, name: keyOf(meal.name), meal })),
+    )?.meal;
+    return found
+      ? { id: found.id, date: before, name: found.name, eatenAt: found.eatenAt, kcal: kcalOf(found.entries) }
+      : null;
+  };
+  const forMeal = async (name: string, eatenAt: number, has: readonly FoodEntry[]) => ({
+    suggestions: await rank(
+      db,
+      history.get(keyOf(name)) ?? [],
+      date,
+      new Set(groupDiaryEntries([...has]).map(suggestionKey)),
+      limit,
+    ),
+    yesterday: yesterdayFor(name, eatenAt),
+  });
+
+  const out = new Map<string, MealSuggestions>();
+  for (const m of today) out.set(m.id, await forMeal(m.name, m.eatenAt, m.entries));
+  out.set(NEXT_MEAL_KEY, await forMeal(next.name, newMealEatenAt(date, next.name, standard, at), []));
   return out;
 }
 
-/** Suggestions for one diary meal on a date (see `daySuggestions`). */
+/** Suggestions for one diary meal on a date, by its id (see `daySuggestions`). */
 export async function mealSuggestions(
   db: UserDb,
-  date: string,
-  meal: number,
+  date: ISODate,
+  mealId: string,
   limit = 4,
 ): Promise<MealSuggestion[]> {
-  return (await daySuggestions(db, date, limit)).get(meal)?.suggestions ?? [];
+  return (await daySuggestions(db, date, limit)).get(mealId)?.suggestions ?? [];
 }
 
 /** Scores the rows of one meal's earlier days (`entries` sorted by `loggedAt`). */
@@ -183,11 +251,7 @@ async function rank(
 }
 
 /** Logs a suggestion into a diary meal (a group as a new group, a food as a plain entry); returns the ids. */
-export async function logSuggestion(
-  db: UserDb,
-  s: MealSuggestion,
-  target: { date: string; meal: number },
-): Promise<string[]> {
+export async function logSuggestion(db: UserDb, s: MealSuggestion, target: LogTarget): Promise<string[]> {
   return logParts(
     db,
     [
@@ -210,13 +274,9 @@ export async function logSuggestion(
  */
 export async function copyMealFromDay(
   db: UserDb,
-  from: { date: string; meal: number },
-  to: { date: string; meal: number },
+  from: { date: ISODate; id: string },
+  target: LogTarget,
 ): Promise<string[]> {
-  const entries = await db.foodEntries
-    .where('[date+meal]')
-    .equals([from.date, from.meal])
-    .filter((e) => !e.deleted)
-    .sortBy('loggedAt');
-  return logParts(db, diaryParts(entries), to);
+  const meal = (await readDay(db, from.date)).find((m) => m.id === from.id);
+  return logParts(db, diaryParts(meal?.entries ?? []), target);
 }

@@ -479,3 +479,34 @@ test('renaming a standard name leaves the meals already logged as they are', asy
   await page.getByRole('button', { name: 'Frühstück, Name ändern' }).click();
   await expect(page.getByRole('menuitemcheckbox').first()).toHaveText('Morgens');
 });
+
+test('a meal copied on one day goes into the empty card of another; "Wie gestern" names the meal it copies', async ({
+  page,
+}) => {
+  await startAtNoon(page);
+  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await expect(page).toHaveURL(/date=/);
+  await mealCard(page, 'Frühstück').getByRole('link', { name: 'Essen zu Frühstück eintragen' }).click();
+  await logQuick(page, 'Haferbrei', 300);
+  // A meal logged later for a past day takes the typical time of its name.
+  await expect(timeOf(page, 'Frühstück')).toHaveText('08:00');
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Kopieren' }).click();
+  await expect(page.getByText('„Frühstück“ kopiert')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  const card = mealCard(page, 'Frühstück');
+  await expect(
+    card.getByRole('button', { name: 'Wie gestern, Frühstück 08:00 · 300 kcal, eintragen' }),
+  ).toBeVisible();
+  await card.getByRole('button', { name: '„Frühstück“ in Frühstück eintragen' }).click();
+  await expect(page.getByText('„Frühstück“ in Frühstück eingetragen')).toBeVisible();
+  await expect(row(page, 'Frühstück', 'Haferbrei')).toBeVisible();
+  await expect(timeOf(page, 'Frühstück')).toHaveText('12:00');
+  await expect(page.locator('[data-meal]')).toHaveCount(1);
+
+  // The clipboard stays: pasted into the meal tapped, not into a new one.
+  await card.getByRole('button', { name: '„Frühstück“ in Frühstück eintragen' }).click();
+  await expect(card.getByRole('link', { name: /^Haferbrei/ })).toHaveCount(2);
+  await expect(page.locator('[data-meal]')).toHaveCount(1);
+});

@@ -16,8 +16,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 5     | b344dfc | KI-Warteschlange, verzögerte Analysen, Entwürfe         | fertig |
 | 6     | 914e05c | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
 | 7     | 3eb335e | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
-| 8     | s. Log  | Uhrzeit-Dialog und Nacht                                | fertig |
-| 9     |         | „Zuletzt hier“, „Wie gestern“, Einfügen                 | offen  |
+| 8     | ffbacaa | Uhrzeit-Dialog und Nacht                                | fertig |
+| 9     | s. Log  | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
 | 10    |         | Assistent                                               | offen  |
 | 11    |         | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
 | 12    |         | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
@@ -96,6 +96,28 @@ Block 8:
 - Neu `fmtWeekdayShort` in `lib/format.ts` („Fr.“ für Mond und Nacht-Wahl): Der Wochentag allein kommt aus `Intl` ohne Punkt, er wird
   deshalb aus dem kurzen Datum genommen. `lib/format.ts` kam zur Dateiliste dazu.
 - Die Uhrzeit bleibt grau wie die übrigen. Mockup A3/C2 hebt die geänderte Uhrzeit nur als Markierung des Mockups hervor.
+
+Block 9:
+
+- Die Übergänge aus Block 6 und 7 sind geschlossen: Einfügen, „Zuletzt hier“ und „Wie gestern“ schreiben in genau die angetippte
+  Mahlzeit (`dm`), die leere Karte beginnt eine neue (`dm: 'new'`, Name aus `mealNames`, nie aus `legacyMealNames`).
+- `PasteButton`, `pasteWithToast`, `copyYesterdayWithToast`, `DiaryMealMenu` und `MealSuggestions` bekommen ein `MealRef` statt eines
+  `LogTarget` und lösen es erst beim Antippen mit `prepareMealTarget` auf. Nur `logSuggestion`, `copyMealFromDay` und `pasteClipboard`
+  nehmen das `LogTarget`. Grund: Eine neue Mahlzeit bekommt ihre Id erst direkt vor dem Schreiben.
+- Gefunden und behoben: Eine neue Mahlzeit, die sich den Index mit einer Mahlzeit ohne Datensatz teilt (fünfte Mahlzeit, oder eine neue
+  auf einem alten Tag), nahm deren Einträge über Regel 3 mit, die angetippte Karte verschwand. Neu `LogTarget.keep`: `prepareMealTarget`
+  gibt die betroffene Mahlzeit mit, `applyLogTarget` legt beim Anlegen der neuen Mahlzeit ihren Datensatz `dm:<Datum>:<Index>` an und
+  setzt `diaryMealId` an ihren lebenden Einträgen (`meal` bleibt). Das gilt für jeden Weg, der eine Mahlzeit anlegt („+“, Analysen, Assistent).
+- `copyMealFromDay(db, { date, id }, target)` liest den Tag beim Antippen neu, statt die Einträge aus dem Ergebnis der Vorschläge zu nehmen.
+- Der Verlauf gruppiert nach Name ohne Groß/Klein; ein Standard-Name zählt mit seinem Namen aus `legacyMealNames` als derselbe (Schlüssel
+  ist der Index). „Wie gestern“ vergleicht die Namen genauso. Die leere Karte (`NEXT_MEAL_KEY`) sucht mit der Uhrzeit, die die neue
+  Mahlzeit bekäme.
+- „Wie gestern“ steht da, sobald gestern eine passende Mahlzeit hat, auch mit 0 kcal (vorher nur über 0 kcal). Hat sie einen anderen Namen,
+  sagt der Toast „Snacks von gestern in Frühstück eingetragen“.
+- Eine Mahlzeit, die auf `/diary-meal` gerade leer gewischt wurde, zeigt dort keine Vorschläge mehr (sie hat keinen Schlüssel).
+- Dateien zusätzlich: `db/clipboard.ts`, `db/diaryMeals.ts`, `DiaryPage.tsx`, `DiaryMealPage.tsx`; Tests auch in `day-meals-write.test.ts`,
+  E2E in `day-meals.spec.ts` (Kopieren und Einfügen in die leere Karte eines anderen Tages) und `market.spec.ts`.
+- Übergang bis Block 13: `CLAUDE.md` beschreibt „Zuletzt hier“ noch über den Index der Mahlzeit.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

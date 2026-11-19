@@ -168,9 +168,10 @@ export function useMealInfo(
 
 /**
  * "Zuletzt hier" of every diary meal of a day (`db/suggestions.ts`, one live query for all cards): per
- * meal index the suggestions and the kcal of the same meal yesterday. Undefined while loading.
+ * meal id (`NEXT_MEAL_KEY` for the card of a day without meals) the suggestions and the meal of the
+ * day before that "Wie gestern" copies. Undefined while loading.
  */
-export function useDaySuggestions(date: ISODate): Map<number, MealSuggestions> | undefined {
+export function useDaySuggestions(date: ISODate): Map<string, MealSuggestions> | undefined {
   const db = useDb();
   return useLiveQuery(() => daySuggestions(db, date), [db, date]);
 }

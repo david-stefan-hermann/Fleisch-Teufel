@@ -103,6 +103,29 @@ describe('logging into meals', () => {
     expect((await readDay(d, DATE))[0]!.entries).toHaveLength(2);
   });
 
+  it('a new meal sharing the index of a meal without a record leaves that one and its entries alone', async () => {
+    const d = db();
+    for (const slot of [0, 1, 2]) await oldEntry(d, slot, at(8 + slot));
+    // Logged after the time the fifth meal gets: by its time alone it would join that meal.
+    const snack = await oldEntry(d, 3, at(23));
+    const target = await prepareMealTarget(d, { date: DATE, meal: 0, dm: 'new' }, at(22));
+    expect(target).toMatchObject({ meal: 3, keep: { id: dayId.diaryMeal(DATE, 3), name: 'Snacks' } });
+    await logItems(d, [item], target);
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => [m.name, m.entries.map((e) => e.id)])).toEqual([
+      ['Frühstück', [expect.any(String)]],
+      ['Mittagessen', [expect.any(String)]],
+      ['Abendessen', [expect.any(String)]],
+      ['Weitere Mahlzeit', [expect.any(String)]],
+      ['Snacks', [snack.id]],
+    ]);
+    expect(await d.foodEntries.get(snack.id)).toMatchObject({
+      meal: 3,
+      diaryMealId: dayId.diaryMeal(DATE, 3),
+    });
+    expect(await d.diaryMeals.get(dayId.diaryMeal(DATE, 3))).toMatchObject({ eatenAt: at(23), slot: 3 });
+  });
+
   it('logs as before when only a slot is named', async () => {
     const d = db();
     const [id] = await logItems(d, [item], { date: DATE, meal: 2 });

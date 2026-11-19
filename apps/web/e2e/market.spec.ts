@@ -53,7 +53,10 @@ test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" co
   await expect(breakfast.getByText('Zuletzt hier')).toBeVisible();
   const chip = breakfast.getByRole('button', { name: new RegExp(`^${picked},.*eintragen$`) });
   await expect(chip).toBeVisible();
-  await expect(breakfast.getByRole('button', { name: /^Wie gestern/ })).toBeVisible();
+  // "Wie gestern" names the meal of yesterday it copies.
+  await expect(
+    breakfast.getByRole('button', { name: /^Wie gestern, Frühstück \d\d:\d\d · \d+ kcal, eintragen$/ }),
+  ).toBeVisible();
 
   // One tap logs it; the chips make way for the entries; undo brings them back.
   await chip.click();

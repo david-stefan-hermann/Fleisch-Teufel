@@ -93,21 +93,13 @@ function MealPageContent({ meal }: { meal: DiaryDayMeal }) {
       actions={
         <>
           {clipboard && (
-            <PasteButton
-              db={db}
-              clipboard={clipboard}
-              date={date}
-              meal={slot}
-              mealName={name}
-              iconClassName=""
-            />
+            <PasteButton db={db} clipboard={clipboard} target={target} mealName={name} iconClassName="" />
           )}
           <DiaryMealMenu
-            date={date}
-            meal={slot}
+            target={target}
             mealName={name}
             entries={entries}
-            yesterdayKcal={suggestions?.get(slot)?.yesterdayKcal ?? 0}
+            yesterday={suggestions?.get(id)?.yesterday ?? null}
             iconClassName=""
             onDeleted={leave}
           />
@@ -153,10 +145,9 @@ function MealPageContent({ meal }: { meal: DiaryDayMeal }) {
               <DiaryRows entries={entries} date={date} meal={slot} mealId={id} />
             )}
             <MealSuggestions
-              date={date}
-              meal={slot}
+              target={target}
               mealName={name}
-              data={suggestions?.get(slot)}
+              data={suggestions?.get(id)}
               empty={entries.length === 0}
             />
           </Section>

@@ -1,4 +1,4 @@
-import type { FoodEntry, ISODate } from '@ft/shared';
+import type { FoodEntry } from '@ft/shared';
 import { Copy, History, MoreHorizontal, Save, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { MealRef } from '@/db/diaryMeals';
 import { saveMealFromEntries } from '@/db/entries';
+import type { YesterdayMeal } from '@/db/suggestions';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -26,20 +28,19 @@ import { copyYesterdayWithToast } from './MealSuggestions';
  * all of it.
  */
 export function DiaryMealMenu({
-  date,
-  meal,
+  target,
   mealName,
   entries,
-  yesterdayKcal,
+  yesterday,
   iconClassName = 'size-5',
   onDeleted,
 }: {
-  date: ISODate;
-  meal: number;
+  /** This meal: "Wie gestern eintragen" logs into it. */
+  target: MealRef;
   mealName: string;
   entries: readonly FoodEntry[];
-  /** kcal of this meal yesterday: "Wie gestern eintragen" only when something is there. */
-  yesterdayKcal: number;
+  /** The meal of the day before that fits this one: "Wie gestern eintragen" only when there is one. */
+  yesterday: YesterdayMeal | null;
   /** Icon size: 20 px in a card header; page headers pass '' and get their 24 px. */
   iconClassName?: string;
   /** After "Mahlzeit löschen", for a page that shows only this meal. */
@@ -67,10 +68,10 @@ export function DiaryMealMenu({
           <DropdownMenuItem disabled={empty} onSelect={() => setSaveOpen(true)}>
             <Save aria-hidden /> Als Meal speichern
           </DropdownMenuItem>
-          {yesterdayKcal > 0 && (
+          {yesterday && (
             <DropdownMenuItem
               disabled={busy}
-              onSelect={() => void run(() => copyYesterdayWithToast(db, date, meal, mealName))}
+              onSelect={() => void run(() => copyYesterdayWithToast(db, yesterday, target, mealName))}
             >
               <History aria-hidden /> Wie gestern eintragen
             </DropdownMenuItem>
@@ -94,7 +95,7 @@ export function DiaryMealMenu({
         open={saveOpen}
         onOpenChange={setSaveOpen}
         count={entries.length}
-        defaultName={`${mealName} ${fmtDate(date)}`}
+        defaultName={`${mealName} ${fmtDate(target.date)}`}
         onConfirm={async (name) => {
           await saveMealFromEntries(db, name, entries);
           toast.success(`„${name}“ gespeichert`);

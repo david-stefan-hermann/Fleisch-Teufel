@@ -20,7 +20,7 @@ import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Button } from '@/components/ui/button';
 import { copyMealToClipboard, copyToClipboard, pasteClipboard, type Clipboard } from '@/db/clipboard';
-import type { DiaryDayMeal, MealChoice } from '@/db/diaryMeals';
+import { prepareMealTarget, type DiaryDayMeal, type MealChoice, type MealRef } from '@/db/diaryMeals';
 import type { UserDb } from '@/db/dexie';
 import type { MealSuggestions as MealSuggestionsData } from '@/db/suggestions';
 import { deleteRecord, restoreRecord } from '@/db/write';
@@ -77,6 +77,7 @@ export function MealCard({
   const { setDropRef, isOver: dropOver } = useMealDropZone(id);
   const kcal = get(sumNutrients(entries.map((e) => e.nutrients)), N.kcal);
   const startLogging = useStartLogging(date);
+  const target = { date, meal: slot, dm: id };
 
   return (
     <div ref={setDropRef} data-meal={id} className="mb-[18px]">
@@ -95,7 +96,7 @@ export function MealCard({
               // The meal's own page: nutrient overview and its entries.
               <Link
                 to="/diary-meal"
-                search={{ date, meal: slot, dm: id }}
+                search={target}
                 aria-label={`${name}, ${fmt0(kcal)} kcal`}
                 className="-mr-2 flex min-h-11 shrink-0 items-center gap-2 rounded-lg pr-2 pl-1 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
               >
@@ -107,16 +108,13 @@ export function MealCard({
         }
         action={
           <div className="flex shrink-0 items-center">
-            {clipboard && (
-              <PasteButton db={db} clipboard={clipboard} date={date} meal={slot} mealName={name} />
-            )}
+            {clipboard && <PasteButton db={db} clipboard={clipboard} target={target} mealName={name} />}
             {entries.length > 0 && (
               <DiaryMealMenu
-                date={date}
-                meal={slot}
+                target={target}
                 mealName={name}
                 entries={entries}
-                yesterdayKcal={suggestions?.yesterdayKcal ?? 0}
+                yesterday={suggestions?.yesterday ?? null}
               />
             )}
             {/* At a meal only food makes sense: straight to the food page for this meal. */}
@@ -125,7 +123,7 @@ export function MealCard({
                 to="/photo"
                 preload="intent"
                 onClick={startLogging}
-                search={{ date, meal: slot, dm: id }}
+                search={target}
                 aria-label={`Essen zu ${name} eintragen`}
               >
                 <Plus className="size-5 text-primary" aria-hidden />
@@ -144,7 +142,7 @@ export function MealCard({
             ))}
           </ul>
         )}
-        <MealSuggestions date={date} meal={slot} mealName={name} data={suggestions} empty={false} />
+        <MealSuggestions target={target} mealName={name} data={suggestions} empty={false} />
       </Section>
     </div>
   );
@@ -212,9 +210,7 @@ export function EmptyMealCard({
       title={<MarqueeText text={next.name} />}
       action={
         <div className="flex shrink-0 items-center">
-          {clipboard && (
-            <PasteButton db={db} clipboard={clipboard} date={date} meal={next.slot} mealName={next.name} />
-          )}
+          {clipboard && <PasteButton db={db} clipboard={clipboard} target={target} mealName={next.name} />}
           <Button variant="ghost" size="icon" asChild>
             <Link
               to="/photo"
@@ -239,7 +235,7 @@ export function EmptyMealCard({
         Essen eintragen
       </Link>
       {/* What this meal usually gets: one tap logs it again. */}
-      <MealSuggestions date={date} meal={next.slot} mealName={next.name} data={suggestions} empty />
+      <MealSuggestions target={target} mealName={next.name} data={suggestions} empty />
     </Section>
   );
 }
@@ -265,15 +261,14 @@ export function AddMealLink({ date, next }: { date: ISODate; next: MealChoice['n
 export function PasteButton({
   db,
   clipboard,
-  date,
-  meal,
+  target,
   mealName,
   iconClassName = 'size-5',
 }: {
   db: UserDb;
   clipboard: Clipboard;
-  date: ISODate;
-  meal: number;
+  /** The meal it pastes into (`dm: 'new'` for the card of a day without meals). */
+  target: MealRef;
   mealName: string;
   /** Icon size: 20 px in a card header; page headers pass '' and get their 24 px. */
   iconClassName?: string;
@@ -286,7 +281,7 @@ export function PasteButton({
       size="icon"
       aria-label={`„${clipboard.name}“ in ${mealName} eintragen`}
       disabled={busy}
-      onClick={() => void run(() => pasteWithToast(db, clipboard, { date, meal }, mealName))}
+      onClick={() => void run(() => pasteWithToast(db, clipboard, target, mealName))}
     >
       <ClipboardPaste className={cn(iconClassName, 'text-primary')} aria-hidden />
     </Button>
@@ -323,10 +318,10 @@ function copiedToast(name: string) {
 export async function pasteWithToast(
   db: UserDb,
   clip: Clipboard,
-  target: { date: ISODate; meal: number },
+  into: MealRef,
   mealName: string,
 ): Promise<void> {
-  const ids = await pasteClipboard(db, clip, target);
+  const ids = await pasteClipboard(db, clip, await prepareMealTarget(db, into));
   toast(`„${clip.name}“ in ${mealName} eingetragen`, {
     action: {
       label: 'Rückgängig',

@@ -25,6 +25,7 @@ import {
   type Intensity,
 } from '@ft/shared';
 import type { UserDb } from './dexie';
+import type { LogTarget } from './diaryMeals';
 import {
   diaryParts,
   entriesToMealItems,
@@ -216,11 +217,7 @@ export async function copyMealToClipboard(
  * Logs the clipboard into a diary meal: a group as a new group (new ids, new `groupId`, logged now) with
  * the same saved meal, name, analysis and photos; an entry as a plain entry; a meal row by row. Returns the new entry ids.
  */
-export async function pasteClipboard(
-  db: UserDb,
-  clip: Clipboard,
-  target: { date: string; meal: number },
-): Promise<string[]> {
+export async function pasteClipboard(db: UserDb, clip: Clipboard, target: LogTarget): Promise<string[]> {
   if (clip.kind === 'meal') return logParts(db, clip.parts ?? [], target);
   return logParts(
     db,

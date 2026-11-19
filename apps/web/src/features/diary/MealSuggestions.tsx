@@ -1,19 +1,21 @@
-import { addDays, get, N, type ISODate } from '@ft/shared';
+import { get, N, sameMealName } from '@ft/shared';
 import { History } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
 import type { UserDb } from '@/db/dexie';
+import { prepareMealTarget, type MealRef } from '@/db/diaryMeals';
 import {
   copyMealFromDay,
   logSuggestion,
   type MealSuggestion,
   type MealSuggestions as MealSuggestionsData,
+  type YesterdayMeal,
 } from '@/db/suggestions';
 import { deleteRecord } from '@/db/write';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { cn } from '@/lib/utils';
-import { fmt0, fmtIngredients } from '@/lib/format';
+import { fmt0, fmtIngredients, fmtTime } from '@/lib/format';
 import { entryAmountLabel } from './MealCard';
 
 const undo = (db: UserDb, ids: string[]) => ({
@@ -21,31 +23,34 @@ const undo = (db: UserDb, ids: string[]) => ({
   onClick: () => void Promise.all(ids.map((id) => deleteRecord(db, 'foodEntries', id))),
 });
 
-/** "Wie gestern": logs the whole meal of the day before into this meal, with undo. */
+/** "Wie gestern": logs the whole meal of the day before (`from`) into this meal, with undo. */
 export async function copyYesterdayWithToast(
   db: UserDb,
-  date: ISODate,
-  meal: number,
+  from: YesterdayMeal,
+  into: MealRef,
   mealName: string,
 ): Promise<void> {
-  const ids = await copyMealFromDay(db, { date: addDays(date, -1), meal }, { date, meal });
-  toast(`${mealName} von gestern eingetragen`, { action: undo(db, ids) });
+  const ids = await copyMealFromDay(db, from, await prepareMealTarget(db, into));
+  if (ids.length === 0) return;
+  const message = sameMealName(from.name, mealName)
+    ? `${mealName} von gestern eingetragen`
+    : `${from.name} von gestern in ${mealName} eingetragen`;
+  toast(message, { action: undo(db, ids) });
 }
 
 /**
  * "Zuletzt hier" of a diary meal: what this meal usually gets (foods and groups, with the last amount)
  * without what it already has, below its entries. While the meal is `empty` "Wie gestern" (the whole
- * meal of the day before) comes first; with entries it is in the ⋯ menu. One tap logs it, with undo.
+ * meal of the day before with the same name, else the nearest in time) comes first; with entries it is in the ⋯ menu. One tap logs it, with undo.
  */
 export function MealSuggestions({
-  date,
-  meal,
+  target,
   mealName,
   data,
   empty,
 }: {
-  date: ISODate;
-  meal: number;
+  /** The meal the chips log into (`dm: 'new'` for the card of a day without meals). */
+  target: MealRef;
   mealName: string;
   /** This meal's part of `useDaySuggestions` (undefined while loading). */
   data: MealSuggestionsData | undefined;
@@ -54,12 +59,12 @@ export function MealSuggestions({
 }) {
   const db = useDb();
   const { busy, run } = useSubmitting();
-  const yesterday = empty && (data?.yesterdayKcal ?? 0) > 0;
+  const yesterday = empty ? (data?.yesterday ?? null) : null;
   if (!data || (data.suggestions.length === 0 && !yesterday)) return null;
 
   const logOne = (s: MealSuggestion) =>
     run(async () => {
-      const ids = await logSuggestion(db, s, { date, meal });
+      const ids = await logSuggestion(db, s, await prepareMealTarget(db, target));
       toast(`„${s.name}“ in ${mealName} eingetragen`, { action: undo(db, ids) });
     });
 
@@ -71,10 +76,10 @@ export function MealSuggestions({
           <li className="shrink-0">
             <Chip
               title="Wie gestern"
-              detail={`${fmt0(data.yesterdayKcal)} kcal`}
+              detail={`${yesterday.name} ${fmtTime(yesterday.eatenAt)} · ${fmt0(yesterday.kcal)} kcal`}
               icon={<History className="size-3.5 shrink-0" aria-hidden />}
               disabled={busy}
-              onClick={() => void run(() => copyYesterdayWithToast(db, date, meal, mealName))}
+              onClick={() => void run(() => copyYesterdayWithToast(db, yesterday, target, mealName))}
             />
           </li>
         )}

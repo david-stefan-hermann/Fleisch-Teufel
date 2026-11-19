@@ -35,6 +35,11 @@ export interface LogTarget {
   diaryMealId?: string | null;
   /** Written with the first entry when the meal has no record yet. */
   create?: { name: string; eatenAt: number } | null;
+  /**
+   * A meal without a record that shares the index of the new one: written down with it and its
+   * entries attached to it, or they would join the new meal.
+   */
+  keep?: Omit<DiaryMeal, 'updatedAt' | 'deleted'> | null;
 }
 
 /** A meal as a link or a form names it: `dm` is its id, or `new` for the next meal of the day. */
@@ -202,11 +207,13 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
   if (dm === 'new') {
     const { standard } = await mealNames(db);
     const name = ref.name?.trim() || nextMealName(standard, day);
+    const slot = slotForNewMeal(name, standard, day);
     return {
       date,
-      meal: slotForNewMeal(name, standard, day),
+      meal: slot,
       diaryMealId: uuidv7(),
       create: { name, eatenAt: newMealEatenAt(date, name, standard, at) },
+      ...keepSharing(day, date, slot),
     };
   }
   const shown = day.find((m) => m.id === dm);
@@ -215,11 +222,22 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
   if (shown) {
     // Whoever logs first into a meal an analysis began writes its record.
     const create = queuedNewMeal(shown);
-    return { date, meal: shown.slot, diaryMealId: dm, ...(create && { create }) };
+    return {
+      date,
+      meal: shown.slot,
+      diaryMealId: dm,
+      ...(create && { create, ...keepSharing(day, date, shown.slot) }),
+    };
   }
   const record = await db.diaryMeals.get(dm);
   if (record) return { date, meal: record.slot, diaryMealId: record.id };
   return { date, meal: unrecordedSlot(dm) ?? meal, diaryMealId: null };
+}
+
+/** A new meal of an index that a meal without a record has: that one is written down with it. */
+function keepSharing(day: readonly DiaryDayMeal[], date: ISODate, slot: number): Pick<LogTarget, 'keep'> {
+  const sharing = day.find((m) => m.virtual && m.id === dayId.diaryMeal(date, slot));
+  return sharing ? { keep: recordOf(sharing) } : {};
 }
 
 /** The id of the meal a target writes into. */
@@ -240,6 +258,7 @@ export async function applyLogTarget(
 ): Promise<{ meal: number; diaryMealId: string | null }> {
   const diaryMealId = target.diaryMealId ?? null;
   if (diaryMealId && target.create && !(await db.diaryMeals.get(diaryMealId))) {
+    if (target.keep) await keepSharedSlot(db, target.keep);
     await saveRecord(db, 'diaryMeals', {
       id: diaryMealId,
       date: target.date,
@@ -250,6 +269,18 @@ export async function applyLogTarget(
     });
   }
   return { meal: target.meal, diaryMealId };
+}
+
+/**
+ * A new meal takes the index of a meal that has no record: that one gets its record, and its entries
+ * name it, so they stay where they are whatever time they were logged at.
+ */
+async function keepSharedSlot(db: UserDb, meal: NonNullable<LogTarget['keep']>): Promise<void> {
+  if (!(await db.diaryMeals.get(meal.id))) await saveRecord(db, 'diaryMeals', meal);
+  const entries = await db.foodEntries.where('[date+meal]').equals([meal.date, meal.slot]).toArray();
+  for (const e of entries) {
+    if (!e.deleted && !e.diaryMealId) await patchRecord(db, 'foodEntries', e.id, { diaryMealId: meal.id });
+  }
 }
 
 function recordOf(meal: DayMeal): Omit<DiaryMeal, 'updatedAt' | 'deleted'> {
