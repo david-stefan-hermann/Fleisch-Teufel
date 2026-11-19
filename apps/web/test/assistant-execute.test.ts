@@ -2,6 +2,7 @@ import { dayId, uuidv7, type AssistantOp, type Food } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import { readDay } from '@/db/diaryMeals';
+import { saveSettings } from '@/db/settings';
 import { logTrainings } from '@/db/entries';
 import { runUndo } from '@/db/undo';
 import { saveRecord } from '@/db/write';
@@ -37,6 +38,8 @@ const logFood = (over: Partial<Extract<AssistantOp, { kind: 'logFood' }>> = {}):
   kind: 'logFood',
   date: TODAY,
   meal: 1,
+  diaryMealId: null,
+  mealName: null,
   items: [
     { food: quark, grams: 200, portion: null, guessed: false },
     { food: banana, grams: 120, portion: { label: 'Stück (120 g)', grams: 120 }, guessed: true },
@@ -44,6 +47,23 @@ const logFood = (over: Partial<Extract<AssistantOp, { kind: 'logFood' }>> = {}):
   groupName: null,
   ...over,
 });
+
+const logQuick = (over: Partial<Extract<AssistantOp, { kind: 'logQuick' }>> = {}): AssistantOp => ({
+  kind: 'logQuick',
+  date: TODAY,
+  meal: null,
+  diaryMealId: null,
+  mealName: null,
+  kcal: 100,
+  proteinG: null,
+  carbsG: null,
+  fatG: null,
+  text: 'Kuchen',
+  ...over,
+});
+
+/** An operation as an older server sends it (and turns stored before meals had ids keep it). */
+const legacy = (op: Record<string, unknown>) => op as AssistantOp;
 
 const live = async (d: UserDb) => (await d.foodEntries.toArray()).filter((e) => !e.deleted);
 
@@ -84,7 +104,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
   it('without a meal: the meal of an entry made minutes ago, else a new meal', async () => {
     const d = db();
     const r = await applyOps(d, [logFood({ meal: null })], env);
-    expect(r.applied[0]!.target).toEqual({ date: TODAY, meal: 0 });
+    expect(r.applied[0]!.target).toMatchObject({ date: TODAY, meal: 0, name: 'Frühstück' });
     expect(r.applied[0]!.text).toMatch(/^Frühstück: /);
     const [meal] = await readDay(d, TODAY);
     expect(meal).toMatchObject({ name: 'Frühstück', eatenAt: NOW, virtual: false });
@@ -97,9 +117,10 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       loggedAt: NOW - 5 * 60_000,
     });
     const r2 = await applyOps(e, [logFood({ meal: null }), logFood({ meal: null, date: TODAY })], env);
+    const placed = (await live(e))[0]!.diaryMealId;
     expect(r2.applied.map((a) => a.target)).toEqual([
-      { date: TODAY, meal: 3 },
-      { date: TODAY, meal: 3 },
+      { date: TODAY, meal: 3, diaryMealId: placed, name: 'Snacks' },
+      { date: TODAY, meal: 3, diaryMealId: placed, name: 'Snacks' },
     ]);
   });
 
@@ -116,7 +137,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
     const [chips] = (await applyOps(d, [logFood({ meal: 3 })], env)).applied[0]!.entryIds ?? [];
     await d.foodEntries.update(chips!, { loggedAt: late.now - 10 * 60_000 });
     const r = await applyOps(d, [logFood({ meal: null, date: '2026-11-14' })], late);
-    expect(r.applied[0]!.target).toEqual({ date: TODAY, meal: 3 });
+    expect(r.applied[0]!.target).toMatchObject({ date: TODAY, meal: 3 });
   });
 
   it('a training counts with the weight set earlier in the same sentence', async () => {
@@ -162,7 +183,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       d,
       [
         { kind: 'updateEntry', entryId: q!.id, grams: 750 },
-        { kind: 'moveEntries', entryIds: [q!.id], toDate: '2026-11-12', toMeal: 0 },
+        legacy({ kind: 'moveEntries', entryIds: [q!.id], toDate: '2026-11-12', toMeal: 0 }),
         { kind: 'deleteEntries', entryIds: [b!.id] },
       ],
       env,
@@ -180,6 +201,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       grams: 200,
       date: TODAY,
       meal: 1,
+      diaryMealId: null,
       nutrients: { ENERCC: 134 },
     });
     expect((await d.foodEntries.get(b!.id))!.deleted).toBe(false);
@@ -191,7 +213,7 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       d,
       [
         { kind: 'deleteEntries', entryIds: [uuidv7()] },
-        { kind: 'logSavedMeal', date: TODAY, meal: 0, mealId: uuidv7() },
+        legacy({ kind: 'logSavedMeal', date: TODAY, meal: 0, mealId: uuidv7() }),
         { kind: 'setWeight', date: TODAY, kg: 80 },
       ],
       env,
@@ -272,8 +294,8 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
     const r = await applyOps(
       d,
       [
-        { kind: 'copyEntries', entryIds: ids, toDate: TODAY, toMeal: 0 },
-        { kind: 'openCamera', date: TODAY, meal: 1, hint: 'Die Soße war Kräutersoße.', replaces: [] },
+        legacy({ kind: 'copyEntries', entryIds: ids, toDate: TODAY, toMeal: 0 }),
+        legacy({ kind: 'openCamera', date: TODAY, meal: 1, hint: 'Die Soße war Kräutersoße.', replaces: [] }),
       ],
       env,
     );
@@ -282,5 +304,97 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
       'Banane',
     ]);
     expect(r.camera).toMatchObject({ meal: 1, hint: 'Die Soße war Kräutersoße.' });
+  });
+  it('finds the meal by id, then by name; a name the day lacks begins one meal with it', async () => {
+    const d = db();
+    const first = await applyOps(d, [logFood({ meal: null })], env);
+    const breakfast = first.applied[0]!.target!.diaryMealId!;
+    await applyOps(d, [logFood({ meal: 1 })], env);
+    const r = await applyOps(
+      d,
+      [
+        logQuick({ meal: 0, diaryMealId: breakfast, mealName: 'Frühstück', text: 'Kaffee' }),
+        logQuick({ meal: 1, mealName: 'Kuchen bei Oma', text: 'Käsekuchen' }),
+        logQuick({ meal: 1, mealName: 'kuchen bei oma', text: 'Sahne' }),
+        logQuick({ meal: 1, mealName: 'Mittagessen', text: 'Brot' }),
+        // An id this device does not know (another device's meal, not synced yet): its name.
+        logQuick({ meal: 3, diaryMealId: uuidv7(), mealName: 'Snacks', text: 'Apfel' }),
+      ],
+      env,
+    );
+    expect(r.applied.map((a) => a.text)).toEqual([
+      'Frühstück: Kaffee',
+      'Kuchen bei Oma: Käsekuchen',
+      'Kuchen bei Oma: Sahne',
+      'Mittagessen: Brot',
+      'Snacks: Apfel',
+    ]);
+    const day = await readDay(d, TODAY);
+    const names = (m: (typeof day)[number]) => m.entries.map((e) => e.name);
+    const byName = (n: string) => day.find((m) => m.name === n)!;
+    expect(day.map((m) => [m.name, names(m)]).sort()).toEqual([
+      ['Frühstück', ['Magerquark', 'Banane', 'Kaffee']],
+      ['Kuchen bei Oma', ['Käsekuchen', 'Sahne']],
+      ['Mittagessen', ['Magerquark', 'Banane', 'Brot']],
+      ['Snacks', ['Apfel']],
+    ]);
+    // The meal of the day without a record stays without one.
+    expect(byName('Mittagessen')).toMatchObject({ id: `dm:${TODAY}:1`, virtual: true });
+    expect(r.applied[1]!.target).toMatchObject({
+      diaryMealId: byName('Kuchen bei Oma').id,
+      name: 'Kuchen bei Oma',
+    });
+    await runUndo(d, r.undo);
+    expect((await readDay(d, TODAY)).map((m) => m.name).sort()).toEqual(['Frühstück', 'Mittagessen']);
+  });
+
+  it('moves entries into a named meal of another day and back on undo', async () => {
+    const d = db();
+    const first = await applyOps(d, [logFood({ meal: null })], env);
+    const [q] = await live(d);
+    const r = await applyOps(
+      d,
+      [
+        {
+          kind: 'moveEntries',
+          entryIds: [q!.id],
+          toDate: '2026-11-12',
+          toMeal: 2,
+          toDiaryMealId: null,
+          toMealName: 'Abendessen',
+        },
+      ],
+      env,
+    );
+    const [evening] = await readDay(d, '2026-11-12');
+    expect(evening).toMatchObject({ name: 'Abendessen', slot: 2, virtual: false });
+    expect(await d.foodEntries.get(q!.id)).toMatchObject({
+      date: '2026-11-12',
+      meal: 2,
+      diaryMealId: evening!.id,
+    });
+    expect(r.applied[0]).toMatchObject({
+      text: 'Verschoben nach Gestern, Abendessen: Magerquark',
+      target: { date: '2026-11-12', diaryMealId: evening!.id, name: 'Abendessen' },
+    });
+    await runUndo(d, r.undo);
+    expect(await d.foodEntries.get(q!.id)).toMatchObject({
+      date: TODAY,
+      meal: 0,
+      diaryMealId: first.applied[0]!.target!.diaryMealId,
+    });
+  });
+
+  it('names the meals of an old day as they were before the standard names were renamed', async () => {
+    const d = db();
+    await saveSettings(d, {
+      mealNames: ['Morgens', 'Mittagessen', 'Abendessen', 'Snacks'],
+      legacyMealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+    });
+    const r = await applyOps(d, [legacy({ ...logFood({ date: '2026-11-12', meal: 0 }) })], {
+      ...env,
+      mealNames: ['Morgens', 'Mittagessen', 'Abendessen', 'Snacks'],
+    });
+    expect(r.applied[0]!.text).toBe('Gestern, Frühstück: Magerquark, Banane');
   });
 });

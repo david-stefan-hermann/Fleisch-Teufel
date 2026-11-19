@@ -8,6 +8,7 @@
 import {
   addDays,
   assistantOpSchema,
+  buildDayMeals,
   EXERCISE_TYPE_MAP,
   EXERCISE_TYPES,
   get,
@@ -16,26 +17,32 @@ import {
   N,
   normalize,
   portionsFor,
+  sameMealName,
   search,
+  slotForNewMeal,
   STEPS_TYPE_KEY,
   trainingItemsOf,
   type AssistantContext,
   type AssistantOp,
   type AssistantQuestion,
+  type DiaryMeal,
   type Food,
+  type FoodEntry,
 } from '@ft/shared';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { createFoodSearch } from '../ai/foodSearch.js';
 import {
+  diaryMeals,
   exerciseEntries,
   exerciseTemplates,
   exerciseTypes,
   foodEntries,
   meals,
+  userSettings,
   weightEntries,
 } from '../db/schema.js';
 import type { Deps } from '../types.js';
-import { Aliases, dayText, type DayLines } from './prompt.js';
+import { Aliases, dayText, sendsMeals, type DayLines } from './prompt.js';
 import { READ_TOOLS } from './tools.js';
 import type { ToolHost } from './types.js';
 
@@ -46,6 +53,21 @@ export interface TurnState {
 
 /** A tool input as the model sent it (checked field by field below). */
 type Input = Record<string, unknown>;
+
+/** A meal of a day the model may name. */
+interface KnownMeal {
+  id: string;
+  date: string;
+  name: string;
+  slot: number;
+}
+
+/** The meal fields of an operation (see `assistantOpSchema`). */
+interface OpMeal {
+  meal: number | null;
+  diaryMealId: string | null;
+  mealName: string | null;
+}
 
 class ToolInputError extends Error {}
 
@@ -113,6 +135,57 @@ export async function createTurnHost(
     }
   const seenMeals = new Set<string>();
 
+  /**
+   * Meals of the days, when the device lists them (newer app versions): today and yesterday as the
+   * device sent them (the sync can lag), other days from the server's records.
+   */
+  const listsMeals = sendsMeals(ctx);
+  const dayMeals = new Map<string, KnownMeal[]>();
+  const mealById = new Map<string, KnownMeal>();
+  const knowMeals = (date: string, list: readonly Omit<KnownMeal, 'date'>[]) => {
+    const known = list.map((m) => ({ id: m.id, date, name: m.name, slot: m.slot }));
+    dayMeals.set(date, known);
+    for (const m of known) {
+      aliases.alias('m', m.id);
+      mealById.set(m.id, m);
+    }
+  };
+  for (const d of ctx.days) if (d.meals) knowMeals(d.date, d.meals);
+
+  /** Names of meals without a record, as the account's settings had them before the first rename. */
+  let unrecordedNames: string[] | null = null;
+  const namesOfUnrecorded = async () => {
+    if (!unrecordedNames) {
+      const [row] = await db
+        .select({ mealNames: userSettings.mealNames, legacy: userSettings.legacyMealNames })
+        .from(userSettings)
+        .where(eq(userSettings.userId, userId));
+      unrecordedNames = row?.legacy ?? row?.mealNames ?? [...ctx.mealNames];
+    }
+    return unrecordedNames;
+  };
+
+  /** A day from the server's records: live entries and the meals they show in (`buildDayMeals`). */
+  const readServerDay = async (d: string) => {
+    const [rows, records, names] = await Promise.all([
+      db
+        .select()
+        .from(foodEntries)
+        .where(and(eq(foodEntries.userId, userId), eq(foodEntries.date, d)))
+        .orderBy(foodEntries.loggedAt),
+      db
+        .select()
+        .from(diaryMeals)
+        .where(and(eq(diaryMeals.userId, userId), eq(diaryMeals.date, d))),
+      namesOfUnrecorded(),
+    ]);
+    const entries = rows as unknown as FoodEntry[];
+    const meals = buildDayMeals({ date: d, entries, records: records as unknown as DiaryMeal[], names });
+    const mealOfEntry = new Map(meals.flatMap((m) => m.entries.map((e) => [e.id, m.id] as const)));
+    if (listsMeals && !dayMeals.has(d)) knowMeals(d, meals);
+    return { rows: rows.filter((e) => !e.deleted), meals, mealOfEntry };
+  };
+
   // ------------------------------------------------------------------ checks
   const text = (v: unknown, what: string, max = 200): string => {
     if (typeof v !== 'string' || !v.trim()) throw new ToolInputError(`${what} missing`);
@@ -134,14 +207,42 @@ export async function createTurnHost(
     if (v < addDays(today, -366)) throw new ToolInputError('date lies more than a year back');
     return v;
   };
-  const meal = (v: unknown, required = false): number | null => {
-    if (v === undefined || v === null || v === '') {
+  /**
+   * The meal an operation names on a day. Older app versions know four meals by name. Newer ones list
+   * the meals of the day: a short id or the name of one of them, else a name the day does not have,
+   * which starts a new meal with it.
+   */
+  const meal = async (v: unknown, day: string, required = false): Promise<OpMeal> => {
+    if (v === undefined || v === null || (typeof v === 'string' && !v.trim())) {
       if (required) throw new ToolInputError('meal missing');
-      return null;
+      return { meal: null, diaryMealId: null, mealName: null };
     }
-    const i = ctx.mealNames.findIndex((n) => normalize(n) === normalize(String(v)));
-    if (i < 0) throw new ToolInputError(`unknown meal; one of ${ctx.mealNames.join(', ')}`);
-    return i;
+    const said = String(v).trim();
+    if (!listsMeals) {
+      const i = ctx.mealNames.findIndex((n) => normalize(n) === normalize(said));
+      if (i < 0) throw new ToolInputError(`unknown meal; one of ${ctx.mealNames.join(', ')}`);
+      return { meal: i, diaryMealId: null, mealName: null };
+    }
+    const named = (m: KnownMeal): OpMeal => ({ meal: m.slot, diaryMealId: m.id, mealName: m.name });
+    if (/^m\d+$/.test(said)) {
+      const real = aliases.real(said);
+      const m = real ? mealById.get(real) : undefined;
+      if (!m) throw new ToolInputError(`unknown meal id ${said}: only ids from the diary or get_day`);
+      if (m.date !== day) throw new ToolInputError(`meal ${said} belongs to ${m.date}`);
+      return named(m);
+    }
+    const ofDay = dayMeals.get(day) ?? (await readServerDay(day)).meals;
+    const same = ofDay.filter((m) => sameMealName(m.name, said));
+    if (same.length > 1)
+      throw new ToolInputError(
+        `${same.length} meals of ${day} are called ${said}: pass one id (${same
+          .map((m) => aliases.alias('m', m.id))
+          .join(', ')})`,
+      );
+    const [one] = same;
+    if (one) return named(one);
+    const name = said.slice(0, 40).trim();
+    return { meal: slotForNewMeal(name, ctx.mealNames, ofDay), diaryMealId: null, mealName: name };
   };
   const entryIds = (v: unknown): string[] => {
     const list = Array.isArray(v) ? v : [v];
@@ -222,12 +323,8 @@ export async function createTurnHost(
   const getDay = async (input: Input) => {
     const d = date(input.date);
     if (d === today || d === yesterday) return 'Today and yesterday are in the prompt.';
-    const [entries, trainings, weights] = await Promise.all([
-      db
-        .select()
-        .from(foodEntries)
-        .where(and(eq(foodEntries.userId, userId), eq(foodEntries.date, d), eq(foodEntries.deleted, false)))
-        .orderBy(foodEntries.loggedAt),
+    const [{ rows: entries, meals: ofDay, mealOfEntry }, trainings, weights] = await Promise.all([
+      readServerDay(d),
       db
         .select()
         .from(exerciseEntries)
@@ -257,6 +354,7 @@ export async function createTurnHost(
         kcal: get(e.nutrients, N.kcal),
         proteinG: get(e.nutrients, N.protein),
         group: e.groupName ?? (e.mealId ? (mealNameById.get(e.mealId) ?? null) : null),
+        diaryMealId: mealOfEntry.get(e.id) ?? null,
       })),
       trainings: trainings.map((t) => ({
         id: t.id,
@@ -265,14 +363,17 @@ export async function createTurnHost(
         intensity: t.intensity,
       })),
       weightKg: weights[0]?.kg ?? null,
+      ...(listsMeals && {
+        meals: ofDay.map((m) => ({ id: m.id, name: m.name, time: null, night: m.night })),
+      }),
     };
     for (const e of entries) knownEntries.set(e.id, { quick: e.grams === null });
     return `Diary ${d}:\n${dayText(day, ctx.mealNames, aliases)}`;
   };
 
   // ------------------------------------------------------------------ write tools
-  const write: Record<string, (input: Input) => string> = {
-    log_food(input) {
+  const write: Record<string, (input: Input) => string | Promise<string>> = {
+    async log_food(input) {
       const items = Array.isArray(input.items) ? (input.items as Input[]) : [];
       if (items.length === 0) throw new ToolInputError('items missing');
       const out = items.map((it) => {
@@ -282,20 +383,22 @@ export async function createTurnHost(
         const grams = number(it.grams, 'grams', 0.1, 10_000);
         return { food, grams, portion: portionOf(food, it.portion, grams), guessed: it.guessed === true };
       });
+      const day = date(input.date);
       add({
         kind: 'logFood',
-        date: date(input.date),
-        meal: meal(input.meal),
+        date: day,
+        ...(await meal(input.meal, day)),
         items: out,
         groupName: out.length > 1 ? optText(input.groupName, 120) : null,
       });
       return `ok, ${out.length} logged`;
     },
-    log_estimate(input) {
+    async log_estimate(input) {
+      const day = date(input.date);
       return add({
         kind: 'logEstimate',
-        date: date(input.date),
-        meal: meal(input.meal),
+        date: day,
+        ...(await meal(input.meal, day)),
         name: text(input.name, 'name', 120),
         grams: number(input.grams, 'grams', 0.1, 10_000),
         kcal: number(input.kcal, 'kcal', 0, 20_000),
@@ -304,16 +407,18 @@ export async function createTurnHost(
         fatG: number(input.fatG, 'fatG', 0, 2_000),
       });
     },
-    log_saved_meal(input) {
+    async log_saved_meal(input) {
       const mealId = text(input.mealId, 'mealId', 100);
       if (!seenMeals.has(mealId)) throw new ToolInputError('unknown mealId: only ids from search_foods');
-      return add({ kind: 'logSavedMeal', date: date(input.date), meal: meal(input.meal), mealId });
+      const day = date(input.date);
+      return add({ kind: 'logSavedMeal', date: day, ...(await meal(input.meal, day)), mealId });
     },
-    log_quick(input) {
+    async log_quick(input) {
+      const day = date(input.date);
       return add({
         kind: 'logQuick',
-        date: date(input.date),
-        meal: meal(input.meal),
+        date: day,
+        ...(await meal(input.meal, day)),
         kcal: number(input.kcal, 'kcal', 0, 20_000),
         proteinG: optNumber(input.proteinG, 'proteinG', 0, 2_000),
         carbsG: optNumber(input.carbsG, 'carbsG', 0, 2_000),
@@ -326,20 +431,30 @@ export async function createTurnHost(
       if (knownEntries.get(entryId!)?.quick) throw new ToolInputError('a quick entry has no amount');
       return add({ kind: 'updateEntry', entryId, grams: number(input.grams, 'grams', 0.1, 10_000) });
     },
-    move_entries(input) {
+    async move_entries(input) {
+      const ids = entryIds(input.entryIds);
+      const day = date(input.toDate);
+      const to = await meal(input.toMeal, day, true);
       return add({
         kind: 'moveEntries',
-        entryIds: entryIds(input.entryIds),
-        toDate: date(input.toDate),
-        toMeal: meal(input.toMeal, true),
+        entryIds: ids,
+        toDate: day,
+        toMeal: to.meal,
+        toDiaryMealId: to.diaryMealId,
+        toMealName: to.mealName,
       });
     },
-    copy_entries(input) {
+    async copy_entries(input) {
+      const ids = entryIds(input.entryIds);
+      const day = date(input.toDate);
+      const to = await meal(input.toMeal, day);
       return add({
         kind: 'copyEntries',
-        entryIds: entryIds(input.entryIds),
-        toDate: date(input.toDate),
-        toMeal: meal(input.toMeal),
+        entryIds: ids,
+        toDate: day,
+        toMeal: to.meal,
+        diaryMealId: to.diaryMealId,
+        mealName: to.mealName,
       });
     },
     delete_entries(input) {
@@ -377,11 +492,12 @@ export async function createTurnHost(
       });
       return add({ kind: 'logTraining', date: date(input.date), items: out });
     },
-    open_camera(input) {
+    async open_camera(input) {
+      const day = date(input.date);
       return add({
         kind: 'openCamera',
-        date: date(input.date),
-        meal: meal(input.meal),
+        date: day,
+        ...(await meal(input.meal, day)),
         hint: optText(input.hint, 1000) ?? '',
         replaces:
           input.replaceEntryIds == null ||
@@ -414,7 +530,7 @@ export async function createTurnHost(
         }
         const run = write[name];
         if (!run) return { result: `error: unknown tool ${name}` };
-        return { result: run(input) };
+        return { result: await run(input) };
       } catch (e) {
         if (e instanceof ToolInputError) return { result: `error: ${e.message}` };
         throw e;

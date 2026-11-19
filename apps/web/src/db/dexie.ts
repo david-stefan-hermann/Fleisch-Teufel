@@ -186,8 +186,11 @@ export interface AppliedOp {
   kcal?: number;
   /** Some amounts were assumed by the model ("geschätzt"). */
   guessed?: boolean;
-  /** Day and meal it wrote to (the next utterance's follow-ups go there). */
-  target?: { date: string; meal: number };
+  /**
+   * Day and meal it wrote to (the next utterance's follow-ups go there). Turns stored before meals
+   * had ids have neither `diaryMealId` nor `name`.
+   */
+  target?: { date: string; meal: number; diaryMealId?: string | null; name?: string };
   /** New or changed diary entries (the diary scrolls to them). */
   entryIds?: string[];
 }

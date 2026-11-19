@@ -36,10 +36,6 @@ export interface Assistant {
   /** False without a transcription key: then only typed sentences. */
   readonly canTranscribe: boolean;
   transcribe(audio: AudioInput, signal?: AbortSignal): Promise<TranscribeOutput>;
-  /** `prompt` is the context and the sentence; `mealNames` fill the meal enums of the tools. */
-  understand(
-    input: { prompt: string; mealNames: readonly string[] },
-    host: ToolHost,
-    signal?: AbortSignal,
-  ): Promise<UnderstandOutput>;
+  /** `prompt` is the context and the sentence. */
+  understand(input: { prompt: string }, host: ToolHost, signal?: AbortSignal): Promise<UnderstandOutput>;
 }

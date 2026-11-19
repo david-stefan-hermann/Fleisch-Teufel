@@ -430,9 +430,10 @@ export class AssistantController {
   }
 
   private async openCamera(op: CameraOp) {
-    const target = await targetFor(this.deps.db, op.date, op.meal, { now: Date.now(), today: todayOf() });
+    // A new meal with a name of its own opens as the next meal: its name is picked on the page.
+    const { date, meal, dm } = await targetFor(this.deps.db, op, { now: Date.now(), today: todayOf() });
     storeAssistantHint(op.hint, op.replaces);
-    this.deps.openPhoto(target);
+    this.deps.openPhoto({ date, meal, ...(dm && { dm }) });
   }
 }
 

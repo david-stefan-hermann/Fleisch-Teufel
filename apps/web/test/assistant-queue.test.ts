@@ -38,6 +38,8 @@ const answer = (over: Partial<AssistantTurnResult> = {}): AssistantTurnResult =>
       kind: 'logFood',
       date: TODAY,
       meal: 1,
+      diaryMealId: null,
+      mealName: null,
       items: [{ food: quark, grams: 200, portion: null, guessed: false }],
       groupName: null,
     },
@@ -176,7 +178,17 @@ describe('assistant queue', () => {
       shownDate: TODAY,
       status: 'waiting' as const,
     };
-    expect((await contextFor(d, next)).previousTarget).toEqual({ date: TODAY, meal: 1 });
+    const ctx = await contextFor(d, next);
+    const lunch = `dm:${TODAY}:1`;
+    expect(ctx.previousTarget).toEqual({ date: TODAY, meal: 1, diaryMealId: lunch });
+    // The meals of the day as the diary shows them, every entry in its meal.
+    expect(ctx.days[0]!.meals).toEqual([
+      { id: lunch, name: 'Mittagessen', time: expect.stringMatching(/^\d\d:\d\d$/), night: false, slot: 1 },
+    ]);
+    expect(ctx.days[0]!.entries).toEqual([
+      expect.objectContaining({ name: 'Magerquark', diaryMealId: lunch }),
+    ]);
+    expect(ctx.days[1]!.meals).toEqual([]);
     await undoTurn(d, first);
     expect((await contextFor(d, next)).previousTarget).toBeNull();
   });

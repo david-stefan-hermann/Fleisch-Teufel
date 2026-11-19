@@ -25,6 +25,16 @@ const meal = z
   .max(MEAL_COUNT - 1);
 /** No meal named: the device picks one (`logTargetFor`). */
 const mealOrNull = meal.nullable();
+const mealName = z.string().trim().min(1).max(40);
+/**
+ * The meal of the day an operation names. `meal` stays filled for older app versions (the index its
+ * entries write); a newer device goes by `diaryMealId`, then `mealName` (a name the day does not
+ * have starts a new meal with it), then `meal`.
+ */
+const dayMeal = {
+  diaryMealId: id.nullable().default(null),
+  mealName: mealName.nullable().default(null),
+};
 const grams = z.number().positive().max(10_000);
 const ids = z.array(id).min(1).max(100);
 
@@ -54,6 +64,7 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     kind: z.literal('logFood'),
     date: isoDateSchema,
     meal: mealOrNull,
+    ...dayMeal,
     items: z.array(assistantFoodItemSchema).min(1).max(40),
     /** Several items of one dish ("Döner"): logged as one named group. */
     groupName: z.string().trim().max(120).nullable().default(null),
@@ -63,6 +74,7 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     kind: z.literal('logEstimate'),
     date: isoDateSchema,
     meal: mealOrNull,
+    ...dayMeal,
     name: z.string().trim().min(1).max(120),
     grams,
     kcal: z.number().min(0).max(20_000),
@@ -74,12 +86,14 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     kind: z.literal('logSavedMeal'),
     date: isoDateSchema,
     meal: mealOrNull,
+    ...dayMeal,
     mealId: id,
   }),
   z.object({
     kind: z.literal('logQuick'),
     date: isoDateSchema,
     meal: mealOrNull,
+    ...dayMeal,
     kcal: z.number().min(0).max(20_000),
     proteinG: z.number().min(0).max(2_000).nullable().default(null),
     carbsG: z.number().min(0).max(2_000).nullable().default(null),
@@ -87,8 +101,21 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     text: z.string().trim().max(1000).default(''),
   }),
   z.object({ kind: z.literal('updateEntry'), entryId: id, grams }),
-  z.object({ kind: z.literal('moveEntries'), entryIds: ids, toDate: isoDateSchema, toMeal: meal }),
-  z.object({ kind: z.literal('copyEntries'), entryIds: ids, toDate: isoDateSchema, toMeal: mealOrNull }),
+  z.object({
+    kind: z.literal('moveEntries'),
+    entryIds: ids,
+    toDate: isoDateSchema,
+    toMeal: meal,
+    toDiaryMealId: id.nullable().default(null),
+    toMealName: mealName.nullable().default(null),
+  }),
+  z.object({
+    kind: z.literal('copyEntries'),
+    entryIds: ids,
+    toDate: isoDateSchema,
+    toMeal: mealOrNull,
+    ...dayMeal,
+  }),
   z.object({ kind: z.literal('deleteEntries'), entryIds: ids }),
   z.object({ kind: z.literal('saveMeal'), name: z.string().trim().min(1).max(120), entryIds: ids }),
   z.object({ kind: z.literal('setWeight'), date: isoDateSchema, kg: z.number().min(20).max(400) }),
@@ -101,6 +128,7 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     kind: z.literal('openCamera'),
     date: isoDateSchema,
     meal: mealOrNull,
+    ...dayMeal,
     hint: z.string().trim().max(1000).default(''),
     /** Entries the photos replace: deleted when the analysis is logged (never when it is not). */
     replaces: z.array(id).max(100).default([]),
@@ -126,11 +154,31 @@ export const contextEntrySchema = z.object({
   proteinG: z.number(),
   /** Name of the group (saved meal or named group) the entry belongs to. */
   group: z.string().max(120).nullable().default(null),
+  /** The meal of the day it shows in (`ContextMeal.id`); older app versions send none. */
+  diaryMealId: id.nullable().default(null),
 });
 export type ContextEntry = z.infer<typeof contextEntrySchema>;
 
+/** A meal of the day as the diary shows it. */
+export const contextMealSchema = z.object({
+  id,
+  name: mealName,
+  /** Local time of the meal, "HH:MM". */
+  time: z.string().regex(/^\d{2}:\d{2}$/),
+  /** Eaten after midnight, on the calendar day after the day it belongs to. */
+  night: z.boolean().default(false),
+  /** The index its entries write (`foodEntries.meal`). */
+  slot: meal,
+});
+export type ContextMeal = z.infer<typeof contextMealSchema>;
+
 export const contextDaySchema = z.object({
   date: isoDateSchema,
+  /**
+   * The meals of the day in the diary's order. Older app versions send none (the key is missing):
+   * then the four `mealNames` are the meals.
+   */
+  meals: z.array(contextMealSchema).max(40).optional(),
   entries: z.array(contextEntrySchema).max(200),
   trainings: z
     .array(z.object({ id, name: z.string().max(120), minutes: z.number(), intensity: intensitySchema }))
@@ -163,7 +211,10 @@ export const assistantContextSchema = z.object({
   days: z.array(contextDaySchema).max(2),
   recent: z.array(recentUtteranceSchema).max(3).default([]),
   /** Day and meal the directly previous utterance wrote to. */
-  previousTarget: z.object({ date: isoDateSchema, meal }).nullable().default(null),
+  previousTarget: z
+    .object({ date: isoDateSchema, meal, diaryMealId: id.nullable().default(null) })
+    .nullable()
+    .default(null),
   openQuestion: assistantQuestionSchema.nullable().default(null),
 });
 export type AssistantContext = z.infer<typeof assistantContextSchema>;

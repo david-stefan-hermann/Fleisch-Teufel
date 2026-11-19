@@ -1,7 +1,9 @@
-import { uuidv7, type AssistantContext, type FoodEntry } from '@ft/shared';
+import { assistantContextSchema, uuidv7, type FoodEntry } from '@ft/shared';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { z } from 'zod';
 import { AiCallError, AiOutputError } from '../src/ai/analyze.js';
 import { transcriptionCostUsd } from '../src/ai/pricing.js';
+import { assistantTools } from '../src/assistant/tools.js';
 import { sniffAudio } from '../src/assistant/transcribe.js';
 import type { Assistant, AudioInput, ToolHost } from '../src/assistant/types.js';
 import { aiAnalyses, assistantAudio, users } from '../src/db/schema.js';
@@ -46,8 +48,12 @@ const fakeAssistant: Assistant = {
 };
 const usage = () => ({ inputTokens: 1000, outputTokens: 100, costUsd: 0.001 });
 
+/** The context as a device sends it (older app versions leave out the newer keys). */
+type Context = z.input<typeof assistantContextSchema>;
+
 const TODAY = '2026-11-13';
-const context = (over: Partial<AssistantContext> = {}): AssistantContext => ({
+const YESTERDAY = '2026-11-12';
+const context = (over: Partial<Context> = {}): Context => ({
   now: `${TODAY}T20:15`,
   shownDate: TODAY,
   mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
@@ -155,6 +161,8 @@ describe('assistant', () => {
         kind: 'logFood',
         date: TODAY,
         meal: null,
+        diaryMealId: null,
+        mealName: null,
         items: [expect.objectContaining({ grams: 80, guessed: true, portion: null })],
         groupName: null,
       },
@@ -208,9 +216,20 @@ describe('assistant', () => {
       ),
     });
     expect(understood[0]!.prompt).toContain('e1: Magerquark, 500 g, 335 kcal');
+    // An older app version: the four names are the meals, as before.
+    expect(understood[0]!.prompt).toContain('Meals: Frühstück, Mittagessen, Abendessen, Snacks.\n');
+    expect(understood[0]!.prompt).toContain('  Frühstück:\n    e1: Magerquark');
+    expect(understood[0]!.prompt).toContain('  Mittagessen: (leer)');
     expect(r.json.ops).toEqual([
       { kind: 'updateEntry', entryId: id, grams: 750 },
-      { kind: 'moveEntries', entryIds: [id], toDate: TODAY, toMeal: 1 },
+      {
+        kind: 'moveEntries',
+        entryIds: [id],
+        toDate: TODAY,
+        toMeal: 1,
+        toDiaryMealId: null,
+        toMealName: null,
+      },
     ]);
   });
 
@@ -234,7 +253,17 @@ describe('assistant', () => {
         }),
       ),
     });
-    expect(r.json.ops).toEqual([{ kind: 'openCamera', date: TODAY, meal: 0, hint: '', replaces: [id] }]);
+    expect(r.json.ops).toEqual([
+      {
+        kind: 'openCamera',
+        date: TODAY,
+        meal: 0,
+        diaryMealId: null,
+        mealName: null,
+        hint: '',
+        replaces: [id],
+      },
+    ]);
   });
 
   it('drops a reply that only says nothing was done', async () => {
@@ -425,6 +454,195 @@ describe('assistant', () => {
     expect(new Uint8Array(await got.arrayBuffer()).slice(0, 2)).toEqual(new Uint8Array([0x50, 0x4b]));
     expect((await owner.req('DELETE', '/api/assistant/skins/skin-0001')).status).toBe(200);
     expect((await owner.get('/api/assistant/skins')).json.skins).toHaveLength(4);
+  });
+
+  describe('with the meals of the day (newer app versions)', () => {
+    const at = (date: string, h: number, m = 0) => ({
+      date,
+      time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+    });
+    const breakfast = { id: uuidv7(), name: 'Frühstück', ...at(TODAY, 8, 10), night: false, slot: 0 };
+    const snack1 = { id: uuidv7(), name: 'Snacks', ...at(TODAY, 10, 30), night: false, slot: 3 };
+    const snack2 = { id: uuidv7(), name: 'Snacks', ...at(TODAY, 15, 30), night: false, slot: 3 };
+    /** Yesterday is a day from before the meals: its first meal keeps the old name. */
+    const oldBreakfast = {
+      id: `dm:${YESTERDAY}:0`,
+      name: 'Frühstück',
+      ...at(YESTERDAY, 7, 50),
+      night: false,
+      slot: 0,
+    };
+    const quark = uuidv7();
+    const nuts = uuidv7();
+    const eggs = uuidv7();
+    const strip = ({ date: _date, ...m }: typeof breakfast) => m;
+    const withMeals = (over: Partial<Context> = {}) =>
+      JSON.stringify(
+        context({
+          // The standard names were renamed; old days keep theirs.
+          mealNames: ['Morgens', 'Mittagessen', 'Abendessen', 'Snacks'],
+          days: [
+            {
+              date: TODAY,
+              meals: [breakfast, snack1, snack2].map(strip),
+              entries: [
+                {
+                  id: quark,
+                  meal: 0,
+                  name: 'Magerquark',
+                  grams: 250,
+                  kcal: 168,
+                  proteinG: 30,
+                  group: null,
+                  diaryMealId: breakfast.id,
+                },
+                {
+                  id: nuts,
+                  meal: 3,
+                  name: 'Nüsse',
+                  grams: 30,
+                  kcal: 190,
+                  proteinG: 6,
+                  group: null,
+                  diaryMealId: snack2.id,
+                },
+              ],
+              trainings: [],
+              weightKg: null,
+            },
+            {
+              date: YESTERDAY,
+              meals: [strip(oldBreakfast)],
+              entries: [
+                {
+                  id: eggs,
+                  meal: 0,
+                  name: 'Rührei',
+                  grams: 150,
+                  kcal: 220,
+                  proteinG: 18,
+                  group: null,
+                  diaryMealId: oldBreakfast.id,
+                },
+              ],
+              trainings: [],
+              weightKg: null,
+            },
+          ],
+          ...over,
+        }),
+      );
+
+    it('lists the meals with ids and times, the entries in them, old days with their old names', async () => {
+      script = [];
+      await turn(alice, { text: 'Was habe ich gegessen?', context: withMeals() });
+      const prompt = understood[0]!.prompt;
+      expect(prompt).toContain('Usual meal names: Morgens, Mittagessen, Abendessen, Snacks.\n');
+      expect(prompt).toContain('  m1 Frühstück (08:10):\n    e1: Magerquark, 250 g');
+      expect(prompt).toContain('  m2 Snacks (10:30): (leer)\n  m3 Snacks (15:30):\n    e2: Nüsse');
+      expect(prompt).toContain(`Diary yesterday (${YESTERDAY}):\n  m4 Frühstück (07:50):\n    e3: Rührei`);
+      expect(prompt).not.toContain('Morgens:');
+      // The tools name no meal: the list is the same for everyone and stays cached.
+      expect(JSON.stringify(assistantTools())).not.toContain('Frühstück');
+    });
+
+    it('logs into a meal by id or name, starts a named meal the day lacks, leaves the rest to the device', async () => {
+      script = [
+        { name: 'log_quick', input: { date: TODAY, meal: 'm1', kcal: 100 } },
+        { name: 'log_quick', input: { date: TODAY, meal: 'frühstück', kcal: 110 } },
+        { name: 'log_quick', input: { date: TODAY, meal: 'Kuchen bei Oma', kcal: 400 } },
+        { name: 'log_quick', input: { date: TODAY, meal: 'Mittagessen', kcal: 500 } },
+        { name: 'log_quick', input: { date: YESTERDAY, meal: 'Frühstück', kcal: 120 } },
+        { name: 'log_quick', input: { date: TODAY, kcal: 130 } },
+      ];
+      const r = await turn(alice, { text: 'Kuchen bei Oma.', context: withMeals() });
+      const meals = r.json.ops.map((o: Record<string, unknown>) => [o.meal, o.diaryMealId, o.mealName]);
+      expect(meals).toEqual([
+        [0, breakfast.id, 'Frühstück'],
+        [0, breakfast.id, 'Frühstück'],
+        // Not a standard name: the first free index.
+        [1, null, 'Kuchen bei Oma'],
+        // A standard name the day does not have yet is a new meal too, with its own index.
+        [1, null, 'Mittagessen'],
+        [0, oldBreakfast.id, 'Frühstück'],
+        [null, null, null],
+      ]);
+    });
+
+    it('tells two meals of one name apart by their ids', async () => {
+      script = [
+        { name: 'log_quick', input: { date: TODAY, meal: 'Snacks', kcal: 100 } },
+        { name: 'log_quick', input: { date: TODAY, meal: 'm3', kcal: 100 } },
+        { name: 'move_entries', input: { entryIds: ['e1'], toDate: TODAY, toMeal: 'm2' } },
+        { name: 'copy_entries', input: { entryIds: ['e3'], toDate: TODAY, toMeal: 'm4' } },
+        { name: 'log_quick', input: { date: TODAY, meal: 'm9', kcal: 100 } },
+      ];
+      const r = await turn(alice, { text: 'Zu den Snacks.', context: withMeals() });
+      expect(understood[0]!.results[0]).toContain(
+        '2 meals of 2026-11-13 are called Snacks: pass one id (m2, m3)',
+      );
+      expect(understood[0]!.results[3]).toContain(`meal m4 belongs to ${YESTERDAY}`);
+      expect(understood[0]!.results[4]).toContain('unknown meal id m9');
+      expect(r.json.ops).toEqual([
+        expect.objectContaining({ kind: 'logQuick', meal: 3, diaryMealId: snack2.id, mealName: 'Snacks' }),
+        {
+          kind: 'moveEntries',
+          entryIds: [quark],
+          toDate: TODAY,
+          toMeal: 3,
+          toDiaryMealId: snack1.id,
+          toMealName: 'Snacks',
+        },
+      ]);
+    });
+
+    it('names the meal the previous utterance wrote to', async () => {
+      script = [];
+      await turn(alice, {
+        text: 'Und noch ein Kaffee.',
+        context: withMeals({ previousTarget: { date: TODAY, meal: 3, diaryMealId: snack2.id } }),
+      });
+      expect(understood[0]!.prompt).toContain(`The previous utterance wrote to: ${TODAY} Snacks (m3).`);
+    });
+
+    it('reads the meals of other days from the server, also to log into them', async () => {
+      const day = '2026-11-02';
+      const cake = {
+        id: uuidv7(),
+        date: day,
+        name: 'Kuchen bei Oma',
+        eatenAt: 1000,
+        slot: 3,
+        timeEdited: false,
+      };
+      const piece = entry({ date: day, meal: 3, name: 'Käsekuchen', diaryMealId: cake.id });
+      const old = entry({ date: day, meal: 0, name: 'Brötchen' });
+      await alice.post('/api/sync/push', {
+        records: [
+          { table: 'diaryMeals', data: { ...cake, updatedAt: 1000, deleted: false } },
+          { table: 'foodEntries', data: piece },
+          { table: 'foodEntries', data: old },
+        ],
+      });
+      script = [
+        { name: 'log_quick', input: { date: day, meal: 'kuchen bei oma', kcal: 300 } },
+        { name: 'get_day', input: { date: day } },
+        { name: 'log_quick', input: { date: day, meal: 'm2', kcal: 200 } },
+      ];
+      const r = await turn(alice, {
+        text: 'Am 2. noch ein Stück Kuchen.',
+        context: withMeals({
+          mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+          days: [{ date: TODAY, meals: [], entries: [], trainings: [], weightKg: null }],
+        }),
+      });
+      expect(r.json.ops.map((o: Record<string, unknown>) => [o.meal, o.diaryMealId, o.mealName])).toEqual([
+        [3, cake.id, 'Kuchen bei Oma'],
+        [0, `dm:${day}:0`, 'Frühstück'],
+      ]);
+      expect(understood[0]!.results[1]).toMatch(/m2 Frühstück:\n {4}e\d+: Brötchen/);
+      expect(understood[0]!.results[1]).toMatch(/m1 Kuchen bei Oma:\n {4}e\d+: Käsekuchen/);
+    });
   });
 
   it('prices the transcription per audio minute', () => {

@@ -8,8 +8,10 @@
 import {
   addDays,
   DEFAULT_WEIGHT_KG,
+  entryMealKey,
   EXERCISE_TYPES,
   rescaleItem,
+  sameMealName,
   trainingItemsOf,
   weightForDay,
   type AssistantOp,
@@ -19,7 +21,16 @@ import {
   type Intensity,
 } from '@ft/shared';
 import type { AppliedOp, UndoStep, UserDb } from '@/db/dexie';
-import { prepareMealTarget, readNextMeal, type LogTarget, type MealRef } from '@/db/diaryMeals';
+import {
+  mealIdOf,
+  placeMovedEntry,
+  prepareMealTarget,
+  readDay,
+  readMealChoice,
+  readNextMeal,
+  type LogTarget,
+  type MealRef,
+} from '@/db/diaryMeals';
 import {
   aiMealItems,
   diaryParts,
@@ -41,6 +52,7 @@ export interface ApplyEnv {
   /** Epoch ms of the utterance (the meal for "no meal named" is chosen for this moment). */
   now: number;
   today: ISODate;
+  /** Names of the four indexes: only for a meal this device cannot name otherwise. */
   mealNames: readonly string[];
 }
 
@@ -79,41 +91,115 @@ async function pickMeal(db: UserDb, date: ISODate, env: Pick<ApplyEnv, 'now' | '
   });
 }
 
-/**
- * The target of every operation of a turn, settled before its transaction. All operations of one
- * turn that name no meal go to the same one.
- */
-async function targetResolver(db: UserDb, ops: readonly AssistantOp[], env: ApplyEnv) {
-  const chosen = new Map<ISODate, LogTarget>();
-  for (const op of ops) {
-    const open =
-      op.kind === 'copyEntries'
-        ? op.toMeal === null && op.toDate
-        : (op.kind === 'logFood' ||
-            op.kind === 'logEstimate' ||
-            op.kind === 'logQuick' ||
-            op.kind === 'logSavedMeal') &&
-          op.meal === null &&
-          op.date;
-    if (open && !chosen.has(open))
-      chosen.set(open, await prepareMealTarget(db, await pickMeal(db, open, env), env.now));
-  }
-  return (date: ISODate, meal: number | null): LogTarget =>
-    meal === null ? chosen.get(date)! : { date, meal };
+/** The meal an operation names, whatever its kind calls the fields. */
+interface OpPlace {
+  date: ISODate;
+  meal: number | null;
+  diaryMealId: string | null;
+  mealName: string | null;
 }
 
-/** Day and meal for an operation (the camera of "Ich hab Fotos"): its own, else the rules of the "+". */
+/** Where an operation writes; null for operations that write no diary meal. */
+function placeOfOp(op: AssistantOp): OpPlace | null {
+  // Answers of an older server and turns stored before meals had ids carry neither id nor name.
+  const named = (diaryMealId?: string | null, mealName?: string | null) => ({
+    diaryMealId: diaryMealId ?? null,
+    mealName: mealName?.trim() || null,
+  });
+  switch (op.kind) {
+    case 'logFood':
+    case 'logEstimate':
+    case 'logQuick':
+    case 'logSavedMeal':
+    case 'openCamera':
+      return { date: op.date, meal: op.meal, ...named(op.diaryMealId, op.mealName) };
+    case 'copyEntries':
+      return { date: op.toDate, meal: op.toMeal, ...named(op.diaryMealId, op.mealName) };
+    case 'moveEntries':
+      return { date: op.toDate, meal: op.toMeal, ...named(op.toDiaryMealId, op.toMealName) };
+    default:
+      return null;
+  }
+}
+
+/** Operations with the same key write into the same meal; a name counts without its index. */
+const placeKey = (p: OpPlace) =>
+  JSON.stringify(
+    p.mealName
+      ? [p.date, p.diaryMealId, p.mealName.toLocaleLowerCase('de')]
+      : [p.date, p.diaryMealId, p.meal],
+  );
+
+/** The meal is one of the day on this device (a meal without a record is always known by its id). */
+async function knowsMeal(db: UserDb, date: ISODate, id: string): Promise<boolean> {
+  if (id.startsWith(`dm:${date}:`)) return true;
+  if ((await readDay(db, date)).some((m) => m.id === id)) return true;
+  return (await db.diaryMeals.get(id))?.date === date;
+}
+
+/**
+ * The meal an operation names, as this device finds it: by id, then by name (a name the day does not
+ * have begins a new meal with it), then by index, else the rules of the "+".
+ */
+async function refOf(db: UserDb, p: OpPlace, env: Pick<ApplyEnv, 'now' | 'today'>): Promise<MealRef> {
+  const { date } = p;
+  if (p.diaryMealId && (await knowsMeal(db, date, p.diaryMealId)))
+    return { date, meal: p.meal ?? 0, dm: p.diaryMealId };
+  if (p.mealName) {
+    const name = p.mealName;
+    const same = (await readDay(db, date))
+      .filter((m) => sameMealName(m.name, name))
+      .sort((a, b) => a.eatenAt - b.eatenAt);
+    const found = same.at(-1);
+    return found ? { date, meal: found.slot, dm: found.id } : { date, meal: p.meal ?? 0, dm: 'new', name };
+  }
+  return p.meal === null ? pickMeal(db, date, env) : { date, meal: p.meal };
+}
+
+/** A meal an operation writes into, settled before the transaction: target, its id and name. */
+interface Resolved {
+  target: LogTarget;
+  id: string;
+  name: string;
+}
+
+/**
+ * The target of every operation of a turn, settled before its transaction. All operations of one
+ * turn that name the same meal go to the same one: those without a meal, and those naming a new one.
+ */
+async function targetResolver(db: UserDb, ops: readonly AssistantOp[], env: ApplyEnv) {
+  const chosen = new Map<string, Resolved>();
+  for (const op of ops) {
+    const p = placeOfOp(op);
+    if (!p || op.kind === 'openCamera' || chosen.has(placeKey(p))) continue;
+    const ref = await refOf(db, p, env);
+    const target = await prepareMealTarget(db, ref, env.now);
+    const shown = target.create ? null : (await readMealChoice(db, ref, env.now)).current;
+    chosen.set(placeKey(p), {
+      target,
+      id: target.diaryMealId ?? shown?.id ?? mealIdOf(target),
+      name: target.create?.name ?? shown?.name ?? env.mealNames[target.meal] ?? '',
+    });
+  }
+  return (op: AssistantOp): Resolved => chosen.get(placeKey(placeOfOp(op)!))!;
+}
+
+/** Day and meal for the camera of "Ich hab Fotos": its own, else the rules of the "+". */
 export async function targetFor(
   db: UserDb,
-  date: ISODate,
-  meal: number | null,
+  op: CameraOp,
   env: Omit<ApplyEnv, 'mealNames'>,
 ): Promise<MealRef> {
-  return meal === null ? pickMeal(db, date, env) : { date, meal };
+  return refOf(db, placeOfOp(op)!, env);
 }
 
 /** Where an operation wrote, as the turn keeps it. */
-const placeOf = ({ date, meal }: LogTarget) => ({ date, meal });
+const placeOf = ({ target, id, name }: Resolved) => ({
+  date: target.date,
+  meal: target.meal,
+  diaryMealId: id,
+  name,
+});
 
 async function typeOptions(db: UserDb): Promise<TypeOption[]> {
   const own = (await db.exerciseTypes.toArray()).filter((t) => !t.deleted);
@@ -166,7 +252,7 @@ export async function applyOps(
 
   const dayLabel = (date: ISODate) =>
     date === env.today ? '' : `${fmtRelativeDay(date, env.today, true)}, `;
-  const where = (t: LogTarget) => `${dayLabel(t.date)}${t.create?.name ?? env.mealNames[t.meal]}`;
+  const where = (r: Resolved) => `${dayLabel(r.target.date)}${r.name}`;
 
   const result: ApplyResult = { applied: [], undo: [], skipped: 0, camera: null };
   const liveEntries = async (ids: readonly string[]) =>
@@ -177,6 +263,8 @@ export async function applyOps(
     [
       db.foodEntries,
       db.diaryMeals,
+      // Moving reads the day's meals (their names come from the settings).
+      db.settings,
       db.meals,
       db.exerciseEntries,
       db.exerciseTemplates,
@@ -188,7 +276,8 @@ export async function applyOps(
       for (const op of ops) {
         switch (op.kind) {
           case 'logFood': {
-            const target = resolve(op.date, op.meal);
+            const to = resolve(op);
+            const { target } = to;
             const items = aiMealItems(op.items).map((it, i) => ({ ...it, source: op.items[i]!.food.source }));
             const ids = await logItems(db, items, target, {
               groupName: op.items.length > 1 ? op.groupName : null,
@@ -196,18 +285,19 @@ export async function applyOps(
             result.undo.push({ kind: 'delete', table: 'foodEntries', ids });
             result.applied.push({
               kind: op.kind,
-              text: `${where(target)}: ${op.groupName && op.items.length > 1 ? op.groupName : entryNames(items)}`,
-              detail: `${where(target)}: ${items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
+              text: `${where(to)}: ${op.groupName && op.items.length > 1 ? op.groupName : entryNames(items)}`,
+              detail: `${where(to)}: ${items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: items.reduce((s, it) => s + kcalOf(it), 0),
               guessed: op.items.some((i) => i.guessed),
-              target: placeOf(target),
+              target: placeOf(to),
               entryIds: ids,
             });
             break;
           }
           case 'logEstimate':
           case 'logQuick': {
-            const target = resolve(op.date, op.meal);
+            const to = resolve(op);
+            const { target } = to;
             const text =
               op.kind === 'logEstimate' ? `${op.name} (${fmtGrams(op.grams)}, geschätzt)` : op.text;
             const id = await logQuickEntry(
@@ -227,11 +317,11 @@ export async function applyOps(
             result.undo.push({ kind: 'delete', table: 'foodEntries', ids: [id] });
             result.applied.push({
               kind: op.kind,
-              text: `${where(target)}: ${entry.name}`,
-              detail: `${where(target)}: ${entry.name}, ${fmt0(op.kcal)} kcal`,
+              text: `${where(to)}: ${entry.name}`,
+              detail: `${where(to)}: ${entry.name}, ${fmt0(op.kcal)} kcal`,
               kcal: op.kcal,
               guessed: op.kind === 'logEstimate',
-              target: placeOf(target),
+              target: placeOf(to),
               entryIds: [id],
             });
             break;
@@ -242,18 +332,18 @@ export async function applyOps(
               result.skipped++;
               break;
             }
-            const target = resolve(op.date, op.meal);
-            const ids = await logItems(db, meal.items, target, {
+            const to = resolve(op);
+            const ids = await logItems(db, meal.items, to.target, {
               mealId: meal.id,
               photoIds: meal.photoId ? [meal.photoId] : null,
             });
             result.undo.push({ kind: 'delete', table: 'foodEntries', ids });
             result.applied.push({
               kind: op.kind,
-              text: `${where(target)}: ${meal.name}`,
-              detail: `${where(target)}: ${meal.items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
+              text: `${where(to)}: ${meal.name}`,
+              detail: `${where(to)}: ${meal.items.map((it) => `${it.name}, ${amountOf(it)}`).join(' · ')}`,
               kcal: meal.items.reduce((s, it) => s + kcalOf(it), 0),
-              target: placeOf(target),
+              target: placeOf(to),
               entryIds: ids,
             });
             break;
@@ -281,32 +371,35 @@ export async function applyOps(
               kind: op.kind,
               text: `${entry.name}: ${amountOf(next)}`,
               kcal: kcalOf(next) - kcalOf(entry),
-              target: { date: entry.date, meal: entry.meal },
+              target: { date: entry.date, meal: entry.meal, diaryMealId: entry.diaryMealId ?? null },
               entryIds: [entry.id],
             });
             break;
           }
           case 'moveEntries': {
             const entries = await liveEntries(op.entryIds);
-            const moved = entries.filter((e) => e.date !== op.toDate || e.meal !== op.toMeal);
             if (entries.length === 0) {
               result.skipped++;
               break;
             }
-            for (const e of moved) {
-              await patchRecord(db, 'foodEntries', e.id, { date: op.toDate, meal: op.toMeal });
+            const to = resolve(op);
+            const { target } = to;
+            for (const e of entries) {
+              if (e.date === target.date && entryMealKey(e) === to.id) continue;
+              // Both meals keep their name and time, like after a drag.
+              const place = await placeMovedEntry(db, e.id, target);
+              await patchRecord(db, 'foodEntries', e.id, { date: target.date, ...place });
               result.undo.push({
                 kind: 'patch',
                 table: 'foodEntries',
                 id: e.id,
-                fields: { date: e.date, meal: e.meal },
+                fields: { date: e.date, meal: e.meal, diaryMealId: e.diaryMealId ?? null },
               });
             }
-            const target = { date: op.toDate, meal: op.toMeal };
             result.applied.push({
               kind: op.kind,
-              text: `Verschoben nach ${where(target)}: ${entryNames(entries)}`,
-              target,
+              text: `Verschoben nach ${where(to)}: ${entryNames(entries)}`,
+              target: placeOf(to),
               entryIds: entries.map((e) => e.id),
             });
             break;
@@ -317,15 +410,15 @@ export async function applyOps(
               result.skipped++;
               break;
             }
-            const target = resolve(op.toDate, op.toMeal);
-            const ids = await logParts(db, diaryParts(entries), target);
+            const to = resolve(op);
+            const ids = await logParts(db, diaryParts(entries), to.target);
             result.undo.push({ kind: 'delete', table: 'foodEntries', ids });
             result.applied.push({
               kind: op.kind,
-              text: `${where(target)}: ${entryNames(entries)}`,
-              detail: `${where(target)}: ${entries.map((e) => `${e.name}, ${amountOf(e)}`).join(' · ')}`,
+              text: `${where(to)}: ${entryNames(entries)}`,
+              detail: `${where(to)}: ${entries.map((e) => `${e.name}, ${amountOf(e)}`).join(' · ')}`,
               kcal: entries.reduce((s, e) => s + kcalOf(e), 0),
-              target: placeOf(target),
+              target: placeOf(to),
               entryIds: ids,
             });
             break;
@@ -442,7 +535,7 @@ export function summaryText(applied: readonly AppliedOp[]): string {
 }
 
 /** Where the turn wrote last (the next utterance's follow-ups go there). */
-export function lastTarget(applied: readonly AppliedOp[]): { date: string; meal: number } | null {
+export function lastTarget(applied: readonly AppliedOp[]): AppliedOp['target'] | null {
   for (let i = applied.length - 1; i >= 0; i--) if (applied[i]!.target) return applied[i]!.target!;
   return null;
 }

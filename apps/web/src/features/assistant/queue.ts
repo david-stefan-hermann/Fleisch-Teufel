@@ -22,6 +22,7 @@ import {
   type ISODate,
 } from '@ft/shared';
 import type { AssistantTurn, UserDb } from '@/db/dexie';
+import { readDay } from '@/db/diaryMeals';
 import { runUndo } from '@/db/undo';
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { api, ApiError, OfflineError, TimeoutError, errorMessage } from '@/lib/api';
@@ -54,16 +55,29 @@ export function localStamp(ms: number): string {
   return `${toISODate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Local "HH:MM" of an epoch ms. */
+const clockOf = (ms: number) => (Number.isFinite(ms) ? localStamp(ms).slice(11) : '00:00');
+
 async function dayOf(db: UserDb, date: ISODate): Promise<ContextDay> {
-  const [entries, trainings, weight, meals] = await Promise.all([
+  const [entries, trainings, weight, meals, dayMeals] = await Promise.all([
     db.foodEntries.where('date').equals(date).sortBy('loggedAt'),
     db.exerciseEntries.where('date').equals(date).sortBy('loggedAt'),
     db.weightEntries.where('date').equals(date).toArray(),
     db.meals.toArray(),
+    readDay(db, date),
   ]);
   const mealName = new Map(meals.map((m) => [m.id, m.name]));
+  const mealOfEntry = new Map(dayMeals.flatMap((m) => m.entries.map((e) => [e.id, m.id] as const)));
   return {
     date,
+    // The meals as the diary shows them (names of old days as they were, not the renamed ones).
+    meals: dayMeals.map((m) => ({
+      id: m.id,
+      name: m.name.slice(0, 40),
+      time: clockOf(m.eatenAt),
+      night: m.night,
+      slot: m.slot,
+    })),
     entries: entries
       .filter((e) => !e.deleted)
       .map((e) => ({
@@ -74,6 +88,7 @@ async function dayOf(db: UserDb, date: ISODate): Promise<ContextDay> {
         kcal: Math.round(get(e.nutrients, N.kcal)),
         proteinG: Math.round(get(e.nutrients, N.protein) * 10) / 10,
         group: e.groupName ?? (e.mealId ? (mealName.get(e.mealId) ?? null) : null),
+        diaryMealId: mealOfEntry.get(e.id) ?? null,
       })),
     trainings: trainings
       .filter((t) => !t.deleted && !isStepsEntry(t))
@@ -112,7 +127,9 @@ export async function contextFor(db: UserDb, turn: AssistantTurn): Promise<Assis
       ).slice(0, 2000),
       reply: (t.question ? `asked: ${t.question.text}` : (t.reply ?? '')).slice(0, 500),
     })),
-    previousTarget: target,
+    previousTarget: target
+      ? { date: target.date, meal: target.meal, diaryMealId: target.diaryMealId ?? null }
+      : null,
     openQuestion: asked?.question ?? null,
   };
 }

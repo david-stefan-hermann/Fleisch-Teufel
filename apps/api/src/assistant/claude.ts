@@ -41,7 +41,7 @@ export function createAssistant(opts: {
     },
 
     async understand(input, host, signal) {
-      const tools = assistantTools(input.mealNames);
+      const tools = assistantTools();
       const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: input.prompt }];
       const usage: AiUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
       let model: string | null = null;

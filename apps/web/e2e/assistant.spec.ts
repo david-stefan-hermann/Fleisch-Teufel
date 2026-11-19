@@ -67,6 +67,19 @@ test('the assistant logs a typed sentence; the toast undoes it', async ({ page }
             ],
             groupName: null,
           },
+          // A meal the day does not have yet, by name (a newer server).
+          {
+            kind: 'logQuick',
+            date,
+            meal: 2,
+            diaryMealId: null,
+            mealName: 'Kuchen bei Oma',
+            kcal: 400,
+            proteinG: null,
+            carbsG: null,
+            fatG: null,
+            text: 'Käsekuchen',
+          },
         ],
         question: null,
         reply: 'Magerquark eingetragen.',
@@ -85,12 +98,20 @@ test('the assistant logs a typed sentence; the toast undoes it', async ({ page }
   await field.press('Enter');
 
   const lunch = mealCard(page, 'Mittagessen');
+  const cake = mealCard(page, 'Kuchen bei Oma');
   await expect(lunch.getByText('Magerquark')).toBeVisible();
+  await expect(cake.getByText('Käsekuchen')).toBeVisible();
   expect(sent!.text).toBe('200 Gramm Magerquark zum Mittagessen');
-  expect(sent!.context).toMatchObject({ mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'] });
-  await expect(page.getByText('Mittagessen: Magerquark · 134 kcal')).toBeVisible();
+  expect(sent!.context).toMatchObject({
+    mealNames: ['Frühstück', 'Mittagessen', 'Abendessen', 'Snacks'],
+    days: [{ meals: [] }, { meals: [] }],
+  });
+  await expect(
+    page.getByText('Mittagessen: Magerquark; Kuchen bei Oma: Käsekuchen · 534 kcal'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Rückgängig' }).click();
   await expect(lunch.getByText('Magerquark')).toHaveCount(0);
+  await expect(cake).toHaveCount(0);
 
   // The history keeps it, marked as undone.
   await page.goto('/settings/assistant');

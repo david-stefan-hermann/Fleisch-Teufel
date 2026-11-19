@@ -40,17 +40,23 @@ const clock = (ms: number) => {
 
 /** What a turn of another device did, from its operations (read only, no undo). */
 export function describeOps(ops: readonly AssistantOp[], mealNames: readonly string[]): string[] {
-  const meal = (m: number | null) => (m === null ? '' : `${mealNames[m] ?? ''}: `);
+  // The name the server resolved; turns of older versions only know the index.
+  const nameOf = (m: number | null, named?: string | null) =>
+    named ?? (m === null ? null : (mealNames[m] ?? ''));
+  const meal = (m: number | null, named?: string | null) => {
+    const name = nameOf(m, named);
+    return name === null ? '' : `${name}: `;
+  };
   return ops.flatMap((op) => {
     switch (op.kind) {
       case 'logFood':
         return [
-          `${meal(op.meal)}${op.items.map((i) => `${i.food.name}, ${Math.round(i.grams)} g`).join(' · ')}`,
+          `${meal(op.meal, op.mealName)}${op.items.map((i) => `${i.food.name}, ${Math.round(i.grams)} g`).join(' · ')}`,
         ];
       case 'logEstimate':
-        return [`${meal(op.meal)}${op.name} (geschätzt)`];
+        return [`${meal(op.meal, op.mealName)}${op.name} (geschätzt)`];
       case 'logQuick':
-        return [`${meal(op.meal)}${op.text || 'Schnelleingabe'}`];
+        return [`${meal(op.meal, op.mealName)}${op.text || 'Schnelleingabe'}`];
       case 'setWeight':
         return [`Gewicht: ${String(op.kg).replace('.', ',')} kg`];
       case 'logTraining':
@@ -58,13 +64,13 @@ export function describeOps(ops: readonly AssistantOp[], mealNames: readonly str
       case 'deleteEntries':
         return ['Einträge gelöscht'];
       case 'moveEntries':
-        return [`Verschoben nach ${mealNames[op.toMeal] ?? ''}`];
+        return [`Verschoben nach ${nameOf(op.toMeal, op.toMealName) ?? ''}`];
       case 'updateEntry':
         return [`Menge geändert: ${Math.round(op.grams)} g`];
       case 'copyEntries':
-        return [`${meal(op.toMeal)}kopiert`];
+        return [`${meal(op.toMeal, op.mealName)}kopiert`];
       case 'logSavedMeal':
-        return [`${meal(op.meal)}Meal eingetragen`];
+        return [`${meal(op.meal, op.mealName)}Meal eingetragen`];
       case 'saveMeal':
         return [`Meal gespeichert: ${op.name}`];
       case 'openCamera':

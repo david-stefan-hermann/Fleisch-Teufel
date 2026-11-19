@@ -17,11 +17,11 @@ const num = { type: 'number' };
 const ids = { type: 'array', items: str };
 
 /**
- * The tool list. `mealNames` are the person's meal names (they can be renamed), so the list is
- * stable per person and stays in the prompt cache.
+ * The tool list. It is the same for everyone (a meal is a free string: its short id or a name), so
+ * it stays in the prompt cache.
  */
-export function assistantTools(mealNames: readonly string[]): Tool[] {
-  const meal = { type: 'string', enum: [...mealNames] };
+export function assistantTools(): Tool[] {
+  const meal = { type: 'string', description: 'Meal of the day: its id from the diary (m1) or a name' };
   const date = { type: 'string', description: 'YYYY-MM-DD' };
   return [
     {

@@ -17,8 +17,8 @@ Geplant am 2026-11-19 auf Stand `feda5d7`. Die umsetzende Sitzung pflegt diese T
 | 6     | 914e05c | Tagebuch: Karten, leerer Tag, Hinzufügen, Löschen       | fertig |
 | 7     | 3eb335e | Name: Auswahl, eigene Namen, Einstellungen, Laufschrift | fertig |
 | 8     | ffbacaa | Uhrzeit-Dialog und Nacht                                | fertig |
-| 9     | s. Log  | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
-| 10    |         | Assistent                                               | offen  |
+| 9     | 32e0f0f | „Zuletzt hier“, „Wie gestern“, Einfügen                 | fertig |
+| 10    | s. Log  | Assistent                                               | fertig |
 | 11    |         | Berichte, CSV, Tagesbild, Tag abschließen               | offen  |
 | 12    |         | Demo-Daten, Aufräumen, E2E-Gesamtlauf                   | offen  |
 | 13    |         | Doku                                                    | offen  |
@@ -118,6 +118,29 @@ Block 9:
 - Dateien zusätzlich: `db/clipboard.ts`, `db/diaryMeals.ts`, `DiaryPage.tsx`, `DiaryMealPage.tsx`; Tests auch in `day-meals-write.test.ts`,
   E2E in `day-meals.spec.ts` (Kopieren und Einfügen in die leere Karte eines anderen Tages) und `market.spec.ts`.
 - Übergang bis Block 13: `CLAUDE.md` beschreibt „Zuletzt hier“ noch über den Index der Mahlzeit.
+
+Block 10:
+
+- `days[].meals` ist optional statt Standard `[]`: Nur ein fehlender Schlüssel kennzeichnet eine ältere App. Mit `[]` wäre ein leerer Tag
+  einer neuen App nicht von einer alten zu unterscheiden, „Kuchen bei Oma“ würde dort als unbekannte Mahlzeit abgelehnt.
+- Eine Mahlzeit im Kontext trägt zusätzlich `slot`: Der Server füllt damit `meal` für ältere Versionen und wählt den Index einer neuen Mahlzeit
+  (`slotForNewMeal`).
+- `mealName` steht auch bei einer bestehenden Mahlzeit (ihr Name), damit der Verlauf anderer Geräte ihn zeigt. Das Gerät geht nach
+  `diaryMealId` (nur wenn es die Mahlzeit an dem Tag kennt), dann `mealName` (gleicher Name am Tag, sonst neue Mahlzeit mit dem Namen), dann `meal`,
+  dann `logTargetFor`. Operationen eines Turns mit demselben neuen Namen landen in einer Mahlzeit.
+- Ein Name, den mehrere Mahlzeiten des Tages tragen, ist ein Werkzeugfehler mit den Kurz-Ids; das Modell nimmt dann die Id. Ein Standard-Name, den
+  der Tag nicht hat („zum Mittagessen“), beginnt ebenfalls eine neue Mahlzeit mit diesem Namen (Annahme).
+- Tage, die der Server selbst liest (`get_day`, ein genannter Name an einem Tag außer heute und gestern), zeigen Mahlzeiten ohne Uhrzeit: Die
+  Zeitzone des Servers ist nicht die des Geräts. Namen virtueller Mahlzeiten dort aus `legacyMealNames ?? mealNames` des Servers.
+- `Assistant.understand` bekommt `mealNames` nicht mehr: Die Werkzeugliste ist für alle gleich (`meal` ist ein freier String).
+- `moveEntries` schreibt über `placeMovedEntry`: Quelle und Ziel behalten Name und Uhrzeit wie beim Ziehen. Die Transaktion von `applyOps` enthält
+  dafür `db.settings`.
+- `openCamera` mit einem Namen, den der Tag nicht hat, öffnet die Kamera für die nächste neue Mahlzeit mit dem automatischen Namen: Die URL trägt
+  keinen Namen. Er lässt sich auf der Seite ändern.
+- `AppliedOp.target.diaryMealId` ist die Id der Mahlzeit, in der die Einträge stehen (auch `dm:…` einer Mahlzeit ohne Datensatz); der nächste Turn
+  bekommt sie als `previousTarget.diaryMealId`.
+- `AssistantProvider.tsx` brauchte keine Änderung.
+- Übergang bis Block 13: `CLAUDE.md` beschreibt den Assistenten noch mit vier Mahlzeiten.
 
 **Vorbedingung vor Block 1**: erfüllt, der Android-Schrittimport ist mit `e9f1f06` auf `main`.
 

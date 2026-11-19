@@ -25,6 +25,10 @@ for it; when a search has no usable row, log that component with \`log_estimate\
 sauce, a restaurant portion of a dish), take it and set \`guessed: true\` on that item; the app marks it as estimated.
 - Day and meal: take what the person says ("gestern Abend", "zum Mittagessen"; "heute Morgen" is the first meal). \
 When the utterance names no meal or time of day, leave \`meal\` out: the app picks it.
+- When the diary lists its meals with ids and times ("m1 Frühstück (08:10)"), \`meal\` is the id of one of them, or a \
+name: a name the day does not have yet starts a new meal with that name ("neue Mahlzeit Kuchen bei Oma" is \
+\`meal: "Kuchen bei Oma"\`). Two meals with the same name are told apart by their ids. Otherwise \`meal\` is one of the \
+meal names listed above the diary.
 - Follow-ups: an utterance that continues the one before ("dazu", "außerdem", "und noch", "auch noch") without naming \
 a day or meal of its own belongs to the same day and meal as the entries of that previous utterance, also when that was \
 yesterday. A correction ("nein, das waren ...") changes the entry of the previous utterance.
@@ -63,13 +67,13 @@ the numbers that answer it, the result only.`;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const fmt = (n: number) => String(r1(n)).replace('.', ',');
 
-/** Short ids for the model ("e1", "x1"): real ids are long uuids and easy to garble. */
+/** Short ids for the model ("e1", "x1", "m1"): real ids are long uuids and easy to garble. */
 export class Aliases {
   private readonly toReal = new Map<string, string>();
   private readonly toShort = new Map<string, string>();
-  private next = { e: 1, x: 1 };
+  private next = { e: 1, x: 1, m: 1 };
 
-  alias(kind: 'e' | 'x', id: string): string {
+  alias(kind: 'e' | 'x' | 'm', id: string): string {
     const known = this.toShort.get(id);
     if (known) return known;
     const short = `${kind}${this.next[kind]++}`;
@@ -93,17 +97,22 @@ export interface DayLines {
     kcal: number;
     proteinG: number;
     group: string | null;
+    /** The meal it shows in (`meals`). */
+    diaryMealId?: string | null;
   }[];
   trainings: { id: string; name: string; minutes: number; intensity: string }[];
   weightKg: number | null;
+  /**
+   * The meals of the day in the diary's order (newer app versions, `get_day`). Without them the four
+   * meal names are the meals, as older app versions know them.
+   */
+  meals?: { id: string; name: string; time: string | null; night: boolean }[];
 }
 
 /** One day as the model reads it: meals with their entries, trainings, weight. */
 export function dayText(day: DayLines, mealNames: readonly string[], aliases: Aliases): string {
   const lines: string[] = [];
-  mealNames.forEach((name, meal) => {
-    const rows = day.entries.filter((e) => e.meal === meal);
-    lines.push(`  ${name}:${rows.length ? '' : ' (leer)'}`);
+  const entryLines = (rows: DayLines['entries']) => {
     for (const e of rows) {
       const amount = e.grams === null ? 'Schnelleintrag' : `${fmt(e.grams)} g`;
       const group = e.group ? ` [${e.group}]` : '';
@@ -111,7 +120,28 @@ export function dayText(day: DayLines, mealNames: readonly string[], aliases: Al
         `    ${aliases.alias('e', e.id)}: ${e.name}, ${amount}, ${Math.round(e.kcal)} kcal, ${fmt(e.proteinG)} g Eiweiß${group}`,
       );
     }
-  });
+  };
+  if (day.meals) {
+    const listed = new Set(day.meals.map((m) => m.id));
+    if (day.meals.length === 0) lines.push('  (noch keine Mahlzeit)');
+    for (const m of day.meals) {
+      const time = m.time ? ` (${m.time}${m.night ? ', Nacht' : ''})` : '';
+      const rows = day.entries.filter((e) => e.diaryMealId === m.id);
+      lines.push(`  ${aliases.alias('m', m.id)} ${m.name}${time}:${rows.length ? '' : ' (leer)'}`);
+      entryLines(rows);
+    }
+    const loose = day.entries.filter((e) => !e.diaryMealId || !listed.has(e.diaryMealId));
+    if (loose.length) {
+      lines.push('  Ohne Mahlzeit:');
+      entryLines(loose);
+    }
+  } else {
+    mealNames.forEach((name, meal) => {
+      const rows = day.entries.filter((e) => e.meal === meal);
+      lines.push(`  ${name}:${rows.length ? '' : ' (leer)'}`);
+      entryLines(rows);
+    });
+  }
   lines.push(
     '  Training: ' +
       (day.trainings
@@ -126,8 +156,15 @@ export function dayText(day: DayLines, mealNames: readonly string[], aliases: Al
 export function utterancePrompt(ctx: AssistantContext, transcript: string, aliases: Aliases): string {
   const [date, clock] = ctx.now.split('T') as [string, string];
   const yesterday = addDays(date, -1);
-  const day = (d: string) =>
-    ctx.days.find((x) => x.date === d) ?? { date: d, entries: [], trainings: [], weightKg: null };
+  const listsMeals = sendsMeals(ctx);
+  const day = (d: string): DayLines =>
+    ctx.days.find((x) => x.date === d) ?? {
+      date: d,
+      entries: [],
+      trainings: [],
+      weightKg: null,
+      ...(listsMeals && { meals: [] }),
+    };
   const targets = ctx.targets
     ? [
         ctx.targets.kcal ? `${Math.round(ctx.targets.kcal)} kcal` : null,
@@ -137,25 +174,44 @@ export function utterancePrompt(ctx: AssistantContext, transcript: string, alias
         .join(', ')
     : '';
   const prev = ctx.previousTarget;
+  const today = dayText(day(date), ctx.mealNames, aliases);
+  const before = dayText(day(yesterday), ctx.mealNames, aliases);
   return (
     `Now: ${WEEKDAYS_LONG_DE[weekdayIndex(date)]} ${date} ${clock}. Yesterday: ${yesterday}. ` +
     (ctx.shownDate !== date ? `The diary shows ${ctx.shownDate}. ` : '') +
-    `Meals: ${ctx.mealNames.join(', ')}.\n` +
+    `${listsMeals ? 'Usual meal names' : 'Meals'}: ${ctx.mealNames.join(', ')}.\n` +
     (targets ? `Daily targets: ${targets}.\n` : '') +
-    `\nDiary today (${date}):\n${dayText(day(date), ctx.mealNames, aliases)}\n\n` +
-    `Diary yesterday (${yesterday}):\n${dayText(day(yesterday), ctx.mealNames, aliases)}\n\n` +
+    `\nDiary today (${date}):\n${today}\n\n` +
+    `Diary yesterday (${yesterday}):\n${before}\n\n` +
     'Recent utterances (oldest first):\n' +
     (ctx.recent.map((r) => `- ${r.at} said: "${r.said}" | done: ${r.done} | reply: ${r.reply}`).join('\n') ||
       '(none)') +
     '\n' +
     (prev
-      ? `The previous utterance wrote to: ${prev.date} ${ctx.mealNames[prev.meal]}. A follow-up without its own day or meal goes there.\n`
+      ? `The previous utterance wrote to: ${prev.date} ${previousMeal(ctx, prev, aliases)}. A follow-up without its own day or meal goes there.\n`
       : '') +
     (ctx.openQuestion
       ? `Open question you asked: ${JSON.stringify(ctx.openQuestion)}. The new utterance is the answer to it.\n`
       : '') +
     `\nTranscript of the new utterance:\n${transcript}`
   );
+}
+
+/** True when the device lists the meals of its days (newer app versions). */
+export function sendsMeals(ctx: AssistantContext): boolean {
+  return ctx.days.some((d) => d.meals !== undefined);
+}
+
+/** The meal the previous utterance wrote to: with its short id when the diary lists it. */
+function previousMeal(
+  ctx: AssistantContext,
+  prev: NonNullable<AssistantContext['previousTarget']>,
+  aliases: Aliases,
+): string {
+  const meal = prev.diaryMealId
+    ? ctx.days.find((d) => d.date === prev.date)?.meals?.find((m) => m.id === prev.diaryMealId)
+    : undefined;
+  return meal ? `${meal.name} (${aliases.alias('m', meal.id)})` : (ctx.mealNames[prev.meal] ?? '');
 }
 
 /**

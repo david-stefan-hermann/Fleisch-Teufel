@@ -243,7 +243,7 @@ export function assistantRoutes(deps: Deps) {
       const { host, state } = await createTurnHost(deps, user.id, context, aliases);
       let out;
       try {
-        out = await assistant.understand({ prompt, mealNames: context.mealNames }, host, signal);
+        out = await assistant.understand({ prompt }, host, signal);
       } catch (e) {
         await logFailure(
           e,
