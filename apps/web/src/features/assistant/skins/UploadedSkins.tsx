@@ -12,7 +12,7 @@ import { setAssistantSkin, useAppearance } from '@/lib/appearance';
 import { SkinPackError } from './pack';
 import { STANDARD_SKIN } from './SkinFace';
 import { AddSkinTile, SkinTile } from './SkinPicker';
-import { deleteSkin, downloadSkin, dropRemovedSkins, listServerSkins, uploadSkin } from './uploads';
+import { deleteSkin, dropRemovedSkins, listServerSkins, loadSkin, uploadSkin } from './uploads';
 import { skinView, useSkinUrls } from './useSkin';
 
 const message = (e: unknown) => (e instanceof SkinPackError ? e.message : errorMessage(e));
@@ -23,6 +23,8 @@ export function UploadedSkins() {
   const local = useLiveQuery(() => db.assistantSkins.orderBy('id').toArray(), [db]);
   const [server, setServer] = useState<SkinInfo[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The pack the page is loading by itself (one after the other).
+  const [fetching, setFetching] = useState<string | null>(null);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -30,7 +32,18 @@ export function UploadedSkins() {
     listServerSkins().then(
       async (list) => {
         await dropRemovedSkins(db, list);
-        if (live) setServer(list);
+        if (!live) return;
+        setServer(list);
+        // Packs this device has no copy of are loaded now, so their tiles show their pictures.
+        const have = new Set((await db.assistantSkins.toCollection().primaryKeys()).map(String));
+        for (const info of list) {
+          if (!live) return;
+          if (have.has(info.id)) continue;
+          setFetching(info.id);
+          // A pack that fails stays a plain tile; a tap loads it again and says why.
+          await loadSkin(db, info).catch(() => undefined);
+        }
+        if (live) setFetching(null);
       },
       () => {
         // Offline: the copies on this device.
@@ -47,7 +60,7 @@ export function UploadedSkins() {
   const choose = async (info: SkinInfo) => {
     setBusy(info.id);
     try {
-      await downloadSkin(db, info);
+      await loadSkin(db, info);
       setAssistantSkin(info.id);
     } catch (e) {
       toast.error(message(e));
@@ -73,7 +86,9 @@ export function UploadedSkins() {
           selected={false}
           onSelect={() => void choose(s)}
         >
-          {busy === s.id && <span className="absolute inset-0 animate-pulse rounded-xl bg-background/60" />}
+          {(busy === s.id || fetching === s.id) && (
+            <span className="absolute inset-0 animate-pulse rounded-xl bg-background/60" />
+          )}
         </SkinTile>
       ))}
       <AddSkinTile

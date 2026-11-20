@@ -1,6 +1,7 @@
 /**
  * Uploaded figures live in the account (server) and as a copy on each device. Uploading checks the
- * pack first; other devices load the list when the appearance page opens and a pack once it is chosen.
+ * pack first; other devices load the list and every pack they have no copy of when the appearance page
+ * opens.
  */
 import { uuidv7, type SkinInfo } from '@ft/shared';
 import type { AssistantSkin, UserDb } from '@/db/dexie';
@@ -56,6 +57,18 @@ export async function downloadSkin(db: UserDb, info: SkinInfo): Promise<Assistan
   };
   await db.assistantSkins.put(skin);
   return skin;
+}
+
+const loading = new Map<string, Promise<AssistantSkin>>();
+
+/** `downloadSkin` once per pack at a time: a tap while the page loads a pack waits for the same fetch. */
+export function loadSkin(db: UserDb, info: SkinInfo): Promise<AssistantSkin> {
+  let p = loading.get(info.id);
+  if (!p) {
+    p = downloadSkin(db, info).finally(() => loading.delete(info.id));
+    loading.set(info.id, p);
+  }
+  return p;
 }
 
 export async function deleteSkin(db: UserDb, id: string): Promise<void> {
