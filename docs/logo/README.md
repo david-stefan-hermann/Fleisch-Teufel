@@ -5,13 +5,14 @@ clockwise, about 83 % used) with two inward-curving horns. Horns and used arc ar
 via an SVG mask, so the horns are part of the same color transition. The ring center sits 16 px (of 512) below
 the icon center.
 
-| File                    | Use                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------- |
-| `logo-light.svg`        | Light mode, rounded tile (rx 112), e.g. `logo.svg`, `favicon.svg`                           |
-| `logo-dark.svg`         | Dark mode, rounded tile                                                                     |
-| `logo-light-square.svg` | Full-bleed square for `apple-touch-icon` and the `any` PWA PNGs (the OS rounds the corners) |
-| `logo-dark-square.svg`  | Full-bleed square, dark                                                                     |
-| `logo-maskable.svg`     | Light, full-bleed, artwork scaled to 85 % for the PWA `maskable` icon                       |
+| File                     | Use                                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------------------- |
+| `logo-light.svg`         | Light mode, rounded tile (rx 112), e.g. `logo.svg`, `favicon.svg`                           |
+| `logo-dark.svg`          | Dark mode, rounded tile                                                                     |
+| `logo-light-square.svg`  | Full-bleed square for `apple-touch-icon` and the `any` PWA PNGs (the OS rounds the corners) |
+| `logo-dark-square.svg`   | Full-bleed square, dark                                                                     |
+| `logo-maskable.svg`      | Light, full-bleed, artwork scaled to 85 % for the PWA `maskable` icon                       |
+| `logo-maskable-dark.svg` | Dark, full-bleed, artwork scaled to 85 % for the dark manifest's `maskable` icon            |
 
 Colors:
 
@@ -29,9 +30,13 @@ The mask uses the ids `t`, `g` and `m`; rename them when inlining several copies
 
 `pnpm --filter @ft/web icons` (`apps/web/scripts/icons.mjs`) renders the app files into `apps/web/public/`:
 `logo.svg`/`logo-dark.svg` and `favicon.svg`/`favicon-dark.svg` (rounded tiles), `favicon.ico` (light),
-`pwa-64/192/512` (light, manifest), `apple-touch-icon-180x180.png` and
-`apple-touch-icon-dark-180x180.png`, `maskable-icon-512x512.png`. Run it after changing a file here.
+`pwa-64/192/512` (light, manifest), `pwa-dark-64/192/512` (dark manifest), `apple-touch-icon-180x180.png` and
+`apple-touch-icon-dark-180x180.png`, `maskable-icon-512x512.png` and `maskable-icon-dark-512x512.png`. Run it
+after changing a file here.
 
 Which variant shows is chosen per device under Mehr → Aussehen (`apps/web/src/lib/appearance.ts`): the in-app
-logo, the favicon and the apple-touch-icon follow it. The web app manifest is static, so its icons stay light,
-and iOS takes the home screen icon once, when the app is added to the home screen.
+logo, the favicon and the apple-touch-icon follow it, and iOS takes the home screen icon once, when the app is
+added to the home screen. Android reads the manifest: the build derives `manifest-dark.webmanifest` (dark icons,
+same `id`, `start_url` and `scope`; plugin `darkManifest` in `apps/web/vite.config.ts`), and only an icon set to
+"Dunkel" points the one manifest link at it (`public/theme-init.js` before the app runs, `manifestFor` after).
+"Wie die App" stays light until the swap is proven on a device (round 12, an experiment).

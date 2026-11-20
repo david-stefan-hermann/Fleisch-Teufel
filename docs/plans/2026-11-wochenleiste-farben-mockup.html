@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wochenleiste Farben</title>
+    <style>
+      /* Layout: a reading column, one comparison frame with every color scheme, then one section per scheme
+         with the five chosen variants. Page chrome is neutral; everything inside a phone frame uses the app
+         tokens of apps/web/src/index.css. */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.94 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.47 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.87 0.01 60);
+        --pick-bg: oklch(0.96 0.025 25);
+        --pick-border: oklch(0.8 0.07 25);
+        --frame-border: oklch(0.8 0.01 60);
+        --plus: oklch(0.42 0.1 155);
+        --minus: oklch(0.47 0.16 27);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.31 0.008 40);
+          --pick-bg: oklch(0.24 0.04 25);
+          --pick-border: oklch(0.42 0.09 25);
+          --frame-border: oklch(0.36 0.008 40);
+          --plus: oklch(0.8 0.12 155);
+          --minus: oklch(0.78 0.13 27);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.31 0.008 40);
+        --pick-bg: oklch(0.24 0.04 25);
+        --pick-border: oklch(0.42 0.09 25);
+        --frame-border: oklch(0.36 0.008 40);
+        --plus: oklch(0.8 0.12 155);
+        --minus: oklch(0.78 0.13 27);
+      }
+
+      /* App tokens, copied from apps/web/src/index.css. New for this mockup: --track, --mark, --sel-excess,
+         the neutral field and the red steps --o1 to --o3. */
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --border: oklch(0.91 0.008 60);
+        --exercise: oklch(0.5 0.12 230);
+        --over: oklch(0.58 0.19 27);
+        --over-2: oklch(0.4 0.17 27);
+        --good: oklch(0.6 0.13 155);
+        --warn: oklch(0.7 0.15 65);
+        --track: oklch(0.89 0.008 60);
+        --mark: oklch(0.45 0.012 45);
+        --sel-excess: oklch(0.4 0.17 27);
+        --neutral-field: oklch(0.905 0.008 60);
+        --o1: oklch(0.78 0.1 27);
+        --o2: var(--over);
+        --o3: var(--over-2);
+        --num-over: oklch(0.45 0.18 27);
+        --p1: 14%;
+        --p2: 32%;
+        --p3: 56%;
+        --pg: 24%;
+        --pw: 42%;
+        --p-deep: oklch(0.7 0.15 27);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --exercise: oklch(0.67 0.12 230);
+        --over: oklch(0.68 0.17 27);
+        --over-2: oklch(0.48 0.16 27);
+        --good: oklch(0.72 0.13 155);
+        --warn: oklch(0.78 0.14 70);
+        --track: oklch(0.35 0.008 40);
+        --mark: oklch(0.76 0.01 50);
+        --sel-excess: oklch(0.97 0.01 60);
+        --neutral-field: oklch(0.34 0.008 40);
+        --o1: color-mix(in oklch, var(--over) 45%, var(--background));
+        --o2: var(--over);
+        --o3: oklch(0.57 0.22 27);
+        --num-over: oklch(0.84 0.1 27);
+        --p1: 22%;
+        --p2: 36%;
+        --p3: 64%;
+        --pg: 30%;
+        --pw: 42%;
+        --p-deep: color-mix(in oklch, var(--over-2) 88%, transparent);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.5 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding-block: 28px 56px;
+        padding-inline: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+      }
+      header.top {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--page-muted);
+      }
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.2;
+        text-wrap: balance;
+      }
+      h2 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.25;
+        text-wrap: balance;
+      }
+      h2.family {
+        font-size: 22px;
+        padding-top: 20px;
+        border-top: 1px solid var(--note-border);
+      }
+      h2 .letter {
+        display: inline-grid;
+        place-items: center;
+        min-width: 26px;
+        height: 26px;
+        padding-inline: 6px;
+        margin-right: 8px;
+        border-radius: 8px;
+        background: var(--page-ink);
+        color: var(--page);
+        font-size: 13px;
+        vertical-align: 2px;
+      }
+      p {
+        margin: 0;
+        max-width: 68ch;
+      }
+      section {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .note h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+      .note ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .note li + li {
+        margin-top: 3px;
+      }
+      .pick {
+        background: var(--pick-bg);
+        border-color: var(--pick-border);
+      }
+      table.week {
+        border-collapse: collapse;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      table.week th,
+      table.week td {
+        padding: 3px 14px 3px 0;
+        text-align: right;
+        white-space: nowrap;
+      }
+      table.week th {
+        font-weight: 600;
+        color: var(--page-muted);
+      }
+      table.week th:first-child,
+      table.week td:first-child {
+        text-align: left;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .pm {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 4px 24px;
+        font-size: 14px;
+      }
+      .pm ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .pm li {
+        padding-left: 18px;
+        position: relative;
+        min-width: 0;
+      }
+      .pm li + li {
+        margin-top: 3px;
+      }
+      .pm li::before {
+        position: absolute;
+        left: 0;
+        font-weight: 700;
+      }
+      .pm .p li::before {
+        content: '+';
+        color: var(--plus);
+      }
+      .pm .m li::before {
+        content: '−';
+        color: var(--minus);
+      }
+
+      /* Phone frame */
+      .frame {
+        width: min(390px, 100%);
+        border: 1px solid var(--frame-border);
+        border-radius: 26px;
+        background: var(--background);
+        color: var(--foreground);
+        padding: 14px 16px;
+        font-size: 14px;
+        line-height: 1.4;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .rowlabel {
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      .rowlabel.fam {
+        margin-top: 8px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        color: var(--foreground);
+        font-weight: 700;
+      }
+      .strip {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .arrow {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+      }
+      .arrow svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .days {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+      }
+      .day {
+        --cellbg: var(--background);
+        appearance: none;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 56px;
+        min-width: 0;
+        border-radius: 12px;
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .day:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+      }
+      .day.sel {
+        --cellbg: var(--primary);
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .day.today:not(.sel) {
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .wd {
+        opacity: 0.8;
+      }
+      .sel .wd {
+        opacity: 1;
+      }
+      .num {
+        position: relative;
+        font-size: 16px;
+        line-height: 24px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .dots {
+        margin-top: 2px;
+        display: flex;
+        height: 4px;
+        gap: 3px;
+      }
+      .dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 99px;
+        flex: none;
+      }
+      .dot.food {
+        background: var(--primary);
+      }
+      .sel .dot.food {
+        background: var(--primary-foreground);
+      }
+      .dot.tr {
+        background: var(--exercise);
+      }
+
+      /* Ring around the day number (A V1, A3). Colors come from --ring-ok, --ring-over and --ring-x,
+         which every scheme sets per day. */
+      .ring .wd {
+        line-height: 15px;
+      }
+      .ringbox {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+      }
+      .ringbox svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .ringbox circle {
+        fill: none;
+        stroke-width: 2.5;
+      }
+      .ringbox .num {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .day {
+        --ring-ok: var(--mark);
+        --ring-over: var(--over);
+        --ring-x: var(--over-2);
+        --f-ok: var(--neutral-field);
+        --f-over: color-mix(in oklch, var(--over) 20%, transparent);
+      }
+      .rt {
+        stroke: var(--track);
+      }
+      .rf {
+        stroke-linecap: round;
+      }
+      .rf.ok {
+        stroke: var(--ring-ok);
+      }
+      .rf.over {
+        stroke: var(--ring-over);
+      }
+      .rx {
+        stroke: var(--ring-x);
+        stroke-linecap: round;
+      }
+      .day.sel .rt {
+        stroke: color-mix(in oklch, var(--primary-foreground) 30%, transparent);
+      }
+      .day.sel .rf {
+        stroke: var(--primary-foreground);
+      }
+      .day.sel .rx {
+        stroke: var(--sel-excess);
+      }
+      /* Schemes that say "how far" with the color drop the excess arc (the selected day keeps it). */
+      .steps .day:not(.sel) .rx {
+        display: none;
+      }
+
+      /* Tinted field (F V1, F2, F3) */
+      .field .day.v-ok:not(.sel) {
+        background: var(--f-ok);
+      }
+      .field .day.v-over:not(.sel) {
+        background: var(--f-over);
+      }
+      .vF0 .day.v-over:not(.sel) .num {
+        color: var(--num-over);
+      }
+      .k0.vF0 .day.v-over:not(.sel) .num {
+        color: var(--over);
+      }
+
+      /* K0: as in mockup v2 */
+      .k0 .day {
+        --f-ok: var(--muted);
+      }
+      /* K1: three steps of red */
+      .k1 .day.s1,
+      .k5 .day.s1 {
+        --ring-over: var(--o1);
+        --f-over: color-mix(in oklch, var(--over) var(--p1), transparent);
+      }
+      .k1 .day.s2,
+      .k5 .day.s2 {
+        --ring-over: var(--o2);
+        --f-over: color-mix(in oklch, var(--over) var(--p2), transparent);
+      }
+      .k1 .day.s3,
+      .k5 .day.s3 {
+        --ring-over: var(--o3);
+        --f-over: color-mix(in oklch, var(--over) var(--p3), transparent);
+      }
+      /* K2: amber, red, dark red */
+      .k2 .day.s1,
+      .k6 .day.s1 {
+        --ring-over: var(--warn);
+        --f-over: color-mix(in oklch, var(--warn) var(--pw), transparent);
+      }
+      .k2 .day.s2,
+      .k6 .day.s2 {
+        --ring-over: var(--over);
+        --f-over: color-mix(in oklch, var(--over) var(--p2), transparent);
+      }
+      .k2 .day.s3,
+      .k6 .day.s3 {
+        --ring-over: var(--o3);
+        --f-over: var(--p-deep);
+      }
+      /* K3: continuous, --tp and --fp are set per day */
+      .k3 .day.v-over {
+        --ring-over: color-mix(in oklch, var(--o3) var(--tp), var(--o1));
+        --f-over: color-mix(in oklch, var(--over) var(--fp), transparent);
+      }
+      /* K4: length. A pale ring with a strong arc, a pale field with a strong level (--lv per day). */
+      .k4 .day.v-over {
+        --ring-over: color-mix(in oklch, var(--over) 42%, var(--background));
+        --ring-x: var(--over);
+        --f-over: linear-gradient(
+          to top,
+          color-mix(in oklch, var(--over) 60%, transparent) 0 var(--lv),
+          color-mix(in oklch, var(--over) 15%, transparent) var(--lv) 100%
+        );
+      }
+      /* K5, K6: green within the limit */
+      .k5 .day,
+      .k6 .day {
+        --ring-ok: var(--good);
+        --f-ok: color-mix(in oklch, var(--good) var(--pg), transparent);
+      }
+
+      /* Training marks of the five chosen variants */
+      .ringbox circle.to {
+        stroke: var(--exercise);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+      }
+      .sel .ringbox circle.to {
+        stroke: var(--primary-foreground);
+      }
+      .vA3 .ringbox .num {
+        font-size: 13px;
+      }
+      .vF2 .day.t {
+        box-shadow: inset 0 0 0 2px var(--exercise);
+      }
+      .vF2 .day.sel.t {
+        box-shadow:
+          inset 0 0 0 2px var(--primary),
+          inset 0 0 0 4px var(--primary-foreground);
+      }
+      .vF3 .day.t::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 5px;
+        background: var(--exercise);
+      }
+
+      /* State cells */
+      .states {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+        gap: 12px 4px;
+      }
+      .state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+      .state .day {
+        width: 38px;
+        cursor: default;
+      }
+      .state small {
+        font-size: 10.5px;
+        line-height: 1.25;
+        text-align: center;
+        color: var(--muted-foreground);
+      }
+      .sep {
+        margin-top: 4px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <span class="eyebrow"
+          >Fleisch-Teufel · Runde 12, Punkt 3 · Mockup v3: Farben · 2026-11-20 · gewählt: K5</span
+        >
+        <h1>Wochenleiste: im Limit, drüber und wie weit drüber</h1>
+        <p>
+          Die fünf gewählten Darstellungen bleiben, wie sie sind. Hier geht es nur um ihre Farben: Sie sollen
+          deutlicher sagen, ob ein Tag im Limit liegt oder drüber, und wie weit drüber. Sechs Vorschläge (K1
+          bis K6), jeder an allen fünf Darstellungen, hell und dunkel. In jeder Leiste lässt sich ein Tag
+          antippen, dann wechselt die Auswahl überall.
+        </p>
+      </header>
+
+      <section>
+        <div class="note">
+          <h3>Was an v2 schwach ist</h3>
+          <ul>
+            <li>
+              Feld: Im Ziel ist fast so hell wie der Hintergrund, und drüber kennt nur eine Stufe. Knapp
+              drüber und weit drüber sehen gleich aus.
+            </li>
+            <li>
+              Ring: Wie weit drüber zeigt nur ein dunkelroter Bogen auf rotem Ring, bei 2,5 px Strich kaum zu
+              sehen.
+            </li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Bleibt, wie entschieden</h3>
+          <ul>
+            <li>Die sechs Optionen unter Mehr, Standard „Ring mit Bogen“. „Punkte“ zeigt kein Urteil.</li>
+            <li>
+              Der ausgewählte Tag bleibt rot gefüllt, Training bleibt blau, „heute“ behält die rote Zahl.
+            </li>
+            <li>
+              In allen Vorschlägen ist das graue Feld für „im Ziel“ etwas dunkler als in v2, damit man es
+              sieht.
+            </li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Von mir angenommen</h3>
+          <ul>
+            <li>
+              Stufen (K1, K2, K5, K6): knapp drüber bis 10 % über dem Budget, drüber bis 25 %, weit drüber ab
+              da.
+            </li>
+            <li>Stufenlos (K3): die kräftigste Farbe ist bei 50 % über dem Budget erreicht.</li>
+            <li>
+              Länge (K4): voller Kreis und volles Feld bei doppeltem Budget, wie der Ring der Kalorienkarte.
+            </li>
+          </ul>
+        </div>
+        <div class="scroll">
+          <table class="week" id="weektable"></table>
+        </div>
+      </section>
+
+      <section>
+        <h2>Alle Vorschläge untereinander</h2>
+        <p>Je Vorschlag der Ring (A3, der Standard) und das Feld (F3).</p>
+        <div class="pair" id="overview"></div>
+      </section>
+
+      <div id="schemes" style="display: contents"></div>
+
+      <section>
+        <div class="note pick">
+          <h3>Meine Empfehlung</h3>
+          <p id="pick"></p>
+        </div>
+        <div class="note">
+          <h3>Was ich von dir brauche</h3>
+          <ul>
+            <li>Ein Kürzel (K1 bis K6), oder eines für die Ringe und ein anderes für die Felder.</li>
+            <li>Wenn die Stufen anders liegen sollen als 10 % und 25 %: die Grenzen.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const NUM = new Intl.NumberFormat('de-DE');
+      const DAYS = [
+        { wd: 'Mo', n: 16, eaten: 1900, budget: 2420, training: 320 },
+        { wd: 'Di', n: 17, eaten: 2190, budget: 2100 },
+        { wd: 'Mi', n: 18, eaten: 2060, budget: 2100 },
+        { wd: 'Do', n: 19, eaten: 2440, budget: 2100 },
+        { wd: 'Fr', n: 20, eaten: 3150, budget: 2390, training: 290 },
+        { wd: 'Sa', n: 21, eaten: 1150, budget: 2400, training: 300, today: true },
+        { wd: 'So', n: 22, budget: 2100 },
+      ];
+      const STATES = [
+        { t: 'Halb voll', wd: 'Mo', n: 2, eaten: 1150, budget: 2100 },
+        { t: 'Knapp im Ziel', wd: 'Di', n: 3, eaten: 2060, budget: 2100 },
+        { t: '+4 %', wd: 'Mi', n: 4, eaten: 2184, budget: 2100 },
+        { t: '+10 %', wd: 'Do', n: 5, eaten: 2310, budget: 2100 },
+        { t: '+16 %', wd: 'Fr', n: 6, eaten: 2436, budget: 2100 },
+        { t: '+25 %', wd: 'Sa', n: 7, eaten: 2625, budget: 2100 },
+        { t: '+32 %', wd: 'So', n: 8, eaten: 2772, budget: 2100 },
+        { t: '+60 %', wd: 'Mo', n: 9, eaten: 3360, budget: 2100 },
+        { t: '+100 %', wd: 'Di', n: 10, eaten: 4200, budget: 2100 },
+        { t: 'Heute, +16 %', wd: 'Mi', n: 11, eaten: 2436, budget: 2100, today: true },
+        { t: 'Gewählt, +16 %', wd: 'Do', n: 12, eaten: 2436, budget: 2100, sel: true },
+        { t: 'Kein Ziel', wd: 'Fr', n: 13, eaten: 1900, noGoal: true },
+      ];
+
+      const verdict = (d) => (d.eaten == null || d.noGoal ? null : d.eaten > d.budget ? 'over' : 'ok');
+      const excess = (d) => Math.max(0, (d.eaten - d.budget) / d.budget);
+      const step = (d) => (excess(d) <= 0.1 ? 1 : excess(d) <= 0.25 ? 2 : 3);
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      const pct = (v) => `${Math.round(v * 1000) / 10}%`;
+      const wd = (d) => `<span class="wd">${d.wd}</span>`;
+      const num = (d) => `<span class="num">${d.n}</span>`;
+      const foodDot = (d, show) => (show && d.eaten != null ? '<i class="dot food"></i>' : '');
+      const trDot = (d) => (d.training ? '<i class="dot tr"></i>' : '');
+      const delta = (d) => (d.eaten > d.budget ? '+' : '−') + NUM.format(Math.abs(d.eaten - d.budget));
+
+      /* The verdict ring. `extra(d, c)` adds the training arc of A3. */
+      function ringBox(d, o = {}) {
+        const size = o.size ?? 30;
+        const c = size / 2;
+        const r = o.r ?? 13;
+        const v = verdict(d);
+        const C = 2 * Math.PI * r;
+        const at = `cx="${c}" cy="${c}" r="${r}"`;
+        let arcs = '';
+        if (v) {
+          const share = clamp(d.eaten / d.budget, 0.04, 1);
+          const ex = v === 'over' ? clamp(excess(d), 0.07, 1) : 0;
+          arcs =
+            `<circle class="rt" ${at}/><circle class="rf ${v}" ${at} stroke-dasharray="${share * C} ${C}"/>` +
+            (ex ? `<circle class="rx" ${at} stroke-dasharray="${ex * C} ${C}"/>` : '');
+        }
+        const extra = (d.training && o.extra?.(d, c)) || '';
+        const style = size === 30 ? '' : ` style="width:${size}px;height:${size}px"`;
+        return (
+          `<span class="ringbox"${style}><svg viewBox="0 0 ${size} ${size}">` +
+          `<g transform="rotate(-90 ${c} ${c})">${arcs}${extra}</g></svg>${num(d)}</span>`
+        );
+      }
+      const fieldCell = (d) => wd(d) + num(d) + `<span class="dots">${foodDot(d, !verdict(d))}</span>`;
+
+      /* The five chosen variants, drawn as in mockup v2. */
+      const VARIANTS = [
+        {
+          id: 'A0',
+          label: 'A V1 · Ring',
+          cls: 'ring',
+          cell: (d) => wd(d) + ringBox(d) + `<span class="dots">${foodDot(d, !verdict(d))}${trDot(d)}</span>`,
+        },
+        {
+          id: 'A3',
+          label: 'A3 · Ring mit Bogen (Standard)',
+          cls: 'ring',
+          cell: (d) =>
+            wd(d) +
+            ringBox(d, {
+              size: 32,
+              r: 11.25,
+              extra: (dd, c) => {
+                const C = 2 * Math.PI * 15;
+                const len = clamp(dd.training / dd.budget, 0.08, 1) * C;
+                return `<circle class="to" cx="${c}" cy="${c}" r="15" stroke-dasharray="${len} ${C}" stroke-dashoffset="${len - C}"/>`;
+              },
+            }) +
+            `<span class="dots">${foodDot(d, !verdict(d))}</span>`,
+        },
+        {
+          id: 'F0',
+          label: 'F V1 · Feld',
+          cls: 'field',
+          cell: (d) => wd(d) + num(d) + `<span class="dots">${foodDot(d, true)}${trDot(d)}</span>`,
+        },
+        { id: 'F2', label: 'F2 · Feld mit Rahmen', cls: 'field', cell: fieldCell },
+        { id: 'F3', label: 'F3 · Feld mit Fuß', cls: 'field', cell: fieldCell },
+      ];
+      const variant = (id) => VARIANTS.find((v) => v.id === id);
+
+      const SCHEMES = [
+        { id: 'K0', ref: true, name: 'Bisher (Mockup v2)', cls: 'k0' },
+        {
+          id: 'K1',
+          name: 'Rot in drei Stufen',
+          cls: 'k1 steps',
+          idea: 'Im Ziel bleibt grau. Drüber hat drei Stufen von Rot: knapp drüber blass, drüber rot, weit drüber am kräftigsten. Der Ring ist drüber immer voll, seine Farbe sagt die Stufe.',
+          plus: [
+            'Eine Farbe mit einer Bedeutung: je mehr Rot, desto weiter drüber.',
+            'Im Feld auf einen Blick zu lesen.',
+            'Keine neue Farbe in der Leiste.',
+          ],
+          minus: [
+            'Am dünnen Ring sind drei Rottöne schwerer auseinanderzuhalten als im Feld.',
+            'Feste Grenzen: Ein Tag bei 10 % und einer bei 11 % sehen verschieden aus.',
+            'Das kräftigste Feld kommt dem ausgewählten Tag nahe.',
+          ],
+        },
+        {
+          id: 'K2',
+          name: 'Gelb, Rot, Dunkelrot',
+          cls: 'k2 steps',
+          idea: 'Im Ziel bleibt grau. Knapp drüber ist gelb, drüber rot, weit drüber dunkelrot. Drei Farbtöne statt drei Helligkeiten.',
+          plus: [
+            'Die Stufen unterscheiden sich im Farbton, das trägt auch am dünnen Ring.',
+            'Knapp drüber sieht nicht aus wie ein verlorener Tag.',
+          ],
+          minus: [
+            'Eine weitere Farbe neben Rot, Blau und Grau.',
+            'Gelb ist auf hellem Grund die schwächste Farbe.',
+            'Feste Grenzen wie bei K1.',
+          ],
+        },
+        {
+          id: 'K3',
+          name: 'Stufenlos: je weiter drüber, desto kräftiger',
+          cls: 'k3 steps',
+          idea: 'Wie K1, aber ohne Stufen: Die Farbe wird mit jedem Prozent kräftiger und ist bei 50 % drüber am Ende.',
+          plus: ['Keine Grenzen, nichts springt.', 'Im Feld sieht man auch kleine Unterschiede.'],
+          minus: [
+            'Zwei ähnliche Tage sehen fast gleich aus, eine Stufe liest man nicht ab.',
+            'Am Ring kaum zu unterscheiden.',
+          ],
+        },
+        {
+          id: 'K4',
+          name: 'Länge statt Farbton: Bogen und Pegel',
+          cls: 'k4',
+          idea: 'Rot sagt nur „drüber“, die Länge sagt wie weit. Ring: blass rot, darauf ein kräftiger Bogen so lang wie der Überschuss. Feld: blass rot, von unten steigt ein kräftiger Pegel so hoch wie der Überschuss.',
+          plus: [
+            'Die genaueste Auskunft: +16 % und +32 % sieht man als Länge.',
+            'Der Ring rechnet wie der Ring der Kalorienkarte.',
+            'Am ausgewählten Tag bleibt der Bogen sichtbar.',
+          ],
+          minus: [
+            'Knapp drüber ist nur ein kleines Stück kräftiges Rot.',
+            'Der Pegel ist eine neue Form im Feld, nicht nur eine Farbe.',
+            'F3: Der Pegel sitzt direkt über dem blauen Fuß.',
+          ],
+        },
+        {
+          id: 'K5',
+          name: 'Grün im Ziel, Rot in drei Stufen',
+          cls: 'k5 steps',
+          idea: 'Wie K1, aber im Ziel ist grün statt grau.',
+          plus: [
+            'Im Ziel und drüber unterscheiden sich im Farbton: der deutlichste Unterschied von allen.',
+            'Das Feld für „im Ziel“ ist nicht mehr mit einem leeren Tag zu verwechseln.',
+          ],
+          minus: [
+            'Den grünen Punkt hattest du abgelehnt. Hier ist es Ring oder Feld, aber dieselbe Farbe.',
+            'Grün lobt: Auch der laufende Tag ist grün, solange er im Budget liegt.',
+            'Mit dem Blau des Trainings vier Farben in der Leiste.',
+          ],
+        },
+        {
+          id: 'K6',
+          name: 'Ampel: Grün, Gelb, Rot, Dunkelrot',
+          cls: 'k6 steps',
+          idea: 'Wie K2, aber im Ziel ist grün statt grau.',
+          plus: ['Jeder Zustand hat seinen eigenen Farbton.', 'Kennt jeder von der Ampel.'],
+          minus: [
+            'Die bunteste Leiste: mit Blau fünf Farben.',
+            'Grün wie bei K5: von dir schon einmal abgelehnt, und es lobt den laufenden Tag.',
+          ],
+        },
+      ];
+
+      let sel = 5;
+
+      const chevron = (dir) =>
+        `<span class="arrow"><svg viewBox="0 0 24 24"><path d="${dir < 0 ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'}"/></svg></span>`;
+
+      function dayCell(v, d, selected, i) {
+        const vd = verdict(d);
+        const cls = [
+          'day',
+          selected && 'sel',
+          d.today && 'today',
+          d.training && 't',
+          vd && 'v-' + vd,
+          vd === 'over' && 's' + step(d),
+        ]
+          .filter(Boolean)
+          .join(' ');
+        let style = '';
+        if (vd === 'over') {
+          const t = clamp(excess(d) / 0.5, 0, 1);
+          style = ` style="--tp:${pct(t)};--fp:${pct(0.12 + t * 0.5)};--lv:${pct(clamp(excess(d), 0.16, 1))}"`;
+        }
+        const attr = i == null ? 'tabindex="-1"' : `data-i="${i}"`;
+        return `<button type="button" class="${cls}" ${attr}${style}>${v.cell(d)}</button>`;
+      }
+
+      function strip(k, v) {
+        return (
+          `<div class="strip ${k.cls} v${v.id} ${v.cls}">${chevron(-1)}<div class="days">` +
+          DAYS.map((d, i) => dayCell(v, d, i === sel, i)).join('') +
+          `</div>${chevron(1)}</div>`
+        );
+      }
+
+      function states(k, v) {
+        return (
+          `<div class="states ${k.cls} v${v.id} ${v.cls}">` +
+          STATES.map((d) => `<div class="state">${dayCell(v, d, !!d.sel)}<small>${d.t}</small></div>`).join(
+            '',
+          ) +
+          '</div>'
+        );
+      }
+
+      function overview(theme) {
+        return (
+          `<div class="frame ${theme}">` +
+          SCHEMES.map(
+            (k, i) =>
+              `<div class="rowlabel fam"${i ? '' : ' style="margin-top:0;padding-top:0;border-top:0"'}>${k.ref ? k.name : `${k.id} · ${k.name}`}</div>` +
+              strip(k, variant('A3')) +
+              strip(k, variant('F3')),
+          ).join('') +
+          '</div>'
+        );
+      }
+
+      const list = (cls, items) => `<ul class="${cls}">${items.map((t) => `<li>${t}</li>`).join('')}</ul>`;
+      const frame = (k, theme) =>
+        `<div class="frame ${theme}">` +
+        VARIANTS.map((v) => `<div class="rowlabel">${v.label}</div>${strip(k, v)}`).join('') +
+        `<div class="rowlabel sep">Ring, alle Zustände</div>${states(k, variant('A0'))}` +
+        `<div class="rowlabel sep">Feld, alle Zustände</div>${states(k, variant('F3'))}` +
+        '</div>';
+
+      function render() {
+        document.getElementById('overview').innerHTML = overview('light') + overview('dark');
+        document.getElementById('schemes').innerHTML = SCHEMES.filter((k) => !k.ref)
+          .map(
+            (k) =>
+              `<section><h2 class="family"><span class="letter">${k.id}</span>${k.name}</h2><p>${k.idea}</p>` +
+              `<div class="pair">${frame(k, 'light')}${frame(k, 'dark')}</div>` +
+              `<div class="pm">${list('p', k.plus)}${list('m', k.minus)}</div></section>`,
+          )
+          .join('');
+      }
+
+      document.getElementById('weektable').innerHTML =
+        '<tr><th>Beispielwoche</th><th>Gegessen</th><th>Budget</th><th>Ergebnis</th></tr>' +
+        DAYS.map((d) => {
+          const v = verdict(d);
+          const share = v === 'over' ? ` (+${Math.round(excess(d) * 100)} %)` : '';
+          const res = v
+            ? `${delta(d)} kcal${share}, ${v === 'over' ? ['knapp drüber', 'drüber', 'weit drüber'][step(d) - 1] : d.today ? 'im Ziel, läuft' : 'im Ziel'}`
+            : 'kein Eintrag';
+          const name = `${d.wd} ${d.n}.${d.training ? ' (Training)' : ''}${d.today ? ' (heute)' : ''}`;
+          return `<tr><td>${name}</td><td>${d.eaten != null ? NUM.format(d.eaten) : ''}</td><td>${NUM.format(d.budget)}</td><td>${res}</td></tr>`;
+        }).join('');
+
+      document.getElementById('pick').textContent =
+        'K2 für Ringe und Felder. Drei Farbtöne trägt auch der dünne Ring, drei Rottöne (K1, K3) trägt er nicht. Grau, Gelb, Rot, Dunkelrot liest man ohne Legende als Reihenfolge, und knapp drüber sieht nicht aus wie weit drüber. K4 sagt am genauesten, wie weit, zeigt knapp drüber aber nur als kleines Stück Rot. K5 und K6 trennen „im Ziel“ am deutlichsten, bringen aber das Grün zurück, das du beim Punkt abgelehnt hast.';
+
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('.day[data-i]');
+        if (!b) return;
+        sel = Number(b.dataset.i);
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

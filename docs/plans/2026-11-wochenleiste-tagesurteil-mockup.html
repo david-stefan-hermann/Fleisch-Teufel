@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wochenleiste Tagesurteil</title>
+    <style>
+      /* Layout: a reading column, one comparison frame with every idea, then one section per idea.
+         Page chrome is neutral; everything inside a phone frame uses the app tokens of apps/web/src/index.css. */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.94 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.47 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.87 0.01 60);
+        --pick-bg: oklch(0.96 0.025 25);
+        --pick-border: oklch(0.8 0.07 25);
+        --frame-border: oklch(0.8 0.01 60);
+        --plus: oklch(0.42 0.1 155);
+        --minus: oklch(0.47 0.16 27);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.31 0.008 40);
+          --pick-bg: oklch(0.24 0.04 25);
+          --pick-border: oklch(0.42 0.09 25);
+          --frame-border: oklch(0.36 0.008 40);
+          --plus: oklch(0.8 0.12 155);
+          --minus: oklch(0.78 0.13 27);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.31 0.008 40);
+        --pick-bg: oklch(0.24 0.04 25);
+        --pick-border: oklch(0.42 0.09 25);
+        --frame-border: oklch(0.36 0.008 40);
+        --plus: oklch(0.8 0.12 155);
+        --minus: oklch(0.78 0.13 27);
+      }
+      /* App tokens, copied from apps/web/src/index.css. New for this mockup: --track, --mark, --sel-excess and
+         the three field tints. */
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --primary-foreground: oklch(0.985 0.01 60);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --border: oklch(0.91 0.008 60);
+        --exercise: oklch(0.5 0.12 230);
+        --over: oklch(0.58 0.19 27);
+        --over-2: oklch(0.4 0.17 27);
+        --track: oklch(0.89 0.008 60);
+        --mark: oklch(0.45 0.012 45);
+        --sel-excess: oklch(0.4 0.17 27);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --primary-foreground: oklch(0.15 0.01 40);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --exercise: oklch(0.67 0.12 230);
+        --over: oklch(0.68 0.17 27);
+        --over-2: oklch(0.48 0.16 27);
+        --track: oklch(0.35 0.008 40);
+        --mark: oklch(0.76 0.01 50);
+        --sel-excess: oklch(0.97 0.01 60);
+      }
+      .light,
+      .dark {
+        --field-ok: var(--muted);
+        --field-over: color-mix(in oklch, var(--over) 20%, transparent);
+        --field-train: color-mix(in oklch, var(--exercise) 20%, transparent);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.5 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding-block: 28px 56px;
+        padding-inline: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 36px;
+      }
+      header.top {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--page-muted);
+      }
+      h1 {
+        margin: 0;
+        font-size: 26px;
+        line-height: 1.2;
+        text-wrap: balance;
+      }
+      h2 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.25;
+        text-wrap: balance;
+      }
+      h2.family {
+        font-size: 22px;
+        padding-top: 20px;
+        border-top: 1px solid var(--note-border);
+      }
+      h2 .letter {
+        display: inline-grid;
+        place-items: center;
+        min-width: 26px;
+        height: 26px;
+        padding-inline: 6px;
+        margin-right: 8px;
+        border-radius: 8px;
+        background: var(--page-ink);
+        color: var(--page);
+        font-size: 13px;
+        vertical-align: 2px;
+      }
+      p {
+        margin: 0;
+        max-width: 68ch;
+      }
+      section {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .note h3 {
+        margin: 0 0 6px;
+        font-size: 14px;
+      }
+      .note ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .note li + li {
+        margin-top: 3px;
+      }
+      .pick {
+        background: var(--pick-bg);
+        border-color: var(--pick-border);
+      }
+      table.week {
+        border-collapse: collapse;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      table.week th,
+      table.week td {
+        padding: 3px 14px 3px 0;
+        text-align: right;
+        white-space: nowrap;
+      }
+      table.week th {
+        font-weight: 600;
+        color: var(--page-muted);
+      }
+      table.week th:first-child,
+      table.week td:first-child {
+        text-align: left;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .pm {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 4px 24px;
+        font-size: 14px;
+      }
+      .pm ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .pm li {
+        padding-left: 18px;
+        position: relative;
+        min-width: 0;
+      }
+      .pm li + li {
+        margin-top: 3px;
+      }
+      .pm li::before {
+        position: absolute;
+        left: 0;
+        font-weight: 700;
+      }
+      .pm .p li::before {
+        content: '+';
+        color: var(--plus);
+      }
+      .pm .m li::before {
+        content: '−';
+        color: var(--minus);
+      }
+
+      /* Phone frame */
+      .frame {
+        width: min(390px, 100%);
+        border: 1px solid var(--frame-border);
+        border-radius: 26px;
+        background: var(--background);
+        color: var(--foreground);
+        padding: 14px 16px;
+        font-size: 14px;
+        line-height: 1.4;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .rowlabel {
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--muted-foreground);
+      }
+      .rowlabel.fam {
+        margin-top: 8px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+        color: var(--foreground);
+        font-weight: 700;
+      }
+      .strip {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .arrow {
+        flex: none;
+        width: 32px;
+        height: 32px;
+        display: grid;
+        place-items: center;
+      }
+      .arrow svg {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .days {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 4px;
+      }
+      .day {
+        --cellbg: var(--background);
+        appearance: none;
+        border: 0;
+        margin: 0;
+        padding: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 56px;
+        min-width: 0;
+        border-radius: 12px;
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .day:focus-visible {
+        outline: 3px solid color-mix(in oklch, var(--primary) 50%, transparent);
+      }
+      .day.sel {
+        --cellbg: var(--primary);
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      .day.today:not(.sel) {
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .wd {
+        opacity: 0.8;
+      }
+      .sel .wd {
+        opacity: 1;
+      }
+      .num {
+        position: relative;
+        font-size: 16px;
+        line-height: 24px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .dots {
+        margin-top: 2px;
+        display: flex;
+        height: 4px;
+        gap: 3px;
+      }
+      .dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 99px;
+        flex: none;
+      }
+      .dot.food {
+        background: var(--primary);
+      }
+      .sel .dot.food {
+        background: var(--primary-foreground);
+      }
+      .dot.tr {
+        background: var(--exercise);
+      }
+
+      /* Ring around the day number (family A, AF) */
+      .ring .wd {
+        line-height: 15px;
+      }
+      .ringbox {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+      }
+      .ringbox svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .ringbox circle {
+        fill: none;
+        stroke-width: 2.5;
+      }
+      .ringbox .num {
+        font-size: 14px;
+        line-height: 1;
+      }
+      .rt {
+        stroke: var(--track);
+      }
+      .rf {
+        stroke-linecap: round;
+      }
+      .rf.ok {
+        stroke: var(--mark);
+      }
+      .rf.over {
+        stroke: var(--over);
+      }
+      .rx {
+        stroke: var(--over-2);
+        stroke-linecap: round;
+      }
+      .sel .rt {
+        stroke: color-mix(in oklch, var(--primary-foreground) 30%, transparent);
+      }
+      .sel .rf {
+        stroke: var(--primary-foreground);
+      }
+      .sel .rx {
+        stroke: var(--sel-excess);
+      }
+
+      /* Tinted field (family F, AF) */
+      .field .day.v-ok:not(.sel) {
+        --cellbg: var(--field-ok);
+        background: var(--field-ok);
+      }
+      .field .day.v-over:not(.sel) {
+        --cellbg: color-mix(in oklch, var(--over) 20%, var(--background));
+        background: var(--field-over);
+      }
+      .vF0 .day.v-over:not(.sel) .num {
+        color: var(--over);
+      }
+
+      /* Training marks */
+      /* blue number: A1, F1, AF3 */
+      .vA1 .day.t:not(.sel) .num,
+      .vF1 .day.t:not(.sel) .num,
+      .vAF3 .day.t:not(.sel) .num {
+        color: var(--exercise);
+        font-weight: 700;
+      }
+      /* outer ring and outer arc: A2, A3 */
+      .ringbox circle.to {
+        stroke: var(--exercise);
+        stroke-width: 1.5;
+        stroke-linecap: round;
+      }
+      .sel .ringbox circle.to {
+        stroke: var(--primary-foreground);
+      }
+      .vA2 .ringbox .num,
+      .vA3 .ringbox .num {
+        font-size: 13px;
+      }
+      /* blue core: A4 */
+      .ringbox circle.core {
+        fill: var(--exercise);
+        stroke: none;
+      }
+      .vA4 .day.t .num {
+        color: var(--primary-foreground);
+        font-size: 13px;
+      }
+      .sel .ringbox circle.core {
+        fill: var(--primary-foreground);
+      }
+      .vA4 .day.sel.t .num {
+        color: var(--primary);
+      }
+      /* dot on the ring: A5 */
+      .ringbox circle.badge {
+        fill: var(--exercise);
+        stroke: var(--cellbg);
+        stroke-width: 1.5;
+      }
+      .sel .ringbox circle.badge {
+        fill: var(--primary-foreground);
+      }
+      /* blue weekday: A6, F7 */
+      .vA6 .day.t:not(.sel) .wd,
+      .vF7 .day.t:not(.sel) .wd {
+        color: var(--exercise);
+        opacity: 1;
+        font-weight: 700;
+      }
+      /* blue frame: F2 */
+      .vF2 .day.t {
+        box-shadow: inset 0 0 0 2px var(--exercise);
+      }
+      .vF2 .day.sel.t {
+        box-shadow:
+          inset 0 0 0 2px var(--primary),
+          inset 0 0 0 4px var(--primary-foreground);
+      }
+      /* blue foot: F3 */
+      .vF3 .day.t::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 5px;
+        background: var(--exercise);
+      }
+      /* blue corner: F4 */
+      .vF4 .day.t::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 17px;
+        height: 17px;
+        background: var(--exercise);
+        clip-path: polygon(0 0, 100% 0, 100% 100%);
+      }
+      /* blue disc: F5 */
+      .vF5 .day.t .num {
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-items: center;
+        border-radius: 99px;
+        background: var(--exercise);
+        color: var(--primary-foreground);
+        font-size: 14px;
+        line-height: 1;
+      }
+      .vF5 .day.sel.t .num {
+        background: var(--primary-foreground);
+        color: var(--primary);
+      }
+      /* dumbbell: F6 */
+      .icorow {
+        height: 8px;
+        display: flex;
+        align-items: center;
+      }
+      .icorow svg {
+        width: 15px;
+        height: 8px;
+        fill: none;
+        stroke: var(--exercise);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+      }
+      .sel .icorow svg {
+        stroke: var(--primary-foreground);
+      }
+      /* ring for food, blue field for training: AF1 */
+      .vAF1 .day.t:not(.sel) {
+        --cellbg: color-mix(in oklch, var(--exercise) 20%, var(--background));
+        background: var(--field-train);
+      }
+      /* field for food, blue ring for training: AF2 */
+      .vAF2 .ringbox {
+        width: 28px;
+        height: 28px;
+      }
+      .ringbox circle.tring {
+        stroke: var(--exercise);
+        stroke-width: 2;
+      }
+      .sel .ringbox circle.tring {
+        stroke: var(--primary-foreground);
+      }
+
+      /* State cells */
+      .states {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+        gap: 12px 6px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        min-width: 0;
+      }
+      .state .day {
+        width: 38px;
+        cursor: default;
+      }
+      .state small {
+        font-size: 10.5px;
+        line-height: 1.25;
+        text-align: center;
+        color: var(--muted-foreground);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="top">
+        <span class="eyebrow">Fleisch-Teufel · Runde 12, Punkt 3 · Mockup v2 · 2026-11-20</span>
+        <h1>Wochenleiste: Urteil und Training in einem Zeichen</h1>
+        <p>
+          Ausgangspunkt sind der Ring (A) und das Feld (F) aus v1. Hier geht es nur noch um eine Frage: Wie
+          zeigt der Tag, dass trainiert wurde, wenn der blaue Punkt nicht mehr passt? Sechzehn Vorschläge in
+          drei Familien. In jeder Leiste lässt sich ein Tag antippen, dann wechselt die Auswahl überall.
+        </p>
+      </header>
+
+      <section>
+        <div class="note">
+          <h3>Neu gegenüber v1</h3>
+          <ul>
+            <li>Weiter geht es mit A und F. B, C, D und E sind raus.</li>
+            <li>Der blaue Punkt unter der Zahl ist in jedem Vorschlag durch etwas anderes ersetzt.</li>
+            <li>
+              Im Feld (F) fällt auch der rote Essens-Punkt weg: Das Feld sagt schon, dass gegessen wurde. Die
+              Zahl eines Tages drüber ist nicht mehr rot. Eine rote Zahl heißt damit nur noch „heute“.
+            </li>
+            <li>Dritte Familie: Ring und Feld zusammen, eines für das Essen, das andere für das Training.</li>
+          </ul>
+        </div>
+        <div class="note">
+          <h3>Steht fest</h3>
+          <ul>
+            <li>Bewertet wird jeder Tag mit Essen und einem Ziel, auch der laufende Tag.</li>
+            <li>
+              Drüber heißt: mehr gegessen als das Budget der Kalorienkarte (Ziel plus angerechnetes Training
+              und Schritte). Keine Toleranz, keine Serien, kein Grün.
+            </li>
+            <li>
+              Ein Tag ohne Ziel oder nur mit Training bekommt kein Urteil. Der ausgewählte Tag bleibt rot
+              gefüllt; sein Urteil und sein Training stehen ohnehin auf der Seite darunter.
+            </li>
+          </ul>
+        </div>
+        <div class="scroll">
+          <table class="week" id="weektable"></table>
+        </div>
+      </section>
+
+      <section>
+        <h2>Alle Vorschläge untereinander</h2>
+        <div class="pair" id="overview"></div>
+      </section>
+
+      <div id="variants" style="display: contents"></div>
+
+      <section>
+        <div class="note pick">
+          <h3>Meine Empfehlung</h3>
+          <p id="pick"></p>
+        </div>
+        <div class="note">
+          <h3>Was ich von dir brauche</h3>
+          <ul>
+            <li>Ein Kürzel (zum Beispiel A2 oder F3), oder was an einem Vorschlag anders sein soll.</li>
+            <li>Mischen geht: Urteil aus einer Familie, Trainingszeichen aus einer anderen.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const NUM = new Intl.NumberFormat('de-DE');
+      const DAYS = [
+        { wd: 'Mo', n: 16, eaten: 2180, budget: 2420, training: 320 },
+        { wd: 'Di', n: 17, eaten: 2440, budget: 2100 },
+        { wd: 'Mi', n: 18, eaten: 3150, budget: 2390, training: 290 },
+        { wd: 'Do', n: 19, eaten: 2060, budget: 2100 },
+        { wd: 'Fr', n: 20, eaten: 1150, budget: 2400, training: 300, today: true },
+        { wd: 'Sa', n: 21, budget: 2100 },
+        { wd: 'So', n: 22, budget: 2100 },
+      ];
+      const STATES = [
+        { t: 'Im Ziel', wd: 'Mo', n: 2, eaten: 1700, budget: 2100 },
+        { t: 'Drüber', wd: 'Di', n: 3, eaten: 2300, budget: 2100 },
+        { t: 'Weit drüber', wd: 'Mi', n: 4, eaten: 3400, budget: 2100 },
+        { t: 'Im Ziel, Training', wd: 'Do', n: 5, eaten: 1900, budget: 2400, training: 300 },
+        { t: 'Drüber, Training', wd: 'Fr', n: 6, eaten: 2700, budget: 2400, training: 300 },
+        { t: 'Nur Training', wd: 'Sa', n: 7, budget: 2650, training: 550 },
+        { t: 'Essen, kein Ziel', wd: 'So', n: 8, eaten: 1900, noGoal: true },
+        { t: 'Kein Eintrag', wd: 'Mo', n: 9 },
+        { t: 'Heute, läuft', wd: 'Di', n: 10, eaten: 1150, budget: 2100, today: true },
+        { t: 'Heute, Training', wd: 'Mi', n: 11, eaten: 1150, budget: 2400, training: 300, today: true },
+        { t: 'Heute, drüber', wd: 'Do', n: 12, eaten: 2300, budget: 2100, today: true },
+        {
+          t: 'Heute, drüber, Training',
+          wd: 'Fr',
+          n: 13,
+          eaten: 2600,
+          budget: 2400,
+          training: 300,
+          today: true,
+        },
+        { t: 'Gewählt, im Ziel', wd: 'Sa', n: 14, eaten: 1700, budget: 2100, sel: true },
+        { t: 'Gewählt, drüber', wd: 'So', n: 15, eaten: 2440, budget: 2100, sel: true },
+        { t: 'Gewählt, Training', wd: 'Mo', n: 16, eaten: 1900, budget: 2400, training: 300, sel: true },
+        { t: 'Gewählt, nur Training', wd: 'Di', n: 17, budget: 2400, training: 300, sel: true },
+      ];
+
+      const verdict = (d) => (d.eaten == null || d.noGoal ? null : d.eaten > d.budget ? 'over' : 'ok');
+      const excess = (d) => Math.max(0, (d.eaten - d.budget) / d.budget);
+      const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+      const wd = (d) => `<span class="wd">${d.wd}</span>`;
+      const num = (d) => `<span class="num">${d.n}</span>`;
+      const foodDot = (d, show) => (show && d.eaten != null ? '<i class="dot food"></i>' : '');
+      const trDot = (d) => (d.training ? '<i class="dot tr"></i>' : '');
+      const delta = (d) => (d.eaten > d.budget ? '+' : '−') + NUM.format(Math.abs(d.eaten - d.budget));
+
+      /* The verdict ring of idea A. `extra(d, c, r)` adds the training mark: `arcs` turn with the ring
+         (start at 12 o'clock), `flat` is drawn unrotated on top. */
+      function ringBox(d, o = {}) {
+        const size = o.size ?? 30;
+        const c = size / 2;
+        const r = o.r ?? 13;
+        const v = o.plain ? null : verdict(d);
+        const C = 2 * Math.PI * r;
+        const at = `cx="${c}" cy="${c}" r="${r}"`;
+        let arcs = '';
+        if (v) {
+          const share = clamp(d.eaten / d.budget, 0.04, 1);
+          const ex = v === 'over' ? clamp(excess(d), 0.07, 1) : 0;
+          arcs =
+            `<circle class="rt" ${at}/><circle class="rf ${v}" ${at} stroke-dasharray="${share * C} ${C}"/>` +
+            (ex ? `<circle class="rx" ${at} stroke-dasharray="${ex * C} ${C}"/>` : '');
+        }
+        const extra = (d.training && o.extra?.(d, c, r)) || {};
+        const inner =
+          (extra.under ?? '') +
+          `<g transform="rotate(-90 ${c} ${c})">${arcs}${extra.arcs ?? ''}</g>` +
+          (extra.flat ?? '');
+        const style = size === 30 ? '' : ` style="width:${size}px;height:${size}px"`;
+        return `<span class="ringbox"${style}><svg viewBox="0 0 ${size} ${size}">${inner}</svg>${num(d)}</span>`;
+      }
+      const ringCell = (o) => (d) =>
+        wd(d) + ringBox(d, o) + `<span class="dots">${foodDot(d, !verdict(d))}</span>`;
+      const fieldCell = (d) => wd(d) + num(d) + `<span class="dots">${foodDot(d, !verdict(d))}</span>`;
+
+      const DUMBBELL =
+        '<svg viewBox="0 0 15 8"><path d="M1 2.5v3M3.6 1v6M3.6 4h7.8M11.4 1v6M14 2.5v3"/></svg>';
+
+      const FAMILIES = {
+        A: {
+          name: 'Familie A: der Ring trägt das Urteil',
+          text: 'Der Ring um die Tageszahl füllt sich grau, voll und rot heißt drüber, das dunkle Stück zeigt wie weit. Der rote Essens-Punkt entfällt. Offen ist nur, wo das Training sitzt.',
+        },
+        F: {
+          name: 'Familie F: das Feld trägt das Urteil',
+          text: 'Das Feld des Tages ist grau im Ziel und rot getönt drüber. Beide Punkte entfallen. Offen ist nur, wo das Training sitzt.',
+        },
+        AF: {
+          name: 'Familie A + F: Ring und Feld zusammen',
+          text: 'Beide Formen in einer Zelle: eine für das Essen, die andere für das Training.',
+        },
+      };
+
+      const VARIANTS = [
+        {
+          id: '0',
+          ref: true,
+          name: 'Heute',
+          cls: '',
+          cell: (d) => wd(d) + num(d) + `<span class="dots">${foodDot(d, true)}${trDot(d)}</span>`,
+        },
+        {
+          id: 'A0',
+          fam: 'A',
+          ref: true,
+          name: 'v1: Ring, blauer Punkt darunter',
+          cls: 'ring',
+          cell: (d) => wd(d) + ringBox(d) + `<span class="dots">${foodDot(d, !verdict(d))}${trDot(d)}</span>`,
+        },
+        {
+          id: 'A1',
+          fam: 'A',
+          name: 'Zahl blau',
+          idea: 'Die Tageszahl im Ring ist an Trainingstagen blau. Außen das Essen, innen das Training.',
+          plus: [
+            'Kein Zeichen dazu, die Leiste bleibt so ruhig wie A ohne Punkt.',
+            'Ring und Zahl lesen sich als ein Zeichen.',
+          ],
+          minus: [
+            'Nur Farbe: Blau gegen Dunkelgrau ist bei 14 px kein großer Unterschied.',
+            'Heute mit Training: Die Zahl ist blau statt rot, nur der Wochentag bleibt rot.',
+            'Am ausgewählten Tag ist die Zahl hell, das Training sieht man dort nicht.',
+          ],
+          cls: 'ring',
+          cell: ringCell(),
+        },
+        {
+          id: 'A2',
+          fam: 'A',
+          name: 'Zweiter Ring außen',
+          idea: 'Um den Essens-Ring liegt an Trainingstagen ein dünner blauer Ring.',
+          plus: [
+            'Form statt nur Farbe: zwei Ringe erkennt man auch am ausgewählten Tag.',
+            'Zahl und Wochentag bleiben frei für „heute“.',
+            'Ein Zeichen aus einem Guss.',
+          ],
+          minus: ['Fein: der blaue Ring ist 1,5 px dünn.', 'Die Zahl schrumpft auf 13 px.'],
+          cls: 'ring',
+          cell: ringCell({
+            size: 32,
+            r: 11.25,
+            extra: (d, c) => ({ arcs: `<circle class="to" cx="${c}" cy="${c}" r="15"/>` }),
+          }),
+        },
+        {
+          id: 'A3',
+          fam: 'A',
+          name: 'Blauer Bogen, so lang wie das Training',
+          idea: 'Wie A2, aber der blaue Bogen ist nur so lang wie der Anteil, den das Training zum Budget beigetragen hat.',
+          plus: [
+            'Sagt nicht nur ob, sondern auch wie viel das Training gebracht hat.',
+            'Leichter als ein ganzer zweiter Ring.',
+          ],
+          minus: [
+            'Ein kurzes Training gibt einen sehr kurzen Bogen.',
+            'Erklärt sich nicht von selbst.',
+            'Nicht angerechnetes Training hat keinen Anteil am Budget und bräuchte eine feste Länge.',
+          ],
+          cls: 'ring',
+          cell: ringCell({
+            size: 32,
+            r: 11.25,
+            extra: (d, c) => {
+              const C = 2 * Math.PI * 15;
+              const len = clamp(d.training / d.budget, 0.08, 1) * C;
+              return {
+                arcs: `<circle class="to" cx="${c}" cy="${c}" r="15" stroke-dasharray="${len} ${C}" stroke-dashoffset="${len - C}"/>`,
+              };
+            },
+          }),
+        },
+        {
+          id: 'A4',
+          fam: 'A',
+          name: 'Blauer Kern',
+          idea: 'Die Zahl steht an Trainingstagen auf einer blauen Scheibe im Ring.',
+          plus: [
+            'Das deutlichste Zeichen der Familie: Trainingstage zählt man mit einem Blick.',
+            'Bleibt am ausgewählten Tag sichtbar (helle Scheibe).',
+          ],
+          minus: [
+            'Schwer: Das Training zieht mehr Blick als das Urteil.',
+            'Heute mit Training verliert die rote Zahl, nur der Wochentag bleibt rot.',
+          ],
+          cls: 'ring',
+          cell: ringCell({
+            extra: (d, c) => ({ under: `<circle class="core" cx="${c}" cy="${c}" r="10.25"/>` }),
+          }),
+        },
+        {
+          id: 'A5',
+          fam: 'A',
+          name: 'Punkt auf dem Ring',
+          idea: 'Der blaue Punkt bleibt, sitzt aber oben rechts auf dem Ring statt in einer eigenen Reihe darunter.',
+          plus: [
+            'Ring und Punkt sind ein Zeichen.',
+            'Zahl und Wochentag bleiben frei.',
+            'Am ausgewählten Tag sichtbar.',
+          ],
+          minus: ['Klein, kaum größer als der heutige Punkt.', 'Verdeckt ein Stück des Rings.'],
+          cls: 'ring',
+          cell: ringCell({
+            extra: (d, c, r) => ({
+              flat: `<circle class="badge" cx="${c + r * 0.707}" cy="${c - r * 0.707}" r="4"/>`,
+            }),
+          }),
+        },
+        {
+          id: 'A6',
+          fam: 'A',
+          name: 'Wochentag blau',
+          idea: 'Der Wochentag über dem Ring ist an Trainingstagen blau und fett.',
+          plus: ['Ring und Zahl bleiben unberührt.'],
+          minus: [
+            'Am weitesten vom Ring weg, liest sich nicht als ein Zeichen.',
+            'Am ausgewählten Tag nicht sichtbar.',
+            'Heute mit Training: Wochentag blau, Zahl rot.',
+          ],
+          cls: 'ring',
+          cell: ringCell(),
+        },
+        {
+          id: 'F0',
+          fam: 'F',
+          ref: true,
+          name: 'v1: Feld, beide Punkte darunter',
+          cls: 'field',
+          cell: (d) => wd(d) + num(d) + `<span class="dots">${foodDot(d, true)}${trDot(d)}</span>`,
+        },
+        {
+          id: 'F1',
+          fam: 'F',
+          name: 'Zahl blau',
+          idea: 'Das Feld sagt Essen, die Farbe der Zahl sagt Training.',
+          plus: [
+            'Zwei Ebenen, kein Zeichen dazu.',
+            'Die Zahl ist groß (16 px), Blau fällt mehr auf als im Ring.',
+          ],
+          minus: [
+            'Blaue Zahl auf rot getöntem Feld: zwei Farben auf engem Raum.',
+            'Heute mit Training: Zahl blau statt rot.',
+            'Am ausgewählten Tag nicht sichtbar.',
+          ],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'F2',
+          fam: 'F',
+          name: 'Blauer Rahmen',
+          idea: 'Das Feld bekommt an Trainingstagen einen blauen Rand. Nur Training: der Rand allein.',
+          plus: [
+            'Groß und eindeutig.',
+            'Am ausgewählten Tag sichtbar (heller Innenrand).',
+            'Zahl und Wochentag bleiben frei.',
+          ],
+          minus: [
+            'Blauer Rand um ein rotes Feld ist die lauteste Kombination hier.',
+            'Ein Rahmen wirkt leicht wie eine Auswahl.',
+          ],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'F3',
+          fam: 'F',
+          name: 'Blauer Fuß',
+          idea: 'Die Unterkante des Feldes ist an Trainingstagen blau. Der Punkt wird zur Fläche und gehört zum Feld.',
+          plus: [
+            'Ruhig, sitzt dort, wo heute der Punkt sitzt.',
+            'Form statt nur Farbe: bleibt am ausgewählten Tag sichtbar.',
+            'Zahl und Wochentag bleiben frei.',
+          ],
+          minus: ['Nur Training ohne Feld: der Fuß schwebt allein.'],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'F4',
+          fam: 'F',
+          name: 'Blaue Ecke',
+          idea: 'Die obere rechte Ecke des Feldes ist an Trainingstagen blau.',
+          plus: [
+            'Klein, aber an fester Stelle.',
+            'Am ausgewählten Tag sichtbar.',
+            'Zahl und Wochentag bleiben frei.',
+          ],
+          minus: [
+            'Wirkt wie eine Markierung „neu“ oder ein Lesezeichen.',
+            'Nur Training ohne Feld: die Ecke schwebt allein.',
+          ],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'F5',
+          fam: 'F',
+          name: 'Blaue Scheibe',
+          idea: 'Die Zahl steht an Trainingstagen auf einer blauen Scheibe.',
+          plus: [
+            'Das deutlichste Zeichen: Trainingstage zählt man mit einem Blick.',
+            'Am ausgewählten Tag sichtbar (helle Scheibe).',
+          ],
+          minus: [
+            'Schwer: Das Training zieht mehr Blick als das Urteil.',
+            'Heute mit Training verliert die rote Zahl.',
+            'Blaue Scheibe auf rotem Feld.',
+          ],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'F6',
+          fam: 'F',
+          name: 'Hantel statt Punkt',
+          idea: 'Unter der Zahl sitzt an Trainingstagen eine kleine blaue Hantel.',
+          plus: [
+            'Erklärt sich selbst.',
+            'Form statt nur Farbe: am ausgewählten Tag sichtbar.',
+            'Zahl und Wochentag bleiben frei.',
+          ],
+          minus: [
+            'Ein Symbol je Tag macht die Leiste kleinteiliger.',
+            'Passt nicht zu jedem Training (Laufen, Schwimmen).',
+          ],
+          cls: 'field',
+          cell: (d) =>
+            wd(d) + num(d) + `<span class="icorow">${d.training ? DUMBBELL : foodDot(d, !verdict(d))}</span>`,
+        },
+        {
+          id: 'F7',
+          fam: 'F',
+          name: 'Wochentag blau',
+          idea: 'Der Wochentag ist an Trainingstagen blau und fett.',
+          plus: ['Die Zahl bleibt frei für „heute“.', 'Kein Zeichen dazu.'],
+          minus: [
+            'Leise, der Wochentag ist nur 12 px groß.',
+            'Am ausgewählten Tag nicht sichtbar.',
+            'Heute mit Training: Wochentag blau, Zahl rot.',
+          ],
+          cls: 'field',
+          cell: fieldCell,
+        },
+        {
+          id: 'AF1',
+          fam: 'AF',
+          name: 'Ring für das Essen, Feld für das Training',
+          idea: 'Der Ring trägt das Urteil wie in A. An Trainingstagen ist das Feld blau getönt.',
+          plus: [
+            'Der Ring zeigt weiter, wie voll der Tag ist.',
+            'Trainingstage sind die größte Fläche der Leiste.',
+            'Nur Training: ein blaues Feld, klar.',
+          ],
+          minus: [
+            'Am ausgewählten Tag ist das Feld rot, das Training sieht man dort nicht.',
+            'Roter Ring im blauen Feld bei drüber und Training.',
+          ],
+          cls: 'ring',
+          cell: ringCell(),
+        },
+        {
+          id: 'AF2',
+          fam: 'AF',
+          name: 'Feld für das Essen, Ring für das Training',
+          idea: 'Das Feld trägt das Urteil wie in F. An Trainingstagen umschließt ein blauer Ring die Zahl.',
+          plus: [
+            'Jede Form hat genau eine Bedeutung: Fläche ist Essen, Ring ist Training.',
+            'Form statt nur Farbe: am ausgewählten Tag als heller Ring sichtbar.',
+            'Heute behält die rote Zahl.',
+          ],
+          minus: [
+            'Die Zahl schrumpft auf 14 px.',
+            'Runde 6: kein Ring am ausgewählten Tag. Hier trägt jeder Trainingstag einen.',
+          ],
+          cls: 'ring field',
+          cell: (d) =>
+            wd(d) +
+            ringBox(d, {
+              size: 28,
+              plain: true,
+              extra: (dd, c) => ({ arcs: `<circle class="tring" cx="${c}" cy="${c}" r="12.5"/>` }),
+            }) +
+            `<span class="dots">${foodDot(d, !verdict(d))}</span>`,
+        },
+        {
+          id: 'AF3',
+          fam: 'AF',
+          name: 'Feld und Ring für das Essen, Zahl für das Training',
+          idea: 'Das Feld sagt im Ziel oder drüber, der Ring sagt wie voll, die blaue Zahl sagt Training.',
+          plus: [
+            'Die meiste Auskunft: Urteil auf einen Blick, Füllstand beim Hinsehen.',
+            'Heute zeigt den Stand.',
+          ],
+          minus: [
+            'Die vollste Zelle von allen.',
+            'Roter Ring auf rot getöntem Feld hat wenig Kontrast.',
+            'Blaue Zahl: dieselben Schwächen wie A1.',
+          ],
+          cls: 'ring field',
+          cell: ringCell(),
+        },
+      ];
+
+      let sel = 3;
+
+      const chevron = (dir) =>
+        `<span class="arrow"><svg viewBox="0 0 24 24"><path d="${dir < 0 ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'}"/></svg></span>`;
+
+      function dayCell(v, d, selected, i) {
+        const vd = verdict(d);
+        const cls = ['day', selected && 'sel', d.today && 'today', d.training && 't', vd && 'v-' + vd]
+          .filter(Boolean)
+          .join(' ');
+        const attr = i == null ? 'tabindex="-1"' : `data-i="${i}"`;
+        return `<button type="button" class="${cls}" ${attr}>${v.cell(d)}</button>`;
+      }
+
+      function strip(v) {
+        return (
+          `<div class="strip v${v.id} ${v.cls}">${chevron(-1)}<div class="days">` +
+          DAYS.map((d, i) => dayCell(v, d, i === sel, i)).join('') +
+          `</div>${chevron(1)}</div>`
+        );
+      }
+
+      function states(v) {
+        return (
+          `<div class="states v${v.id} ${v.cls}">` +
+          STATES.map((d) => `<div class="state">${dayCell(v, d, !!d.sel)}<small>${d.t}</small></div>`).join(
+            '',
+          ) +
+          '</div>'
+        );
+      }
+
+      function overview(theme) {
+        let fam = null;
+        return (
+          `<div class="frame ${theme}">` +
+          VARIANTS.map((v) => {
+            const head =
+              v.fam && v.fam !== fam ? `<div class="rowlabel fam">${FAMILIES[v.fam].name}</div>` : '';
+            fam = v.fam ?? fam;
+            const label = v.id === '0' ? 'Heute' : v.ref ? v.name : `${v.id} · ${v.name}`;
+            return `${head}<div class="rowlabel">${label}</div>${strip(v)}`;
+          }).join('') +
+          '</div>'
+        );
+      }
+
+      const list = (cls, items) => `<ul class="${cls}">${items.map((t) => `<li>${t}</li>`).join('')}</ul>`;
+      const frame = (v, theme) => `<div class="frame ${theme}">${strip(v)}${states(v)}</div>`;
+
+      function render() {
+        document.getElementById('overview').innerHTML = overview('light') + overview('dark');
+        let fam = null;
+        document.getElementById('variants').innerHTML = VARIANTS.filter((v) => !v.ref)
+          .map((v) => {
+            const head =
+              v.fam !== fam
+                ? `<section><h2 class="family">${FAMILIES[v.fam].name}</h2><p>${FAMILIES[v.fam].text}</p></section>`
+                : '';
+            fam = v.fam;
+            return (
+              head +
+              `<section><h2><span class="letter">${v.id}</span>${v.name}</h2><p>${v.idea}</p>` +
+              `<div class="pair">${frame(v, 'light')}${frame(v, 'dark')}</div>` +
+              `<div class="pm">${list('p', v.plus)}${list('m', v.minus)}</div></section>`
+            );
+          })
+          .join('');
+      }
+
+      document.getElementById('weektable').innerHTML =
+        '<tr><th>Beispielwoche</th><th>Gegessen</th><th>Budget</th><th>Ergebnis</th></tr>' +
+        DAYS.map((d) => {
+          const v = verdict(d);
+          const res = v
+            ? `${delta(d)} kcal, ${v === 'over' ? 'drüber' : d.today ? 'im Ziel, läuft' : 'im Ziel'}`
+            : 'kein Eintrag';
+          const name = `${d.wd} ${d.n}.${d.training ? ' (Training)' : ''}${d.today ? ' (heute)' : ''}`;
+          return `<tr><td>${name}</td><td>${d.eaten != null ? NUM.format(d.eaten) : ''}</td><td>${NUM.format(d.budget)}</td><td>${res}</td></tr>`;
+        }).join('');
+
+      document.getElementById('pick').textContent =
+        'AF2: das Feld für das Essen, der blaue Ring für das Training. Jede Form hat eine Bedeutung, heute behält seine rote Zahl, und am ausgewählten Tag bleibt das Training sichtbar. Wenn dir der Füllstand aus A wichtig ist: A2, der zweite Ring. Deine Idee mit der gefärbten Zahl trägt im Feld am besten (F1, die Zahl ist dort größer als im Ring); sie kostet heute die rote Zahl und ist am ausgewählten Tag nicht zu sehen. Der ruhigste Vorschlag ist F3, der blaue Fuß.';
+
+      document.addEventListener('click', (e) => {
+        const b = e.target.closest('.day[data-i]');
+        if (!b) return;
+        sel = Number(b.dataset.i);
+        render();
+      });
+      render();
+    </script>
+  </body>
+</html>

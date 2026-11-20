@@ -166,9 +166,15 @@ Serve the production web build through the API (same origin, service worker acti
   in `analyzedPhotoIds` carry "Neu" and wait for ↻ (no automatic re-analysis).
 - Camera start: the taps that open `/photo` (add sheet tile, meal "+") call `warmUpCamera()`
   (`components/cameraWarmup.ts`) before navigating, so iOS starts the camera during the page change; the scanner
-  takes the stream with `takeWarmStream()` (same `CAMERA_CONSTRAINTS`), an unused one stops after 3 s. The camera
-  never runs without a visible picture otherwise (the user rejected keeping it alive). The video fades in on the
-  first frame; shutters wait for `onReady`.
+  takes the stream with `takeWarmStream()` (both ask with `cameraConstraints()`), an unused one stops after 3 s. The
+  camera never runs without a visible picture otherwise (the user rejected keeping it alive). The video fades in on
+  the first frame; shutters wait for `onReady`. Focus (`components/cameraFocus.ts`, round 12, only through what the
+  track reports, so nothing changes on the iPhone): `focusMode: 'continuous'` when offered; with `pointsOfInterest`
+  a tap on the picture focuses there (`focusAt`, `coverPoint`, back to continuous after `FOCUS_HOLD_MS`) with a
+  short `.focus-ring`. With several back cameras the scanner writes one line per camera label into the error log
+  (source `camera-info`, `ft.cameraInfo`) and, when Chrome labels them "camera2 N, facing back" and runs another
+  than the lowest N, restarts once with that one (`pickMainCamera`), remembered in `ft.camera.main` and sent as an
+  ideal `deviceId` by `cameraConstraints()`. No zoom button (rejected).
 - Sync cloud (`components/SyncIndicator.tsx`): a tap shows the loading animation for at least `MIN_SPIN_MS` (1 s),
   also offline (only the animation, no message); syncs the app starts itself spin only while they run.
 - Top banners (`app/AppBanners.tsx`): only one at a time, session expired > update > install. The install banner
@@ -382,9 +388,23 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   stays `text-over`); micros with a maximum use `TargetBar` too (pass `over` for decimal comparisons). Protein is
   the exception: more is good, so `overTone="good"` (`overToneOf`) shows its excess green (`--over-good`, bar and
   text `OVER_TEXT`) without a second step.
-- Week strip (`features/diary/WeekStrip.tsx`): dot row of fixed height, red (left) for logged food, blue
-  (`bg-exercise`, right) for a training (`useTrainedDates`); no ring on the selected day. `--exercise` (blue) is
-  the training color everywhere, lighter and more cyan than `--protein`.
+- Week strip (`features/diary/WeekStrip.tsx`, plan `docs/plans/2026-11-feedback-runde-12-umsetzung.md`, mockups
+  `2026-11-wochenleiste-tagesurteil-mockup.html` v2 for shapes, `2026-11-wochenleiste-farben-mockup.html` K5 for
+  colors): seven days from `stripDays(date, today, mode)` (`ft.weekStrip`: `week` Mo to So, or `recent` anchored
+  at today, which is second from the right, moved only by whole weeks, so a tap on a day never moves the strip);
+  the arrows move a week in both. Each day shows food, training and whether it kept the budget: `useStripMarks`
+  (one live query) builds a `StripMark` per day with shared `stripMark`/`dayVerdict` (over once `remainingKcal < 0`,
+  none without a food entry or without a goal for the day) and `overLevel` (`OVER_NEAR` 10 %, `OVER_FAR` 25 %).
+  `StripDay` (`features/diary/StripDay.tsx`) is the one place that draws a day, for the strip and the example weeks
+  of the setting, in the look `ft.weekMarks` (`WEEK_MARKS`): `dots` (as before round 12, no verdict), `ring`,
+  `ringArc` (default: ring plus a blue outer arc ending at 12 o'clock, its length the day's training kcal against
+  the budget), `field`, `fieldFrame`, `fieldFoot`. Within the budget green (`--good`, field `--strip-ok`), over in
+  three reds (`--strip-over-ring-N`, `--strip-over-N`); the selected day stays `bg-primary` and carries its ring in
+  the primary foreground (with the excess arc when over). A red dot means food only where no verdict says it. Data
+  attributes `data-marks`, `data-verdict`, `data-level`, `data-training`, `data-mark`; the link name adds "im Ziel"
+  / "über dem Ziel". Day links match their search exactly (`activeOptions.exact`), so only the selected one is
+  current. `--exercise` (blue) is the training color everywhere, lighter and more cyan than `--protein`. The
+  diary header has no day arrows (round 12); E2E specs move days with `shiftDay` (`e2e/days.ts`).
 - Nutrient values are always shown with `src/components/NutrientBreakdown.tsx` (variant `item` with the kcal tap
   for the day mode, `day` for the day overview and reports; math in shared `energyBreakdown`). In the day mode the
   energy split bar fills only the share of the kcal target (`EnergySplitBar fill`, capped at full, the label names
@@ -414,7 +434,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   Logo sources and the icon script: `docs/logo/README.md`; show the logo with `AppLogo`. Section "Tagebuch":
   `DiaryMacrosPref` (`ft.diaryMacros`, `numbers` default or `bar`) decides how diary rows show P/K/F
   (`features/diary/MacroSummary.tsx`: plain line, or a dot in the macro color before each grey number and a 4 px
-  energy split bar under the line); `/more` names it only when not the default.
+  energy split bar under the line); below it "Kalenderwoche"/"Letzte Tage" (`WeekStripPref`, with a preview of the
+  seven days) and the six looks of the week strip as a `RadioGroup` with an example week each (`WeekMarksPref`);
+  `/more` names each only when not the default. App icon: an icon set to "Dunkel" points the one manifest link at
+  `manifest-dark.webmanifest` (built by `darkManifest` in `vite.config.ts`, same id; `theme-init.js` before the
+  app runs, `manifestFor` after); "Wie die App" stays on the light manifest until Android proves the swap. The
+  home screen note shows only on iOS.
 - No pinch or double-tap zoom (viewport `user-scalable=no`, `touch-action: pan-x pan-y` on `html`, iOS
   `gesturestart` cancelled in `main.tsx`). Every input needs at least 16 px text (`Input`/`NumberField` have it),
   or iOS zooms in on focus.
@@ -575,8 +600,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   pixel art computed for the scaled size); the gap to the screen edge counts from the visible figure
   (`skinOverhang`). The button never moves by itself (no bob); only state rings and glows animate. Tap records (`recorder.ts`: MediaRecorder webm/opus or mp4, 32 kbit/s, `MAX_RECORD_MS` 2 min,
   the last 10 s count down), second tap sends; long press (450 ms) offers the keyboard; during a recording keyboard
-  (`/api/assistant/transcribe`, same `requestId`) and X; dragging snaps to an edge (`ft.assistant.pos`), the button
-  avoids tab bar, `[data-page-footer]`, `[data-ai-avoid]` and toasts. Text mode is a dark layer, the button becomes
+  (`/api/assistant/transcribe`, same `requestId`) and X; dragging snaps to an edge (`ft.assistant.pos`, the wanted
+  spot), the button stays above tab bar, `[data-page-footer]`, toasts and the home indicator, and keeps areas marked
+  `[data-ai-avoid]` (the camera picture of `BarcodeScanner`, its fallback, "Eingeben"/"Suchen") free: `placeButton`
+  (`place.ts`) takes the free spot nearest to the wanted one; with none it is hidden at rest and keeps its old place
+  while an utterance runs. Text mode is a dark layer, the button becomes
   "Senden". Behaviour: pure reducer `machine.ts` (tested) driven by `AssistantController` (`controller.ts`), React
   reads it with `useSyncExternalStore`. Server: `routes/assistant.ts` (`/turn` multipart audio or text + device
   context + `requestId`; idempotent via `assistant_turns`), `assistant/claude.ts` (manual Haiku tool loop, at most 8
@@ -604,7 +632,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `ASSISTANT_AUDIO_DAYS` 7, `cleanupAssistantAudio`). Figures: Mehr → Aussehen → "Assistent" (`ft.assistant.button`,
   `ft.assistant.skin`): Standard (icon in a circle, `--ai-*` tokens), Teufelchen (own pixel art, built in,
   `skins/builtin.ts`), uploaded packs (zip with `skin.json` `SkinManifest`, checked on the device in `skins/pack.ts`,
-  stored in the account `assistant_skins`, copies in Dexie `assistantSkins`). `tools/skin-pack/build.mjs` builds
+  stored in the account `assistant_skins`, copies in Dexie `assistantSkins`; the appearance page loads every pack
+  the device has no copy of when it opens, one after the other, `loadSkin` shares a running download with a tap). `tools/skin-pack/build.mjs` builds
   packs; Elfenmagierin and Dämonin are packs (manifests in `tools/skin-pack/packs`, output in the git-ignored
   `skins/`), never part of the app.
 
