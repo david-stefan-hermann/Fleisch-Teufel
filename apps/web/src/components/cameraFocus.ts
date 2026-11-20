@@ -80,3 +80,35 @@ export function coverPoint({
   const clamp = (v: number) => Math.min(1, Math.max(0, v));
   return { x: clamp((x + (w - boxW) / 2) / w), y: clamp((y + (h - boxH) / 2) / h) };
 }
+
+const INFO_KEY = 'ft.cameraInfo';
+
+/**
+ * Which camera runs and which there are, once per device and camera label, into the error log
+ * ("Daten & Sync", copyable): only when the device names more than one back camera, the case where
+ * the browser may have picked a wide-angle one that cannot focus close up.
+ */
+export async function logCameraInfo(track: MediaStreamTrack, log: (text: string) => void): Promise<void> {
+  try {
+    const label = track.label;
+    const seen = JSON.parse(localStorage.getItem(INFO_KEY) ?? '[]') as string[];
+    if (seen.includes(label)) return;
+    const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+    if (inputs.filter(isBack).length < 2) return;
+    const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[]; focusDistance?: unknown };
+    const id = track.getSettings?.().deviceId ?? '';
+    log(
+      [
+        `Kamera: ${label || '?'} (${id.slice(0, 8)})`,
+        `focusMode: ${JSON.stringify(caps.focusMode ?? null)}`,
+        `focusDistance: ${JSON.stringify(caps.focusDistance ?? null)}`,
+        `Videoeingänge: ${inputs.map((d) => d.label || '?').join(' | ')}`,
+      ].join('; '),
+    );
+    localStorage.setItem(INFO_KEY, JSON.stringify([...seen, label].slice(-10)));
+  } catch {
+    // Diagnostics only.
+  }
+}
+
+const isBack = (d: MediaDeviceInfo) => /back|rück/i.test(d.label);

@@ -4,6 +4,7 @@ import {
   coverPoint,
   FOCUS_HOLD_MS,
   focusAt,
+  logCameraInfo,
   startAutofocus,
   stopFocus,
 } from '@/components/cameraFocus';
@@ -91,5 +92,47 @@ describe('camera focus', () => {
     const tall = coverPoint({ boxW: 400, boxH: 300, videoW: 1440, videoH: 1920, x: 400, y: 300 });
     expect(tall.x).toBe(1);
     expect(tall.y).toBeCloseTo((300 + (533.33 - 300) / 2) / 533.33, 3);
+  });
+});
+
+describe('camera info in the error log', () => {
+  const device = (label: string, deviceId = label) =>
+    ({ kind: 'videoinput', label, deviceId, groupId: '' }) as MediaDeviceInfo;
+  const track = (label: string) =>
+    ({
+      label,
+      getCapabilities: () => ({ focusMode: ['continuous'], focusDistance: { min: 0.1, max: 10 } }),
+      getSettings: () => ({ deviceId: 'abcdef123456' }),
+    }) as unknown as MediaStreamTrack;
+  const devices = (list: MediaDeviceInfo[]) =>
+    Object.defineProperty(navigator, 'mediaDevices', {
+      value: { enumerateDevices: () => Promise.resolve(list) },
+      configurable: true,
+    });
+  beforeEach(() => localStorage.clear());
+
+  it('writes one line per camera label when there are several back cameras', async () => {
+    devices([
+      device('camera2 0, facing back'),
+      device('camera2 2, facing back'),
+      device('camera2 1, facing front'),
+    ]);
+    const log = vi.fn();
+    await logCameraInfo(track('camera2 2, facing back'), log);
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = log.mock.calls[0]![0] as string;
+    expect(line).toContain('Kamera: camera2 2, facing back (abcdef12)');
+    expect(line).toContain('focusMode: ["continuous"]');
+    expect(line).toContain('focusDistance: {"min":0.1,"max":10}');
+    expect(line).toContain('camera2 0, facing back | camera2 2, facing back | camera2 1, facing front');
+    await logCameraInfo(track('camera2 2, facing back'), log);
+    expect(log).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays quiet with one back camera', async () => {
+    devices([device('Back Camera'), device('Front Camera')]);
+    const log = vi.fn();
+    await logCameraInfo(track('Back Camera'), log);
+    expect(log).not.toHaveBeenCalled();
   });
 });

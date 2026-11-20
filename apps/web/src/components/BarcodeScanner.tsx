@@ -18,7 +18,8 @@ import {
 } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { canTapFocus, coverPoint, focusAt, startAutofocus, stopFocus } from './cameraFocus';
+import { recordError } from '@/lib/errorLog';
+import { canTapFocus, coverPoint, focusAt, logCameraInfo, startAutofocus, stopFocus } from './cameraFocus';
 import { CAMERA_CONSTRAINTS, takeWarmStream } from './cameraWarmup';
 
 prepareZXingModule({
@@ -236,6 +237,7 @@ export function BarcodeScanner({
         focused = track;
         void startAutofocus(track);
         if (canTapFocus(track)) setFocusTrack(track);
+        void logCameraInfo(track, (text) => recordError(text, 'camera-info'));
       }
       const v = video.current!;
       v.srcObject = stream;
