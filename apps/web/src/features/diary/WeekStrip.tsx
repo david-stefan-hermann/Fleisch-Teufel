@@ -22,7 +22,12 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="icon-sm" asChild>
-        <Link to="/" search={{ date: dateParam(addDays(date, -7), today) }} aria-label="Vorherige Woche">
+        <Link
+          to="/"
+          search={{ date: dateParam(addDays(date, -7), today) }}
+          aria-label="Vorherige Woche"
+          activeOptions={{ exact: true }}
+        >
           <ChevronLeft aria-hidden />
         </Link>
       </Button>
@@ -62,7 +67,12 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
         })}
       </ol>
       <Button variant="ghost" size="icon-sm" asChild>
-        <Link to="/" search={{ date: dateParam(addDays(date, 7), today) }} aria-label="Nächste Woche">
+        <Link
+          to="/"
+          search={{ date: dateParam(addDays(date, 7), today) }}
+          aria-label="Nächste Woche"
+          activeOptions={{ exact: true }}
+        >
           <ChevronRight aria-hidden />
         </Link>
       </Button>

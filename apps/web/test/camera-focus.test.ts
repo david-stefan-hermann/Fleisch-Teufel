@@ -81,6 +81,19 @@ describe('camera focus', () => {
     expect(applyConstraints).toHaveBeenCalledTimes(1);
   });
 
+  it('a second tap restarts the hold; an ended track is left alone', async () => {
+    const { track, applyConstraints } = fakeTrack({ focusMode: ['continuous'] });
+    // Both taps start before the camera answered the first one.
+    void focusAt(track, { x: 0.1, y: 0.1 });
+    await vi.advanceTimersByTimeAsync(3000);
+    await focusAt(track, { x: 0.9, y: 0.9 });
+    await vi.advanceTimersByTimeAsync(FOCUS_HOLD_MS - 1000);
+    expect(applyConstraints).toHaveBeenCalledTimes(2);
+    (track as { readyState?: string }).readyState = 'ended';
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(applyConstraints).toHaveBeenCalledTimes(2);
+  });
+
   it('maps a tap through object-cover', () => {
     // A 4:3 landscape video in a 3:4 portrait box: the sides are cut off.
     const wide = { boxW: 300, boxH: 400, videoW: 1920, videoH: 1440 };

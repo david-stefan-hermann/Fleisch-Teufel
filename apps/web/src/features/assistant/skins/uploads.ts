@@ -61,11 +61,17 @@ export async function downloadSkin(db: UserDb, info: SkinInfo): Promise<Assistan
 
 const loading = new Map<string, Promise<AssistantSkin>>();
 
-/** `downloadSkin` once per pack at a time: a tap while the page loads a pack waits for the same fetch. */
+/**
+ * `downloadSkin` once per pack at a time: a tap while the page loads a pack waits for the same fetch,
+ * and a pack this device already has is not fetched again.
+ */
 export function loadSkin(db: UserDb, info: SkinInfo): Promise<AssistantSkin> {
   let p = loading.get(info.id);
   if (!p) {
-    p = downloadSkin(db, info).finally(() => loading.delete(info.id));
+    p = db.assistantSkins
+      .get(info.id)
+      .then((have) => have ?? downloadSkin(db, info))
+      .finally(() => loading.delete(info.id));
     loading.set(info.id, p);
   }
   return p;

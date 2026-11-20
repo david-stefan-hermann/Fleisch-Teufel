@@ -400,7 +400,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `ringArc` (default: ring plus a blue outer arc ending at 12 o'clock, its length the day's training kcal against
   the budget), `field`, `fieldFrame`, `fieldFoot`. Within the budget green (`--good`, field `--strip-ok`), over in
   three reds (`--strip-over-ring-N`, `--strip-over-N`); the selected day stays `bg-primary` and carries its ring in
-  the primary foreground (with the excess arc when over). A red dot means food only where no verdict says it. Data
+  the primary foreground (with the excess arc when over). A red dot means food where no verdict says it (in `dots` and `field` on every day with food). Data
   attributes `data-marks`, `data-verdict`, `data-level`, `data-training`, `data-mark`; the link name adds "im Ziel"
   / "über dem Ziel". Day links match their search exactly (`activeOptions.exact`), so only the selected one is
   current. `--exercise` (blue) is the training color everywhere, lighter and more cyan than `--protein`. The

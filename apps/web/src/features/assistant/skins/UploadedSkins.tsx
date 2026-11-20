@@ -29,26 +29,31 @@ export function UploadedSkins() {
 
   useEffect(() => {
     let live = true;
-    listServerSkins().then(
-      async (list) => {
-        await dropRemovedSkins(db, list);
-        if (!live) return;
-        setServer(list);
-        // Packs this device has no copy of are loaded now, so their tiles show their pictures.
-        const have = new Set((await db.assistantSkins.toCollection().primaryKeys()).map(String));
-        for (const info of list) {
+    listServerSkins()
+      .then(
+        async (list) => {
+          await dropRemovedSkins(db, list);
           if (!live) return;
-          if (have.has(info.id)) continue;
-          setFetching(info.id);
-          // A pack that fails stays a plain tile; a tap loads it again and says why.
-          await loadSkin(db, info).catch(() => undefined);
-        }
+          setServer(list);
+          // Packs this device has no copy of are loaded now, so their tiles show their pictures.
+          const have = new Set((await db.assistantSkins.toCollection().primaryKeys()).map(String));
+          for (const info of list) {
+            if (!live) return;
+            if (have.has(info.id)) continue;
+            setFetching(info.id);
+            // A pack that fails stays a plain tile; a tap loads it again and says why.
+            await loadSkin(db, info).catch(() => undefined);
+          }
+          if (live) setFetching(null);
+        },
+        () => {
+          // Offline: the copies on this device.
+        },
+      )
+      // A failed read of the local copies: the tiles stay as they are.
+      .catch(() => {
         if (live) setFetching(null);
-      },
-      () => {
-        // Offline: the copies on this device.
-      },
-    );
+      });
     return () => {
       live = false;
     };

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { recordError } from '@/lib/errorLog';
 import {
+  CHROME_CAMERA,
   canTapFocus,
   coverPoint,
   focusAt,
@@ -28,7 +29,7 @@ import {
   startAutofocus,
   stopFocus,
 } from './cameraFocus';
-import { cameraConstraints, rememberMainCamera, takeWarmStream } from './cameraWarmup';
+import { cameraConstraints, forgetMainCamera, rememberMainCamera, takeWarmStream } from './cameraWarmup';
 
 prepareZXingModule({
   overrides: {
@@ -226,7 +227,13 @@ export function BarcodeScanner({
       if (!navigator.mediaDevices?.getUserMedia) return onError('unsupported');
       try {
         // The tap that opened the page may have started the camera already (`warmUpCamera`).
-        stream = (await takeWarmStream()) ?? (await navigator.mediaDevices.getUserMedia(cameraConstraints()));
+        stream =
+          (await takeWarmStream()) ??
+          (await navigator.mediaDevices.getUserMedia(cameraConstraints()).catch((e: unknown) => {
+            // A remembered main camera that cannot be opened (any more) must not block the camera.
+            if (forgetMainCamera()) return navigator.mediaDevices.getUserMedia(cameraConstraints());
+            throw e;
+          }));
       } catch (e) {
         const name = (e as DOMException).name;
         return onError(
@@ -239,7 +246,8 @@ export function BarcodeScanner({
       }
       if (stopped) return stream.getTracks().forEach((t) => t.stop());
       let track = stream.getVideoTracks()[0];
-      if (track) {
+      // Only Chrome on Android names its cameras "camera2 N": the iPhone never waits here.
+      if (track && CHROME_CAMERA.test(track.label)) {
         // What the browser picked, before a switch to the main camera.
         void logCameraInfo(track, (text) => recordError(text, 'camera-info'));
         const main = pickMainCamera(
@@ -247,14 +255,21 @@ export function BarcodeScanner({
           track.getSettings?.().deviceId,
         );
         if (main && !stopped) {
-          rememberMainCamera(main);
           stream.getTracks().forEach((t) => t.stop());
           const constraints = cameraConstraints();
           const video = { ...(constraints.video as MediaTrackConstraints), deviceId: { exact: main } };
           stream = await navigator.mediaDevices
             .getUserMedia({ ...constraints, video })
-            .catch(() => navigator.mediaDevices.getUserMedia(cameraConstraints()))
+            .then((s) => {
+              rememberMainCamera(main);
+              return s;
+            })
+            .catch(() => {
+              forgetMainCamera();
+              return navigator.mediaDevices.getUserMedia(cameraConstraints());
+            })
             .catch(() => null);
+          if (stopped) return stream?.getTracks().forEach((t) => t.stop());
           if (!stream) return onError('other');
           track = stream.getVideoTracks()[0];
         }

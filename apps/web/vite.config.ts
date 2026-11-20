@@ -44,12 +44,10 @@ function darkManifest(): Plugin {
       handler(html) {
         const link = /<link rel="manifest"[^>]*>/.exec(html)?.[0];
         if (!link) return html;
-        return html
-          .replace(link, '')
-          .replace(
-            '<script src="/theme-init.js"></script>',
-            `${link}\n    <script src="/theme-init.js"></script>`,
-          );
+        const init = '<script src="/theme-init.js"></script>';
+        // Without that tag the link would be dropped and the build would ship without a manifest.
+        if (!html.includes(init)) throw new Error('darkManifest: theme-init.js script tag not found');
+        return html.replace(link, '').replace(init, `${link}\n    ${init}`);
       },
     },
   };

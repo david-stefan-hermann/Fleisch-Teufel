@@ -7,8 +7,8 @@ ersetzt sie nicht, er legt fest, wie sieben der acht Punkte gebaut werden (Punkt
 ## Status
 
 Umgesetzt am 2026-11-20 (Opus 5.5), alle acht Blöcke, nicht gepusht. Ausgangsstand `2121829`. Push-Stand nie aus
-diesem Dokument ableiten: `git fetch` + `git status -sb`. Offen sind nur die Geräteprüfungen (Abschnitt
-„Verifikation“) und der Ausgang des Icon-Versuchs auf Android.
+diesem Dokument ableiten: `git fetch` + `git status -sb`. Offen sind die Abnahme der Annahmen A14 bis A18 durch den
+Nutzer, die Geräteprüfungen (Abschnitt „Verifikation“) und der Ausgang des Icon-Versuchs auf Android.
 
 Überarbeitet am 2026-11-20 nach fünf Rückmeldungen des Nutzers: kein grüner Punkt, Punkt 2 (Telefon quer) wird gar
 nicht gebaut (weder eine Fläche „Nur im Hochformat“ noch ein Zurückdrehen der App), kein Zoom, die Annahmen A3, A7,
@@ -91,6 +91,33 @@ stufenloser Verlauf).
   „an“: Ist die Fotoanalyse auf dem Server aus, steht über dem Bild der Hinweis „KI-Analyse auf dem Server
   ausgeschaltet“, und der Knopf findet auf kleinen Bildschirmen dort seinen freien Platz (über dem Bild, nicht
   darauf).
+
+### Nachprüfung (2026-11-20)
+
+Alle Blöcke noch einmal gegen den Plan gelesen. Vollständig; behoben in einem Nachtrags-Commit:
+
+- Block 6c, Fehler: Die Hauptkamera wurde gemerkt, bevor sie sich öffnen ließ. Ließ sie sich nie öffnen, startete
+  die Kamera danach bei jedem Aufruf mit Fehler. Jetzt merkt der Scanner sie erst nach dem Start; scheitert ein
+  Start mit gemerkter Kamera, vergisst er sie und fragt einmal ohne (`forgetMainCamera`).
+- Block 6b/6c: Diagnosezeile und Gerätesuche laufen nur noch, wenn Chrome die Kamera „camera2 N“ nennt. Vorher
+  schrieb auch das iPhone (mehrere Rückkameras) eine Zeile ins Fehlerprotokoll und wartete vor dem ersten Bild auf
+  `enumerateDevices`; „auf dem iPhone ändert sich nichts“ gilt jetzt wörtlich.
+- Block 6a: Zwei schnelle Tipps hinterließen einen Rückkehr-Timer, den keiner mehr löschte; die Haltezeit beginnt
+  jetzt mit dem Tipp, ein beendeter Track bekommt keine Constraints mehr.
+- Block 5: Der Scroll-Listener des Knopfs hört nur noch auf das Dokument (vorher auch jedes Rad und jede Leiste).
+- Block 2: `loadSkin` lädt einen Pack, den das Gerät schon hat, nicht noch einmal; ein Lesefehler der lokalen
+  Kopien bleibt still.
+- Block 3: Auch die Wochenpfeile vergleichen genau (`activeOptions.exact`), sonst trug der Pfeil auf heute
+  `aria-current`.
+- Block 7: `darkManifest` bricht den Build ab, wenn es das `theme-init.js`-Tag nicht findet (statt das Manifest
+  still zu verlieren); der E2E-Test des Manifests vor dem App-Start läuft ohne Service Worker, damit das Sperren
+  der Skripte wirkt.
+- `CLAUDE.md`: Der Essens-Punkt steht in `dots` und `field` an jedem Tag mit Essen.
+
+Bewusst so gelassen: „Feld mit Rahmen“ trägt `data-mark="frame"` (folgt aus dem Rahmen als Element); der
+Fokusring ist weiß wie die übrigen Kamera-Overlays, nicht über ein Token. Offen für den Nutzer: Bei
+ausgeschalteter Analyse darf der Knopf auf dem Hinweis „KI-Analyse auf dem Server ausgeschaltet“ liegen (siehe
+Block 5 oben); soll er auch diesem ausweichen (dann auf kleinen Bildschirmen ausgeblendet)?
 
 ### Annahmen
 

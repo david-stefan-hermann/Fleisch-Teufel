@@ -40,6 +40,17 @@ export function rememberMainCamera(id: string): void {
   }
 }
 
+/** Drops a remembered main camera; true when there was one (the caller then asks once more without it). */
+export function forgetMainCamera(): boolean {
+  try {
+    if (localStorage.getItem(MAIN_CAMERA_KEY) === null) return false;
+    localStorage.removeItem(MAIN_CAMERA_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const WARM_MS = 3000;
 
 const stop = (s: MediaStream | null) => s?.getTracks().forEach((t) => t.stop());

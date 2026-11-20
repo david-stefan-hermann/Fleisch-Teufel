@@ -98,8 +98,9 @@ function useLayoutTick(): number {
       settle = setTimeout(() => setTick((t) => t + 1), 450);
     };
     window.addEventListener('resize', bump);
-    // Avoided areas move with the page (open analyses below the camera make it scroll).
-    window.addEventListener('scroll', bump, { passive: true, capture: true });
+    // Avoided areas move with the page (open analyses below the camera make it scroll). Only the
+    // document: wheels and strips scroll inside and must not measure on every frame.
+    window.addEventListener('scroll', bump, { passive: true });
     window.visualViewport?.addEventListener('resize', bump);
     window.visualViewport?.addEventListener('scroll', bump);
     const mo = new MutationObserver(bump);
@@ -108,7 +109,7 @@ function useLayoutTick(): number {
       cancelAnimationFrame(frame);
       clearTimeout(settle);
       window.removeEventListener('resize', bump);
-      window.removeEventListener('scroll', bump, { capture: true });
+      window.removeEventListener('scroll', bump);
       window.visualViewport?.removeEventListener('resize', bump);
       window.visualViewport?.removeEventListener('scroll', bump);
       mo.disconnect();

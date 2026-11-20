@@ -1301,6 +1301,84 @@ describe('camera fade-in', () => {
   });
 });
 
+describe('main camera', () => {
+  const devices = [
+    { kind: 'videoinput', deviceId: 'front', label: 'camera2 1, facing front' },
+    { kind: 'videoinput', deviceId: 'main', label: 'camera2 0, facing back' },
+    { kind: 'videoinput', deviceId: 'wide', label: 'camera2 2, facing back' },
+  ];
+  const streamOf = (label: string, deviceId: string) => {
+    const track = {
+      label,
+      getCapabilities: () => ({}),
+      getSettings: () => ({ deviceId }),
+      stop: vi.fn(),
+      readyState: 'live',
+    };
+    return { getVideoTracks: () => [track], getTracks: () => [track] };
+  };
+  function fakeCamera(opts: { mainFails?: boolean; label?: string }) {
+    const getUserMedia = vi.fn(async (c: MediaStreamConstraints) => {
+      const id = (c.video as MediaTrackConstraints).deviceId as
+        { exact?: string; ideal?: string } | undefined;
+      if (id?.exact === 'main' || id?.ideal === 'main') {
+        if (opts.mainFails) throw new DOMException('busy', 'NotReadableError');
+        return streamOf('camera2 0, facing back', 'main');
+      }
+      return streamOf(opts.label ?? 'camera2 2, facing back', 'wide');
+    });
+    const enumerateDevices = vi.fn(async () => devices);
+    vi.stubGlobal('navigator', { ...navigator, mediaDevices: { getUserMedia, enumerateDevices } });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    return { getUserMedia, enumerateDevices };
+  }
+  const shows = async (id: string) =>
+    waitFor(() => {
+      const s = (screen.getByLabelText('Kamerabild') as HTMLVideoElement).srcObject as unknown as {
+        getVideoTracks: () => { getSettings: () => { deviceId: string } }[];
+      } | null;
+      expect(s?.getVideoTracks()[0]?.getSettings().deviceId).toBe(id);
+    });
+
+  beforeEach(() => localStorage.removeItem('ft.camera.main'));
+
+  it('switches to the lowest "camera2 N, facing back" and remembers it once it opened', async () => {
+    fakeCamera({});
+    render(<BarcodeScanner onDetected={() => {}} onError={() => {}} />);
+    await shows('main');
+    expect(localStorage.getItem('ft.camera.main')).toBe('main');
+  });
+
+  it('keeps the picked camera and remembers nothing when the main one cannot be opened', async () => {
+    const onError = vi.fn();
+    fakeCamera({ mainFails: true });
+    render(<BarcodeScanner onDetected={() => {}} onError={onError} />);
+    await shows('wide');
+    expect(localStorage.getItem('ft.camera.main')).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('a remembered main camera that fails is dropped and the camera starts without it', async () => {
+    localStorage.setItem('ft.camera.main', 'main');
+    const onError = vi.fn();
+    const { getUserMedia } = fakeCamera({ mainFails: true });
+    render(<BarcodeScanner onDetected={() => {}} onError={onError} />);
+    await shows('wide');
+    expect(localStorage.getItem('ft.camera.main')).toBeNull();
+    expect(onError).not.toHaveBeenCalled();
+    expect(getUserMedia.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('never looks at the device list for cameras not named by Chrome (iPhone)', async () => {
+    const { enumerateDevices, getUserMedia } = fakeCamera({ label: 'Rückseitige Kamera' });
+    render(<BarcodeScanner onDetected={() => {}} onError={() => {}} />);
+    await shows('wide');
+    expect(enumerateDevices).not.toHaveBeenCalled();
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('ft.camera.main')).toBeNull();
+  });
+});
+
 describe('ingredient amount wheel', () => {
   beforeEach(() => {
     vi.stubGlobal(

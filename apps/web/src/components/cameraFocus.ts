@@ -41,15 +41,17 @@ export async function focusAt(track: MediaStreamTrack, point: { x: number; y: nu
   stopFocus(track);
   const modes = focusModes(track);
   const mode = modes.includes('single-shot') ? 'single-shot' : 'continuous';
+  // The hold starts with the tap, so a later tap or `stopFocus` always finds and clears it.
+  if (modes.includes('continuous')) {
+    holds.set(
+      track,
+      setTimeout(() => {
+        holds.delete(track);
+        if (track.readyState !== 'ended') void apply(track, { focusMode: 'continuous' });
+      }, FOCUS_HOLD_MS),
+    );
+  }
   await apply(track, { pointsOfInterest: [point], focusMode: mode });
-  if (!modes.includes('continuous')) return;
-  holds.set(
-    track,
-    setTimeout(() => {
-      holds.delete(track);
-      void apply(track, { focusMode: 'continuous' });
-    }, FOCUS_HOLD_MS),
-  );
 }
 
 /** Drops a pending return to continuous focus (next tap, camera stopped). */
@@ -111,6 +113,9 @@ export async function logCameraInfo(track: MediaStreamTrack, log: (text: string)
     // Diagnostics only.
   }
 }
+
+/** Chrome on Android names its cameras "camera2 N, facing …"; other browsers never do. */
+export const CHROME_CAMERA = /camera2 \d+/;
 
 const isBack = (d: MediaDeviceInfo) => d.kind === 'videoinput' && /back|rück/i.test(d.label);
 
