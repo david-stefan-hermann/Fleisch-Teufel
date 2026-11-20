@@ -30,6 +30,7 @@ import { logItems } from '@/db/entries';
 import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
 import {
+  manifestFor,
   resolveAppearance,
   setDiaryMacrosPref,
   setWeekMarksPref,
@@ -638,6 +639,14 @@ describe('appearance', () => {
     expect(localStorage.getItem('ft.weekStrip')).toBe('recent');
     setWeekStripPref('week');
     expect(localStorage.getItem('ft.weekStrip')).toBeNull();
+  });
+});
+
+describe('web app manifest', () => {
+  it('the dark one only for an icon set to dark', () => {
+    expect(manifestFor('dark')).toBe('/manifest-dark.webmanifest');
+    expect(manifestFor('light')).toBe('/manifest.webmanifest');
+    expect(manifestFor('auto')).toBe('/manifest.webmanifest');
   });
 });
 

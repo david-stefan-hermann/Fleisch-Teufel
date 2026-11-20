@@ -1,6 +1,7 @@
 import { overLevel, parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex, type StripMark } from '@ft/shared';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { isIos } from '@/app/pwa';
 import { useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { AssistantAppearance } from '@/features/assistant/skins/SkinPicker';
@@ -225,18 +226,20 @@ export function AppearancePage() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <div className="grid gap-1.5 rounded-xl bg-muted p-3 text-xs text-pretty">
-            <p className="font-medium text-foreground">Icon auf dem Home-Bildschirm</p>
-            <p className="text-muted-foreground">
-              iOS übernimmt das Icon einmal beim Hinzufügen zum Home-Bildschirm und tauscht es danach nicht
-              mehr. Für ein anderes Icon: diese Einstellung wählen, die App vom Home-Bildschirm entfernen und
-              in Safari über Teilen → „Zum Home-Bildschirm“ neu hinzufügen.
-            </p>
-            <p className="text-muted-foreground">
-              Beim Entfernen löscht iOS die Daten auf dem Gerät; nach dem Anmelden kommen sie vom Server
-              zurück. Prüfe vorher unter „Daten &amp; Synchronisation“, dass alles synchronisiert ist.
-            </p>
-          </div>
+          {isIos() && (
+            <div className="grid gap-1.5 rounded-xl bg-muted p-3 text-xs text-pretty">
+              <p className="font-medium text-foreground">Icon auf dem Home-Bildschirm</p>
+              <p className="text-muted-foreground">
+                iOS übernimmt das Icon einmal beim Hinzufügen zum Home-Bildschirm und tauscht es danach nicht
+                mehr. Für ein anderes Icon: diese Einstellung wählen, die App vom Home-Bildschirm entfernen
+                und in Safari über Teilen → „Zum Home-Bildschirm“ neu hinzufügen.
+              </p>
+              <p className="text-muted-foreground">
+                Beim Entfernen löscht iOS die Daten auf dem Gerät; nach dem Anmelden kommen sie vom Server
+                zurück. Prüfe vorher unter „Daten &amp; Synchronisation“, dass alles synchronisiert ist.
+              </p>
+            </div>
+          )}
         </div>
       </Section>
     </Page>

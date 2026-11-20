@@ -3,10 +3,18 @@
 (function () {
   var systemDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   var theme = null;
+  var icon = null;
   try {
     theme = localStorage.getItem('ft.theme');
+    icon = localStorage.getItem('ft.icon');
   } catch (e) {
     // Storage blocked: follow the system.
+  }
+  // Android takes the icons of the manifest: an icon set to dark gets the dark manifest (same app id).
+  // The build puts the manifest link in front of this script.
+  if (icon === 'dark') {
+    var manifest = document.querySelector('link[rel="manifest"]');
+    if (manifest) manifest.setAttribute('href', '/manifest-dark.webmanifest');
   }
   var dark = theme === 'dark' || (theme !== 'light' && systemDark);
   document.documentElement.classList.add(dark ? 'dark' : 'light');

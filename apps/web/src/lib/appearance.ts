@@ -7,7 +7,8 @@ import { useSyncExternalStore } from 'react';
  *   (class `dark`/`light` on `<html>`); this module keeps it up to date afterwards.
  * - Icon: follows the app theme ('auto') or is fixed light or dark. It decides the in-app logo,
  *   the favicon and the apple-touch-icon. iOS reads the latter once, when the app is added to the
- *   home screen; it cannot be swapped on an installed web app.
+ *   home screen; it cannot be swapped on an installed web app. Android reads the manifest's icons:
+ *   a dark icon hooks in the dark manifest (`manifestFor`).
  * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
  *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
  * - Week strip: the calendar week (default) or the recent days (today second from the right), and
@@ -149,7 +150,16 @@ function update() {
   listeners.forEach((l) => l());
 }
 
-/** Writes the appearance into the document: theme class, browser colors, favicon, touch icon. */
+/**
+ * The web app manifest for an icon choice: the dark one only when the icon is set to dark. "Wie die
+ * App" stays with the light one until the swap is proven on Android devices (an installed app keeps
+ * its icon otherwise, and nobody who changed nothing is touched).
+ */
+export function manifestFor(icon: IconPref): string {
+  return icon === 'dark' ? '/manifest-dark.webmanifest' : '/manifest.webmanifest';
+}
+
+/** Writes the appearance into the document: theme class, browser colors, favicon, touch icon, manifest. */
 function apply(a: Appearance) {
   const root = document.documentElement;
   root.classList.toggle('dark', a.mode === 'dark');
@@ -164,6 +174,7 @@ function apply(a: Appearance) {
     .querySelector<HTMLLinkElement>('link[rel="icon"][type="image/svg+xml"]')
     ?.setAttribute('href', files.favicon);
   document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')?.setAttribute('href', files.touch);
+  document.querySelector<HTMLLinkElement>('link[rel="manifest"]')?.setAttribute('href', manifestFor(a.icon));
 }
 
 /** Reads the saved choices, applies them and follows the system theme while it matters. */

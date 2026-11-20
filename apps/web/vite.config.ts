@@ -2,13 +2,58 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as {
   version: string;
 };
 const version = process.env.APP_VERSION || pkg.version;
+
+/** Light icon of the manifest → its dark twin (`scripts/icons.mjs`). */
+const DARK_ICONS: Record<string, string> = {
+  'pwa-64x64.png': 'pwa-dark-64x64.png',
+  'pwa-192x192.png': 'pwa-dark-192x192.png',
+  'pwa-512x512.png': 'pwa-dark-512x512.png',
+  'maskable-icon-512x512.png': 'maskable-icon-dark-512x512.png',
+};
+
+/**
+ * `manifest-dark.webmanifest`: the built manifest with the dark icons, everything else the same (above
+ * all `id`, `start_url` and `scope`: still one app). The manifest link moves in front of
+ * `theme-init.js`, which points it at the dark manifest when the icon is set to dark; the app keeps
+ * it so (`src/lib/appearance.ts`). Runs after VitePWA, so the service worker precaches the file.
+ */
+function darkManifest(): Plugin {
+  type Icon = { src: string };
+  const dark = (icons: Icon[] | undefined) => icons?.map((i) => ({ ...i, src: DARK_ICONS[i.src] ?? i.src }));
+  return {
+    name: 'ft-dark-manifest',
+    apply: 'build',
+    enforce: 'post',
+    generateBundle(_, bundle) {
+      const light = bundle['manifest.webmanifest'];
+      if (light?.type !== 'asset') return this.error('manifest.webmanifest is missing');
+      const m = JSON.parse(String(light.source)) as { icons?: Icon[]; shortcuts?: { icons?: Icon[] }[] };
+      m.icons = dark(m.icons);
+      m.shortcuts = m.shortcuts?.map((s) => ({ ...s, icons: dark(s.icons) }));
+      this.emitFile({ type: 'asset', fileName: 'manifest-dark.webmanifest', source: JSON.stringify(m) });
+    },
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const link = /<link rel="manifest"[^>]*>/.exec(html)?.[0];
+        if (!link) return html;
+        return html
+          .replace(link, '')
+          .replace(
+            '<script src="/theme-init.js"></script>',
+            `${link}\n    <script src="/theme-init.js"></script>`,
+          );
+      },
+    },
+  };
+}
 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version) },
@@ -59,6 +104,7 @@ export default defineConfig({
       },
       devOptions: { enabled: false },
     }),
+    darkManifest(),
   ],
   server: {
     host: '0.0.0.0',

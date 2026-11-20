@@ -197,3 +197,44 @@ test('week strip looks: "Ring mit Bogen" by default, six to choose, kept per dev
   await expect(page.locator('ol[data-marks]')).toHaveAttribute('data-marks', 'dots');
   await expect(page.locator('[data-verdict]')).toHaveCount(0);
 });
+
+test('icon "Dunkel" hooks in the dark manifest (one app id), the others the light one', async ({ page }) => {
+  await register(page);
+  const manifest = page.locator('link[rel="manifest"]');
+  await expect(manifest).toHaveCount(1);
+  await expect(manifest).toHaveAttribute('href', '/manifest.webmanifest');
+  await page.goto('/settings/appearance');
+  const iconGroup = page.getByRole('radiogroup', { name: 'App-Icon' });
+  await iconGroup.getByRole('radio', { name: 'Dunkel' }).click();
+  await expect(manifest).toHaveAttribute('href', '/manifest-dark.webmanifest');
+
+  // Already before the app runs: theme-init.js sets it.
+  await page.route('**/assets/*.js', (r) => r.abort());
+  await page.reload();
+  await expect(manifest).toHaveAttribute('href', '/manifest-dark.webmanifest');
+  await expect(manifest).toHaveCount(1);
+  await page.unroute('**/assets/*.js');
+  await page.reload();
+
+  await page.getByRole('radiogroup', { name: 'App-Icon' }).getByRole('radio', { name: 'Hell' }).click();
+  await expect(manifest).toHaveAttribute('href', '/manifest.webmanifest');
+  await page
+    .getByRole('radiogroup', { name: 'App-Icon' })
+    .getByRole('radio', { name: 'Wie die App' })
+    .click();
+  await expect(manifest).toHaveAttribute('href', '/manifest.webmanifest');
+
+  const light = await page.request.get('/manifest.webmanifest');
+  const dark = await page.request.get('/manifest-dark.webmanifest');
+  expect(dark.headers()['content-type']).toBe(light.headers()['content-type']);
+  const l = (await light.json()) as { id: string; start_url: string; icons: { src: string }[] };
+  const d = (await dark.json()) as typeof l;
+  expect(d.id).toBe(l.id);
+  expect(d.start_url).toBe(l.start_url);
+  expect(d.icons.map((i) => i.src)).toEqual([
+    'pwa-dark-64x64.png',
+    'pwa-dark-192x192.png',
+    'pwa-dark-512x512.png',
+    'maskable-icon-dark-512x512.png',
+  ]);
+});

@@ -3,7 +3,8 @@
  * Run with `pnpm --filter @ft/web icons` after changing the logo.
  *
  * Light is the default everywhere a file cannot follow the theme (web app manifest, favicon.ico,
- * the light apple-touch-icon); the dark files are picked by the app (`src/lib/appearance.ts`).
+ * the light apple-touch-icon); the dark files are picked by the app (`src/lib/appearance.ts`), the
+ * dark manifest icons by `manifest-dark.webmanifest` (`vite.config.ts`).
  */
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -40,6 +41,10 @@ const pngs = [
   ['logo-light-square.svg', 180, 'apple-touch-icon-180x180.png'],
   ['logo-dark-square.svg', 180, 'apple-touch-icon-dark-180x180.png'],
   ['logo-maskable.svg', 512, 'maskable-icon-512x512.png'],
+  ['logo-dark-square.svg', 64, 'pwa-dark-64x64.png'],
+  ['logo-dark-square.svg', 192, 'pwa-dark-192x192.png'],
+  ['logo-dark-square.svg', 512, 'pwa-dark-512x512.png'],
+  ['logo-maskable-dark.svg', 512, 'maskable-icon-dark-512x512.png'],
 ];
 for (const [from, size, to] of pngs) writeFileSync(out(to), await png(from, size));
 
