@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  CAMERA_CONSTRAINTS,
+  cameraConstraints,
+  rememberMainCamera,
   cancelWarmUp,
   takeWarmStream,
   WARM_MS,
@@ -37,7 +38,7 @@ describe('camera warm-up', () => {
     warmUpCamera();
     warmUpCamera(); // a second tap does not start the camera twice
     expect(getUserMedia).toHaveBeenCalledTimes(1);
-    expect(getUserMedia).toHaveBeenCalledWith(CAMERA_CONSTRAINTS);
+    expect(getUserMedia).toHaveBeenCalledWith(cameraConstraints());
     expect(await takeWarmStream()).toBe(stream);
     expect(await takeWarmStream()).toBeNull();
     // Picked up: the timer no longer stops it.
@@ -93,5 +94,22 @@ describe('camera warm-up', () => {
     Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true });
     expect(() => warmUpCamera()).not.toThrow();
     expect(await takeWarmStream()).toBeNull();
+  });
+});
+
+describe('camera constraints', () => {
+  it('ask for the back camera, with a remembered main camera as an ideal id', () => {
+    localStorage.removeItem('ft.camera.main');
+    expect(cameraConstraints().video).toEqual({
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1440 },
+    });
+    rememberMainCamera('cam-0');
+    expect(cameraConstraints().video).toMatchObject({
+      facingMode: { ideal: 'environment' },
+      deviceId: { ideal: 'cam-0' },
+    });
+    localStorage.removeItem('ft.camera.main');
   });
 });

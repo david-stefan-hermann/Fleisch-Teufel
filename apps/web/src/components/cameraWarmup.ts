@@ -7,11 +7,38 @@
  * never runs without a visible picture for longer than that.
  */
 
-/** The one camera request of the app: warm-up and scanner must ask for exactly the same stream. */
-export const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
-  audio: false,
-  video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } },
-};
+const MAIN_CAMERA_KEY = 'ft.camera.main';
+
+/**
+ * The one camera request of the app: warm-up and scanner must ask for exactly the same stream, so
+ * both call this. A main camera remembered by the scanner (`rememberMainCamera`) goes along as an
+ * ideal device id; an id that no longer exists falls back to the back camera.
+ */
+export function cameraConstraints(): MediaStreamConstraints {
+  let id: string | null = null;
+  try {
+    id = localStorage.getItem(MAIN_CAMERA_KEY);
+  } catch {
+    // Private mode: the back camera the browser picks.
+  }
+  return {
+    audio: false,
+    video: {
+      facingMode: { ideal: 'environment' },
+      width: { ideal: 1920 },
+      height: { ideal: 1440 },
+      ...(id ? { deviceId: { ideal: id } } : {}),
+    },
+  };
+}
+
+export function rememberMainCamera(id: string): void {
+  try {
+    localStorage.setItem(MAIN_CAMERA_KEY, id);
+  } catch {
+    // Then the switch happens again on the next start.
+  }
+}
 
 export const WARM_MS = 3000;
 
@@ -23,7 +50,7 @@ let warm: { stream: Promise<MediaStream | null>; timer: ReturnType<typeof setTim
 export function warmUpCamera(): void {
   if (warm || !navigator.mediaDevices?.getUserMedia) return;
   // Errors are swallowed: the scanner then asks again and shows its own message.
-  const stream = navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS).then(
+  const stream = navigator.mediaDevices.getUserMedia(cameraConstraints()).then(
     (s) => s,
     () => null,
   );

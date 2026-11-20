@@ -19,8 +19,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { recordError } from '@/lib/errorLog';
-import { canTapFocus, coverPoint, focusAt, logCameraInfo, startAutofocus, stopFocus } from './cameraFocus';
-import { CAMERA_CONSTRAINTS, takeWarmStream } from './cameraWarmup';
+import {
+  canTapFocus,
+  coverPoint,
+  focusAt,
+  logCameraInfo,
+  pickMainCamera,
+  startAutofocus,
+  stopFocus,
+} from './cameraFocus';
+import { cameraConstraints, rememberMainCamera, takeWarmStream } from './cameraWarmup';
 
 prepareZXingModule({
   overrides: {
@@ -218,7 +226,7 @@ export function BarcodeScanner({
       if (!navigator.mediaDevices?.getUserMedia) return onError('unsupported');
       try {
         // The tap that opened the page may have started the camera already (`warmUpCamera`).
-        stream = (await takeWarmStream()) ?? (await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS));
+        stream = (await takeWarmStream()) ?? (await navigator.mediaDevices.getUserMedia(cameraConstraints()));
       } catch (e) {
         const name = (e as DOMException).name;
         return onError(
@@ -230,14 +238,34 @@ export function BarcodeScanner({
         );
       }
       if (stopped) return stream.getTracks().forEach((t) => t.stop());
-      const track = stream.getVideoTracks()[0];
+      let track = stream.getVideoTracks()[0];
+      if (track) {
+        // What the browser picked, before a switch to the main camera.
+        void logCameraInfo(track, (text) => recordError(text, 'camera-info'));
+        const main = pickMainCamera(
+          await (navigator.mediaDevices.enumerateDevices?.() ?? Promise.resolve([])).catch(() => []),
+          track.getSettings?.().deviceId,
+        );
+        if (main && !stopped) {
+          rememberMainCamera(main);
+          stream.getTracks().forEach((t) => t.stop());
+          const constraints = cameraConstraints();
+          const video = { ...(constraints.video as MediaTrackConstraints), deviceId: { exact: main } };
+          stream = await navigator.mediaDevices
+            .getUserMedia({ ...constraints, video })
+            .catch(() => navigator.mediaDevices.getUserMedia(cameraConstraints()))
+            .catch(() => null);
+          if (!stream) return onError('other');
+          track = stream.getVideoTracks()[0];
+        }
+        if (stopped) return stream.getTracks().forEach((t) => t.stop());
+      }
       const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
       if (track && caps.torch) setTorch(track);
       if (track) {
         focused = track;
         void startAutofocus(track);
         if (canTapFocus(track)) setFocusTrack(track);
-        void logCameraInfo(track, (text) => recordError(text, 'camera-info'));
       }
       const v = video.current!;
       v.srcObject = stream;

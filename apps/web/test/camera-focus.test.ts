@@ -5,6 +5,7 @@ import {
   FOCUS_HOLD_MS,
   focusAt,
   logCameraInfo,
+  pickMainCamera,
   startAutofocus,
   stopFocus,
 } from '@/components/cameraFocus';
@@ -134,5 +135,37 @@ describe('camera info in the error log', () => {
     const log = vi.fn();
     await logCameraInfo(track('Back Camera'), log);
     expect(log).not.toHaveBeenCalled();
+  });
+});
+
+describe('main camera', () => {
+  const cam = (label: string, deviceId: string, kind: MediaDeviceKind = 'videoinput') =>
+    ({ kind, label, deviceId, groupId: '' }) as MediaDeviceInfo;
+  const android = [
+    cam('camera2 1, facing front', 'front'),
+    cam('camera2 0, facing back', 'main'),
+    cam('camera2 2, facing back', 'wide'),
+    cam('camera2 3, facing back', 'tele'),
+  ];
+
+  it('one back camera: nothing to switch', () => {
+    expect(pickMainCamera([cam('camera2 0, facing back', 'main'), android[0]!], 'main')).toBeNull();
+  });
+
+  it('the main camera runs already: nothing to switch', () => {
+    expect(pickMainCamera(android, 'main')).toBeNull();
+  });
+
+  it('another back camera runs: the lowest number', () => {
+    expect(pickMainCamera(android, 'wide')).toBe('main');
+    expect(pickMainCamera(android, undefined)).toBe('main');
+  });
+
+  it('labels without the pattern and empty labels before the permission: nothing', () => {
+    expect(pickMainCamera([cam('Back Camera', 'a'), cam('Back Ultra Wide Camera', 'b')], 'b')).toBeNull();
+    expect(pickMainCamera([cam('', 'a'), cam('', 'b')], 'b')).toBeNull();
+    expect(
+      pickMainCamera([cam('camera2 0, facing back', 'a', 'audioinput'), android[2]!], 'wide'),
+    ).toBeNull();
   });
 });

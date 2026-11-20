@@ -90,13 +90,14 @@ const INFO_KEY = 'ft.cameraInfo';
  */
 export async function logCameraInfo(track: MediaStreamTrack, log: (text: string) => void): Promise<void> {
   try {
+    // Read before any await: the scanner may switch to the main camera and stop this track.
     const label = track.label;
+    const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[]; focusDistance?: unknown };
+    const id = track.getSettings?.().deviceId ?? '';
     const seen = JSON.parse(localStorage.getItem(INFO_KEY) ?? '[]') as string[];
     if (seen.includes(label)) return;
     const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
     if (inputs.filter(isBack).length < 2) return;
-    const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[]; focusDistance?: unknown };
-    const id = track.getSettings?.().deviceId ?? '';
     log(
       [
         `Kamera: ${label || '?'} (${id.slice(0, 8)})`,
@@ -111,4 +112,22 @@ export async function logCameraInfo(track: MediaStreamTrack, log: (text: string)
   }
 }
 
-const isBack = (d: MediaDeviceInfo) => /back|rück/i.test(d.label);
+const isBack = (d: MediaDeviceInfo) => d.kind === 'videoinput' && /back|rück/i.test(d.label);
+
+/**
+ * The main back camera when the browser runs another one: Chrome on Android names its cameras
+ * "camera2 N, facing back", the lowest N is the main camera (the others are wide-angle or tele and
+ * often cannot focus close up). Only with at least two such labels; null otherwise.
+ */
+export function pickMainCamera(
+  devices: readonly MediaDeviceInfo[],
+  currentId: string | undefined,
+): string | null {
+  const numbered = devices
+    .filter(isBack)
+    .map((d) => ({ id: d.deviceId, n: Number(/camera2 (\d+)/.exec(d.label)?.[1] ?? NaN) }))
+    .filter((d) => Number.isFinite(d.n) && d.id);
+  if (numbered.length < 2) return null;
+  const main = numbered.reduce((a, b) => (b.n < a.n ? b : a));
+  return main.id === currentId ? null : main.id;
+}
