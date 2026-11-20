@@ -29,7 +29,14 @@ import { UserDb } from '@/db/dexie';
 import { logItems } from '@/db/entries';
 import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
-import { resolveAppearance, setDiaryMacrosPref, setWeekStripPref, startAppearance } from '@/lib/appearance';
+import {
+  resolveAppearance,
+  setDiaryMacrosPref,
+  setWeekMarksPref,
+  setWeekStripPref,
+  startAppearance,
+} from '@/lib/appearance';
+import { excessShare, ringShare, trainingShare } from '@/features/diary/StripDay';
 import { stripDays } from '@/features/diary/stripDays';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining, trainingTitle } from '@/features/exercise/training';
@@ -631,6 +638,37 @@ describe('appearance', () => {
     expect(localStorage.getItem('ft.weekStrip')).toBe('recent');
     setWeekStripPref('week');
     expect(localStorage.getItem('ft.weekStrip')).toBeNull();
+  });
+});
+
+describe('week strip marks', () => {
+  it('"Ring mit Bogen" by default; the default removes the key, an unknown value counts as it', () => {
+    expect(resolveAppearance('system', 'auto', false).weekMarks).toBe('ringArc');
+    startAppearance();
+    setWeekMarksPref('fieldFoot');
+    expect(localStorage.getItem('ft.weekMarks')).toBe('fieldFoot');
+    startAppearance();
+    expect(
+      resolveAppearance('system', 'auto', false, 'numbers', undefined, 'week', 'fieldFoot').weekMarks,
+    ).toBe('fieldFoot');
+    setWeekMarksPref('ringArc');
+    expect(localStorage.getItem('ft.weekMarks')).toBeNull();
+    localStorage.setItem('ft.weekMarks', 'sparkles');
+    startAppearance();
+    setWeekStripPref('week');
+    expect(localStorage.getItem('ft.weekMarks')).toBe('sparkles');
+  });
+
+  it('arc lengths keep a visible minimum and end at the full circle', () => {
+    expect(ringShare(10, 2000)).toBe(0.04);
+    expect(ringShare(1000, 2000)).toBe(0.5);
+    expect(ringShare(3000, 2000)).toBe(1);
+    expect(excessShare(2010, 2000)).toBe(0.07);
+    expect(excessShare(2500, 2000)).toBe(0.25);
+    expect(excessShare(9000, 2000)).toBe(1);
+    expect(trainingShare(20, 2000)).toBe(0.08);
+    expect(trainingShare(300, 2400)).toBe(0.125);
+    expect(trainingShare(5000, 2000)).toBe(1);
   });
 });
 

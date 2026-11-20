@@ -182,6 +182,53 @@ export function summarizeDay(params: {
   };
 }
 
+/**
+ * Whether a day kept its kcal budget, as the calorie card says it (over once `remainingKcal < 0`, no
+ * tolerance). No verdict without a food entry or without a goal valid for the day.
+ */
+export function dayVerdict(summary: DaySummary): 'ok' | 'over' | null {
+  if (summary.entryCount === 0 || summary.targets.goalId === null) return null;
+  return summary.remainingKcal < 0 ? 'over' : 'ok';
+}
+
+/** Excess over the budget up to which a day is "knapp drüber" (1) and "drüber" (2); beyond is 3. */
+export const OVER_NEAR = 0.1;
+export const OVER_FAR = 0.25;
+
+/** How far over the budget a day is: 1 up to 10 %, 2 up to 25 %, 3 beyond (asked only when over). */
+export function overLevel(eatenKcal: number, budgetKcal: number): 1 | 2 | 3 {
+  const excess = budgetKcal > 0 ? (eatenKcal - budgetKcal) / budgetKcal : Infinity;
+  return excess <= OVER_NEAR ? 1 : excess <= OVER_FAR ? 2 : 3;
+}
+
+/** What the week strip draws for a day. */
+export interface StripMark {
+  food: boolean;
+  training: boolean;
+  verdict: 'ok' | 'over' | null;
+  /** Only when over. */
+  level: 1 | 2 | 3 | null;
+  eatenKcal: number;
+  budgetKcal: number;
+  /** Trainings without steps, credited or not. */
+  trainingKcal: number;
+}
+
+/** `hasTraining`: a live training that is not steps. */
+export function stripMark(summary: DaySummary, hasTraining: boolean): StripMark {
+  const verdict = dayVerdict(summary);
+  const eatenKcal = summary.budgetKcal - summary.remainingKcal;
+  return {
+    food: summary.entryCount > 0,
+    training: hasTraining,
+    verdict,
+    level: verdict === 'over' ? overLevel(eatenKcal, summary.budgetKcal) : null,
+    eatenKcal,
+    budgetKcal: summary.budgetKcal,
+    trainingKcal: summary.exerciseKcal - summary.stepsKcal,
+  };
+}
+
 /** Status of a micronutrient against its target (for coloring). */
 export function microStatus(
   value: number,

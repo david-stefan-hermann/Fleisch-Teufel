@@ -1,7 +1,9 @@
 import {
   isStepsEntry,
   isStraySteps,
+  dateRange,
   SETTINGS_ID,
+  stripMark,
   summarizeDay,
   today as todayOf,
   weightForDay,
@@ -11,6 +13,7 @@ import {
   type Goal,
   type ISODate,
   type Settings,
+  type StripMark,
   type WeightEntry,
 } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -133,30 +136,37 @@ export function useDaySummary(date: ISODate): DaySummary | undefined {
   return summarizeDay({ date, entries, exercises, goals, settings });
 }
 
-/** Dates in [from, to] that have at least one diary entry (week strip dots). */
-export function useLoggedDates(from: ISODate, to: ISODate): Set<string> | undefined {
+/**
+ * What the week strip draws for each day in [from, to]: food, training (steps alone are none) and
+ * whether the day kept its budget (`stripMark`). One live query for entries and trainings.
+ */
+export function useStripMarks(from: ISODate, to: ISODate): Map<ISODate, StripMark> | undefined {
   const db = useDb();
-  return useLiveQuery(async () => {
-    const list = await db.foodEntries
-      .where('date')
-      .between(from, to, true, true)
-      .filter((e) => !e.deleted)
-      .toArray();
-    return new Set(list.map((e) => e.date));
+  const goals = useGoals();
+  const settings = useSettings();
+  const lists = useLiveQuery(async () => {
+    const [entries, exercises] = await Promise.all([
+      db.foodEntries
+        .where('date')
+        .between(from, to, true, true)
+        .filter((e) => !e.deleted)
+        .toArray(),
+      db.exerciseEntries
+        .where('date')
+        .between(from, to, true, true)
+        .filter((e) => !e.deleted)
+        .toArray(),
+    ]);
+    return { entries, exercises };
   }, [db, from, to]);
-}
-
-/** Days in [from, to] with at least one training (blue dot in the week strip); steps alone are none. */
-export function useTrainedDates(from: ISODate, to: ISODate): Set<string> | undefined {
-  const db = useDb();
-  return useLiveQuery(async () => {
-    const list = await db.exerciseEntries
-      .where('date')
-      .between(from, to, true, true)
-      .filter((e) => !e.deleted && !isStepsEntry(e))
-      .toArray();
-    return new Set(list.map((e) => e.date));
-  }, [db, from, to]);
+  if (!lists || !goals || !settings) return undefined;
+  const marks = new Map<ISODate, StripMark>();
+  for (const date of dateRange(from, to)) {
+    const summary = summarizeDay({ date, ...lists, goals, settings });
+    const training = lists.exercises.some((e) => e.date === date && !isStepsEntry(e));
+    marks.set(date, stripMark(summary, training));
+  }
+  return marks;
 }
 
 /** Name and photo of saved meals by id (also deleted ones: diary groups keep showing them). */

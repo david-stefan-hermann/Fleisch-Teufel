@@ -162,3 +162,38 @@ test('week strip "Letzte Tage": today second from the right, arrows move a week,
   await expect(links.first()).toHaveAccessibleName(/^Montag/);
   await expect(links.last()).toHaveAccessibleName(/^Sonntag/);
 });
+
+test('week strip looks: "Ring mit Bogen" by default, six to choose, kept per device', async ({ page }) => {
+  await register(page);
+  await page.goto('/');
+  await expect(page.locator('ol[data-marks]')).toHaveAttribute('data-marks', 'ringArc');
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText(
+    'Wie das System · Icon wie die App',
+  );
+  await expect(page.getByRole('link', { name: /Aussehen/ })).not.toContainText('Ring');
+
+  await page.goto('/settings/appearance');
+  const looks = page.getByRole('radiogroup', { name: 'Zeichen in der Wochenleiste' });
+  await expect(looks.getByRole('radio')).toHaveCount(6);
+  for (const name of ['Punkte', 'Ring', 'Ring mit Bogen', 'Feld', 'Feld mit Rahmen', 'Feld mit Fuß'])
+    await expect(looks.getByRole('radio', { name, exact: true })).toBeVisible();
+  await expect(looks.getByRole('radio', { name: 'Ring mit Bogen' })).toHaveAttribute('aria-checked', 'true');
+
+  await looks.getByText('Feld mit Fuß').click();
+  await expect(looks.getByRole('radio', { name: 'Feld mit Fuß' })).toHaveAttribute('aria-checked', 'true');
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText('· Feld mit Fuß');
+  await page.goto('/');
+  await page.reload();
+  await expect(page.locator('ol[data-marks]')).toHaveAttribute('data-marks', 'fieldFoot');
+
+  // "Punkte" is the strip as before: no verdict.
+  await page.goto('/settings/appearance');
+  await looks.getByRole('radio', { name: 'Punkte' }).click();
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText('· Punkte');
+  await page.goto('/');
+  await expect(page.locator('ol[data-marks]')).toHaveAttribute('data-marks', 'dots');
+  await expect(page.locator('[data-verdict]')).toHaveCount(0);
+});

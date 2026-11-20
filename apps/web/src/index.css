@@ -76,6 +76,18 @@
   --steps: oklch(0.52 0.13 155);
   /* Report bar of a day without macros (absence, so grey); >= 3:1 against the card. */
   --bar-neutral: oklch(0.64 0.01 50);
+  /* Week strip verdict (Mehr → Aussehen, mockup v3 K5): within the budget green (--good, the field
+     a tint of it), over in three reds that get stronger with the excess (`overLevel`). */
+  --strip-track: oklch(0.89 0.008 60);
+  --strip-excess-selected: oklch(0.4 0.17 27);
+  --strip-ok: color-mix(in oklch, var(--good) 24%, transparent);
+  --strip-over-ring-1: oklch(0.78 0.1 27);
+  --strip-over-ring-2: var(--over);
+  --strip-over-ring-3: var(--over-2);
+  --strip-over-1: color-mix(in oklch, var(--over) 14%, transparent);
+  --strip-over-2: color-mix(in oklch, var(--over) 32%, transparent);
+  --strip-over-3: color-mix(in oklch, var(--over) 56%, transparent);
+  --strip-over-num: oklch(0.45 0.18 27);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -126,6 +138,17 @@
   --exercise-text: oklch(0.74 0.11 230);
   --steps: oklch(0.74 0.13 155);
   --bar-neutral: oklch(0.53 0.008 50);
+  /* The third ring red is lighter and more saturated than --over-2, which sinks into the dark ground. */
+  --strip-track: oklch(0.35 0.008 40);
+  --strip-excess-selected: oklch(0.97 0.01 60);
+  --strip-ok: color-mix(in oklch, var(--good) 30%, transparent);
+  --strip-over-ring-1: color-mix(in oklch, var(--over) 45%, var(--background));
+  --strip-over-ring-2: var(--over);
+  --strip-over-ring-3: oklch(0.57 0.22 27);
+  --strip-over-1: color-mix(in oklch, var(--over) 22%, transparent);
+  --strip-over-2: color-mix(in oklch, var(--over) 36%, transparent);
+  --strip-over-3: color-mix(in oklch, var(--over) 64%, transparent);
+  --strip-over-num: oklch(0.84 0.1 27);
   --ai-face: oklch(0.5 0.16 25);
   --ai-face-hi: oklch(0.64 0.17 30);
   --ai-rim: oklch(0.88 0.02 50);
@@ -169,6 +192,16 @@
   --color-over: var(--over);
   --color-over-2: var(--over-2);
   --color-over-good: var(--over-good);
+  --color-strip-track: var(--strip-track);
+  --color-strip-excess-selected: var(--strip-excess-selected);
+  --color-strip-ok: var(--strip-ok);
+  --color-strip-over-ring-1: var(--strip-over-ring-1);
+  --color-strip-over-ring-2: var(--strip-over-ring-2);
+  --color-strip-over-ring-3: var(--strip-over-ring-3);
+  --color-strip-over-1: var(--strip-over-1);
+  --color-strip-over-2: var(--strip-over-2);
+  --color-strip-over-3: var(--strip-over-3);
+  --color-strip-over-num: var(--strip-over-num);
   --color-exercise: var(--exercise);
   --color-exercise-text: var(--exercise-text);
   --color-steps: var(--steps);

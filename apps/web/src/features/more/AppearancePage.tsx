@@ -1,12 +1,15 @@
-import { parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex } from '@ft/shared';
+import { overLevel, parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex, type StripMark } from '@ft/shared';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { AssistantAppearance } from '@/features/assistant/skins/SkinPicker';
 import { UploadedSkins } from '@/features/assistant/skins/UploadedSkins';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MacroSummary } from '@/features/diary/MacroSummary';
+import { StripDay, stripDayClass } from '@/features/diary/StripDay';
 import { stripDays } from '@/features/diary/stripDays';
 import { useToday } from '@/hooks/data';
 import {
@@ -14,11 +17,14 @@ import {
   setDiaryMacrosPref,
   setIconPref,
   setThemePref,
+  setWeekMarksPref,
   setWeekStripPref,
   useAppearance,
+  WEEK_MARKS,
   type DiaryMacrosPref,
   type IconPref,
   type ThemePref,
+  type WeekMarksPref,
   type WeekStripPref,
 } from '@/lib/appearance';
 import { cn } from '@/lib/utils';
@@ -39,6 +45,50 @@ const WEEK_STRIP: { value: WeekStripPref; label: string }[] = [
 ];
 /** Fixed row of the preview (a portion of chicken fricassee). */
 const PREVIEW = { ENERCC: 695, PROT625: 52, CHO: 38, FAT: 36 };
+
+/**
+ * The example week of the week strip looks (mockup v3): within the budget with training, just over,
+ * within, over, far over with training, today with training and selected, an empty day.
+ */
+const EXAMPLE_WEEK: { weekday: string; day: number; eaten?: number; budget: number; training?: number }[] = [
+  { weekday: 'Mo', day: 16, eaten: 1900, budget: 2420, training: 320 },
+  { weekday: 'Di', day: 17, eaten: 2190, budget: 2100 },
+  { weekday: 'Mi', day: 18, eaten: 2060, budget: 2100 },
+  { weekday: 'Do', day: 19, eaten: 2440, budget: 2100 },
+  { weekday: 'Fr', day: 20, eaten: 3150, budget: 2390, training: 290 },
+  { weekday: 'Sa', day: 21, eaten: 1150, budget: 2400, training: 300 },
+  { weekday: 'So', day: 22, budget: 2100 },
+];
+const EXAMPLE_TODAY = 5;
+const EXAMPLE_MARKS: (StripMark | undefined)[] = EXAMPLE_WEEK.map((d) => {
+  const over = d.eaten != null && d.eaten > d.budget;
+  return {
+    food: d.eaten != null,
+    training: !!d.training,
+    verdict: d.eaten == null ? null : over ? 'over' : 'ok',
+    level: over ? overLevel(d.eaten!, d.budget) : null,
+    eatenKcal: d.eaten ?? 0,
+    budgetKcal: d.budget,
+    trainingKcal: d.training ?? 0,
+  };
+});
+
+/** The example week in one look (not operable). */
+function ExampleWeek({ variant }: { variant: WeekMarksPref }) {
+  return (
+    <span aria-hidden className="grid grid-cols-7 gap-1">
+      {EXAMPLE_WEEK.map((d, i) => {
+        const selected = i === EXAMPLE_TODAY;
+        const mark = EXAMPLE_MARKS[i];
+        return (
+          <span key={d.day} className={stripDayClass({ mark, selected, today: selected, variant })}>
+            <StripDay weekday={d.weekday} day={d.day} mark={mark} selected={selected} variant={variant} />
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 /** Mehr → Aussehen: app theme, diary macros and logo variant of this device. */
 export function AppearancePage() {
@@ -123,6 +173,25 @@ export function AppearancePage() {
               </li>
             ))}
           </ol>
+          <RadioGroup
+            value={a.weekMarks}
+            onValueChange={(v) => setWeekMarksPref(v as WeekMarksPref)}
+            aria-label="Zeichen in der Wochenleiste"
+            className="mt-1 gap-2"
+          >
+            {WEEK_MARKS.map((m) => (
+              <Label
+                key={m.value}
+                className="grid cursor-pointer gap-2 rounded-xl border border-border p-3 font-normal has-data-[state=checked]:border-primary has-data-[state=checked]:ring-1 has-data-[state=checked]:ring-primary"
+              >
+                <span className="flex items-center gap-3">
+                  <RadioGroupItem value={m.value} />
+                  {m.label}
+                </span>
+                <ExampleWeek variant={m.value} />
+              </Label>
+            ))}
+          </RadioGroup>
         </div>
       </Section>
 

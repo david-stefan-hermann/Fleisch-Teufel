@@ -10,7 +10,8 @@ import { useSyncExternalStore } from 'react';
  *   home screen; it cannot be swapped on an installed web app.
  * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
  *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
- * - Week strip: the calendar week (default) or the recent days (today second from the right).
+ * - Week strip: the calendar week (default) or the recent days (today second from the right), and
+ *   how its days show food, training and whether they kept the budget (`WEEK_MARKS`).
  * - Assistant: whether the floating button shows (the add sheet always has it), how big it is, and
  *   which figure it wears ('standard', a built-in one or the id of an uploaded pack).
  */
@@ -20,6 +21,18 @@ export type Mode = 'light' | 'dark';
 export type DiaryMacrosPref = 'numbers' | 'bar';
 export type AssistantSize = 'small' | 'medium' | 'large';
 export type WeekStripPref = 'week' | 'recent';
+export type WeekMarksPref = 'dots' | 'ring' | 'ringArc' | 'field' | 'fieldFrame' | 'fieldFoot';
+
+/** The looks of the week strip's days, in the order of the setting. `dots` shows no verdict. */
+export const WEEK_MARKS: { value: WeekMarksPref; label: string }[] = [
+  { value: 'dots', label: 'Punkte' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'ringArc', label: 'Ring mit Bogen' },
+  { value: 'field', label: 'Feld' },
+  { value: 'fieldFrame', label: 'Feld mit Rahmen' },
+  { value: 'fieldFoot', label: 'Feld mit Fuß' },
+];
+export const DEFAULT_WEEK_MARKS: WeekMarksPref = 'ringArc';
 
 /** Scale of the assistant button per size (small is the 56 px button). */
 export const ASSISTANT_SCALE: Record<AssistantSize, number> = { small: 1, medium: 1.5, large: 2 };
@@ -28,6 +41,7 @@ const THEME_KEY = 'ft.theme';
 const ICON_KEY = 'ft.icon';
 const DIARY_MACROS_KEY = 'ft.diaryMacros';
 const WEEK_STRIP_KEY = 'ft.weekStrip';
+const WEEK_MARKS_KEY = 'ft.weekMarks';
 const ASSISTANT_BUTTON_KEY = 'ft.assistant.button';
 const ASSISTANT_SKIN_KEY = 'ft.assistant.skin';
 const ASSISTANT_SIZE_KEY = 'ft.assistant.size';
@@ -76,6 +90,8 @@ export interface Appearance {
   assistantSize: AssistantSize;
   /** Days of the diary's week strip. */
   weekStrip: WeekStripPref;
+  /** How the week strip draws its days. */
+  weekMarks: WeekMarksPref;
 }
 
 export function resolveAppearance(
@@ -89,6 +105,7 @@ export function resolveAppearance(
     size: 'small',
   },
   weekStrip: WeekStripPref = 'week',
+  weekMarks: WeekMarksPref = DEFAULT_WEEK_MARKS,
 ): Appearance {
   const mode: Mode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
   return {
@@ -101,6 +118,7 @@ export function resolveAppearance(
     assistantSkin: assistant.skin,
     assistantSize: assistant.size,
     weekStrip,
+    weekMarks,
   };
 }
 
@@ -108,6 +126,7 @@ let theme: ThemePref = 'system';
 let icon: IconPref = 'auto';
 let diaryMacros: DiaryMacrosPref = 'numbers';
 let weekStrip: WeekStripPref = 'week';
+let weekMarks: WeekMarksPref = DEFAULT_WEEK_MARKS;
 let assistant: { button: boolean; skin: string; size: AssistantSize } = {
   button: true,
   skin: 'standard',
@@ -117,7 +136,15 @@ let current: Appearance = resolveAppearance('system', 'auto', false);
 const listeners = new Set<() => void>();
 
 function update() {
-  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros, assistant, weekStrip);
+  current = resolveAppearance(
+    theme,
+    icon,
+    media()?.matches ?? false,
+    diaryMacros,
+    assistant,
+    weekStrip,
+    weekMarks,
+  );
   apply(current);
   listeners.forEach((l) => l());
 }
@@ -145,6 +172,11 @@ export function startAppearance(): void {
   icon = read(ICON_KEY, ['auto', 'light', 'dark'], 'auto');
   diaryMacros = read(DIARY_MACROS_KEY, ['numbers', 'bar'], 'numbers');
   weekStrip = read(WEEK_STRIP_KEY, ['week', 'recent'], 'week');
+  weekMarks = read(
+    WEEK_MARKS_KEY,
+    WEEK_MARKS.map((m) => m.value),
+    DEFAULT_WEEK_MARKS,
+  );
   assistant = {
     button: read(ASSISTANT_BUTTON_KEY, ['on', 'off'], 'on') === 'on',
     skin: readSkin(),
@@ -175,6 +207,12 @@ export function setDiaryMacrosPref(next: DiaryMacrosPref): void {
 export function setWeekStripPref(next: WeekStripPref): void {
   weekStrip = next;
   write(WEEK_STRIP_KEY, next, next === 'week');
+  update();
+}
+
+export function setWeekMarksPref(next: WeekMarksPref): void {
+  weekMarks = next;
+  write(WEEK_MARKS_KEY, next, next === DEFAULT_WEEK_MARKS);
   update();
 }
 

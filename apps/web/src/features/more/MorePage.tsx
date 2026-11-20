@@ -27,7 +27,7 @@ import { ownMealNames } from '@/db/diaryMeals';
 import { trashCount } from '@/db/trash';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
-import { useAppearance } from '@/lib/appearance';
+import { DEFAULT_WEEK_MARKS, useAppearance, WEEK_MARKS } from '@/lib/appearance';
 import { fmtReceived, useStepsStatus } from '@/lib/steps';
 
 const THEME_LABEL = { system: 'Wie das System', light: 'Hell', dark: 'Dunkel' } as const;
@@ -148,7 +148,7 @@ export function MorePage() {
             to="/settings/appearance"
             icon={<Palette aria-hidden />}
             label="Aussehen"
-            hint={`${THEME_LABEL[look.theme]} · Icon ${ICON_LABEL[look.icon]}${look.diaryMacros === 'bar' ? ' · Tagebuch mit Balken' : ''}${look.weekStrip === 'recent' ? ' · Letzte Tage' : ''}`}
+            hint={`${THEME_LABEL[look.theme]} · Icon ${ICON_LABEL[look.icon]}${look.diaryMacros === 'bar' ? ' · Tagebuch mit Balken' : ''}${look.weekStrip === 'recent' ? ' · Letzte Tage' : ''}${look.weekMarks === DEFAULT_WEEK_MARKS ? '' : ` · ${WEEK_MARKS.find((m) => m.value === look.weekMarks)!.label}`}`}
           />
           <Row
             to="/settings/data"

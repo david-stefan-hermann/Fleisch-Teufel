@@ -2,22 +2,23 @@ import { addDays, parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex, type ISODate } 
 import { Link } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLoggedDates, useTrainedDates } from '@/hooks/data';
+import { useStripMarks } from '@/hooks/data';
 import { useAppearance } from '@/lib/appearance';
 import { cn } from '@/lib/utils';
 import { stripDays } from './stripDays';
+import { StripDay, stripDayClass, stripDayData, stripDayLabel, stripDayTinted } from './StripDay';
 
 const DAY_NAME = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
 /**
  * Seven days around the shown one (`stripDays`: the calendar week or the recent days, a setting of
- * the device) with arrows that move a week. Under each date a dot row of fixed height: red (left)
- * when food was logged, blue (right) when a training was; the day's link label says the same.
+ * the device) with arrows that move a week. Each day shows food, training and whether it kept the
+ * budget in the look chosen under Mehr → Aussehen (`StripDay`); the day's link label says the same.
  */
 export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
-  const days = stripDays(date, today, useAppearance().weekStrip);
-  const logged = useLoggedDates(days[0]!, days[6]!);
-  const trained = useTrainedDates(days[0]!, days[6]!);
+  const { weekStrip, weekMarks: variant } = useAppearance();
+  const days = stripDays(date, today, weekStrip);
+  const marks = useStripMarks(days[0]!, days[6]!);
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="icon-sm" asChild>
@@ -25,13 +26,10 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
           <ChevronLeft aria-hidden />
         </Link>
       </Button>
-      <ol className="grid flex-1 grid-cols-7 gap-1">
+      <ol className="grid flex-1 grid-cols-7 gap-1" data-marks={variant}>
         {days.map((d) => {
           const selected = d === date;
-          const isToday = d === today;
-          const food = !!logged?.has(d);
-          const training = !!trained?.has(d);
-          const dayName = DAY_NAME.format(parseISODate(d));
+          const mark = marks?.get(d);
           return (
             <li key={d}>
               <Link
@@ -40,33 +38,24 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
                 // Partly matching search params would make today's link (no `date`) current on every day.
                 activeOptions={{ exact: true }}
                 aria-current={selected ? 'date' : undefined}
+                {...stripDayData(mark, variant)}
                 className={cn(
-                  'flex h-14 touch-manipulation flex-col items-center justify-center rounded-xl text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                  selected ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
-                  !selected && isToday && 'font-semibold text-primary',
+                  stripDayClass({ mark, selected, today: d === today, variant }),
+                  'touch-manipulation transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                  !stripDayTinted(mark, selected, variant) && 'hover:bg-accent',
                 )}
               >
                 {/* The name is the full text (an aria-label differing from the visible "Mo 9" is an axe finding). */}
                 <span className="sr-only">
-                  {[dayName, food && 'Essen eingetragen', training && 'Training eingetragen']
-                    .filter(Boolean)
-                    .join(', ')}
+                  {stripDayLabel(DAY_NAME.format(parseISODate(d)), mark, variant)}
                 </span>
-                <span aria-hidden className={cn('opacity-80', selected && 'opacity-100')}>
-                  {WEEKDAYS_SHORT_DE[weekdayIndex(d)]}
-                </span>
-                <span aria-hidden className="tabular text-base font-semibold">
-                  {parseISODate(d).getDate()}
-                </span>
-                <span aria-hidden className="mt-0.5 flex h-1 gap-[3px]">
-                  {food && (
-                    <span
-                      data-dot="food"
-                      className={cn('size-1 rounded-full', selected ? 'bg-primary-foreground' : 'bg-primary')}
-                    />
-                  )}
-                  {training && <span data-dot="training" className="size-1 rounded-full bg-exercise" />}
-                </span>
+                <StripDay
+                  weekday={WEEKDAYS_SHORT_DE[weekdayIndex(d)]!}
+                  day={parseISODate(d).getDate()}
+                  mark={mark}
+                  selected={selected}
+                  variant={variant}
+                />
               </Link>
             </li>
           );
