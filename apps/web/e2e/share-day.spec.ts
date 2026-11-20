@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { shiftDay } from './days';
 
 test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet', async ({ page }) => {
   await page.context().addInitScript(() => {
@@ -134,10 +135,10 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
 
   // Switching days keeps exactly one note card (the dialog once shared the note card's key, and
   // siblings with the same key left the cards of other days behind).
-  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
-  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
-  await page.getByRole('button', { name: 'Nächster Tag' }).click();
-  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  await shiftDay(page, -1);
+  await shiftDay(page, -1);
+  await shiftDay(page, 1);
+  await shiftDay(page, 1);
   await expect(page.getByText('Croissant', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Notiz' })).toHaveCount(1);
 });

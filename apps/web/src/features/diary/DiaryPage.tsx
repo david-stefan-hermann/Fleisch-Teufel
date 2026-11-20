@@ -1,6 +1,5 @@
-import { addDays } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { ChevronLeft, ChevronRight, Share, Target } from 'lucide-react';
+import { Share, Target } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
@@ -65,14 +64,6 @@ export function DiaryPage() {
     <Page
       title={
         <span ref={titleBox} className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => go(addDays(date, -1))}
-            aria-label="Vorheriger Tag"
-          >
-            <ChevronLeft aria-hidden />
-          </Button>
           {/*
             The transparent date input lies on top of the label: a tap hits the input itself, which is
             the only way iOS Safari opens its picker (showPicker() on a hidden input does nothing there).
@@ -104,14 +95,6 @@ export function DiaryPage() {
               onChange={(e) => e.target.value && go(e.target.value)}
             />
           </label>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => go(addDays(date, 1))}
-            aria-label="Nächster Tag"
-          >
-            <ChevronRight aria-hidden />
-          </Button>
         </span>
       }
       actions={
@@ -212,8 +195,8 @@ export function DiaryPage() {
 }
 
 /**
- * Whether the long date fits into the header between the arrows (measured, since the room depends on
- * the screen and the header icons); the diary shows the short date otherwise.
+ * Whether the long date fits into the header (measured, since the room depends on the screen and the
+ * header icons); the diary shows the short date otherwise.
  */
 function useFittingDate(longDate: string) {
   const titleBox = useRef<HTMLSpanElement>(null);

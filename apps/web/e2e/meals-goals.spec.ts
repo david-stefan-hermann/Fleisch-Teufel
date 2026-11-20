@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { shiftDay } from './days';
 
 async function register(page: Page) {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
@@ -1296,7 +1297,7 @@ test('clipboard: swipe right copies a diary row, paste into other meals and days
 
   // The clipboard survives a reload and stays filled after pasting: paste on the day before.
   await page.reload();
-  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await shiftDay(page, -1);
   await page.getByRole('button', { name: '„Bowl“ in Frühstück eintragen' }).click();
   await expect(bowlRows).toHaveCount(1);
   await expect(page.getByRole('button', { name: '2 Zutaten von Bowl' })).toBeVisible();

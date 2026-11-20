@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { shiftDay } from './days';
 
 async function register(page: Page) {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
@@ -76,7 +77,7 @@ test('diary meal ⋯: copy a whole meal to another day, save it as a meal, delet
     expect(Math.abs(b.y + b.height / 2 - (title.y + title.height / 2))).toBeLessThan(4);
     expect(b.x + b.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
   }
-  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await shiftDay(page, -1);
   await expect(page).toHaveURL(/date=/);
   const yesterday = new URL(page.url()).searchParams.get('date');
   await page.goto(`/photo?form=1&date=${yesterday}&meal=2`);
@@ -91,7 +92,7 @@ test('diary meal ⋯: copy a whole meal to another day, save it as a meal, delet
   await expect(dinner.getByRole('button', { name: '2 Zutaten von Bowl' })).toBeVisible();
 
   // Save today's Mittagessen as a meal: every ingredient on its own.
-  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  await shiftDay(page, 1);
   await mealMenu(page, 'Mittagessen', 'Als Meal speichern');
   await expect(page.getByRole('dialog', { name: 'Als Meal speichern' })).toContainText(
     'Alle 3 Zutaten werden einzeln',

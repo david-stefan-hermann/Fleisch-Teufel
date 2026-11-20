@@ -35,6 +35,8 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
               <Link
                 to="/"
                 search={{ date: d === today ? undefined : d }}
+                // Partly matching search params would make today's link (no `date`) current on every day.
+                activeOptions={{ exact: true }}
                 aria-current={selected ? 'date' : undefined}
                 className={cn(
                   'flex h-14 touch-manipulation flex-col items-center justify-center rounded-xl text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',

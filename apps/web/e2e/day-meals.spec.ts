@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { shiftDay } from './days';
 
 const MINUTE = 60_000;
 
@@ -361,7 +362,7 @@ test('00:30 as the night after the day stays on that day, at its end, with a moo
   await expect(row(page, 'Frühstück', 'Skyr')).toBeVisible();
 
   // The entries stay on their day: the next day has none.
-  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  await shiftDay(page, 1);
   await expect(page.locator('[data-meal]')).toHaveCount(0);
 });
 
@@ -485,7 +486,7 @@ test('a meal copied on one day goes into the empty card of another; "Wie gestern
   page,
 }) => {
   await startAtNoon(page);
-  await page.getByRole('button', { name: 'Vorheriger Tag' }).click();
+  await shiftDay(page, -1);
   await expect(page).toHaveURL(/date=/);
   await mealCard(page, 'Frühstück').getByRole('link', { name: 'Essen zu Frühstück eintragen' }).click();
   await logQuick(page, 'Haferbrei', 300);
@@ -495,7 +496,7 @@ test('a meal copied on one day goes into the empty card of another; "Wie gestern
   await page.getByRole('menuitem', { name: 'Kopieren' }).click();
   await expect(page.getByText('„Frühstück“ kopiert')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Nächster Tag' }).click();
+  await shiftDay(page, 1);
   const card = mealCard(page, 'Frühstück');
   await expect(
     card.getByRole('button', { name: 'Wie gestern, Frühstück 08:00 · 300 kcal, eintragen' }),
