@@ -602,7 +602,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   the last 10 s count down), second tap sends; long press (450 ms) offers the keyboard; during a recording keyboard
   (`/api/assistant/transcribe`, same `requestId`) and X; dragging snaps to an edge (`ft.assistant.pos`, the wanted
   spot), the button stays above tab bar, `[data-page-footer]`, toasts and the home indicator, and keeps areas marked
-  `[data-ai-avoid]` (the camera picture of `BarcodeScanner`, its fallback, "Eingeben"/"Suchen") free: `placeButton`
+  `[data-ai-avoid]` (the camera picture of `BarcodeScanner`, its fallback, "Eingeben"/"Suchen", the note "KI-Analyse auf dem
+  Server ausgeschaltet") free: `placeButton`
   (`place.ts`) takes the free spot nearest to the wanted one; with none it is hidden at rest and keeps its old place
   while an utterance runs. Text mode is a dark layer, the button becomes
   "Senden". Behaviour: pure reducer `machine.ts` (tested) driven by `AssistantController` (`controller.ts`), React

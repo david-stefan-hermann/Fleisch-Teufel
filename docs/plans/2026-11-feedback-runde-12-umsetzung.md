@@ -115,9 +115,9 @@ Alle Blöcke noch einmal gegen den Plan gelesen. Vollständig; behoben in einem 
 - `CLAUDE.md`: Der Essens-Punkt steht in `dots` und `field` an jedem Tag mit Essen.
 
 Bewusst so gelassen: „Feld mit Rahmen“ trägt `data-mark="frame"` (folgt aus dem Rahmen als Element); der
-Fokusring ist weiß wie die übrigen Kamera-Overlays, nicht über ein Token. Offen für den Nutzer: Bei
-ausgeschalteter Analyse darf der Knopf auf dem Hinweis „KI-Analyse auf dem Server ausgeschaltet“ liegen (siehe
-Block 5 oben); soll er auch diesem ausweichen (dann auf kleinen Bildschirmen ausgeblendet)?
+Fokusring ist weiß wie die übrigen Kamera-Overlays, nicht über ein Token. Entschieden vom Nutzer (2026-11-20):
+Der Knopf weicht auch dem Hinweis „KI-Analyse auf dem Server ausgeschaltet“ aus (`data-ai-avoid`; auf kleinen
+Bildschirmen dann ausgeblendet), geprüft in `assistant-camera.spec.ts`.
 
 ### Annahmen
 

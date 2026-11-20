@@ -6,9 +6,9 @@ test.use({
   permissions: ['camera'],
 });
 
-async function register(page: Page) {
+async function register(page: Page, ai = true) {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
-  // The E2E server runs without AI: the server info offers it here (no "KI aus" note above the camera).
+  // The E2E server runs without AI: the server info offers the assistant here.
   await page.route('**/api/info', async (r) => {
     const res = await r.fetch();
     await r.fulfill({
@@ -16,7 +16,7 @@ async function register(page: Page) {
       json: { ...(await res.json()), assistantEnabled: true },
     });
   });
-  await page.route('**/api/ai/status', (r) => r.fulfill({ json: { enabled: true, model: null } }));
+  if (ai) await page.route('**/api/ai/status', (r) => r.fulfill({ json: { enabled: true, model: null } }));
   await page.goto('/login');
   await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
   await page
@@ -96,4 +96,23 @@ test('on a short screen the camera step has no floating button, the form has it 
   await page.getByRole('button', { name: 'Eingeben' }).click();
   await expect(page.getByLabel('Was hast du gegessen?')).toBeVisible();
   await expect(button(page)).toBeVisible();
+});
+
+test.describe('analysis off on the server', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('the button keeps the note above the camera free too, wanted high up', async ({ page }) => {
+    await register(page, false);
+    await page.goto('/photo');
+    await page.evaluate(() =>
+      localStorage.setItem('ft.assistant.pos', JSON.stringify({ edge: 'right', y: 80 })),
+    );
+    await page.reload();
+    const note = page.getByRole('alert').filter({ hasText: 'KI-Analyse auf dem Server ausgeschaltet' });
+    await expect(note).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Foto aufnehmen' })).toBeVisible();
+    await expectFree(page);
+    const b = await buttonBox(button(page));
+    expect(overlaps(b, (await note.boundingBox())!)).toBe(false);
+  });
 });
