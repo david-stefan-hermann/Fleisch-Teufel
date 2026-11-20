@@ -14,6 +14,8 @@ import { disableReminder } from '@/lib/reminder';
 import { recordError } from '@/lib/errorLog';
 
 const USER_KEY = 'ft.user';
+/** The server's last /api/info answer: a start without connection keeps the features it offers. */
+const SERVER_INFO_KEY = 'ft.serverInfo';
 
 export interface Session {
   user: PublicUser;
@@ -41,6 +43,23 @@ function readStoredUser(): PublicUser | null {
   }
 }
 
+function readServerInfo(): ServerInfo | null {
+  try {
+    const raw = localStorage.getItem(SERVER_INFO_KEY);
+    return raw ? (JSON.parse(raw) as ServerInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeServerInfo(info: ServerInfo) {
+  try {
+    localStorage.setItem(SERVER_INFO_KEY, JSON.stringify(info));
+  } catch {
+    // Storage blocked: the answer still holds for this run.
+  }
+}
+
 function open(user: PublicUser, onUnauthorized: () => void): Session {
   const db = new UserDb(userDbName(user.id));
   const sync = new SyncEngine(db, {
@@ -64,11 +83,40 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const u = readStoredUser();
     return u ? open(u, () => setNeedsReauth(true)) : null;
   });
-  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null);
+  const [serverInfo, setServerInfo] = useState<ServerInfo | null>(readServerInfo);
 
   // Server info (registration open, AI available) follows the login state, not only the start.
+  // Until the server answered once in this run (a cold start often has no connection yet, e.g.
+  // the VPN still coming up), ask again when the device is online or the app is shown again.
   useEffect(() => {
-    endpoints.info().then(setServerInfo, () => {});
+    let alive = true;
+    let answered = false;
+    let asking = false;
+    const ask = () => {
+      if (answered || asking || document.visibilityState !== 'visible') return;
+      asking = true;
+      endpoints.info().then(
+        (info) => {
+          answered = true;
+          asking = false;
+          storeServerInfo(info);
+          if (alive) setServerInfo(info);
+        },
+        () => {
+          asking = false;
+        },
+      );
+    };
+    ask();
+    const timer = window.setInterval(ask, 30_000);
+    window.addEventListener('online', ask);
+    document.addEventListener('visibilitychange', ask);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      window.removeEventListener('online', ask);
+      document.removeEventListener('visibilitychange', ask);
+    };
   }, [session?.user.id]);
 
   // "Abmelden" that happened offline: the server cookie is still valid. Without a stored user but
