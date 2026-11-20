@@ -7,9 +7,18 @@ import { validGtin } from '@ft/shared';
 import { BarcodeDetector, prepareZXingModule } from 'barcode-detector/ponyfill';
 import wasmUrl from 'zxing-wasm/reader/zxing_reader.wasm?url';
 import { Camera, Flashlight } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { canTapFocus, coverPoint, focusAt, startAutofocus, stopFocus } from './cameraFocus';
 import { CAMERA_CONSTRAINTS, takeWarmStream } from './cameraWarmup';
 
 prepareZXingModule({
@@ -159,6 +168,21 @@ export function BarcodeScanner({
   }, [captureRef]);
   const [torch, setTorch] = useState<MediaStreamTrack | null>(null);
   const [torchOn, setTorchOn] = useState(false);
+  // The track when a tap can set the focus point (Android Chrome), and the ring at the last tap.
+  const [focusTrack, setFocusTrack] = useState<MediaStreamTrack | null>(null);
+  const [focusRing, setFocusRing] = useState<{ x: number; y: number; n: number } | null>(null);
+  const onVideoTap = (e: MouseEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    if (!focusTrack || !v.videoWidth) return;
+    const r = v.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    void focusAt(
+      focusTrack,
+      coverPoint({ boxW: r.width, boxH: r.height, videoW: v.videoWidth, videoH: v.videoHeight, x, y }),
+    );
+    setFocusRing((f) => ({ x, y, n: (f?.n ?? 0) + 1 }));
+  };
   const toggleTorch = useCallback(() => {
     if (!torch) return;
     const on = !torchOn;
@@ -182,6 +206,7 @@ export function BarcodeScanner({
 
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let focused: MediaStreamTrack | null = null;
     let raf = 0;
     let stopped = false;
     // Require the same code twice in a row to suppress single-frame misreads.
@@ -207,6 +232,11 @@ export function BarcodeScanner({
       const track = stream.getVideoTracks()[0];
       const caps = (track?.getCapabilities?.() ?? {}) as { torch?: boolean };
       if (track && caps.torch) setTorch(track);
+      if (track) {
+        focused = track;
+        void startAutofocus(track);
+        if (canTapFocus(track)) setFocusTrack(track);
+      }
       const v = video.current!;
       v.srcObject = stream;
       await v.play().catch(() => {});
@@ -238,6 +268,7 @@ export function BarcodeScanner({
     return () => {
       stopped = true;
       clearTimeout(raf);
+      if (focused) stopFocus(focused);
       stream?.getTracks().forEach((t) => t.stop());
     };
   }, [onError]);
@@ -262,7 +293,17 @@ export function BarcodeScanner({
         aria-label="Kamerabild"
         onLoadedData={markReady}
         onPlaying={markReady}
+        onClick={onVideoTap}
       />
+      {focusRing && (
+        <span
+          key={focusRing.n}
+          aria-hidden
+          className="focus-ring pointer-events-none absolute size-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/90"
+          style={{ left: focusRing.x, top: focusRing.y }}
+          onAnimationEnd={() => setFocusRing(null)}
+        />
+      )}
       {frame === 'barcode' ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
           <div className="h-1/3 w-4/5 rounded-xl border-2 border-white/80 shadow-[0_0_0_9999px_rgb(0_0_0/0.35)]" />

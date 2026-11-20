@@ -373,6 +373,39 @@ input[type='date']::-webkit-datetime-edit {
   }
 }
 
+/* Where a tap set the camera focus: a ring that settles and fades (`BarcodeScanner`); with reduced
+   motion it only fades, so its end still removes it. */
+.focus-ring {
+  animation: focus-ring 0.6s ease-out forwards;
+}
+@keyframes focus-ring {
+  0% {
+    scale: 1.4;
+    opacity: 1;
+  }
+  60% {
+    scale: 1;
+    opacity: 1;
+  }
+  100% {
+    scale: 1;
+    opacity: 0;
+  }
+}
+@keyframes focus-ring-fade {
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-ring {
+    animation-name: focus-ring-fade;
+  }
+}
+
 /* A field just filled from outside (scanned barcode, label photo): green ring that fades in 1.2 s.
    The page removes the class afterwards; with reduced motion the ring stays still until then. */
 .field-flash {
