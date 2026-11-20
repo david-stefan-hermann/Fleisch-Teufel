@@ -76,7 +76,7 @@ export function CameraCapture({
   }
 
   const overlay = (
-    <div data-ai-avoid className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
+    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-5 pb-4">
       <Button
         variant="secondary"
         size="icon-lg"
@@ -121,7 +121,7 @@ export function CameraCapture({
         }}
       />
       {camError ? (
-        <div className="grid gap-3 rounded-2xl border p-4">
+        <div data-ai-avoid className="grid gap-3 rounded-2xl border p-4">
           <p role="alert" className="text-sm">
             {CAM_ERRORS[camError]} Du kannst stattdessen ein Foto mit der Kamera-App aufnehmen oder aus der
             Mediathek wählen.

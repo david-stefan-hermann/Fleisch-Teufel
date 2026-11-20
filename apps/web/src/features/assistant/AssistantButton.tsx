@@ -1,9 +1,11 @@
 /**
  * The floating assistant button with what hangs on it: the small buttons (keyboard, discard), the
  * bubble (question or reply) and the text layer. It is carried by dragging and snaps to the left or
- * right edge; the position is kept per device (`ft.assistant.pos`) and pushed up by whatever sits at
- * the bottom (tab bar, page footer, toasts, the camera's controls: `[data-ai-avoid]`). Its size is a
- * setting (`scale`); the gap to the screen edge counts from what is visible (ring, figure).
+ * right edge; the wanted position is kept per device (`ft.assistant.pos`). Whatever sits at the
+ * bottom (tab bar, page footer, toasts) pushes it up; areas marked `[data-ai-avoid]` (the camera
+ * picture, the buttons under it) are left free: the button takes the free spot nearest to the wanted
+ * one (`placeButton`) and stays away while there is none and nothing runs. Its size is a setting
+ * (`scale`); the gap to the screen edge counts from what is visible (ring, figure).
  */
 import { RECORD_WARN_MS } from '@ft/shared';
 import { Keyboard, X } from 'lucide-react';
@@ -17,12 +19,15 @@ import {
 } from 'react';
 import type { AssistantController } from './controller';
 import { DRAG_PX, initialState, LONG_PRESS_MS, LISTEN_MS, type MachineState } from './machine';
+import { placeButton } from './place';
 import { SkinFace, skinOverhang, type SkinView } from './skins/SkinFace';
 
 /** The button at the smallest size. */
 const BASE = 56;
 /** Gap between the screen edge and the visible button. */
 const GAP = 16;
+/** Gap between the visible button and an area it leaves free. */
+const AVOID_GAP = 8;
 const POS_KEY = 'ft.assistant.pos';
 
 interface Pos {
@@ -51,22 +56,32 @@ function writePos(p: Pos) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** The visible area and what a button of `size` must not cover at the bottom. */
+/**
+ * The visible area, what a button of `size` must not cover at the bottom (tab bar, page footer,
+ * toasts) and the areas it leaves free (`[data-ai-avoid]`).
+ */
 function measure(size: number) {
   const vv = window.visualViewport;
   const top = vv?.offsetTop ?? 0;
   const height = vv?.height ?? window.innerHeight;
   const width = vv?.width ?? window.innerWidth;
-  let floor = top + height;
+  const root = getComputedStyle(document.documentElement);
+  // Without anything at the bottom the home indicator is the floor.
+  let floor = top + height - (parseFloat(root.getPropertyValue('--safe-bottom')) || 0);
   const obstacles = document.querySelectorAll(
-    'nav[aria-label="Hauptnavigation"], [data-page-footer], [data-ai-avoid], [data-sonner-toast]',
+    'nav[aria-label="Hauptnavigation"], [data-page-footer], [data-sonner-toast]',
   );
   for (const el of obstacles) {
     const r = el.getBoundingClientRect();
     if (r.height > 0 && r.top > top + height / 2) floor = Math.min(floor, r.top);
   }
-  const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
-  return { top, width, height, minY: top + safeTop + 60, maxY: floor - 12 - size };
+  const avoid: DOMRect[] = [];
+  for (const el of document.querySelectorAll('[data-ai-avoid]')) {
+    const r = el.getBoundingClientRect();
+    if (r.height > 0 && r.width > 0) avoid.push(r);
+  }
+  const safeTop = parseFloat(root.getPropertyValue('--safe-top')) || 0;
+  return { top, width, height, minY: top + safeTop + 60, maxY: floor - 12 - size, avoid };
 }
 
 /** Re-measures when the viewport, the page or the toasts change. */
@@ -83,6 +98,8 @@ function useLayoutTick(): number {
       settle = setTimeout(() => setTick((t) => t + 1), 450);
     };
     window.addEventListener('resize', bump);
+    // Avoided areas move with the page (open analyses below the camera make it scroll).
+    window.addEventListener('scroll', bump, { passive: true, capture: true });
     window.visualViewport?.addEventListener('resize', bump);
     window.visualViewport?.addEventListener('scroll', bump);
     const mo = new MutationObserver(bump);
@@ -91,6 +108,7 @@ function useLayoutTick(): number {
       cancelAnimationFrame(frame);
       clearTimeout(settle);
       window.removeEventListener('resize', bump);
+      window.removeEventListener('scroll', bump, { capture: true });
       window.visualViewport?.removeEventListener('resize', bump);
       window.visualViewport?.removeEventListener('scroll', bump);
       mo.disconnect();
@@ -138,11 +156,26 @@ export function AssistantButton({
   useTicker(recording || state.phase === 'listening', 250);
 
   const S = BASE * scale;
-  const over = skinOverhang(skin).x * scale;
+  const overhang = skinOverhang(skin);
+  const over = overhang.x * scale;
   const m = measure(S);
   const typing = state.phase === 'typing';
   let x = pos.edge === 'left' ? GAP + over : m.width - GAP - over - S;
-  let y = clamp(pos.y, m.minY, Math.max(m.minY, m.maxY));
+  // The free spot nearest to the wanted one; the figure reaches `overTop` above its box.
+  const overTop = overhang.top * scale;
+  const placed = placeButton({
+    want: pos.y,
+    size: S,
+    min: m.minY,
+    max: Math.max(m.minY, m.maxY),
+    zones: m.avoid
+      .filter((r) => r.right > x - over && r.left < x + S + over)
+      .map((r) => ({ top: r.top, bottom: r.bottom + overTop })),
+    gap: AVOID_GAP,
+  });
+  // No free spot: at rest the button stays away, a running utterance keeps it where it can be reached.
+  const hidden = placed === null && state.phase === 'idle' && !drag;
+  let y = placed ?? clamp(pos.y, m.minY, Math.max(m.minY, m.maxY));
   // Text mode: the button is "Senden" right above the keyboard.
   if (typing) y = m.top + m.height - S - 12;
   let edge = pos.edge;
@@ -225,6 +258,7 @@ export function AssistantButton({
   const sideH = sideButtons.length * 50;
   const above = y - m.minY > sideH + 8;
 
+  if (hidden) return null;
   return (
     <>
       {typing && <TextLayer controller={controller} state={state} />}

@@ -243,7 +243,8 @@ export function BarcodeScanner({
   }, [onError]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-black">
+    // The assistant button leaves the camera picture free.
+    <div data-ai-avoid className="relative overflow-hidden rounded-2xl bg-black">
       {!ready && (
         <div className="absolute inset-0 grid place-items-center text-white/60" aria-hidden>
           <Camera className="size-10 animate-pulse motion-reduce:animate-none" />
