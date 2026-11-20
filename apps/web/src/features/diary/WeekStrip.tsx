@@ -1,19 +1,21 @@
-import { addDays, dateRange, parseISODate, startOfWeek, WEEKDAYS_SHORT_DE, type ISODate } from '@ft/shared';
+import { addDays, parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex, type ISODate } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useLoggedDates, useTrainedDates } from '@/hooks/data';
+import { useAppearance } from '@/lib/appearance';
 import { cn } from '@/lib/utils';
+import { stripDays } from './stripDays';
 
 const DAY_NAME = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
 
 /**
- * Mon to Sun of the shown day with week arrows. Under each date a dot row of fixed height: red (left)
+ * Seven days around the shown one (`stripDays`: the calendar week or the recent days, a setting of
+ * the device) with arrows that move a week. Under each date a dot row of fixed height: red (left)
  * when food was logged, blue (right) when a training was; the day's link label says the same.
  */
 export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
-  const monday = startOfWeek(date);
-  const days = dateRange(monday, addDays(monday, 6));
+  const days = stripDays(date, today, useAppearance().weekStrip);
   const logged = useLoggedDates(days[0]!, days[6]!);
   const trained = useTrainedDates(days[0]!, days[6]!);
   return (
@@ -24,7 +26,7 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
         </Link>
       </Button>
       <ol className="grid flex-1 grid-cols-7 gap-1">
-        {days.map((d, i) => {
+        {days.map((d) => {
           const selected = d === date;
           const isToday = d === today;
           const food = !!logged?.has(d);
@@ -51,7 +53,7 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
                     .join(', ')}
                 </span>
                 <span aria-hidden className={cn('opacity-80', selected && 'opacity-100')}>
-                  {WEEKDAYS_SHORT_DE[i]}
+                  {WEEKDAYS_SHORT_DE[weekdayIndex(d)]}
                 </span>
                 <span aria-hidden className="tabular text-base font-semibold">
                   {parseISODate(d).getDate()}

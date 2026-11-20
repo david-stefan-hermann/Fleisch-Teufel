@@ -1,3 +1,4 @@
+import { parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex } from '@ft/shared';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useSessionContext } from '@/app/session';
@@ -6,16 +7,21 @@ import { AssistantAppearance } from '@/features/assistant/skins/SkinPicker';
 import { UploadedSkins } from '@/features/assistant/skins/UploadedSkins';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MacroSummary } from '@/features/diary/MacroSummary';
+import { stripDays } from '@/features/diary/stripDays';
+import { useToday } from '@/hooks/data';
 import {
   ICON_FILES,
   setDiaryMacrosPref,
   setIconPref,
   setThemePref,
+  setWeekStripPref,
   useAppearance,
   type DiaryMacrosPref,
   type IconPref,
   type ThemePref,
+  type WeekStripPref,
 } from '@/lib/appearance';
+import { cn } from '@/lib/utils';
 
 const THEMES: { value: ThemePref; label: string; icon: ReactNode }[] = [
   { value: 'system', label: 'System', icon: <Monitor aria-hidden /> },
@@ -27,12 +33,17 @@ const DIARY_MACROS: { value: DiaryMacrosPref; label: string }[] = [
   { value: 'numbers', label: 'Zahlen' },
   { value: 'bar', label: 'Mit Balken' },
 ];
+const WEEK_STRIP: { value: WeekStripPref; label: string }[] = [
+  { value: 'week', label: 'Kalenderwoche' },
+  { value: 'recent', label: 'Letzte Tage' },
+];
 /** Fixed row of the preview (a portion of chicken fricassee). */
 const PREVIEW = { ENERCC: 695, PROT625: 52, CHO: 38, FAT: 36 };
 
 /** Mehr → Aussehen: app theme, diary macros and logo variant of this device. */
 export function AppearancePage() {
   const a = useAppearance();
+  const today = useToday();
   const { serverInfo } = useSessionContext();
   const icons: { value: IconPref; label: string; files: string[] }[] = [
     { value: 'auto', label: 'Wie die App', files: [ICON_FILES.light.logo, ICON_FILES.dark.logo] },
@@ -84,6 +95,34 @@ export function AppearancePage() {
             </div>
             <MacroSummary nutrients={PREVIEW} variant={a.diaryMacros} />
           </div>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={a.weekStrip}
+            onValueChange={(v) => v && setWeekStripPref(v as WeekStripPref)}
+            className="mt-1 w-full"
+            aria-label="Tage in der Wochenleiste"
+          >
+            {WEEK_STRIP.map((m) => (
+              <ToggleGroupItem key={m.value} value={m.value} className="h-12 flex-1">
+                {m.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <ol className="grid grid-cols-7 gap-1 rounded-xl bg-muted p-1" aria-hidden>
+            {stripDays(today, today, a.weekStrip).map((d) => (
+              <li
+                key={d}
+                className={cn(
+                  'flex h-12 flex-col items-center justify-center rounded-lg text-xs',
+                  d === today && 'font-semibold text-primary',
+                )}
+              >
+                <span className="opacity-80">{WEEKDAYS_SHORT_DE[weekdayIndex(d)]}</span>
+                <span className="tabular text-base font-semibold">{parseISODate(d).getDate()}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       </Section>
 

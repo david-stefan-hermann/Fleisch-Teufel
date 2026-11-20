@@ -11,13 +11,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
 import { deleteRecord, saveRecord } from '@/db/write';
 import { WeekStrip } from '@/features/diary/WeekStrip';
+import { setWeekStripPref } from '@/lib/appearance';
 
 vi.mock('@/app/session', () => ({ useDb: () => sessionDb }));
 let sessionDb: UserDb;
 beforeEach(() => {
   sessionDb = new UserDb(`w-${uuidv7()}`);
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  setWeekStripPref('week');
+});
 
 /** The week strip inside a minimal router (its days are links to the diary). */
 function renderStrip(date: string, today: string) {
@@ -127,5 +131,30 @@ describe('WeekStrip', () => {
     const blue = selected.querySelector('[data-dot=training]')!;
     expect(blue.className).toContain('bg-exercise');
     expect(blue.className).not.toContain('ring');
+  });
+
+  it('recent days: the short names belong to their days, today is the sixth', async () => {
+    setWeekStripPref('recent');
+    renderStrip('2026-11-20', '2026-11-20');
+    await screen.findByRole('link', { name: /^Freitag, 20\. November/ });
+    const days = screen.getAllByRole('listitem').map((li) => li.querySelector('a')!);
+    expect(days.map((l) => l.querySelector('[aria-hidden]')!.textContent)).toEqual([
+      'So',
+      'Mo',
+      'Di',
+      'Mi',
+      'Do',
+      'Fr',
+      'Sa',
+    ]);
+    expect(days.map((l) => l.hasAttribute('aria-current'))).toEqual([
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+    ]);
   });
 });

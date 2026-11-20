@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
  *   home screen; it cannot be swapped on an installed web app.
  * - Diary macros: the P/K/F line of each diary row as plain numbers (default) or with colored dots
  *   and a small energy split bar (`MacroSummary`). Nothing of it matters before the first paint.
+ * - Week strip: the calendar week (default) or the recent days (today second from the right).
  * - Assistant: whether the floating button shows (the add sheet always has it), how big it is, and
  *   which figure it wears ('standard', a built-in one or the id of an uploaded pack).
  */
@@ -18,6 +19,7 @@ export type IconPref = 'auto' | 'light' | 'dark';
 export type Mode = 'light' | 'dark';
 export type DiaryMacrosPref = 'numbers' | 'bar';
 export type AssistantSize = 'small' | 'medium' | 'large';
+export type WeekStripPref = 'week' | 'recent';
 
 /** Scale of the assistant button per size (small is the 56 px button). */
 export const ASSISTANT_SCALE: Record<AssistantSize, number> = { small: 1, medium: 1.5, large: 2 };
@@ -25,6 +27,7 @@ export const ASSISTANT_SCALE: Record<AssistantSize, number> = { small: 1, medium
 const THEME_KEY = 'ft.theme';
 const ICON_KEY = 'ft.icon';
 const DIARY_MACROS_KEY = 'ft.diaryMacros';
+const WEEK_STRIP_KEY = 'ft.weekStrip';
 const ASSISTANT_BUTTON_KEY = 'ft.assistant.button';
 const ASSISTANT_SKIN_KEY = 'ft.assistant.skin';
 const ASSISTANT_SIZE_KEY = 'ft.assistant.size';
@@ -71,6 +74,8 @@ export interface Appearance {
   assistantSkin: string;
   /** Size of the assistant button. */
   assistantSize: AssistantSize;
+  /** Days of the diary's week strip. */
+  weekStrip: WeekStripPref;
 }
 
 export function resolveAppearance(
@@ -83,6 +88,7 @@ export function resolveAppearance(
     skin: 'standard',
     size: 'small',
   },
+  weekStrip: WeekStripPref = 'week',
 ): Appearance {
   const mode: Mode = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
   return {
@@ -94,12 +100,14 @@ export function resolveAppearance(
     assistantButton: assistant.button,
     assistantSkin: assistant.skin,
     assistantSize: assistant.size,
+    weekStrip,
   };
 }
 
 let theme: ThemePref = 'system';
 let icon: IconPref = 'auto';
 let diaryMacros: DiaryMacrosPref = 'numbers';
+let weekStrip: WeekStripPref = 'week';
 let assistant: { button: boolean; skin: string; size: AssistantSize } = {
   button: true,
   skin: 'standard',
@@ -109,7 +117,7 @@ let current: Appearance = resolveAppearance('system', 'auto', false);
 const listeners = new Set<() => void>();
 
 function update() {
-  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros, assistant);
+  current = resolveAppearance(theme, icon, media()?.matches ?? false, diaryMacros, assistant, weekStrip);
   apply(current);
   listeners.forEach((l) => l());
 }
@@ -136,6 +144,7 @@ export function startAppearance(): void {
   theme = read(THEME_KEY, ['system', 'light', 'dark'], 'system');
   icon = read(ICON_KEY, ['auto', 'light', 'dark'], 'auto');
   diaryMacros = read(DIARY_MACROS_KEY, ['numbers', 'bar'], 'numbers');
+  weekStrip = read(WEEK_STRIP_KEY, ['week', 'recent'], 'week');
   assistant = {
     button: read(ASSISTANT_BUTTON_KEY, ['on', 'off'], 'on') === 'on',
     skin: readSkin(),
@@ -160,6 +169,12 @@ export function setIconPref(next: IconPref): void {
 export function setDiaryMacrosPref(next: DiaryMacrosPref): void {
   diaryMacros = next;
   write(DIARY_MACROS_KEY, next, next === 'numbers');
+  update();
+}
+
+export function setWeekStripPref(next: WeekStripPref): void {
+  weekStrip = next;
+  write(WEEK_STRIP_KEY, next, next === 'week');
   update();
 }
 

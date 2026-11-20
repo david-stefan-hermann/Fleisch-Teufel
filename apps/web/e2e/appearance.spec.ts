@@ -1,4 +1,30 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { shiftDay } from './days';
+
+async function register(page: Page) {
+  await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
+  await page.goto('/login');
+  await page.getByRole('button', { name: 'Neues Konto erstellen' }).click();
+  await page
+    .getByLabel('E-Mail')
+    .fill(`look-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`);
+  await page.getByLabel('Passwort').fill('e2e-password-123');
+  await page.getByRole('button', { name: 'Konto erstellen' }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+}
+
+/** The day links of the week strip, in order. */
+const stripLinks = (page: Page) =>
+  page
+    .locator('ol')
+    .filter({ has: page.locator('a[aria-current]') })
+    .getByRole('link');
+const isoDay = (page: Page, delta: number) =>
+  page.evaluate((d) => {
+    const t = new Date();
+    t.setDate(t.getDate() + d);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  }, delta);
 
 test('Mehr → Aussehen: app theme and icon variant, kept per device', async ({ page }) => {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
@@ -89,4 +115,50 @@ test('Mehr → Aussehen: app theme and icon variant, kept per device', async ({ 
     'href',
     '/apple-touch-icon-dark-180x180.png',
   );
+});
+
+test('week strip "Letzte Tage": today second from the right, arrows move a week, taps keep the strip', async ({
+  page,
+}) => {
+  await register(page);
+  await page.goto('/settings/appearance');
+  await page
+    .getByRole('radiogroup', { name: 'Tage in der Wochenleiste' })
+    .getByRole('radio', { name: 'Letzte Tage' })
+    .click();
+  await page.goto('/more');
+  await expect(page.getByRole('link', { name: /Aussehen/ })).toContainText('· Letzte Tage');
+
+  await page.goto('/');
+  const links = stripLinks(page);
+  await expect(links).toHaveCount(7);
+  await expect(links.nth(5)).toHaveAttribute('aria-current');
+  const first = await links.first().getAttribute('href');
+
+  // A tap on a day of the strip does not move it.
+  await links.nth(1).click();
+  await expect(links.nth(1)).toHaveAttribute('aria-current');
+  expect(await links.first().getAttribute('href')).toBe(first);
+
+  // The arrow moves day and strip by a week: the sixth is selected again.
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Vorherige Woche' }).click();
+  await expect(page).toHaveURL(new RegExp(`date=${await isoDay(page, -7)}`));
+  await expect(links.nth(5)).toHaveAttribute('aria-current');
+
+  // The day helper of the specs works here too.
+  await shiftDay(page, 9);
+  await expect(page).toHaveURL(new RegExp(`date=${await isoDay(page, 2)}`));
+  await shiftDay(page, -2);
+  await expect(page).not.toHaveURL(/date=/);
+
+  // Back to the calendar week: Monday to Sunday.
+  await page.goto('/settings/appearance');
+  await page
+    .getByRole('radiogroup', { name: 'Tage in der Wochenleiste' })
+    .getByRole('radio', { name: 'Kalenderwoche' })
+    .click();
+  await page.goto('/');
+  await expect(links.first()).toHaveAccessibleName(/^Montag/);
+  await expect(links.last()).toHaveAccessibleName(/^Sonntag/);
 });

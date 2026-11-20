@@ -29,7 +29,8 @@ import { UserDb } from '@/db/dexie';
 import { logItems } from '@/db/entries';
 import { resetDiaryScroll, showInDiary } from '@/features/diary/diaryScroll';
 import { shareDayFileName } from '@/features/diary/share/shareDay';
-import { resolveAppearance, setDiaryMacrosPref, startAppearance } from '@/lib/appearance';
+import { resolveAppearance, setDiaryMacrosPref, setWeekStripPref, startAppearance } from '@/lib/appearance';
+import { stripDays } from '@/features/diary/stripDays';
 import { buildChart } from '@/features/reports/chartData';
 import { matchesTraining, trainingTitle } from '@/features/exercise/training';
 import {
@@ -621,6 +622,83 @@ describe('appearance', () => {
     expect(localStorage.getItem('ft.diaryMacros')).toBe('bar');
     setDiaryMacrosPref('numbers');
     expect(localStorage.getItem('ft.diaryMacros')).toBeNull();
+  });
+
+  it('week strip: the calendar week by default, the recent days on request', () => {
+    expect(resolveAppearance('system', 'auto', false).weekStrip).toBe('week');
+    startAppearance();
+    setWeekStripPref('recent');
+    expect(localStorage.getItem('ft.weekStrip')).toBe('recent');
+    setWeekStripPref('week');
+    expect(localStorage.getItem('ft.weekStrip')).toBeNull();
+  });
+});
+
+describe('week strip days', () => {
+  // 2026-11-20 is a Friday.
+  const today = '2026-11-20';
+  it('calendar week: Monday to Sunday of the shown day', () => {
+    expect(stripDays(today, today, 'week')).toEqual([
+      '2026-11-16',
+      '2026-11-17',
+      '2026-11-18',
+      '2026-11-19',
+      '2026-11-20',
+      '2026-11-21',
+      '2026-11-22',
+    ]);
+  });
+
+  it('recent days: today is the sixth, a day of the window keeps it', () => {
+    const now = stripDays(today, today, 'recent');
+    expect(now[0]).toBe('2026-11-15');
+    expect(now[5]).toBe(today);
+    expect(now[6]).toBe('2026-11-21');
+    expect(stripDays('2026-11-17', today, 'recent')).toEqual(now);
+    expect(stripDays('2026-11-21', today, 'recent')).toEqual(now);
+  });
+
+  it('recent days: seven days back is the sixth again, far back in a window moved by weeks', () => {
+    expect(stripDays('2026-11-13', today, 'recent')[5]).toBe('2026-11-13');
+    expect(stripDays('2026-11-14', today, 'recent')[6]).toBe('2026-11-14');
+    const far = stripDays('2026-08-03', today, 'recent');
+    expect(far).toContain('2026-08-03');
+    expect(far).toHaveLength(7);
+    // The window's end is tomorrow minus a multiple of 7 days.
+    expect(((Date.parse('2026-11-21') - Date.parse(far[6]!)) / 86_400_000) % 7).toBe(0);
+  });
+
+  it('recent days: the days after tomorrow lie in the next window', () => {
+    expect(stripDays('2026-11-22', today, 'recent')).toEqual([
+      '2026-11-22',
+      '2026-11-23',
+      '2026-11-24',
+      '2026-11-25',
+      '2026-11-26',
+      '2026-11-27',
+      '2026-11-28',
+    ]);
+  });
+
+  it('recent days across a month and a year', () => {
+    expect(stripDays('2027-01-01', '2027-01-01', 'recent')).toEqual([
+      '2026-12-27',
+      '2026-12-28',
+      '2026-12-29',
+      '2026-12-30',
+      '2026-12-31',
+      '2027-01-01',
+      '2027-01-02',
+    ]);
+    expect(stripDays('2026-11-30', '2026-12-02', 'recent')).toEqual([
+      '2026-11-27',
+      '2026-11-28',
+      '2026-11-29',
+      '2026-11-30',
+      '2026-12-01',
+      '2026-12-02',
+      '2026-12-03',
+    ]);
   });
 });
 
