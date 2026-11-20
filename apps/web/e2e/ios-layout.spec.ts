@@ -268,9 +268,9 @@ test.describe('375 px (iPhone mini and SE)', () => {
     await expect(page.getByRole('img', { name: /^Gewicht/ })).toBeVisible();
     expect(await fitsScreen()).toBe(true);
 
-    // Diary: a long date becomes the short one instead of being cut off.
+    // Diary: without day arrows the long date fits; it is never cut off.
     await page.goto('/?date=2026-09-30');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Mi., 30. Sept.');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Mittwoch, 30. September');
     const date = page.getByRole('heading', { level: 1 }).locator('label > span').first();
     expect(await date.evaluate((s) => s.scrollWidth <= s.clientWidth)).toBe(true);
   });
