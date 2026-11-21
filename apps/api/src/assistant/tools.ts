@@ -153,7 +153,7 @@ export function assistantTools(): Tool[] {
     {
       name: 'open_camera',
       description:
-        'Open the camera for a photo analysis of a meal. The hint goes to the analysis. When the photos replace entries already in the diary, pass their ids in replaceEntryIds: they are deleted once the analysis is logged.',
+        'Open the camera for a photo analysis of a meal. The hint goes to the analysis: what the person said about the food in this utterance, empty when they said nothing about it. When the photos replace entries already in the diary, pass their ids in replaceEntryIds: they are deleted once the analysis is logged.',
       input_schema: obj({ date, meal, hint: str, replaceEntryIds: ids }, ['date', 'hint']),
     },
     {

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { AiCallError, AiOutputError } from '../src/ai/analyze.js';
 import { transcriptionCostUsd } from '../src/ai/pricing.js';
+import { Aliases, utterancePrompt } from '../src/assistant/prompt.js';
 import { assistantTools } from '../src/assistant/tools.js';
 import { sniffAudio } from '../src/assistant/transcribe.js';
 import type { Assistant, AudioInput, ToolHost } from '../src/assistant/types.js';
@@ -694,5 +695,22 @@ describe('assistant', () => {
   it('prices the transcription per audio minute', () => {
     expect(transcriptionCostUsd('gpt-transcribe', 60)).toBeCloseTo(0.0045);
     expect(transcriptionCostUsd('unknown', 60)).toBeCloseTo(0.006);
+  });
+});
+
+describe('assistant prompt', () => {
+  const said = { said: 'Lasagne', done: 'nothing', reply: '' };
+  it('dates recent utterances when the device sends the day', () => {
+    const ctx = assistantContextSchema.parse(
+      context({ recent: [{ ...said, date: YESTERDAY, at: '18:05' }] }),
+    );
+    expect(utterancePrompt(ctx, 'Ich habe Fotos', new Aliases())).toContain(
+      `- ${YESTERDAY} 18:05 said: "Lasagne"`,
+    );
+  });
+
+  it('shows only the time for an older app', () => {
+    const ctx = assistantContextSchema.parse(context({ recent: [{ ...said, at: '18:05' }] }));
+    expect(utterancePrompt(ctx, 'Ich habe Fotos', new Aliases())).toContain('\n- 18:05 said: "Lasagne"');
   });
 });

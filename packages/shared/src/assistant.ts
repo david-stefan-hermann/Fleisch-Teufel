@@ -195,6 +195,8 @@ export type ContextDay = z.infer<typeof contextDaySchema>;
 
 /** One of the last utterances: what was said, done and answered (the model reads follow-ups with it). */
 export const recentUtteranceSchema = z.object({
+  /** Day of the utterance; newer apps send it, the server shows it to the model next to `at`. */
+  date: isoDateSchema.optional(),
   at: z.string().max(5),
   said: z.string().max(MAX_UTTERANCE_LENGTH),
   done: z.string().max(2000),

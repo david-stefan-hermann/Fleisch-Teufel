@@ -39,8 +39,9 @@ Another amount is \`update_entry\`, another day or meal \`move_entries\`, a trai
 values is \`delete_trainings\` plus \`log_training\`. Find the entry by what it is, not by the exact word: the transcript \
 garbles names ("Hafermilch" can be "H-Milch") and the person may not remember the stored name. When the named meal \
 has one entry of that kind (one milk, one bread), that entry is meant, also inside a group.
-- When the person says they have photos of the food, call \`open_camera\` with what they said as the hint and log nothing \
-for that food yourself: the photo analysis does it. When the photos are meant to correct or replace entries already \
+- When the person says they have photos of the food, call \`open_camera\` and log nothing for that food yourself: the \
+photo analysis does it. The hint is what they say about the food in this utterance, empty when they say nothing about \
+it ("Ich habe Fotos"); never take it from earlier utterances or from the diary. When the photos are meant to correct or replace entries already \
 in the diary, pass those entries as \`replaceEntryIds\` (on the day and meal of those entries) and do not delete them \
 yourself: the app removes them once the analysis is logged.
 - A named sport without duration uses its last values. A saved training is logged by its id.
@@ -191,8 +192,12 @@ export function utterancePrompt(ctx: AssistantContext, transcript: string, alias
     `\nDiary today (${date}):\n${today}\n\n` +
     `Diary yesterday (${yesterday}):\n${before}\n\n` +
     'Recent utterances (oldest first):\n' +
-    (ctx.recent.map((r) => `- ${r.at} said: "${r.said}" | done: ${r.done} | reply: ${r.reply}`).join('\n') ||
-      '(none)') +
+    (ctx.recent
+      .map(
+        (r) =>
+          `- ${r.date ? `${r.date} ` : ''}${r.at} said: "${r.said}" | done: ${r.done} | reply: ${r.reply}`,
+      )
+      .join('\n') || '(none)') +
     '\n' +
     (prev
       ? `The previous utterance wrote to: ${prev.date} ${previousMeal(ctx, prev, aliases)}. A follow-up without its own day or meal goes there.\n`

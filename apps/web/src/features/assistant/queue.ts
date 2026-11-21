@@ -97,16 +97,26 @@ async function dayOf(db: UserDb, date: ISODate): Promise<ContextDay> {
   };
 }
 
+/** Utterances older than this before the new one no longer belong to the conversation. */
+export const RECENT_UTTERANCE_MS = 3 * 60 * 60_000;
+
 /**
  * What the device tells the server about this utterance: its time, the diary of that day and the day
- * before, targets, the last three utterances, where the directly previous one wrote, an open question.
+ * before, targets, the last three utterances of the window before it (`RECENT_UTTERANCE_MS`, counted
+ * from the utterance, so one that waited offline keeps its conversation), where the directly previous
+ * one of the window wrote, an open question.
  */
 export async function contextFor(db: UserDb, turn: AssistantTurn): Promise<AssistantContext> {
   const today = todayOf(new Date(turn.createdAt));
   const settings = (await db.settings.toArray())[0] ?? DEFAULT_SETTINGS;
   const goals = (await db.goals.toArray()).filter((g) => !g.deleted);
   const targets = goals.length ? targetsForDate(goals, today) : null;
-  const before = (await db.assistantTurns.where('createdAt').below(turn.createdAt).toArray())
+  const before = (
+    await db.assistantTurns
+      .where('createdAt')
+      .between(turn.createdAt - RECENT_UTTERANCE_MS, turn.createdAt)
+      .toArray()
+  )
     .filter((t) => t.status === 'done' || t.status === 'asking')
     .sort((a, b) => a.createdAt - b.createdAt);
   const prev = before.at(-1);
@@ -119,6 +129,7 @@ export async function contextFor(db: UserDb, turn: AssistantTurn): Promise<Assis
     targets: targets ? { kcal: targets.kcal, proteinG: targets.proteinG } : null,
     days: [await dayOf(db, today), await dayOf(db, addDays(today, -1))],
     recent: before.slice(-3).map((t) => ({
+      date: localStamp(t.createdAt).slice(0, 10),
       at: localStamp(t.createdAt).slice(11),
       said: (t.transcript ?? t.text ?? '').slice(0, 2000),
       done: (t.undoneAt

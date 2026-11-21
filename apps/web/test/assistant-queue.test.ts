@@ -8,6 +8,7 @@ import {
   onAssistantTurn,
   processAssistantQueue,
   queueOptions,
+  RECENT_UTTERANCE_MS,
   retryTurn,
   undoTurn,
   type TurnEvent,
@@ -191,6 +192,49 @@ describe('assistant queue', () => {
     expect(ctx.days[1]!.meals).toEqual([]);
     await undoTurn(d, first);
     expect((await contextFor(d, next)).previousTarget).toBeNull();
+  });
+
+  it('keeps utterances older than the window out of the conversation', async () => {
+    const d = db();
+    const now = Date.now();
+    const done = (createdAt: number, said: string) =>
+      d.assistantTurns.add({
+        requestId: uuidv7(),
+        createdAt,
+        source: 'text',
+        text: said,
+        shownDate: TODAY,
+        status: 'done',
+        applied: [{ kind: 'logFood', text: 'Abendessen: Lasagne', target: { date: TODAY, meal: 2 } }],
+      });
+    const next = (createdAt: number) => ({
+      requestId: uuidv7(),
+      createdAt,
+      source: 'text' as const,
+      shownDate: TODAY,
+      status: 'waiting' as const,
+    });
+    await done(now - 7 * 86_400_000, 'Lasagne bei Oma');
+    const old = await contextFor(d, next(now));
+    expect(old.recent).toEqual([]);
+    expect(old.previousTarget).toBeNull();
+
+    await done(now - 10 * 60_000, 'Ein Apfel');
+    const ctx = await contextFor(d, next(now));
+    expect(ctx.recent).toEqual([
+      expect.objectContaining({
+        said: 'Ein Apfel',
+        date: expect.stringMatching(/^\d{4}-\d\d-\d\d$/),
+        at: expect.stringMatching(/^\d\d:\d\d$/),
+      }),
+    ]);
+    expect(ctx.previousTarget).toEqual({ date: TODAY, meal: 2, diaryMealId: null });
+
+    // The window counts from the utterance itself: one that waited offline keeps its conversation.
+    const waited = now - 2 * 86_400_000;
+    await done(waited - 10 * 60_000, 'Zwei Eier');
+    await done(waited - RECENT_UTTERANCE_MS - 60_000, 'Brot');
+    expect((await contextFor(d, next(waited))).recent.map((r) => r.said)).toEqual(['Zwei Eier']);
   });
 
   it('drops a discarded turn, also when its answer arrives late', async () => {
