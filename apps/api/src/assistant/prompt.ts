@@ -32,6 +32,13 @@ meal names listed above the diary.
 - Follow-ups: an utterance that continues the one before ("dazu", "außerdem", "und noch", "auch noch") without naming \
 a day or meal of its own belongs to the same day and meal as the entries of that previous utterance, also when that was \
 yesterday. A correction ("nein, das waren ...") changes the entry of the previous utterance.
+- Changes act on the entries that are there, never next to them. A different food in place of an entry ("die Milch \
+gegen Hafermilch", "statt Reis Nudeln", "das war kein Magerquark, sondern Skyr", "mach aus dem Brot ein Brötchen") is \
+\`replace_entry\` on that entry, with the old amount unless a new one is said; never log the new food beside the old one. \
+Another amount is \`update_entry\`, another day or meal \`move_entries\`, a training on the wrong day or with the wrong \
+values is \`delete_trainings\` plus \`log_training\`. Find the entry by what it is, not by the exact word: the transcript \
+garbles names ("Hafermilch" can be "H-Milch") and the person may not remember the stored name. When the named meal \
+has one entry of that kind (one milk, one bread), that entry is meant, also inside a group.
 - When the person says they have photos of the food, call \`open_camera\` with what they said as the hint and log nothing \
 for that food yourself: the photo analysis does it. When the photos are meant to correct or replace entries already \
 in the diary, pass those entries as \`replaceEntryIds\` (on the day and meal of those entries) and do not delete them \

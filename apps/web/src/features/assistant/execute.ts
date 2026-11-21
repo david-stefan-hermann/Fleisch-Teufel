@@ -376,6 +376,47 @@ export async function applyOps(
             });
             break;
           }
+          case 'replaceEntry': {
+            const [entry] = await liveEntries([op.entryId]);
+            if (!entry) {
+              result.skipped++;
+              break;
+            }
+            const [it] = aiMealItems([op.item]);
+            // Only the food and its amount change: day, meal, group, photos and position stay.
+            const fields = {
+              foodId: it!.foodId,
+              source: op.item.food.source,
+              name: it!.name,
+              brand: it!.brand,
+              grams: it!.grams,
+              portionLabel: it!.portionLabel,
+              portionGrams: it!.portionGrams,
+              quantity: it!.quantity,
+              per100: it!.per100,
+              nutrients: it!.nutrients,
+              note: null,
+            };
+            await patchRecord(db, 'foodEntries', entry.id, fields);
+            result.undo.push({
+              kind: 'patch',
+              table: 'foodEntries',
+              id: entry.id,
+              fields: Object.fromEntries(
+                Object.keys(fields).map((k) => [k, entry[k as keyof FoodEntry] ?? null]),
+              ),
+            });
+            result.applied.push({
+              kind: op.kind,
+              text: `${entry.name} → ${it!.name}`,
+              detail: `${entry.name}, ${amountOf(entry)} → ${it!.name}, ${amountOf(it!)}`,
+              kcal: kcalOf(it!) - kcalOf(entry),
+              guessed: op.item.guessed,
+              target: { date: entry.date, meal: entry.meal, diaryMealId: entry.diaryMealId ?? null },
+              entryIds: [entry.id],
+            });
+            break;
+          }
           case 'moveEntries': {
             const entries = await liveEntries(op.entryIds);
             if (entries.length === 0) {
@@ -435,6 +476,22 @@ export async function applyOps(
               kind: op.kind,
               text: `Gelöscht: ${entryNames(entries)}`,
               kcal: -entries.reduce((s, e) => s + kcalOf(e), 0),
+            });
+            break;
+          }
+          case 'deleteTrainings': {
+            const rows = (await db.exerciseEntries.bulkGet([...op.entryIds])).filter(
+              (e): e is ExerciseEntry => !!e && !e.deleted,
+            );
+            if (rows.length === 0) {
+              result.skipped++;
+              break;
+            }
+            for (const e of rows) await deleteRecord(db, 'exerciseEntries', e.id);
+            result.undo.push({ kind: 'restore', table: 'exerciseEntries', ids: rows.map((e) => e.id) });
+            result.applied.push({
+              kind: op.kind,
+              text: `${dayLabel(rows[0]!.date)}Training gelöscht: ${rows.map((e) => e.name.split(' / ')[0]).join(', ')}`,
             });
             break;
           }
@@ -520,7 +577,10 @@ export async function applyOps(
       await inside?.(result);
     },
   );
-  for (const op of ops) if (op.kind === 'logFood') for (const it of op.items) await rememberFood(db, it.food);
+  for (const op of ops) {
+    if (op.kind === 'logFood') for (const it of op.items) await rememberFood(db, it.food);
+    if (op.kind === 'replaceEntry') await rememberFood(db, op.item.food);
+  }
   return result;
 }
 

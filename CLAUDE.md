@@ -610,7 +610,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   reads it with `useSyncExternalStore`. Server: `routes/assistant.ts` (`/turn` multipart audio or text + device
   context + `requestId`; idempotent via `assistant_turns`), `assistant/claude.ts` (manual Haiku tool loop, at most 8
   rounds), `assistant/host.ts` (read tools `search_foods` with portions and "zuletzt", `search_trainings`, `get_day`;
-  write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`; meals: the device
+  write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`, trainings `x1`;
+  a swap of foods is `replace_entry` (op `replaceEntry`: the entry keeps day, meal, group and position, the old amount
+  unless a new one is said; never log beside the old one), `delete_trainings` fixes a training; meals: the device
   sends `days[].meals` of today and yesterday and the tools' `meal` is a free string, a short id `m1` or a name,
   a name the day lacks starts a new meal with it; ops carry `diaryMealId` and `mealName` next to the index, which
   `execute.ts` resolves before its transaction (id, name, index, then `logTargetFor`; a context without `meals`

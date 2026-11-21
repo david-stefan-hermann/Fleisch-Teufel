@@ -233,6 +233,52 @@ describe('assistant', () => {
     ]);
   });
 
+  it('swaps the food of an entry keeping its amount, and deletes trainings by their ids', async () => {
+    const milk = uuidv7();
+    const quick = uuidv7();
+    const run = uuidv7();
+    const swap = (entryId: string, grams?: number) => (r: string[]) => ({
+      entryId,
+      foodId: /id=(\S+)/.exec(r[0]!)![1],
+      ...(grams && { grams }),
+    });
+    script = [
+      { name: 'search_foods', input: { query: 'Haferflocken' } },
+      { name: 'replace_entry', input: swap('e1') },
+      { name: 'replace_entry', input: swap('e2') },
+      { name: 'replace_entry', input: swap('e2', 40) },
+      { name: 'delete_trainings', input: { trainingIds: ['x1'] } },
+    ];
+    const r = await turn(alice, {
+      text: 'Die Milch gegen Haferflocken tauschen.',
+      context: JSON.stringify(
+        context({
+          days: [
+            {
+              date: TODAY,
+              entries: [
+                { id: milk, meal: 0, name: 'H-Milch', grams: 150, kcal: 96, proteinG: 5, group: null },
+                { id: quick, meal: 0, name: 'Kuchen', grams: null, kcal: 300, proteinG: 4, group: null },
+              ],
+              trainings: [{ id: run, name: 'Laufen', minutes: 30, intensity: 'moderate' }],
+              weightKg: null,
+            },
+          ],
+        }),
+      ),
+    });
+    expect(understood[0]!.prompt).toContain('x1: Laufen 30 Min.');
+    expect(understood[0]!.results[2]).toContain('grams missing');
+    expect(r.json.ops.map((o: { kind: string }) => o.kind)).toEqual([
+      'replaceEntry',
+      'replaceEntry',
+      'deleteTrainings',
+    ]);
+    expect(r.json.ops[0]).toMatchObject({ entryId: milk, item: { grams: 150, food: { id: 'bls:C133000' } } });
+    expect(r.json.ops[1]).toMatchObject({ entryId: quick, item: { grams: 40 } });
+    expect(r.json.ops[2]).toEqual({ kind: 'deleteTrainings', entryIds: [run] });
+  });
+
   it('opens the camera for photos that replace an entry; the entry stays until they are logged', async () => {
     const id = uuidv7();
     script = [

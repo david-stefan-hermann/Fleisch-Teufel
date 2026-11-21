@@ -127,12 +127,19 @@ export async function createTurnHost(
   const templateIds = new Set(templates.map((t) => t.id));
 
   /** Entries the model may name: today and yesterday from the device, other days from `get_day`. */
-  const knownEntries = new Map<string, { quick: boolean }>();
-  for (const d of ctx.days)
+  const knownEntries = new Map<string, { grams: number | null }>();
+  /** Trainings the model may name, the same way (steps are never listed). */
+  const knownTrainings = new Set<string>();
+  for (const d of ctx.days) {
     for (const e of d.entries) {
       aliases.alias('e', e.id);
-      knownEntries.set(e.id, { quick: e.grams === null });
+      knownEntries.set(e.id, { grams: e.grams });
     }
+    for (const t of d.trainings) {
+      aliases.alias('x', t.id);
+      knownTrainings.add(t.id);
+    }
+  }
   const seenMeals = new Set<string>();
 
   /**
@@ -270,6 +277,16 @@ export async function createTurnHost(
       return real;
     });
   };
+  const trainingIds = (v: unknown): string[] => {
+    const list = Array.isArray(v) ? v : [v];
+    if (list.length === 0) throw new ToolInputError('trainingIds missing');
+    return list.map((x) => {
+      const real = typeof x === 'string' ? aliases.real(x) : null;
+      if (!real || !knownTrainings.has(real))
+        throw new ToolInputError(`unknown training id ${String(x)}: only ids from the diary or get_day`);
+      return real;
+    });
+  };
   const add = (op: unknown): string => {
     const parsed = assistantOpSchema.safeParse(op);
     if (!parsed.success) throw new ToolInputError(`invalid: ${parsed.error.issues[0]?.message ?? 'input'}`);
@@ -383,7 +400,8 @@ export async function createTurnHost(
         meals: ofDay.map((m) => ({ id: m.id, name: m.name, time: null, night: m.night })),
       }),
     };
-    for (const e of entries) knownEntries.set(e.id, { quick: e.grams === null });
+    for (const e of entries) knownEntries.set(e.id, { grams: e.grams });
+    for (const t of trainings) knownTrainings.add(t.id);
     return `Diary ${d}:\n${dayText(day, ctx.mealNames, aliases)}`;
   };
 
@@ -444,8 +462,30 @@ export async function createTurnHost(
     },
     update_entry(input) {
       const [entryId] = entryIds(input.entryId);
-      if (knownEntries.get(entryId!)?.quick) throw new ToolInputError('a quick entry has no amount');
+      if (knownEntries.get(entryId!)?.grams === null) throw new ToolInputError('a quick entry has no amount');
       return add({ kind: 'updateEntry', entryId, grams: number(input.grams, 'grams', 0.1, 10_000) });
+    },
+    replace_entry(input) {
+      const [entryId] = entryIds(input.entryId);
+      const foodId = text(input.foodId, 'foodId', 100);
+      const food = foodSearch.seen.get(foodId);
+      if (!food) throw new ToolInputError(`unknown foodId ${foodId}: only ids from search_foods`);
+      // Without a new amount the swap keeps the old one ("die Milch gegen Hafermilch").
+      const before = knownEntries.get(entryId!)?.grams ?? null;
+      if ((input.grams === undefined || input.grams === null) && before === null)
+        throw new ToolInputError('grams missing: the replaced entry is a quick entry without an amount');
+      const grams = input.grams == null ? before! : number(input.grams, 'grams', 0.1, 10_000);
+      add({
+        kind: 'replaceEntry',
+        entryId,
+        item: {
+          food,
+          grams,
+          portion: portionOf(food, input.portion, grams),
+          guessed: input.guessed === true,
+        },
+      });
+      return `ok, replaced with ${food.name}, ${Math.round(grams)} g`;
     },
     async move_entries(input) {
       const ids = entryIds(input.entryIds);
@@ -475,6 +515,9 @@ export async function createTurnHost(
     },
     delete_entries(input) {
       return add({ kind: 'deleteEntries', entryIds: entryIds(input.entryIds) });
+    },
+    delete_trainings(input) {
+      return add({ kind: 'deleteTrainings', entryIds: trainingIds(input.trainingIds) });
     },
     save_meal(input) {
       return add({

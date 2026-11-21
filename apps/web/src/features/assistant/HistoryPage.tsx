@@ -65,6 +65,10 @@ export function describeOps(ops: readonly AssistantOp[], mealNames: readonly str
         return ['Einträge gelöscht'];
       case 'moveEntries':
         return [`Verschoben nach ${nameOf(op.toMeal, op.toMealName) ?? ''}`];
+      case 'replaceEntry':
+        return [`Ersetzt durch ${op.item.food.name}, ${Math.round(op.item.grams)} g`];
+      case 'deleteTrainings':
+        return ['Training gelöscht'];
       case 'updateEntry':
         return [`Menge geändert: ${Math.round(op.grams)} g`];
       case 'copyEntries':

@@ -101,6 +101,11 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     text: z.string().trim().max(1000).default(''),
   }),
   z.object({ kind: z.literal('updateEntry'), entryId: id, grams }),
+  /**
+   * Another food in place of an entry's ("die Milch gegen Hafermilch tauschen"): the entry keeps its
+   * place (day, meal, group, photos, position) and takes the food and amount.
+   */
+  z.object({ kind: z.literal('replaceEntry'), entryId: id, item: assistantFoodItemSchema }),
   z.object({
     kind: z.literal('moveEntries'),
     entryIds: ids,
@@ -117,6 +122,7 @@ export const assistantOpSchema = z.discriminatedUnion('kind', [
     ...dayMeal,
   }),
   z.object({ kind: z.literal('deleteEntries'), entryIds: ids }),
+  z.object({ kind: z.literal('deleteTrainings'), entryIds: ids }),
   z.object({ kind: z.literal('saveMeal'), name: z.string().trim().min(1).max(120), entryIds: ids }),
   z.object({ kind: z.literal('setWeight'), date: isoDateSchema, kg: z.number().min(20).max(400) }),
   z.object({

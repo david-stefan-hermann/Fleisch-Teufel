@@ -207,6 +207,58 @@ describe('applyOps (the assistant carries out its operations on the device)', ()
     expect((await d.foodEntries.get(b!.id))!.deleted).toBe(false);
   });
 
+  it('swaps the food of an entry in place (group and meal stay) and deletes trainings, both undone', async () => {
+    const d = db();
+    await applyOps(d, [logFood({ groupName: 'Quarkschale' })], env);
+    const [q, b] = await live(d);
+    await logTrainings(d, TODAY, [
+      {
+        typeKey: 'running',
+        name: 'Laufen',
+        minutes: 30,
+        intensity: 'moderate',
+        met: 8,
+        weightKg: 80,
+        kcal: 300,
+        note: null,
+      },
+    ]);
+    const [run] = await d.exerciseEntries.toArray();
+    const skyr = food('bls:M2', 'Skyr', 63);
+    const r = await applyOps(
+      d,
+      [
+        {
+          kind: 'replaceEntry',
+          entryId: q!.id,
+          item: { food: skyr, grams: 200, portion: null, guessed: false },
+        },
+        { kind: 'deleteTrainings', entryIds: [run!.id] },
+      ],
+      env,
+    );
+    const swapped = await d.foodEntries.get(q!.id);
+    expect(swapped).toMatchObject({
+      name: 'Skyr',
+      foodId: 'bls:M2',
+      grams: 200,
+      meal: 1,
+      groupId: b!.groupId,
+      groupName: 'Quarkschale',
+      nutrients: { ENERCC: 126 },
+    });
+    expect(await live(d)).toHaveLength(2);
+    expect((await d.exerciseEntries.get(run!.id))!.deleted).toBe(true);
+    expect(r.applied.map((a) => a.text)).toEqual(['Magerquark → Skyr', 'Training gelöscht: Laufen']);
+    await runUndo(d, r.undo);
+    expect(await d.foodEntries.get(q!.id)).toMatchObject({
+      name: 'Magerquark',
+      foodId: 'bls:M1',
+      grams: 200,
+    });
+    expect((await d.exerciseEntries.get(run!.id))!.deleted).toBe(false);
+  });
+
   it('leaves out operations on records this device does not have', async () => {
     const d = db();
     const r = await applyOps(

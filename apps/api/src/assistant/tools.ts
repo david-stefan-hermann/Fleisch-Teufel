@@ -86,8 +86,18 @@ export function assistantTools(): Tool[] {
     },
     {
       name: 'update_entry',
-      description: 'Change the amount of a diary entry.',
+      description:
+        'Change only the amount of a diary entry. To swap its food for another, use replace_entry.',
       input_schema: obj({ entryId: str, grams: num }, ['entryId', 'grams']),
+    },
+    {
+      name: 'replace_entry',
+      description:
+        'Swap the food of a diary entry for another food (from search_foods). The entry keeps its day, meal and group. grams: leave it out to keep the amount of the old entry. portion: the portion label from the search the amount refers to, if any.',
+      input_schema: obj(
+        { entryId: str, foodId: str, grams: num, portion: str, guessed: { type: 'boolean' } },
+        ['entryId', 'foodId'],
+      ),
     },
     {
       name: 'move_entries',
@@ -103,6 +113,11 @@ export function assistantTools(): Tool[] {
       name: 'delete_entries',
       description: 'Delete diary entries (they go to the trash, the person can undo).',
       input_schema: obj({ entryIds: ids }, ['entryIds']),
+    },
+    {
+      name: 'delete_trainings',
+      description: 'Delete trainings of the diary by their ids (x1). The person can undo.',
+      input_schema: obj({ trainingIds: ids }, ['trainingIds']),
     },
     {
       name: 'save_meal',
