@@ -77,7 +77,8 @@ Serve the production web build through the API (same origin, service worker acti
   dragged empty disappears. A day from before the change keeps the order of its slots (`usesSlotOrder`) until a
   time is set there or a new meal joins it. Records are written only when there is something to keep: a new meal
   (uuidv7) with its first entry, a virtual one under its `dm:` id when renamed, timed, an entry is dragged in or
-  out or a new meal takes its index (`keep`); the entries it shows then get its id. Read a day with `readDay`/`useDayMeals` (`db/diaryMeals.ts`, `readPlannedDay` for pickers: a meal begun
+  out or a new meal takes its index (`keep`), a new meal (uuidv7) when a row is dropped below the last meal; the
+  entries it shows then get its id. Read a day with `readDay`/`useDayMeals` (`db/diaryMeals.ts`, `readPlannedDay` for pickers: a meal begun
   by an analysis in review stays choosable). Where entries go is settled before the write transaction:
   `prepareMealTarget(db, { date, meal, dm })` returns a `LogTarget` (`dm: 'new'` gets id, name and time now,
   `create`; `keep` writes down the meal `dm:<date>:<slot>` that shares the new meal's index, recorded or not, and attaches
@@ -192,7 +193,11 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   rows are wrapped in `DraggableRow`, `SwipeToDelete` gets `disabled` while a drag runs (`useDiaryDrag`).
   Moves go through `moveEntriesToDiaryMeal` (`src/db/diaryMeals.ts`: writes the record of a virtual source or
   target first, so both keep name and time; undo via `restoreEntryMeals`); editing an entry into another meal
-  uses `placeMovedEntry`. Meals themselves are not dragged. The training card sorts its rows with its own
+  uses `placeMovedEntry`. While a drag runs, `AddMealLink` (always mounted, `data-new-meal-drop`,
+  `useNewMealDropZone`) is a drop target "Neue Mahlzeit <next name>" (`h-16`): a row dropped there goes through
+  `moveEntriesToNewDiaryMeal` (one transaction: `prepareMealTarget` with `dm: 'new'`, so the meal it leaves still
+  counts for `nextMealName`; time the youngest `loggedAt` of the row via `newMealEatenAt`; toast "… in neue
+  Mahlzeit „<Name>“ verschoben", undo `restoreEntryMeals`, the empty record stays). Meals themselves are not dragged. The training card sorts its rows with its own
   `DndContext` (`features/diary/TrainingSortable.tsx`: generic `SortableRows`/`SortableRow` with `onReorder(keys)`,
   same sensors via `useDragSensors`, `DragStateProvider` for `useDiaryDrag`); food has no order within a meal yet.
 - Add menu (tab bar "+" only): one `AddSheetProvider` in the authed layout, `useAddSheet().open({ date })`; tiles
@@ -624,10 +629,12 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   synced tables: the device applies the ops (`execute.ts` `applyOps`, one Dexie transaction, nutrients only from
   the searched foods, an estimate becomes a quick entry "… (N g, geschätzt)"), undo steps are serializable on the
   turn (`UndoStep`, `db/undo.ts`). Turns live in Dexie `assistantTurns` (v6) and go through a serial queue
-  (`queue.ts`, started in `session.tsx`): offline they wait (count on the button) and come back "late" (no open
+  (`queue.ts`, started in `session.tsx`; `contextFor` sends as `recent` (with `date` and `at`) and
+  `previousTarget` only utterances of the `RECENT_UTTERANCE_MS` (3 hours) before the turn's own `createdAt`): offline they wait (count on the button) and come back "late" (no open
   microphone, "Fotos jetzt aufnehmen?" instead of opening the camera); a timeout is never repeated by itself. The
   result is a toast with "Rückgängig"; a question is a bubble (2 to 4 options; after speech the microphone is open
-  `LISTEN_MS` 3 s); a reply without ops shows in the bubble; nothing done: toast "Nicht verstanden". `openCamera` puts
+  `LISTEN_MS` 3 s); a reply without ops shows in the bubble; nothing done: toast "Nicht verstanden". `open_camera`'s hint
+  is only what this utterance says about the food (empty otherwise, never from earlier ones); `openCamera` puts
   the heard hint into `sessionStorage` (`hint.ts`), `PreviewStep` starts with it; `replaces` (tool
   `replaceEntryIds`: photos that correct an entry already logged) travels the same way onto `AiQueueItem.replaces`,
   and `logReview` deletes those entries in the transaction that logs the analysis (never earlier). History: `/settings/assistant`
