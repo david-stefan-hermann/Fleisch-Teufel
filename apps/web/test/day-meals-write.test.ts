@@ -12,6 +12,7 @@ import {
   applyLogTarget,
   chooseMealName,
   moveEntriesToDiaryMeal,
+  moveEntriesToNewDiaryMeal,
   ownMealNames,
   prepareMealTarget,
   readDay,
@@ -251,6 +252,111 @@ describe('changing meals', () => {
     await d.outbox.clear();
     expect(await moveEntriesToDiaryMeal(d, [a.id, gone.id, 'missing'], meal!)).toEqual([]);
     expect(await d.outbox.count()).toBe(0);
+  });
+});
+
+describe('moving entries into a new meal', () => {
+  const recordOf = async (d: UserDb, entryId: string) =>
+    (await d.diaryMeals.get((await d.foodEntries.get(entryId))!.diaryMealId!))!;
+
+  it('begins the next meal at the time of the entry; the source keeps name, time and the rest', async () => {
+    const d = db();
+    const a = await oldEntry(d, 0, at(8));
+    const b = await oldEntry(d, 0, at(9, 30));
+    const next = await readNextMeal(d, DATE);
+    const result = await moveEntriesToNewDiaryMeal(d, DATE, [b.id]);
+    expect(result).toEqual({
+      name: 'Mittagessen',
+      moved: [{ id: b.id, meal: 0, diaryMealId: dayId.diaryMeal(DATE, 0) }],
+    });
+    const meal = await recordOf(d, b.id);
+    expect(meal).toMatchObject({
+      name: 'Mittagessen',
+      eatenAt: at(9, 30),
+      slot: next.slot,
+      timeEdited: false,
+    });
+    expect((await d.foodEntries.get(b.id))!.meal).toBe(next.slot);
+    expect((await readDay(d, DATE)).map((m) => [m.name, m.eatenAt, m.entries.map((e) => e.id)])).toEqual([
+      ['Frühstück', at(8), [a.id]],
+      ['Mittagessen', at(9, 30), [b.id]],
+    ]);
+    expect(await d.diaryMeals.get(dayId.diaryMeal(DATE, 0))).toMatchObject({
+      name: 'Frühstück',
+      eatenAt: at(8),
+    });
+  });
+
+  it('names the meal after the source when its only entry moves', async () => {
+    const d = db();
+    const a = await oldEntry(d, 0, at(8));
+    expect((await moveEntriesToNewDiaryMeal(d, DATE, [a.id]))!.name).toBe('Mittagessen');
+    expect((await readDay(d, DATE)).map((m) => [m.name, m.eatenAt])).toEqual([['Mittagessen', at(8)]]);
+  });
+
+  it('takes a group whole, at the time of its youngest entry', async () => {
+    const d = db();
+    const a = await oldEntry(d, 1, at(12), { groupId: 'g' });
+    const b = await oldEntry(d, 1, at(12, 5), { groupId: 'g' });
+    await moveEntriesToNewDiaryMeal(d, DATE, [a.id, b.id]);
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => [m.name, m.eatenAt, m.entries.length])).toEqual([['Frühstück', at(12, 5), 2]]);
+  });
+
+  it('gives the typical time of the name when the entries were logged on another day', async () => {
+    const d = db();
+    await oldEntry(d, 0, at(8));
+    const late = await oldEntry(d, 0, eatenAtOf('2026-11-20', 10, 0));
+    await moveEntriesToNewDiaryMeal(d, DATE, [late.id]);
+    expect((await recordOf(d, late.id)).eatenAt).toBe(at(12, 30));
+  });
+
+  it('leaves the meal without a record that shares the index with its entries', async () => {
+    const d = db();
+    for (const slot of [0, 1, 2]) await oldEntry(d, slot, at(8 + slot));
+    const snack = await oldEntry(d, 3, at(23));
+    const moving = await oldEntry(d, 0, at(22));
+    expect((await moveEntriesToNewDiaryMeal(d, DATE, [moving.id]))!.name).toBe('Weitere Mahlzeit');
+    const day = await readDay(d, DATE);
+    expect(day.find((m) => m.name === 'Snacks')!.entries.map((e) => e.id)).toEqual([snack.id]);
+    expect(day.find((m) => m.name === 'Weitere Mahlzeit')).toMatchObject({ slot: 3, eatenAt: at(22) });
+    expect(day.find((m) => m.name === 'Weitere Mahlzeit')!.entries.map((e) => e.id)).toEqual([moving.id]);
+  });
+
+  it('undo puts the entries back; the new meal disappears and its name is free again', async () => {
+    const d = db();
+    const a = await oldEntry(d, 0, at(8));
+    const b = await oldEntry(d, 0, at(9));
+    const before = await readNextMeal(d, DATE);
+    const { moved } = (await moveEntriesToNewDiaryMeal(d, DATE, [b.id]))!;
+    await restoreEntryMeals(d, moved);
+    const day = await readDay(d, DATE);
+    expect(day.map((m) => [m.name, m.entries.map((e) => e.id)])).toEqual([['Frühstück', [a.id, b.id]]]);
+    expect(await readNextMeal(d, DATE)).toEqual(before);
+  });
+
+  it("writes nothing for deleted, missing or other days' entries", async () => {
+    const d = db();
+    const gone = await oldEntry(d, 0, at(8));
+    await deleteRecord(d, 'foodEntries', gone.id);
+    const other = await oldEntry(d, 0, at(8), { date: '2026-11-18' });
+    await d.outbox.clear();
+    expect(await moveEntriesToNewDiaryMeal(d, DATE, [gone.id, other.id, 'missing'])).toBeNull();
+    expect(await d.diaryMeals.count()).toBe(0);
+    expect(await d.outbox.count()).toBe(0);
+  });
+
+  it('writes neither the meal nor any entry when the transaction fails', async () => {
+    const d = db();
+    const a = await oldEntry(d, 0, at(8));
+    const broken = await oldEntry(d, 0, at(9));
+    // A record the schema refuses: its patch throws inside the transaction.
+    await d.foodEntries.put({ ...broken, name: '' });
+    await d.outbox.clear();
+    await expect(moveEntriesToNewDiaryMeal(d, DATE, [a.id, broken.id])).rejects.toThrow();
+    expect(await d.diaryMeals.count()).toBe(0);
+    expect(await d.outbox.count()).toBe(0);
+    expect((await d.foodEntries.get(a.id))!.diaryMealId).toBeNull();
   });
 });
 

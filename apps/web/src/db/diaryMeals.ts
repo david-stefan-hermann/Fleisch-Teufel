@@ -398,21 +398,73 @@ export async function moveEntriesToDiaryMeal(
   return db.transaction('rw', [db.foodEntries, db.diaryMeals, db.settings, db.outbox], async () => {
     // The queue is outside this transaction, and only the entries matter here.
     const day = await buildDay(db, target.date, []);
-    const moved: EntryMealPlace[] = [];
-    for (const id of ids) {
-      const prev = await db.foodEntries.get(id);
-      if (!prev || prev.deleted) continue;
-      if (prev.meal === target.slot && prev.diaryMealId === target.id) continue;
-      const source = day.find((m) => m.entries.some((e) => e.id === id));
-      if (source?.id === target.id) continue;
-      if (source) await keepMeal(db, source, day);
-      await keepMeal(db, target, day);
-      // Undo puts it back into the meal it showed in, by id: by its index alone it could join the target.
-      moved.push({ id, meal: prev.meal, diaryMealId: source?.id ?? prev.diaryMealId ?? null });
-      await patchRecord(db, 'foodEntries', id, { meal: target.slot, diaryMealId: target.id });
-    }
-    return moved;
+    return moveInto(db, day, ids, target, target);
   });
+}
+
+/**
+ * Moves entries of a day into a new meal (dropped below the last one): the next name of the day (the
+ * meals they leave still count), the time of the youngest of them. Null when none of them is a live
+ * entry of that day; then nothing is written. Undo with `restoreEntryMeals`.
+ */
+export async function moveEntriesToNewDiaryMeal(
+  db: UserDb,
+  date: ISODate,
+  ids: readonly string[],
+): Promise<{ name: string; moved: EntryMealPlace[] } | null> {
+  const target = await prepareMealTarget(db, { date, meal: 0, dm: 'new' });
+  const { name } = target.create!;
+  return db.transaction('rw', [db.foodEntries, db.diaryMeals, db.settings, db.outbox], async () => {
+    const day = await buildDay(db, date, []);
+    const entries = (await db.foodEntries.bulkGet([...ids])).filter(
+      (e): e is FoodEntry => !!e && !e.deleted && e.date === date,
+    );
+    if (entries.length === 0) return null;
+    const { standard } = await mealNames(db);
+    const youngest = Math.max(...entries.map((e) => e.loggedAt));
+    const { meal, diaryMealId } = await applyLogTarget(db, {
+      ...target,
+      create: { name, eatenAt: newMealEatenAt(date, name, standard, youngest) },
+    });
+    const into = { id: diaryMealId!, slot: meal };
+    return {
+      name,
+      moved: await moveInto(
+        db,
+        day,
+        entries.map((e) => e.id),
+        into,
+        null,
+      ),
+    };
+  });
+}
+
+/**
+ * Inside a move's transaction: writes down the meals the entries leave (and the target, when the day
+ * shows it) so they keep name and time, then attaches the entries. Gives where they were.
+ */
+async function moveInto(
+  db: UserDb,
+  day: readonly DiaryDayMeal[],
+  ids: readonly string[],
+  into: Pick<DayMeal, 'id' | 'slot'>,
+  shown: DiaryDayMeal | null,
+): Promise<EntryMealPlace[]> {
+  const moved: EntryMealPlace[] = [];
+  for (const id of ids) {
+    const prev = await db.foodEntries.get(id);
+    if (!prev || prev.deleted) continue;
+    if (prev.meal === into.slot && prev.diaryMealId === into.id) continue;
+    const source = day.find((m) => m.entries.some((e) => e.id === id));
+    if (source?.id === into.id) continue;
+    if (source) await keepMeal(db, source, day);
+    if (shown) await keepMeal(db, shown, day);
+    // Undo puts it back into the meal it showed in, by id: by its index alone it could join the target.
+    moved.push({ id, meal: prev.meal, diaryMealId: source?.id ?? prev.diaryMealId ?? null });
+    await patchRecord(db, 'foodEntries', id, { meal: into.slot, diaryMealId: into.id });
+  }
+  return moved;
 }
 
 /**
