@@ -37,7 +37,13 @@ import { MealNameMenu } from './MealNameMenu';
 import { MealSuggestions } from './MealSuggestions';
 import { MealTimeDialog } from './MealTimeDialog';
 import { PendingAnalysisRow } from './PendingAnalysisRow';
-import { DraggableRow, useDiaryDrag, useMealDropZone, type DragRowData } from './DiaryDnd';
+import {
+  DraggableRow,
+  useDiaryDrag,
+  useMealDropZone,
+  useNewMealDropZone,
+  type DragRowData,
+} from './DiaryDnd';
 import { readExpanded, setGroupExpanded } from './expandedGroups';
 import { warmUpCamera } from '@/components/cameraWarmup';
 
@@ -262,17 +268,34 @@ export function EmptyMealCard({
 /** End of the meal list: the food page for a new meal of this day. */
 export function AddMealLink({ date, next }: { date: ISODate; next: MealChoice['next'] }) {
   const startLogging = useStartLogging(date);
+  // Always mounted, so dnd-kit knows the target when a drag starts.
+  const { setDropRef, isOver, dragging } = useNewMealDropZone();
   return (
-    <Link
-      to="/photo"
-      preload="intent"
-      onClick={startLogging}
-      search={{ date, meal: next.slot, dm: 'new' }}
-      className="mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-    >
-      <Plus className="size-4" aria-hidden />
-      Mahlzeit hinzufügen
-    </Link>
+    <div ref={setDropRef} data-new-meal-drop className="mb-4">
+      {dragging ? (
+        <div
+          className={cn(
+            'flex h-16 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-medium text-muted-foreground transition-[box-shadow,background-color] motion-reduce:transition-none',
+            isOver && 'bg-primary/5 ring-2 ring-primary/60',
+          )}
+        >
+          <Plus className="size-4" aria-hidden />
+          Neue Mahlzeit
+          <span className="font-normal">{next.name}</span>
+        </div>
+      ) : (
+        <Link
+          to="/photo"
+          preload="intent"
+          onClick={startLogging}
+          search={{ date, meal: next.slot, dm: 'new' }}
+          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+          <Plus className="size-4" aria-hidden />
+          Mahlzeit hinzufügen
+        </Link>
+      )}
+    </div>
   );
 }
 

@@ -143,8 +143,9 @@ export function DiaryPage() {
           {showsWeekReview(date, today) && <WeekReviewCard today={today} />}
           {/* Set up before the four goals: offer the new calculation once (X hides it). */}
           {date === today && <RecalcGoalCard today={today} />}
-          {/* Long press on an entry, then drop it on another meal to move it there. */}
-          <DiaryDnd meals={meals}>
+          {/* Long press on an entry, then drop it on another meal to move it there, or below the
+              last meal to begin a new one. */}
+          <DiaryDnd date={date} meals={meals}>
             {meals.map((meal) => (
               <MealCard
                 key={meal.id}
@@ -153,16 +154,15 @@ export function DiaryPage() {
                 suggestions={suggestions?.get(meal.id)}
               />
             ))}
+            {meals.length > 0 && <AddMealLink date={date} next={next} />}
           </DiaryDnd>
-          {meals.length === 0 ? (
+          {meals.length === 0 && (
             <EmptyMealCard
               date={date}
               next={next}
               clipboard={foodClipboard(clipboard)}
               suggestions={suggestions?.get(NEXT_MEAL_KEY)}
             />
-          ) : (
-            <AddMealLink date={date} next={next} />
           )}
           <ExerciseCard
             date={date}

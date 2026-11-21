@@ -247,6 +247,111 @@ test('a meal dragged empty disappears, undo brings it back with name and time', 
   await expect(row(page, 'Mittagessen', 'Apfel')).toHaveCount(0);
 });
 
+/** Long press on a row, then along to the drop target below the last meal; `during` runs before letting go. */
+async function dragToNewMeal(page: Page, text: string, during?: () => Promise<void>) {
+  const handle = page.getByText(text, { exact: true });
+  await handle.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+  const from = (await handle.boundingBox())!;
+  const [x, y] = [from.x + 20, from.y + from.height / 2];
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.waitForTimeout(450);
+  // Measured once the drag runs: the target grows then.
+  const target = page.locator('[data-new-meal-drop] > div');
+  await expect(target).toBeVisible();
+  const to = (await target.boundingBox())!;
+  const steps = 12;
+  for (let i = 1; i <= steps; i++) await page.mouse.move(x, y + ((to.y + to.height / 2 - y) * i) / steps);
+  await expect(target).toHaveClass(/ring-2/);
+  await during?.();
+  await page.mouse.up();
+}
+
+test('a row dropped below the last meal begins a new one at the time of the entry', async ({ page }) => {
+  const noon = await startAtNoon(page);
+  await openFoodPage(page);
+  await logQuick(page, 'Apfel', 80);
+  await page.clock.setFixedTime(noon + MINUTE);
+  await openFoodPage(page);
+  await logQuick(page, 'Brot', 200);
+  await page.clock.setFixedTime(noon + 60 * MINUTE);
+
+  await dragToNewMeal(page, 'Apfel', async () => {
+    await expect(page.locator('[data-new-meal-drop]')).toContainText('Neue Mahlzeit');
+    await expect(page.locator('[data-new-meal-drop]')).toContainText('Mittagessen');
+    await expect(page.getByRole('link', { name: 'Mahlzeit hinzufügen' })).toHaveCount(0);
+  });
+  const message = 'Apfel in neue Mahlzeit „Mittagessen“ verschoben';
+  await expect(page.getByText(message, { exact: true })).toBeVisible();
+  await expect(row(page, 'Mittagessen', 'Apfel')).toBeVisible();
+  // The time of the entry, not of the drop.
+  await expect(timeOf(page, 'Mittagessen')).toHaveText('12:00');
+  await expect(row(page, 'Frühstück', 'Brot')).toBeVisible();
+  await expect(row(page, 'Frühstück', 'Apfel')).toHaveCount(0);
+
+  await undo(page, message);
+  await expect(row(page, 'Frühstück', 'Apfel')).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Mittagessen' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Mahlzeit hinzufügen' })).toBeVisible();
+});
+
+test('the only entry of a meal dropped below: the meal stays during the drag, then a new one replaces it', async ({
+  page,
+}) => {
+  const noon = await startAtNoon(page);
+  await openFoodPage(page);
+  await logQuick(page, 'Apfel', 80);
+  await page.clock.setFixedTime(noon + 60 * MINUTE);
+
+  await dragToNewMeal(page, 'Apfel', async () => {
+    await expect(page.getByRole('heading', { level: 2, name: 'Frühstück' })).toBeVisible();
+  });
+  const message = 'Apfel in neue Mahlzeit „Mittagessen“ verschoben';
+  await expect(page.getByText(message, { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Frühstück' })).toHaveCount(0);
+  await expect(row(page, 'Mittagessen', 'Apfel')).toBeVisible();
+
+  await undo(page, message);
+  await expect(row(page, 'Frühstück', 'Apfel')).toBeVisible();
+  await expect(timeOf(page, 'Frühstück')).toHaveText('12:00');
+  await expect(page.getByRole('heading', { level: 2, name: 'Mittagessen' })).toHaveCount(0);
+});
+
+test('a group dropped below the last meal moves whole', async ({ page }) => {
+  const noon = await startAtNoon(page);
+  await openFoodPage(page);
+  await logQuick(page, 'Joghurt', 150);
+  await openFoodPage(page);
+  await logQuick(page, 'Beeren', 40);
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Als Meal speichern' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Als Meal speichern' });
+  await dialog.getByLabel('Name').fill('Bowl');
+  await dialog.getByRole('button', { name: 'Meal speichern' }).click();
+  await expect(page.getByText('„Bowl“ gespeichert')).toBeVisible();
+  await page.getByRole('button', { name: 'Aktionen für Frühstück' }).click();
+  await page.getByRole('menuitem', { name: 'Mahlzeit löschen' }).click();
+  await expect(page.getByText('Frühstück gelöscht')).toBeVisible();
+  await openFoodPage(page);
+  await logQuick(page, 'Brot', 200);
+  await page.clock.setFixedTime(noon + 10 * MINUTE);
+  await page.goto('/add?meal=0&tab=mine');
+  await page.getByRole('link', { name: /Bowl/ }).click();
+  await page.getByRole('button', { name: /kcal eintragen$/ }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await expect(mealCard(page, 'Frühstück').getByRole('link', { name: 'Bowl', exact: true })).toBeVisible();
+
+  await dragToNewMeal(page, 'Bowl');
+  await expect(
+    page.getByText('Bowl in neue Mahlzeit „Mittagessen“ verschoben', { exact: true }),
+  ).toBeVisible();
+  const lunch = mealCard(page, 'Mittagessen');
+  await expect(lunch.getByRole('link', { name: 'Bowl', exact: true })).toBeVisible();
+  await expect(lunch.getByRole('button', { name: '2 Zutaten von Bowl' })).toBeVisible();
+  await expect(timeOf(page, 'Mittagessen')).toHaveText('12:10');
+  await expect(row(page, 'Frühstück', 'Brot')).toBeVisible();
+});
+
 test('a day from before the meals keeps the order of its four slots', async ({ page }) => {
   const noon = await startAtNoon(page);
   await page.goto('/photo?form=1&meal=2');

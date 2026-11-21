@@ -9,9 +9,10 @@
  * drag movement cannot open a delete button. Mouse and touch sensors (not the pointer sensor): on
  * iOS a vertical pointer move hands the gesture to the browser's scrolling and cancels the drag,
  * the touch sensor prevents that once the drag is active. Keyboard users change the meal of an
- * entry on its detail page instead.
+ * entry on its detail page instead. While a drag runs, "Mahlzeit hinzufügen" below the last meal is a
+ * drop target too: a row dropped there begins a new meal (`moveEntriesToNewDiaryMeal`).
  */
-import { get, N, type NutrientMap } from '@ft/shared';
+import { get, N, type ISODate, type NutrientMap } from '@ft/shared';
 import {
   DndContext,
   DragOverlay,
@@ -30,7 +31,13 @@ import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { moveEntriesToDiaryMeal, restoreEntryMeals, type DiaryDayMeal } from '@/db/diaryMeals';
+import {
+  moveEntriesToDiaryMeal,
+  moveEntriesToNewDiaryMeal,
+  restoreEntryMeals,
+  type DiaryDayMeal,
+  type EntryMealPlace,
+} from '@/db/diaryMeals';
 import { errorMessage } from '@/lib/api';
 import { fmt0 } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -66,7 +73,15 @@ export function useDiaryDrag() {
   return useContext(DragState);
 }
 
-export function DiaryDnd({ meals, children }: { meals: readonly DiaryDayMeal[]; children: ReactNode }) {
+export function DiaryDnd({
+  date,
+  meals,
+  children,
+}: {
+  date: ISODate;
+  meals: readonly DiaryDayMeal[];
+  children: ReactNode;
+}) {
   const db = useDb();
   const sensors = useDragSensors();
   const [active, setActive] = useState<DragRowData | null>(null);
@@ -76,21 +91,31 @@ export function DiaryDnd({ meals, children }: { meals: readonly DiaryDayMeal[]; 
     const id = (data as { meal?: string } | undefined)?.meal;
     return meals.find((m) => m.id === id);
   };
+  const isNewMeal = (data: unknown) => !!(data as { newMeal?: boolean } | undefined)?.newMeal;
 
   async function onDragEnd(e: DragEndEvent) {
     setActive(null);
     const row = rowOf(e.active.data.current);
+    const newMeal = isNewMeal(e.over?.data.current);
     const target = mealOf(e.over?.data.current);
-    if (!row || !target || target.id === row.meal) return;
+    if (!row || (!newMeal && (!target || target.id === row.meal))) return;
     // One move at a time: a second drop while the first is written is ignored.
     if (moving.current) return;
     moving.current = true;
+    const undo = (moved: EntryMealPlace[]) => ({
+      label: 'Rückgängig',
+      onClick: () => void restoreEntryMeals(db, moved),
+    });
     try {
-      const moved = await moveEntriesToDiaryMeal(db, row.ids, target);
+      if (newMeal) {
+        const result = await moveEntriesToNewDiaryMeal(db, date, row.ids);
+        if (!result) return;
+        toast(`${row.name} in neue Mahlzeit „${result.name}“ verschoben`, { action: undo(result.moved) });
+        return;
+      }
+      const moved = await moveEntriesToDiaryMeal(db, row.ids, target!);
       if (moved.length === 0) return;
-      toast(`${row.name} zu ${target.name} verschoben`, {
-        action: { label: 'Rückgängig', onClick: () => void restoreEntryMeals(db, moved) },
-      });
+      toast(`${row.name} zu ${target!.name} verschoben`, { action: undo(moved) });
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
@@ -103,11 +128,13 @@ export function DiaryDnd({ meals, children }: { meals: readonly DiaryDayMeal[]; 
     onDragStart: ({ active }) => `${rowOf(active.data.current)?.name ?? 'Eintrag'} aufgenommen.`,
     onDragOver: ({ active, over }) => {
       const name = rowOf(active.data.current)?.name ?? 'Eintrag';
+      if (isNewMeal(over?.data.current)) return `${name} ist über „Neue Mahlzeit“.`;
       const m = mealOf(over?.data.current);
       return m ? `${name} ist über ${m.name}.` : `${name} ist über keiner Mahlzeit.`;
     },
     onDragEnd: ({ active, over }) => {
       const row = rowOf(active.data.current);
+      if (isNewMeal(over?.data.current)) return `${row?.name ?? 'Eintrag'} in eine neue Mahlzeit verschoben.`;
       const m = mealOf(over?.data.current);
       return !m || m.id === row?.meal
         ? `${row?.name ?? 'Eintrag'} nicht verschoben.`
@@ -179,4 +206,11 @@ export function useMealDropZone(meal: string) {
   const { setNodeRef, isOver, active } = useDroppable({ id: `meal-${meal}`, data: { meal } });
   const from = (active?.data.current as DragRowData | undefined)?.meal;
   return { setDropRef: setNodeRef, isOver: isOver && from !== meal };
+}
+
+/** Drop target below the last meal: a row dropped there begins a new meal. */
+export function useNewMealDropZone() {
+  const { setNodeRef, isOver } = useDroppable({ id: 'meal-new', data: { newMeal: true } });
+  const { dragging } = useDiaryDrag();
+  return { setDropRef: setNodeRef, isOver, dragging };
 }

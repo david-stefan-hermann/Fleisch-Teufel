@@ -2314,7 +2314,7 @@ describe('diary meal cards', () => {
   }
   const renderCard = (m: DiaryDayMeal) =>
     renderInRouter(
-      <DiaryDnd meals={[m]}>
+      <DiaryDnd date={m.date} meals={[m]}>
         <MealCard meal={m} />
       </DiaryDnd>,
     );
