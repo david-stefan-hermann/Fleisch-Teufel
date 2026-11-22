@@ -10,6 +10,9 @@
  * drawn from 0 (the lower ones cover the higher ones). Inner segments set `gapAbove` for the 2 px
  * surface gap and square tops; segment series usually set `legend: false`, and a `kind: 'legend'`
  * series carries the real value into the legend.
+ *
+ * Rays: straight segments between two dates (forecasts), drawn under the series; the ray that starts
+ * on the day under the cursor (else the newest day) is highlighted.
  */
 import { useEffect, useRef } from 'react';
 import uPlot, { type AlignedData, type Options, type Series } from 'uplot';
@@ -28,12 +31,22 @@ export interface ChartSeries {
   kind?: 'line' | 'bars' | 'points' | 'step' | 'legend';
   /** false: no legend row, no screen reader column, no cursor point (stack segments). */
   legend?: false;
+  /** false: no cursor point (a legend value that belongs to another x, like a forecast's end). */
+  cursorPoint?: false;
   /** Bars only: inner stack segment with a square top and a 2 px surface gap above it. */
   gapAbove?: boolean;
   dash?: number[];
   width?: number;
   /** Value formatter for legend/tooltip. */
   format?: (v: number) => string;
+}
+
+export interface ChartRay {
+  /** ISO dates and values of both ends. */
+  from: string;
+  to: string;
+  y0: number;
+  y1: number;
 }
 
 interface ChartProps {
@@ -47,6 +60,10 @@ interface ChartProps {
   yRange?: [number | null, number | null];
   /** Fixed x-range [from, to] as ISO dates (keeps the period visible with few points). */
   xRange?: [string, string];
+  rays?: ChartRay[];
+  /** CSS custom properties: all rays, and the one of the day under the cursor. */
+  rayColor?: string;
+  rayActiveColor?: string;
 }
 
 function cssVar(name: string, el: Element): string {
@@ -61,19 +78,28 @@ const dateLong = new Intl.DateTimeFormat('de-DE', {
   year: 'numeric',
 });
 
-export function Chart({ data, series, height = 220, title, yRange, xRange }: ChartProps) {
+export function Chart({
+  data,
+  series,
+  height = 220,
+  title,
+  yRange,
+  xRange,
+  rays,
+  rayColor = '--muted-foreground',
+  rayActiveColor = '--primary',
+}: ChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   // Colors are read from CSS variables: rebuild when the app theme changes.
   const dark = useAppearance().mode === 'dark';
   // Latest props for the long-lived plot (formatters, ranges, data at build time).
-  const latest = useRef({ data, series, yRange, xRange });
+  const latest = useRef({ data, series, yRange, xRange, rays, rayColor, rayActiveColor });
   useEffect(() => {
-    latest.current = { data, series, yRange, xRange };
+    latest.current = { data, series, yRange, xRange, rays, rayColor, rayActiveColor };
   });
   // Rebuild only when the series change in shape or style, not for new values or ranges.
   const structure = JSON.stringify(series.map(({ format: _format, ...rest }) => rest));
-  const hasYRange = yRange !== undefined;
 
   useEffect(() => {
     const el = wrap.current;
@@ -82,6 +108,10 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
     const ink = cssVar('--muted-foreground', el);
     const grid = cssVar('--border', el);
     const surface = cssVar('--card', el);
+    const rayInk = cssVar(latest.current.rayColor, el);
+    const rayActiveInk = cssVar(latest.current.rayActiveColor, el);
+    // Index of the day whose ray was drawn highlighted: redraw only when the cursor changes day.
+    let rayIdx: number | null = null;
     const s: Series[] = [
       { label: 'Datum', value: (_u, v) => (v == null ? NO_VALUE : dateLong.format(new Date(v * 1000))) },
       ...cfgs.map((cfg, i): Series => {
@@ -136,6 +166,8 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
         setCursor: [
           (u) => {
             if (u.cursor.idx == null) u.setLegend({ idx: lastIndex(u.data) });
+            if (!latest.current.rays?.length) return;
+            if (activeRayIndex(u) !== rayIdx) u.redraw(false);
           },
         ],
         ready: [
@@ -145,11 +177,17 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
             const rows = u.root.querySelectorAll<HTMLElement>('.u-legend .u-series');
             const pts = u.root.querySelectorAll<HTMLElement>('.u-cursor-pt');
             cfgs.forEach((cfg, i) => {
-              if (cfg.legend !== false) return;
-              if (rows[i + 1]) rows[i + 1]!.style.display = 'none';
-              if (pts.length === cfgs.length) pts[i]!.style.display = 'none';
+              if (cfg.legend === false && rows[i + 1]) rows[i + 1]!.style.display = 'none';
+              if ((cfg.legend === false || cfg.cursorPoint === false) && pts.length === cfgs.length)
+                pts[i]!.style.display = 'none';
             });
             u.setLegend({ idx: lastIndex(u.data) });
+          },
+        ],
+        drawAxes: [
+          (u) => {
+            rayIdx = activeRayIndex(u);
+            drawRays(u, latest.current.rays, rayIdx, rayInk, rayActiveInk);
           },
         ],
         drawSeries: [(u, si) => cfgs[si - 1]?.gapAbove && drawGapAbove(u, si, surface)],
@@ -162,14 +200,21 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
             return r ? [xOf(r[0]) - 43_200, xOf(r[1]) + 43_200] : [min, max];
           },
         },
-        y: hasYRange
-          ? {
-              range: (_u, min, max): [number, number] => {
-                const r = latest.current.yRange;
-                return [r?.[0] ?? min, r?.[1] ?? max];
-              },
-            }
-          : {},
+        y: {
+          range: (_u, min, max): uPlot.Range.MinMax => {
+            const r = latest.current.yRange;
+            if (r) return [r[0] ?? min, r[1] ?? max];
+            // uPlot's own padding, around the data and the ends of the rays.
+            let lo: number | null = min;
+            let hi: number | null = max;
+            for (const ray of latest.current.rays ?? [])
+              for (const y of [ray.y0, ray.y1]) {
+                lo = lo == null ? y : Math.min(lo, y);
+                hi = hi == null ? y : Math.max(hi, y);
+              }
+            return lo == null || hi == null ? [null, null] : uPlot.rangeNum(lo, hi, 0.1, true);
+          },
+        },
       },
       axes: [
         {
@@ -198,7 +243,7 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [structure, height, dark, hasYRange]);
+  }, [structure, height, dark]);
 
   // New values (another period, a new entry) update the existing plot.
   useEffect(() => {
@@ -207,6 +252,11 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
     u.setData(data);
     u.setLegend({ idx: lastIndex(data) });
   }, [data]);
+
+  // New rays alone (data unchanged) need a fresh scale and a repaint.
+  useEffect(() => {
+    plot.current?.redraw();
+  }, [rays]);
 
   const xs = data[0] as number[];
   const tableSeries = series.map((s, si) => ({ s, si })).filter(({ s }) => s.legend !== false);
@@ -301,6 +351,56 @@ function drawGapAbove(u: uPlot, si: number, surface: string) {
   });
   ctx.restore();
 }
+
+/** Index of the day whose ray is highlighted: the day under the cursor, else the newest. */
+function activeRayIndex(u: uPlot): number {
+  return u.cursor.idx ?? lastIndex(u.data);
+}
+
+/** Paints the rays (thin, translucent) and then the one starting on the active day on top. */
+function drawRays(
+  u: uPlot,
+  rays: readonly ChartRay[] | undefined,
+  activeIdx: number,
+  ink: string,
+  activeInk: string,
+) {
+  if (!rays?.length) return;
+  const ratio = window.devicePixelRatio || 1;
+  const activeX = (u.data[0] as number[])[activeIdx];
+  const ctx = u.ctx;
+  const { left, top, width, height } = u.bbox;
+  const line = (r: ChartRay) => {
+    ctx.moveTo(u.valToPos(xOf(r.from), 'x', true), u.valToPos(r.y0, 'y', true));
+    ctx.lineTo(u.valToPos(xOf(r.to), 'x', true), u.valToPos(r.y1, 'y', true));
+  };
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(left, top, width, height);
+  ctx.clip();
+  ctx.lineWidth = ratio;
+  ctx.strokeStyle = ink;
+  ctx.globalAlpha = RAY_ALPHA;
+  ctx.beginPath();
+  let active: ChartRay | undefined;
+  for (const r of rays) {
+    if (xOf(r.from) === activeX) active = r;
+    else line(r);
+  }
+  ctx.stroke();
+  if (active) {
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2 * ratio;
+    ctx.strokeStyle = activeInk;
+    ctx.setLineDash([4 * ratio, 4 * ratio]);
+    ctx.beginPath();
+    line(active);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+const RAY_ALPHA = 0.35;
 
 /** Index of the newest x that has at least one non-null value. */
 function lastIndex(data: AlignedData): number {
