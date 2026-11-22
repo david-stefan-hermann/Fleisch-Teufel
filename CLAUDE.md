@@ -443,8 +443,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   `FORECAST_MIN_DAYS` complete days); no forecast with a weigh-in older than 14 days. With own data the slope is the
   28-day weight trend. Retrospective from today's records (a later entry or profile change moves old rays),
   nothing is stored. `weightChart` (`features/progress/weightChart.ts`, pure): with forecasts the x values are
-  every day, the legend series "Prognose +N T" names the end of the day's ray, the x range reaches today + the
-  horizon (7 T: 7 days, 30 T: 14, 90 T and Alle: 28), at most `MAX_RAYS` rays. Off, the chart is as before.
+  every day, every ray reaches to the end of the period (today; user decision 2026-11-22, no look into the future),
+  the legend series "Prognose für heute" names the end of the day's ray, at most `MAX_RAYS` rays. Off, the chart
+  is as before.
 - Appearance (Mehr → Aussehen, per device in `localStorage`): app theme system/light/dark and logo variant
   (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
   `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.

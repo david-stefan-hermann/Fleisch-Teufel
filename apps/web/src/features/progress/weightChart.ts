@@ -1,6 +1,6 @@
 import {
-  addDays,
   dateRange,
+  diffDays,
   forecastAt,
   round,
   type DayForecast,
@@ -35,8 +35,8 @@ export function thinForecasts(list: readonly DayForecast[], max = MAX_RAYS): Day
 
 /**
  * Data of the weight chart: weigh-ins, their 7-day mean and the target. With forecasts the x values
- * are every day from `from` to today (each day gets a cursor position and so its ray), a legend
- * series names the forecast weight `horizon` days later, and the x range reaches that far.
+ * are every day from `from` to today (each day gets a cursor position and so its ray), every ray
+ * reaches to today (the end of the period) and a legend series names the weight it forecast for today.
  */
 export function weightChart(params: {
   /** Weigh-ins of the period, ascending. */
@@ -48,9 +48,8 @@ export function weightChart(params: {
   today: ISODate;
   /** The forecasts of the single days; empty or undefined while off. */
   forecasts?: readonly DayForecast[];
-  horizon: number;
 }): WeightChart {
-  const { visible, target, from, today, horizon } = params;
+  const { visible, target, from, today } = params;
   const avgByDate = new Map(params.avg.map((p) => [p.date, p.kg]));
   const forecasts = thinForecasts((params.forecasts ?? []).filter((f) => f.date >= from && f.date <= today));
   const withRays = forecasts.length > 0;
@@ -80,13 +79,13 @@ export function weightChart(params: {
   if (withRays) {
     rays = forecasts.map((f) => ({
       from: f.date,
-      to: addDays(f.date, horizon),
+      to: today,
       y0: f.startKg,
-      y1: forecastAt(f, horizon).kg,
+      y1: forecastAt(f, diffDays(f.date, today)).kg,
     }));
     const end = new Map(rays.map((r) => [r.from, round(r.y1, 2)]));
     series.push({
-      label: `Prognose +${horizon} T`,
+      label: 'Prognose für heute',
       color: '--primary',
       kind: 'legend',
       cursorPoint: false,
@@ -105,6 +104,6 @@ export function weightChart(params: {
     series,
     yRange: flat ? [values[0]! - 2, values[0]! + 2] : undefined,
     rays,
-    xRange: [from, withRays ? addDays(today, horizon) : today],
+    xRange: [from, today],
   };
 }

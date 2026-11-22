@@ -975,7 +975,7 @@ test('weight chart: forecasts of the single days, switch kept per device', async
   await page.reload();
   // The hidden table for screen readers (uPlot's legend is a table too).
   const chart = page.locator('figure.ft-chart table.sr-only');
-  const forecastColumn = chart.locator('th', { hasText: 'Prognose +14 T' });
+  const forecastColumn = chart.locator('th', { hasText: 'Prognose für heute' });
   await expect(chart.locator('th', { hasText: '7-Tage-Mittel' })).toHaveCount(1);
   await expect(forecastColumn).toHaveCount(0);
 

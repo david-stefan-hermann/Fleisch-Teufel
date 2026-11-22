@@ -22,12 +22,14 @@ Abweichungen vom Plan:
   Cursors, obwohl der Wert zum Ende des Strahls gehört.
 - Kein Deckel für „Alle“: drei Jahre synthetische Daten rechnen in etwa 60 ms (warm, 100 ms beim ersten Lauf).
 - Der Schalter steht immer unter dem Diagramm, sobald der Zeitraum Wiegungen hat.
+- A2 ersetzt (Nutzer, 2026-11-22): Jeder Strahl reicht bis zum Ende des Zeitraums (heute), nicht einen festen
+  Horizont weit. Die x-Achse endet wie ohne Prognosen bei heute, die Legende heißt „Prognose für heute“ und nennt,
+  was der Tag unter dem Cursor für heute vorhergesagt hat.
 
 Prüfung: `pnpm lint`, `pnpm typecheck`, `pnpm test` grün; E2E `weight chart: forecasts …` und `ios-layout` grün.
 Sichtprüfung mit den Demo-Daten (390 × 844, hell und dunkel, alle vier Zeiträume): Mit Schalter aus ist die
 Leinwand pixelgleich zum Stand vor dem Umbau (alter und neuer Build gegen dieselbe Datenbank verglichen). Offen:
-A1 (Modell) und A2 (Horizont) bestätigt der Nutzer anhand der Screenshots; bei 7 T nimmt die Zukunft die halbe
-Breite ein.
+A1 (Modell).
 
 ## Context
 

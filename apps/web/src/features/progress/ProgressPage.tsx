@@ -42,12 +42,11 @@ import { useForecastPref } from './forecastPref';
 import { weightChart } from './weightChart';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
-/** `horizon`: days each forecast ray reaches ahead. */
 const RANGES = [
-  { id: '7', label: '7 T', days: 7, horizon: 7 },
-  { id: '30', label: '30 T', days: 30, horizon: 14 },
-  { id: '90', label: '90 T', days: 90, horizon: 28 },
-  { id: 'all', label: 'Alle', days: null, horizon: 28 },
+  { id: '7', label: '7 T', days: 7 },
+  { id: '30', label: '30 T', days: 30 },
+  { id: '90', label: '90 T', days: 90 },
+  { id: 'all', label: 'Alle', days: null },
 ] as const;
 
 const kg = (v: number) => `${fmt2(v)} kg`;
@@ -100,9 +99,8 @@ export function ProgressPage() {
         from,
         today,
         forecasts: forecastsOn ? forecasts : undefined,
-        horizon: range.horizon,
       }),
-    [visible, avg, target, from, today, forecasts, forecastsOn, range.horizon],
+    [visible, avg, target, from, today, forecasts, forecastsOn],
   );
 
   const change = (days: number) => {
