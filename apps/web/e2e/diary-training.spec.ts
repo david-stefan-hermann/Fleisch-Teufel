@@ -975,7 +975,7 @@ test('weight chart: forecasts of the single days, switch kept per device', async
   await page.reload();
   // The hidden table for screen readers (uPlot's legend is a table too).
   const chart = page.locator('figure.ft-chart table.sr-only');
-  const forecastColumn = chart.locator('th', { hasText: 'Prognose für heute' });
+  const forecastColumn = chart.locator('th', { hasText: /^Prognose$/ });
   await expect(chart.locator('th', { hasText: '7-Tage-Mittel' })).toHaveCount(1);
   await expect(forecastColumn).toHaveCount(0);
 
@@ -983,9 +983,16 @@ test('weight chart: forecasts of the single days, switch kept per device', async
   await expect(toggle).not.toBeChecked();
   await toggle.click();
   await expect(forecastColumn).toHaveCount(1);
-  await expect(page.getByRole('img', { name: /und Prognosen der einzelnen Tage$/ })).toBeVisible();
-  // Today has a forecast: the last row of the table carries a value in the last column.
-  await expect(chart.locator('tbody tr').last().locator('td').last()).toHaveText(/^\d+,?\d* kg$/);
+  await expect(page.getByRole('img', { name: /der Prognose eines Tages$/ })).toBeVisible();
+  // Today has a forecast 14 days ahead: the last row of the table carries it in the last column.
+  await expect(chart.locator('tbody tr').last().locator('td').last()).toHaveText(/^\d+(,\d)? kg für \d/);
+  // The slider chooses a day: one step back, its forecast is for today, the legend names that day.
+  const slider = page.getByRole('slider', { name: 'Tag der Prognose' });
+  await slider.focus();
+  await page.keyboard.press('ArrowLeft');
+  const legend = page.locator('figure.ft-chart .u-legend');
+  await expect(legend).toContainText('für heute');
+  await expect(legend).toContainText('Erwartet');
 
   await page.reload();
   await expect(toggle).toBeChecked();

@@ -4,7 +4,7 @@ Implementierungsplan für eine neue Opus-5.5-Sitzung. Den Statusblock in dieser 
 
 ## Status
 
-Geplant am 2026-11-22 auf `097201a`, umgesetzt am selben Tag. Nicht gepusht. Push-Stand nie aus diesem Dokument
+Geplant am 2026-11-22 auf `097201a`, umgesetzt am selben Tag, Runde 2 (Darstellung AB) ebenfalls. Nicht gepusht. Push-Stand nie aus diesem Dokument
 ableiten: `git fetch` + `git status -sb`.
 
 | Block | Commit    | Inhalt                                                        |
@@ -262,3 +262,26 @@ slopePerDay * horizon }`, auf `MAX_RAYS` ausgedünnt (A6; der Chart hebt hervor,
 - Screenshots (30 T, hell und dunkel, an) dem Nutzer zeigen, bevor gepusht wird: es gab kein Mockup, das Bild
   ist die Abnahme. Dabei A1 (Modell) und A2 (Horizont) ansprechen.
 - Nicht pushen ohne Auftrag.
+
+## Runde 2: Darstellung AB (Mockup v2)
+
+Der Nutzer fand die Strahlen (Stand `1c77636`) optisch schlecht. Mockup `2026-11-gewichtsprognosen-mockup.html`
+v2, gewählt am 2026-11-22: **AB**, Zeitreise im Erwartungsband. Entscheidungen:
+
+- Es gibt keine Strahlen mehr. Mit eingeschaltetem Schalter liegt das **Erwartungsband** im Hintergrund: für jeden Tag
+  die Spanne dessen, was die Prognosen der 14 Tage davor für ihn vorhergesagt haben (`expectedRange`).
+- Ein **gewählter Tag** (Standard heute; Regler unter dem Diagramm oder Tipp ins Diagramm) zeigt seine Prognose
+  als simulierte Linie mit Band (80 %, `1,28 × √(σ² + (SE × h)²)`) bis heute, am heutigen Tag 14 Tage nach vorn.
+  Gewichte und 7-Tage-Mittel nach dem gewählten Tag werden blass.
+- **Simulierte Schwankung** (Nutzer: die rohe Streuung der Wiegungen ist viel zu unruhig): geschätzt aus der
+  geglätteten echten Kurve, dem 7-Tage-Mittel der 28 Tage bis D minus seiner Trendgeraden: Streuung σ und
+  Lag-1-Autokorrelation φ (0 bis 0,95). Daraus ein AR(1)-Weg um den Trend, deterministisch mit dem Datum als
+  Startwert (`simulateForecast`).
+- Legende: Datum, Gewicht, 7-Tage-Mittel, Ziel, „Erwartet: a bis b kg“, „Prognose: x kg für heute“ (am heutigen
+  Tag „für <Datum + 14>“). Sie zeigt den gewählten Tag, nicht den neuesten.
+- C, D, E des Mockups v1 abgelehnt. Das Modell (A1) bleibt.
+
+Umgesetzt am 2026-11-22. Abweichungen: Der Regler steht unter der Legende (uPlot rendert die Legende direkt unter
+dem Diagramm); die Prognose nennt den Trendwert, nicht das Ende der simulierten Linie; das Erwartungsband ist
+um 0,1 kg je Seite verbreitert, damit ruhige Wochen keine Haarlinie zeichnen; uPlots Cursorlinie ist mit
+Prognosen aus, die Tagesmarke ersetzt sie (sie rastet auf dem Tag ein).

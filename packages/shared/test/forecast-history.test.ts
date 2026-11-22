@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { addDays, dateRange } from '../src/dates.js';
 import { estimateExpenditure } from '../src/expenditure.js';
-import { forecastAt, forecastHistory } from '../src/forecastHistory.js';
+import {
+  curveNoise,
+  expectedRange,
+  forecastAt,
+  forecastHistory,
+  forecastSpread,
+  simulateForecast,
+  type DayForecast,
+} from '../src/forecastHistory.js';
 import { linearTrend, movingAverage } from '../src/forecast.js';
 import { N } from '../src/nutrients.js';
 import type { DailyRow } from '../src/reports.js';
@@ -129,5 +137,73 @@ describe('forecast history', () => {
       forecastHistory({ rows, weights, from: day, to: day, settings, intakeDays })[0]!.netKcal;
     expect(at()).toBe(2500);
     expect(at(7)).toBe(3000);
+  });
+});
+
+const fc = (date: string, over: Partial<DayForecast> = {}): DayForecast => ({
+  date,
+  startKg: 80,
+  slopePerDay: -0.1,
+  maintenanceKcal: 2500,
+  netKcal: 1730,
+  basis: 'data',
+  noiseSdKg: 0.1,
+  noisePhi: 0.8,
+  slopeSeKg: 0.01,
+  ...over,
+});
+
+describe('forecast course', () => {
+  it('measures the fluctuation of the smoothed curve around its trend', () => {
+    const straight = days(20).map((d, i) => ({ date: d, kg: 80 - 0.05 * i }));
+    expect(curveNoise(straight)).toEqual({ sd: 0, phi: 0 });
+    // A slow wave: clearly fluctuating, and one day is much like the one before.
+    const wave = days(28).map((d, i) => ({ date: d, kg: 80 - 0.05 * i + 0.2 * Math.sin(i / 3) }));
+    const n = curveNoise(wave);
+    expect(n.sd).toBeGreaterThan(0.08);
+    expect(n.sd).toBeLessThan(0.2);
+    expect(n.phi).toBeGreaterThan(0.8);
+    expect(curveNoise(wave.slice(0, 3))).toEqual({ sd: 0, phi: 0 });
+  });
+
+  it('takes the noise of the 7-day mean, not of the single weigh-ins', () => {
+    const ds = days(40);
+    const rows = ds.map((d) => row(d, 2000));
+    // Weigh-ins jump ±0,5 kg every other day: the 7-day mean stays calm.
+    const weights = ds.map((d, i) => ({ date: d, kg: 80 - 0.05 * i + (i % 2 ? 0.5 : -0.5) }));
+    const [f] = forecastHistory({ rows, weights, from: ds[39]!, to: ds[39]!, settings });
+    expect(f!.noiseSdKg).toBeLessThan(0.1);
+    expect(f!.slopeSeKg).toBeGreaterThan(0);
+  });
+
+  it('simulates the same course for the same day, around the trend', () => {
+    const f = fc('2026-11-01');
+    const a = simulateForecast(f, 14);
+    expect(a).toHaveLength(15);
+    expect(a[0]).toBe(80);
+    expect(simulateForecast(f, 14)).toEqual(a);
+    expect(simulateForecast(fc('2026-11-02'), 14)).not.toEqual(a);
+    a.forEach((kg, h) => expect(Math.abs(kg - (80 - 0.1 * h))).toBeLessThan(0.6));
+    // Without fluctuation it is the straight trend.
+    expect(simulateForecast(fc('2026-11-01', { noiseSdKg: 0 }), 3)).toEqual([80, 79.9, 79.8, 79.7]);
+  });
+
+  it('widens the band with the days ahead', () => {
+    const f = fc('2026-11-01');
+    expect(forecastSpread(f, 0)).toBeCloseTo(0.128, 6);
+    expect(forecastSpread(f, 14)).toBeGreaterThan(forecastSpread(f, 7));
+  });
+
+  it('expects for a day what the 14 days before it forecast', () => {
+    const byDate = new Map([
+      ['2026-11-01', fc('2026-11-01')], // 9 days before: 79,1
+      ['2026-11-05', fc('2026-11-05', { startKg: 79.8, slopePerDay: 0 })], // 79,8
+      ['2026-10-20', fc('2026-10-20')], // 21 days before: too old
+      ['2026-11-10', fc('2026-11-10', { startKg: 70 })], // the day itself does not count
+    ]);
+    const r = expectedRange(byDate, '2026-11-10')!;
+    expect(r.lo).toBeCloseTo(79.1, 9);
+    expect(r.hi).toBeCloseTo(79.8, 9);
+    expect(expectedRange(byDate, '2026-10-20')).toBeNull();
   });
 });

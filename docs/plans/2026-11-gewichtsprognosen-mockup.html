@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gewichtsprognosen Mockup</title>
+    <style>
+      /* Page chrome is neutral; everything inside a phone frame uses the app tokens of apps/web/src/index.css. */
+      :root {
+        color-scheme: light;
+        --page: oklch(0.94 0.006 60);
+        --page-ink: oklch(0.2 0.012 40);
+        --page-muted: oklch(0.47 0.015 45);
+        --note-bg: oklch(1 0 0);
+        --note-border: oklch(0.87 0.01 60);
+        --frame-border: oklch(0.8 0.01 60);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme='light']) {
+          color-scheme: dark;
+          --page: oklch(0.13 0.005 40);
+          --page-ink: oklch(0.95 0.006 60);
+          --page-muted: oklch(0.72 0.012 50);
+          --note-bg: oklch(0.2 0.006 40);
+          --note-border: oklch(0.31 0.008 40);
+          --frame-border: oklch(0.36 0.008 40);
+        }
+      }
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --note-bg: oklch(0.2 0.006 40);
+        --note-border: oklch(0.31 0.008 40);
+        --frame-border: oklch(0.36 0.008 40);
+      }
+      .light {
+        color-scheme: light;
+        --background: oklch(0.985 0.004 60);
+        --foreground: oklch(0.2 0.012 40);
+        --card: oklch(1 0 0);
+        --primary: oklch(0.5 0.17 25);
+        --muted: oklch(0.955 0.008 60);
+        --muted-foreground: oklch(0.5 0.015 45);
+        --border: oklch(0.91 0.008 60);
+        --good: oklch(0.6 0.13 155);
+        /* New for this mockup: the forecast ink, a softer sibling of the primary red. */
+        --forecast: oklch(0.62 0.13 25);
+        --forecast-band: oklch(0.62 0.13 25 / 0.13);
+        --forecast-band-2: oklch(0.62 0.13 25 / 0.07);
+      }
+      .dark {
+        color-scheme: dark;
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --good: oklch(0.72 0.13 155);
+        --forecast: oklch(0.74 0.11 25);
+        --forecast-band: oklch(0.74 0.11 25 / 0.16);
+        --forecast-band-2: oklch(0.74 0.11 25 / 0.08);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.5 Inter,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        font-size: 26px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 20px;
+        margin: 48px 0 6px;
+      }
+      p.lead,
+      .note {
+        max-width: 760px;
+        color: var(--page-muted);
+      }
+      .note {
+        background: var(--note-bg);
+        border: 1px solid var(--note-border);
+        border-radius: 10px;
+        padding: 12px 16px;
+        color: var(--page-ink);
+      }
+      .note ul {
+        margin: 4px 0;
+        padding-left: 20px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 16px 0;
+      }
+      .toolbar button {
+        font: inherit;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--note-border);
+        background: var(--note-bg);
+        color: var(--page-ink);
+        cursor: pointer;
+      }
+      .frames {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .phone {
+        width: 390px;
+        max-width: 100%;
+        border: 1px solid var(--frame-border);
+        border-radius: 28px;
+        overflow: hidden;
+        background: var(--background);
+        color: var(--foreground);
+        padding: 12px 0 16px;
+      }
+      .phone-label {
+        font-size: 13px;
+        color: var(--page-muted);
+        margin: 0 0 6px 4px;
+      }
+      .card {
+        margin: 0 12px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 12px 0 8px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 14px 6px;
+      }
+      .card-head h3 {
+        margin: 0;
+        font-size: 17px;
+      }
+      .seg {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 12px;
+      }
+      .seg span {
+        padding: 3px 8px;
+      }
+      .seg span.on {
+        background: var(--muted);
+        font-weight: 600;
+      }
+      svg.chart {
+        display: block;
+        width: 100%;
+        height: auto;
+        touch-action: none;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        padding: 4px 14px 6px;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .legend .k {
+        color: var(--muted-foreground);
+      }
+      .legend b {
+        font-weight: 650;
+      }
+      .legend .date {
+        width: 100%;
+        font-weight: 650;
+      }
+      .sw {
+        display: inline-block;
+        width: 14px;
+        height: 0;
+        border-top: 2.5px solid;
+        vertical-align: middle;
+        margin-right: 5px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 14px;
+        font-size: 15px;
+      }
+      .switch {
+        width: 34px;
+        height: 20px;
+        border-radius: 10px;
+        background: var(--primary);
+        position: relative;
+      }
+      .switch::after {
+        content: '';
+        position: absolute;
+        right: 2px;
+        top: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--card);
+      }
+      .chips {
+        display: flex;
+        gap: 6px;
+        padding: 4px 14px 6px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        font-size: 12.5px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted-foreground);
+        cursor: pointer;
+        user-select: none;
+      }
+      .chip.on {
+        background: var(--foreground);
+        color: var(--card);
+        border-color: var(--foreground);
+      }
+      .scrub {
+        padding: 2px 14px 4px;
+      }
+      .scrub input {
+        width: 100%;
+        accent-color: var(--primary);
+      }
+      .stat {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        padding: 8px 14px 4px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat dt {
+        font-size: 11.5px;
+        color: var(--muted-foreground);
+      }
+      .stat dd {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+      }
+      .sub {
+        font-size: 13px;
+        font-weight: 600;
+        padding: 8px 14px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Prognosen im Gewichtsverlauf: Mockup v2</h1>
+      <p class="lead">
+        Alle Diagramme rechnen live auf denselben simulierten 90 Tagen (Abnehmen, dazwischen ein Plateau,
+        echte Wasserschwankung). Auf die Diagramme kann man tippen oder darüber wischen.
+      </p>
+      <div class="note">
+        <b>Neu gegenüber v1</b>
+        <ul>
+          <li>Neue Variante AB: Zeitreise aus A über dem Erwartungsband aus B, mit „Erwartet“ pro Tag.</li>
+          <li>
+            Die simulierte Schwankung kommt jetzt aus der geglätteten echten Kurve (7-Tage-Mittel), nicht mehr
+            aus den einzelnen Wiegungen: wie weit das 7-Tage-Mittel der 28 Tage um seinen Trend schwankt (hier
+            etwa ±0,1 kg statt ±0,35 kg) und wie lange eine Abweichung anhält. Die Prognose bewegt sich damit
+            so ruhig wie die rote Linie, nicht wie die Punkte. Gilt für A, B und AB.
+          </li>
+          <li>C, D und E entfallen.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <b>Wie die Prognose eines Tages entsteht</b>
+        <ul>
+          <li>Trend: Start am 7-Tage-Mittel des Tages, Steigung aus den Wiegungen der 28 Tage davor.</li>
+          <li>
+            Schwankung: das 7-Tage-Mittel der 28 Tage minus seine Trendgerade ergibt die Abweichungen der
+            echten Kurve. Ihre Streuung und wie stark ein Tag dem vorigen gleicht, bestimmen einen Zufallsweg
+            um den Trend. Der Tag ist der Startwert: dieselbe Prognose sieht bei jedem Öffnen gleich aus.
+          </li>
+          <li>
+            Das Band um die Prognose wird mit der Zeit breiter: Schwankung plus Unsicherheit der Steigung.
+          </li>
+          <li>
+            „Erwartet“ eines Tages: die Spanne dessen, was die 14 Tage davor für diesen Tag vorhergesagt
+            haben.
+          </li>
+        </ul>
+      </div>
+      <div class="toolbar">
+        <button data-theme-set="">System</button>
+        <button data-theme-set="light">Seite hell</button>
+        <button data-theme-set="dark">Seite dunkel</button>
+      </div>
+
+      <h2>AB · Zeitreise im Erwartungsband (neu)</h2>
+      <p class="lead">
+        Das Erwartungsband aus B liegt immer im Hintergrund. Regler oder Tipp wählen einen Tag: dessen
+        Prognose läuft als ruhige, simulierte Linie mit Band bis heute (am heutigen Tag 14 Tage nach vorn),
+        was danach kam wird blass. Die Legende nennt für den Tag das 7-Tage-Mittel, was für ihn erwartet war,
+        und was er für heute vorhergesagt hat.
+      </p>
+      <div class="frames" id="AB"></div>
+
+      <h2>A · Zeitreise</h2>
+      <p class="lead">
+        Immer nur eine Prognose. Darunter ein Regler über die Tage des Zeitraums (oder tippen ins Diagramm):
+        was nach dem gewählten Tag kam, wird blass, die Prognose von damals läuft als geschwungene Linie mit
+        Band bis zum Ende des Zeitraums, die echten Wiegungen danach liegen darüber. Am heutigen Tag zeigt sie
+        14 Tage nach vorn.
+      </p>
+      <div class="frames" id="A"></div>
+
+      <h2>B · Erwartungsband</h2>
+      <p class="lead">
+        Kein einzelner Strahl mehr: über jedem Tag liegt das Band dessen, was die zwei Wochen davor für diesen
+        Tag vorhergesagt haben. Liegt die Linie im Band, lief es wie erwartet; bricht sie heraus, sieht man es
+        sofort. Ab heute geht das Band mit der simulierten Kurve in die Zukunft.
+      </p>
+      <div class="frames" id="B"></div>
+    </main>
+
+    <script>
+      // ---------- data: 90 simulated days ending 2026-11-22 ----------
+      const TODAY = new Date(2026, 10, 22);
+      const N = 90;
+      const PERIOD = 30;
+      const FUTURE = 14;
+      const day = (i) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - (N - 1 - i));
+      const fmtD = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
+      const fmtL = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+      const kg = (v) =>
+        v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' kg';
+
+      function rng(seed) {
+        let s = seed >>> 0 || 1;
+        return () => {
+          s ^= s << 13;
+          s ^= s >>> 17;
+          s ^= s << 5;
+          return ((s >>> 0) % 1e9) / 1e9;
+        };
+      }
+      function gauss(r) {
+        const u = Math.max(1e-9, r());
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+      }
+
+      // True course: losing, a plateau, losing again; water noise AR(1).
+      const r0 = rng(7);
+      let truth = 87.2;
+      let noise = 0;
+      const weights = []; // {i, kg} weigh-ins (not every day)
+      for (let i = 0; i < N; i++) {
+        truth += i < 40 ? -0.085 : i < 62 ? -0.01 : -0.075;
+        noise = 0.6 * noise + gauss(r0) * 0.28;
+        if (r0() < 0.86 || i === N - 1) weights.push({ i, kg: Math.round((truth + noise) * 10) / 10 });
+      }
+      const byDay = new Map(weights.map((w) => [w.i, w.kg]));
+      const mean7 = (d) => {
+        const xs = weights.filter((w) => w.i <= d && w.i > d - 7).map((w) => w.kg);
+        return xs.length ? xs.reduce((a, b) => a + b) / xs.length : null;
+      };
+      const meanLine = weights.map((w) => ({ i: w.i, kg: mean7(w.i) }));
+
+      function regress(pts) {
+        const n = pts.length;
+        const mx = pts.reduce((s, p) => s + p.i, 0) / n;
+        const my = pts.reduce((s, p) => s + p.kg, 0) / n;
+        let num = 0;
+        let den = 0;
+        for (const p of pts) {
+          num += (p.i - mx) * (p.kg - my);
+          den += (p.i - mx) ** 2;
+        }
+        const slope = num / den;
+        let sse = 0;
+        for (const p of pts) sse += (p.kg - (my + slope * (p.i - mx))) ** 2;
+        return { slope, se: Math.sqrt(sse / (n - 2) / den) };
+      }
+
+      // The forecast made on day d (only data up to d).
+      const forecastCache = new Map();
+      function forecast(d) {
+        if (forecastCache.has(d)) return forecastCache.get(d);
+        const pts = weights.filter((w) => w.i <= d && w.i > d - 28);
+        let f = null;
+        if (pts.length >= 10) {
+          const { slope, se } = regress(pts);
+          const start = mean7(d);
+          // The fluctuation of the smoothed real curve: the daily 7-day mean minus its own trend line.
+          const curve = [];
+          for (let x = d - 27; x <= d; x++) {
+            const m = mean7(x);
+            if (m != null) curve.push({ i: x, kg: m });
+          }
+          const fit = regress(curve);
+          const mx = curve.reduce((a, p) => a + p.i, 0) / curve.length;
+          const my = curve.reduce((a, p) => a + p.kg, 0) / curve.length;
+          const res = curve.map((p) => p.kg - (my + fit.slope * (p.i - mx)));
+          const sd = Math.sqrt(res.reduce((a, x) => a + x * x, 0) / res.length);
+          let num = 0;
+          for (let k = 1; k < res.length; k++) num += res[k] * res[k - 1];
+          const phi = Math.min(0.95, Math.max(0, num / res.reduce((a, x) => a + x * x, 0)));
+          f = { d, start, slope, se, sd, phi };
+        }
+        forecastCache.set(d, f);
+        return f;
+      }
+      const trendAt = (f, i) => f.start + f.slope * (i - f.d);
+      const spread = (f, i) => Math.sqrt(f.sd ** 2 + (f.se * (i - f.d)) ** 2);
+      // A simulated course with daily fluctuation; the same seed gives the same course.
+      // `slopeSpread`: each run also draws its own slope (the trend is uncertain too).
+      function simulate(f, to, seed, slopeSpread = false) {
+        const r = rng(f.d * 7919 + seed * 104729 + 13);
+        const phi = f.phi;
+        const slope = f.slope + (slopeSpread ? gauss(r) * f.se * 1.5 : 0);
+        let x = 0;
+        const out = [{ i: f.d, kg: f.start }];
+        for (let i = f.d + 1; i <= to; i++) {
+          x = phi * x + gauss(r) * f.sd * Math.sqrt(1 - phi * phi);
+          out.push({ i, kg: f.start + slope * (i - f.d) + x });
+        }
+        return out;
+      }
+      // ---------- svg helpers ----------
+      const NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs, parent) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+      function makeScale({ x0, x1, y0, y1, w = 366, h = 210, padL = 36, padR = 10, padT = 10, padB = 24 }) {
+        const sx = (i) => padL + ((i - x0) / (x1 - x0)) * (w - padL - padR);
+        const sy = (v) => padT + ((y1 - v) / (y1 - y0)) * (h - padT - padB);
+        return { sx, sy, w, h, padL, padR, padT, padB, x0, x1, y0, y1 };
+      }
+      function frameSvg(s, parent) {
+        const svg = el('svg', { class: 'chart', viewBox: `0 0 ${s.w} ${s.h}` }, parent);
+        const step = s.y1 - s.y0 > 6 ? 2 : 1;
+        for (let v = Math.ceil(s.y0); v <= s.y1; v += step) {
+          el(
+            'line',
+            { x1: s.padL, x2: s.w - s.padR, y1: s.sy(v), y2: s.sy(v), stroke: 'var(--border)' },
+            svg,
+          );
+          const t = el(
+            'text',
+            {
+              x: s.padL - 6,
+              y: s.sy(v) + 4,
+              'text-anchor': 'end',
+              'font-size': 11,
+              fill: 'var(--muted-foreground)',
+            },
+            svg,
+          );
+          t.textContent = v.toLocaleString('de-DE');
+        }
+        const span = s.x1 - s.x0;
+        const every = span > 60 ? 21 : span > 30 ? 10 : 7;
+        for (let i = s.x1 - (s.x1 % 1); i >= s.x0; i -= every) {
+          const nearEnd = s.sx(i) > s.w - s.padR - 24;
+          const t = el(
+            'text',
+            {
+              x: nearEnd ? s.w - 2 : s.sx(i),
+              y: s.h - 6,
+              'text-anchor': nearEnd ? 'end' : 'middle',
+              'font-size': 11,
+              fill: 'var(--muted-foreground)',
+            },
+            svg,
+          );
+          t.textContent = fmtD.format(day(i));
+        }
+        return svg;
+      }
+      const pathOf = (s, pts) =>
+        pts.map((p, k) => `${k ? 'L' : 'M'}${s.sx(p.i).toFixed(1)},${s.sy(p.kg).toFixed(1)}`).join('');
+      function line(svg, s, pts, attrs) {
+        return el(
+          'path',
+          {
+            d: pathOf(s, pts),
+            fill: 'none',
+            'stroke-linejoin': 'round',
+            'stroke-linecap': 'round',
+            ...attrs,
+          },
+          svg,
+        );
+      }
+      function band(svg, s, lo, hi, fill) {
+        const d = pathOf(s, hi) + pts2(s, [...lo].reverse()) + 'Z';
+        return el('path', { d, fill, stroke: 'none' }, svg);
+      }
+      const pts2 = (s, pts) => pts.map((p) => `L${s.sx(p.i).toFixed(1)},${s.sy(p.kg).toFixed(1)}`).join('');
+      function dots(svg, s, pts, attrs = {}) {
+        for (const p of pts)
+          el(
+            'circle',
+            {
+              cx: s.sx(p.i),
+              cy: s.sy(p.kg),
+              r: 3.2,
+              fill: 'var(--card)',
+              stroke: 'var(--muted-foreground)',
+              'stroke-width': 1.8,
+              ...attrs,
+            },
+            svg,
+          );
+      }
+      function target(svg, s, from, to) {
+        line(
+          svg,
+          s,
+          [
+            { i: from, kg: 80 },
+            { i: to, kg: 80 },
+          ],
+          { stroke: 'var(--good)', 'stroke-width': 1.5, 'stroke-dasharray': '5 5' },
+        );
+      }
+      function cursor(svg, s, i) {
+        el(
+          'line',
+          {
+            x1: s.sx(i),
+            x2: s.sx(i),
+            y1: s.padT,
+            y2: s.h - s.padB,
+            stroke: 'var(--muted-foreground)',
+            'stroke-dasharray': '3 3',
+            'stroke-width': 1,
+          },
+          svg,
+        );
+      }
+      function onPick(svg, s, cb) {
+        const pick = (ev) => {
+          const r = svg.getBoundingClientRect();
+          const x = ((ev.clientX - r.left) / r.width) * s.w;
+          const i = Math.round(s.x0 + ((x - s.padL) / (s.w - s.padL - s.padR)) * (s.x1 - s.x0));
+          cb(Math.max(s.x0, Math.min(N - 1, i)));
+        };
+        svg.addEventListener('pointerdown', (ev) => {
+          pick(ev);
+          svg.setPointerCapture(ev.pointerId);
+        });
+        svg.addEventListener('pointermove', (ev) => ev.buttons && pick(ev));
+      }
+      function phone(container, theme, label) {
+        const wrap = document.createElement('div');
+        const l = document.createElement('p');
+        l.className = 'phone-label';
+        l.textContent = label;
+        const ph = document.createElement('div');
+        ph.className = `phone ${theme}`;
+        ph.innerHTML = `<div class="card"><div class="card-head"><h3>Gewichtsverlauf</h3><div class="seg"><span>7 T</span><span class="on">30 T</span><span>90 T</span><span>Alle</span></div></div><div class="body"></div></div>`;
+        wrap.append(l, ph);
+        container.appendChild(wrap);
+        return ph.querySelector('.body');
+      }
+      function legend(parent, items) {
+        const d = document.createElement('div');
+        d.className = 'legend';
+        d.innerHTML = items
+          .map((it) =>
+            it.date
+              ? `<span class="date">${it.date}</span>`
+              : `<span><span class="sw" style="border-color:${it.color};${it.dash ? 'border-top-style:dashed;' : ''}${it.color.includes('band') ? `border-top-width:10px;border-radius:2px;background:${it.color};border-color:var(--forecast);opacity:.55;` : ''}"></span><span class="k">${it.label}:</span> <b>${it.value}</b></span>`,
+          )
+          .join('');
+        parent.appendChild(d);
+      }
+      const first = N - PERIOD;
+      const last = N - 1;
+      const inPeriod = (p) => p.i >= first;
+      const periodWeights = weights.filter(inPeriod);
+      const periodMean = meanLine.filter(inPeriod);
+
+      // ---------- A: time travel ----------
+      function drawA(body, state) {
+        body.innerHTML = '';
+        const sel = state.sel;
+        const f = forecast(sel);
+        const end = sel === last ? last + FUTURE : last;
+        const s = makeScale({ x0: first, x1: sel === last ? last + FUTURE : last, y0: 79, y1: 84 });
+        const svg = frameSvg(s, body);
+        target(svg, s, first, s.x1);
+        const before = (p) => p.i <= sel;
+        if (f) {
+          const lo = [];
+          const hi = [];
+          for (let i = sel; i <= end; i++) {
+            lo.push({ i, kg: trendAt(f, i) - 1.28 * spread(f, i) });
+            hi.push({ i, kg: trendAt(f, i) + 1.28 * spread(f, i) });
+          }
+          band(svg, s, lo, hi, 'var(--forecast-band)');
+          line(svg, s, simulate(f, end, 1), { stroke: 'var(--forecast)', 'stroke-width': 2 });
+        }
+        line(svg, s, periodMean.filter(before), { stroke: 'var(--primary)', 'stroke-width': 2.5 });
+        line(
+          svg,
+          s,
+          periodMean.filter((p) => p.i >= sel),
+          { stroke: 'var(--primary)', 'stroke-width': 2.5, opacity: 0.28 },
+        );
+        dots(svg, s, periodWeights.filter(before));
+        dots(
+          svg,
+          s,
+          periodWeights.filter((p) => !before(p)),
+          { opacity: 0.45 },
+        );
+        cursor(svg, s, sel);
+        if (f) el('circle', { cx: s.sx(sel), cy: s.sy(f.start), r: 4.5, fill: 'var(--primary)' }, svg);
+        onPick(svg, s, (i) => {
+          state.sel = Math.min(last, i);
+          drawAll();
+        });
+        const scrub = document.createElement('div');
+        scrub.className = 'scrub';
+        scrub.innerHTML = `<input type="range" min="${first}" max="${last}" value="${sel}" aria-label="Prognose vom" />`;
+        scrub.querySelector('input').addEventListener('input', (e) => {
+          state.sel = +e.target.value;
+          drawAll();
+        });
+        body.appendChild(scrub);
+        const actual = mean7(Math.min(end, last));
+        legend(body, [
+          { date: `Prognose vom ${fmtL.format(day(sel))}` },
+          f
+            ? {
+                label: sel === last ? 'in 14 Tagen' : 'für heute',
+                value: kg(trendAt(f, end)),
+                color: 'var(--forecast)',
+              }
+            : { label: 'Prognose', value: 'zu wenig Daten', color: 'var(--forecast)' },
+          sel === last
+            ? {
+                label: 'Spanne',
+                value: f
+                  ? `± ${spread(f, end).toLocaleString('de-DE', { maximumFractionDigits: 1 })} kg`
+                  : '–',
+                color: 'var(--forecast-band)',
+              }
+            : { label: 'Heute', value: kg(actual), color: 'var(--primary)' },
+        ]);
+        body.insertAdjacentHTML(
+          'beforeend',
+          `<div class="row"><span>Prognosen</span><span class="switch"></span></div>`,
+        );
+      }
+
+      // ---------- B: expectation band ----------
+      function drawB(body, state) {
+        body.innerHTML = '';
+        const s = makeScale({ x0: first, x1: last + FUTURE, y0: 79, y1: 84 });
+        const svg = frameSvg(s, body);
+        target(svg, s, first, s.x1);
+        const lo = [];
+        const hi = [];
+        const mid = [];
+        for (let x = first; x <= last; x++) {
+          const vals = [];
+          for (let d = x - 14; d < x; d++) {
+            const f = forecast(d);
+            if (f) vals.push(trendAt(f, x));
+          }
+          if (!vals.length) continue;
+          vals.sort((a, b) => a - b);
+          lo.push({ i: x, kg: vals[0] - 0.15 });
+          hi.push({ i: x, kg: vals.at(-1) + 0.15 });
+          mid.push({ i: x, kg: vals[Math.floor(vals.length / 2)] });
+        }
+        band(svg, s, lo, hi, 'var(--forecast-band)');
+        const ft = forecast(last);
+        const flo = [];
+        const fhi = [];
+        for (let i = last; i <= last + FUTURE; i++) {
+          flo.push({ i, kg: trendAt(ft, i) - 1.28 * spread(ft, i) });
+          fhi.push({ i, kg: trendAt(ft, i) + 1.28 * spread(ft, i) });
+        }
+        band(svg, s, flo, fhi, 'var(--forecast-band)');
+        line(svg, s, simulate(ft, last + FUTURE, 1), { stroke: 'var(--forecast)', 'stroke-width': 2 });
+        line(svg, s, periodMean, { stroke: 'var(--primary)', 'stroke-width': 2.5 });
+        // Days where the mean broke out of the band.
+        const out = periodMean.filter((p) => {
+          const k = lo.findIndex((q) => q.i === p.i);
+          return k >= 0 && (p.kg < lo[k].kg || p.kg > hi[k].kg);
+        });
+        dots(svg, s, periodWeights);
+        for (const p of out)
+          el('circle', { cx: s.sx(p.i), cy: s.sy(p.kg), r: 2.6, fill: 'var(--primary)' }, svg);
+        const sel = state.sel;
+        cursor(svg, s, sel);
+        onPick(svg, s, (i) => {
+          state.sel = i;
+          drawAll();
+        });
+        const k = lo.findIndex((q) => q.i === sel);
+        legend(body, [
+          { date: fmtL.format(day(sel)) },
+          sel <= last
+            ? { label: '7-Tage-Mittel', value: kg(mean7(sel)), color: 'var(--primary)' }
+            : { label: 'Simuliert', value: kg(simulate(ft, sel, 1).at(-1).kg), color: 'var(--forecast)' },
+          k >= 0
+            ? {
+                label: 'Erwartet',
+                value: `${kg(lo[k].kg + 0.15).replace(' kg', '')} bis ${kg(hi[k].kg - 0.15)}`,
+                color: 'var(--forecast-band)',
+              }
+            : {
+                label: 'Erwartet',
+                value: `${kg(trendAt(ft, sel) - 1.28 * spread(ft, sel)).replace(' kg', '')} bis ${kg(trendAt(ft, sel) + 1.28 * spread(ft, sel))}`,
+                color: 'var(--forecast-band)',
+              },
+        ]);
+        body.insertAdjacentHTML(
+          'beforeend',
+          `<div class="row"><span>Prognosen</span><span class="switch"></span></div>`,
+        );
+      }
+
+      // ---------- expectation per day (from B) ----------
+      // What the 14 days before each day forecast for it: {lo, hi} per day of the period (and +0,15 kg margin).
+      const expect = new Map();
+      for (let x = first; x <= last; x++) {
+        const vals = [];
+        for (let d = x - 14; d < x; d++) {
+          const f = forecast(d);
+          if (f) vals.push(trendAt(f, x));
+        }
+        if (vals.length) expect.set(x, { lo: Math.min(...vals), hi: Math.max(...vals) });
+      }
+      const range = (e) => `${kg(e.lo).replace(' kg', '')} bis ${kg(e.hi)}`;
+
+      // ---------- AB: time travel inside the expectation band ----------
+      function drawAB(body, state) {
+        body.innerHTML = '';
+        const sel = state.sel;
+        const f = forecast(sel);
+        const end = sel === last ? last + FUTURE : last;
+        const s = makeScale({ x0: first, x1: last + FUTURE, y0: 79, y1: 84 });
+        const svg = frameSvg(s, body);
+        target(svg, s, first, s.x1);
+        const days = [...expect.keys()];
+        band(
+          svg,
+          s,
+          days.map((x) => ({ i: x, kg: expect.get(x).lo - 0.15 })),
+          days.map((x) => ({ i: x, kg: expect.get(x).hi + 0.15 })),
+          'var(--forecast-band-2)',
+        );
+        if (f) {
+          const lo = [];
+          const hi = [];
+          for (let i = sel; i <= end; i++) {
+            lo.push({ i, kg: trendAt(f, i) - 1.28 * spread(f, i) });
+            hi.push({ i, kg: trendAt(f, i) + 1.28 * spread(f, i) });
+          }
+          band(svg, s, lo, hi, 'var(--forecast-band)');
+          line(svg, s, simulate(f, end, 1), { stroke: 'var(--forecast)', 'stroke-width': 2 });
+        }
+        const before = (p) => p.i <= sel;
+        line(svg, s, periodMean.filter(before), { stroke: 'var(--primary)', 'stroke-width': 2.5 });
+        line(
+          svg,
+          s,
+          periodMean.filter((p) => p.i >= sel),
+          { stroke: 'var(--primary)', 'stroke-width': 2.5, opacity: 0.35 },
+        );
+        dots(svg, s, periodWeights.filter(before));
+        dots(
+          svg,
+          s,
+          periodWeights.filter((p) => !before(p)),
+          { opacity: 0.45 },
+        );
+        cursor(svg, s, sel);
+        if (f) el('circle', { cx: s.sx(sel), cy: s.sy(f.start), r: 4.5, fill: 'var(--primary)' }, svg);
+        onPick(svg, s, (i) => {
+          state.sel = Math.min(last, i);
+          drawAll();
+        });
+        const scrub = document.createElement('div');
+        scrub.className = 'scrub';
+        scrub.innerHTML = `<input type="range" min="${first}" max="${last}" value="${sel}" aria-label="Tag" />`;
+        scrub.querySelector('input').addEventListener('input', (e) => {
+          state.sel = +e.target.value;
+          drawAll();
+        });
+        body.appendChild(scrub);
+        const e = expect.get(sel);
+        legend(body, [
+          { date: fmtL.format(day(sel)) },
+          { label: '7-Tage-Mittel', value: kg(mean7(sel)), color: 'var(--primary)' },
+          { label: 'Erwartet', value: e ? range(e) : '–', color: 'var(--forecast-band)' },
+          f
+            ? {
+                label: sel === last ? 'In 14 Tagen' : 'Prognose für heute',
+                value: kg(trendAt(f, end)),
+                color: 'var(--forecast)',
+              }
+            : { label: 'Prognose', value: '–', color: 'var(--forecast)' },
+        ]);
+        body.insertAdjacentHTML(
+          'beforeend',
+          `<div class="row"><span>Prognosen</span><span class="switch"></span></div>`,
+        );
+      }
+
+      // ---------- wiring ----------
+      const variants = {
+        AB: {
+          draw: drawAB,
+          states: [{ sel: last - 12 }, { sel: last }],
+          labels: ['hell · Tag 10. Nov.', 'dunkel · heute'],
+        },
+        A: {
+          draw: drawA,
+          states: [{ sel: last - 16 }, { sel: last }],
+          labels: ['hell · Prognose vom 6. Nov.', 'dunkel · heute'],
+        },
+        B: {
+          draw: drawB,
+          states: [{ sel: last - 9 }, { sel: last + 7 }],
+          labels: ['hell · Tipp in die Vergangenheit', 'dunkel · Tipp in die Zukunft'],
+        },
+      };
+      const bodies = {};
+      for (const [id, v] of Object.entries(variants)) {
+        const c = document.getElementById(id);
+        bodies[id] = [phone(c, 'light', v.labels[0]), phone(c, 'dark', v.labels[1])];
+      }
+      function drawAll() {
+        for (const [id, v] of Object.entries(variants)) bodies[id].forEach((b, k) => v.draw(b, v.states[k]));
+      }
+      drawAll();
+      document.querySelectorAll('[data-theme-set]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const t = b.dataset.themeSet;
+          if (t) document.documentElement.dataset.theme = t;
+          else delete document.documentElement.dataset.theme;
+        }),
+      );
+    </script>
+  </body>
+</html>

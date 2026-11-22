@@ -1,6 +1,7 @@
 import {
   addDays,
   bmi,
+  EXPECTED_LOOKBACK_DAYS,
   dayId,
   DEFAULT_WEIGHT_RANGE,
   DEFAULT_WEIGHT_STEP,
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -89,7 +91,10 @@ export function ProgressPage() {
   const target = settings?.targetWeightKg ?? null;
 
   const [forecastsOn, setForecastsOn] = useForecastPref();
-  const forecasts = useForecastHistory(from, forecastsOn);
+  // The forecasts of the 14 days before the period make up what was expected for its first days.
+  const forecasts = useForecastHistory(addDays(from, -EXPECTED_LOOKBACK_DAYS), forecastsOn);
+  // The day whose forecast the chart shows (null: today).
+  const [selected, setSelected] = useState<string | null>(null);
   const chart = useMemo(
     () =>
       weightChart({
@@ -99,9 +104,11 @@ export function ProgressPage() {
         from,
         today,
         forecasts: forecastsOn ? forecasts : undefined,
+        selected: selected ?? undefined,
       }),
-    [visible, avg, target, from, today, forecasts, forecastsOn],
+    [visible, avg, target, from, today, forecasts, forecastsOn, selected],
   );
+  const pickDay = (i: number) => setSelected(chart.dates[i] ?? null);
 
   const change = (days: number) => {
     if (!weights || weights.length < 2 || !latest) return null;
@@ -198,14 +205,29 @@ export function ProgressPage() {
                     data={chart.data}
                     series={chart.series}
                     yRange={chart.yRange}
-                    rays={chart.rays}
+                    overlay={chart.overlay}
+                    legendIndex={chart.legendIndex}
+                    onPick={chart.overlay ? pickDay : undefined}
                     title={
                       (range.days
                         ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
                         : 'Gewicht gesamt mit 7-Tage-Mittel') +
-                      (chart.rays ? ' und Prognosen der einzelnen Tage' : '')
+                      (chart.overlay ? ', erwarteten Werten und der Prognose eines Tages' : '')
                     }
                   />
+                  {chart.legendIndex !== undefined && (
+                    <div className="px-3 pt-2 pb-1">
+                      <Slider
+                        aria-label="Tag der Prognose"
+                        aria-valuetext={fmtDate(chart.dates[chart.legendIndex]!)}
+                        min={0}
+                        max={chart.dates.length - 1}
+                        step={1}
+                        value={[chart.legendIndex]}
+                        onValueChange={([i]) => i !== undefined && pickDay(i)}
+                      />
+                    </div>
+                  )}
                   <div className="flex min-h-11 items-center justify-between px-2">
                     <Label htmlFor="weight-forecasts">Prognosen</Label>
                     <Switch id="weight-forecasts" checked={forecastsOn} onCheckedChange={setForecastsOn} />

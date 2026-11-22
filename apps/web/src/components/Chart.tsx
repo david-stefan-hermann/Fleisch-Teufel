@@ -11,8 +11,9 @@
  * surface gap and square tops; segment series usually set `legend: false`, and a `kind: 'legend'`
  * series carries the real value into the legend.
  *
- * Rays: straight segments between two dates (forecasts), drawn under the series; the ray that starts
- * on the day under the cursor (else the newest day) is highlighted.
+ * Overlay: filled bands and extra lines over dates (forecasts), drawn under the series and counted
+ * into the y range; the caller rebuilds it, the plot only repaints. `onPick` reports the day under the
+ * cursor and `legendIndex` is the day the legend shows without a cursor (else the newest).
  */
 import { useEffect, useRef } from 'react';
 import uPlot, { type AlignedData, type Options, type Series } from 'uplot';
@@ -33,20 +34,22 @@ export interface ChartSeries {
   legend?: false;
   /** false: no cursor point (a legend value that belongs to another x, like a forecast's end). */
   cursorPoint?: false;
+  /** Opacity of the marks (a faded part of a series). */
+  opacity?: number;
   /** Bars only: inner stack segment with a square top and a 2 px surface gap above it. */
   gapAbove?: boolean;
   dash?: number[];
   width?: number;
-  /** Value formatter for legend/tooltip. */
-  format?: (v: number) => string;
+  /** Value formatter for legend/tooltip; `index` is the x index of the value. */
+  format?: (v: number, index: number) => string;
 }
 
-export interface ChartRay {
-  /** ISO dates and values of both ends. */
-  from: string;
-  to: string;
-  y0: number;
-  y1: number;
+/** Drawn under the series. Colors are CSS custom properties; x values ISO dates. */
+export interface ChartOverlay {
+  bands?: { points: { x: string; lo: number; hi: number }[]; color: string; opacity: number }[];
+  lines?: { points: { x: string; y: number }[]; color: string; width?: number; opacity?: number }[];
+  /** A dashed vertical line on a day, with a dot at `y` (the chosen day). */
+  marker?: { x: string; y: number | null; color: string };
 }
 
 interface ChartProps {
@@ -60,10 +63,11 @@ interface ChartProps {
   yRange?: [number | null, number | null];
   /** Fixed x-range [from, to] as ISO dates (keeps the period visible with few points). */
   xRange?: [string, string];
-  rays?: ChartRay[];
-  /** CSS custom properties: all rays, and the one of the day under the cursor. */
-  rayColor?: string;
-  rayActiveColor?: string;
+  overlay?: ChartOverlay;
+  /** The x index the legend shows without a cursor (default: the newest with a value). */
+  legendIndex?: number;
+  /** Called with the x index when the cursor moves to another day. */
+  onPick?: (index: number) => void;
 }
 
 function cssVar(name: string, el: Element): string {
@@ -85,18 +89,18 @@ export function Chart({
   title,
   yRange,
   xRange,
-  rays,
-  rayColor = '--muted-foreground',
-  rayActiveColor = '--primary',
+  overlay,
+  legendIndex,
+  onPick,
 }: ChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
   // Colors are read from CSS variables: rebuild when the app theme changes.
   const dark = useAppearance().mode === 'dark';
   // Latest props for the long-lived plot (formatters, ranges, data at build time).
-  const latest = useRef({ data, series, yRange, xRange, rays, rayColor, rayActiveColor });
+  const latest = useRef({ data, series, yRange, xRange, overlay, legendIndex, onPick });
   useEffect(() => {
-    latest.current = { data, series, yRange, xRange, rays, rayColor, rayActiveColor };
+    latest.current = { data, series, yRange, xRange, overlay, legendIndex, onPick };
   });
   // Rebuild only when the series change in shape or style, not for new values or ranges.
   const structure = JSON.stringify(series.map(({ format: _format, ...rest }) => rest));
@@ -108,23 +112,25 @@ export function Chart({
     const ink = cssVar('--muted-foreground', el);
     const grid = cssVar('--border', el);
     const surface = cssVar('--card', el);
-    const rayInk = cssVar(latest.current.rayColor, el);
-    const rayActiveInk = cssVar(latest.current.rayActiveColor, el);
-    // Index of the day whose ray was drawn highlighted: redraw only when the cursor changes day.
-    let rayIdx: number | null = null;
+    const inks = new Map<string, string>();
+    const inkOf = (name: string) => inks.get(name) ?? inks.set(name, cssVar(name, el)).get(name)!;
+    // The day last reported to `onPick`: report only a change of day.
+    let picked: number | null = null;
+    const legendIdx = (u: uPlot) => latest.current.legendIndex ?? lastIndex(u.data);
     const s: Series[] = [
       { label: 'Datum', value: (_u, v) => (v == null ? NO_VALUE : dateLong.format(new Date(v * 1000))) },
       ...cfgs.map((cfg, i): Series => {
-        const color = cssVar(cfg.color, el);
+        const color = withAlpha(cssVar(cfg.color, el), cfg.opacity);
         const base: Series = {
           label: cfg.label,
           stroke: color,
           width: cfg.width ?? 2,
           dash: cfg.dash,
           spanGaps: cfg.kind !== 'bars',
-          value: (_u, v) => {
+          value: (u, v) => {
             const format = latest.current.series[i]?.format;
-            return v == null ? NO_VALUE : (format?.(v) ?? String(Math.round(v)));
+            const idx = u.cursor.idx ?? legendIdx(u);
+            return v == null ? NO_VALUE : (format?.(v, idx) ?? String(Math.round(v)));
           },
           points: {
             show: cfg.kind === 'points',
@@ -158,6 +164,8 @@ export function Chart({
       series: s,
       cursor: {
         drag: { x: false, y: false },
+        // With an overlay its marker is the vertical line (it sits on the day, the cursor line does not).
+        x: !latest.current.overlay,
         points: { size: 8 },
       },
       legend: { live: true },
@@ -165,9 +173,12 @@ export function Chart({
         // Without hover the legend shows the most recent values instead of dashes.
         setCursor: [
           (u) => {
-            if (u.cursor.idx == null) u.setLegend({ idx: lastIndex(u.data) });
-            if (!latest.current.rays?.length) return;
-            if (activeRayIndex(u) !== rayIdx) u.redraw(false);
+            const idx = u.cursor.idx;
+            if (idx == null) u.setLegend({ idx: legendIdx(u) });
+            else if (idx !== picked) {
+              picked = idx;
+              latest.current.onPick?.(idx);
+            }
           },
         ],
         ready: [
@@ -181,15 +192,10 @@ export function Chart({
               if ((cfg.legend === false || cfg.cursorPoint === false) && pts.length === cfgs.length)
                 pts[i]!.style.display = 'none';
             });
-            u.setLegend({ idx: lastIndex(u.data) });
+            u.setLegend({ idx: legendIdx(u) });
           },
         ],
-        drawAxes: [
-          (u) => {
-            rayIdx = activeRayIndex(u);
-            drawRays(u, latest.current.rays, rayIdx, rayInk, rayActiveInk);
-          },
-        ],
+        drawAxes: [(u) => drawOverlay(u, latest.current.overlay, inkOf)],
         drawSeries: [(u, si) => cfgs[si - 1]?.gapAbove && drawGapAbove(u, si, surface)],
       },
       scales: {
@@ -204,14 +210,13 @@ export function Chart({
           range: (_u, min, max): uPlot.Range.MinMax => {
             const r = latest.current.yRange;
             if (r) return [r[0] ?? min, r[1] ?? max];
-            // uPlot's own padding, around the data and the ends of the rays.
+            // uPlot's own padding, around the data and the overlay.
             let lo: number | null = min;
             let hi: number | null = max;
-            for (const ray of latest.current.rays ?? [])
-              for (const y of [ray.y0, ray.y1]) {
-                lo = lo == null ? y : Math.min(lo, y);
-                hi = hi == null ? y : Math.max(hi, y);
-              }
+            for (const y of overlayValues(latest.current.overlay)) {
+              lo = lo == null ? y : Math.min(lo, y);
+              hi = hi == null ? y : Math.max(hi, y);
+            }
             return lo == null || hi == null ? [null, null] : uPlot.rangeNum(lo, hi, 0.1, true);
           },
         },
@@ -250,13 +255,13 @@ export function Chart({
     const u = plot.current;
     if (!u || u.data === data) return;
     u.setData(data);
-    u.setLegend({ idx: lastIndex(data) });
-  }, [data]);
+    if (u.cursor.idx == null) u.setLegend({ idx: legendIndex ?? lastIndex(data) });
+  }, [data, legendIndex]);
 
-  // New rays alone (data unchanged) need a fresh scale and a repaint.
+  // A new overlay alone (data unchanged) needs a fresh scale and a repaint.
   useEffect(() => {
     plot.current?.redraw();
-  }, [rays]);
+  }, [overlay]);
 
   const xs = data[0] as number[];
   const tableSeries = series.map((s, si) => ({ s, si })).filter(({ s }) => s.legend !== false);
@@ -283,7 +288,9 @@ export function Chart({
                   <td>{dateLong.format(new Date(x * 1000))}</td>
                   {tableSeries.map(({ s, si }) => {
                     const v = (data[si + 1] as (number | null)[])[i];
-                    return <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v) ?? Math.round(v))}</td>;
+                    return (
+                      <td key={s.label}>{v == null ? NO_VALUE : (s.format?.(v, i) ?? Math.round(v))}</td>
+                    );
                   })}
                 </tr>
               );
@@ -352,55 +359,72 @@ function drawGapAbove(u: uPlot, si: number, surface: string) {
   ctx.restore();
 }
 
-/** Index of the day whose ray is highlighted: the day under the cursor, else the newest. */
-function activeRayIndex(u: uPlot): number {
-  return u.cursor.idx ?? lastIndex(u.data);
+/** `oklch(…)` with an alpha; other colors stay as they are. */
+function withAlpha(color: string, opacity: number | undefined): string {
+  if (opacity === undefined || !color.endsWith(')') || color.includes('/')) return color;
+  return `${color.slice(0, -1)} / ${opacity})`;
 }
 
-/** Paints the rays (thin, translucent) and then the one starting on the active day on top. */
-function drawRays(
-  u: uPlot,
-  rays: readonly ChartRay[] | undefined,
-  activeIdx: number,
-  ink: string,
-  activeInk: string,
-) {
-  if (!rays?.length) return;
+function overlayValues(o: ChartOverlay | undefined): number[] {
+  if (!o) return [];
+  return [
+    ...(o.bands ?? []).flatMap((b) => b.points.flatMap((p) => [p.lo, p.hi])),
+    ...(o.lines ?? []).flatMap((l) => l.points.map((p) => p.y)),
+  ];
+}
+
+/** Paints the bands, then the lines, then the marker of the overlay (under the series). */
+function drawOverlay(u: uPlot, o: ChartOverlay | undefined, inkOf: (name: string) => string) {
+  if (!o) return;
   const ratio = window.devicePixelRatio || 1;
-  const activeX = (u.data[0] as number[])[activeIdx];
   const ctx = u.ctx;
+  const X = (x: string) => u.valToPos(xOf(x), 'x', true);
+  const Y = (y: number) => u.valToPos(y, 'y', true);
   const { left, top, width, height } = u.bbox;
-  const line = (r: ChartRay) => {
-    ctx.moveTo(u.valToPos(xOf(r.from), 'x', true), u.valToPos(r.y0, 'y', true));
-    ctx.lineTo(u.valToPos(xOf(r.to), 'x', true), u.valToPos(r.y1, 'y', true));
-  };
   ctx.save();
   ctx.beginPath();
   ctx.rect(left, top, width, height);
   ctx.clip();
-  ctx.lineWidth = ratio;
-  ctx.strokeStyle = ink;
-  ctx.globalAlpha = RAY_ALPHA;
-  ctx.beginPath();
-  let active: ChartRay | undefined;
-  for (const r of rays) {
-    if (xOf(r.from) === activeX) active = r;
-    else line(r);
-  }
-  ctx.stroke();
-  if (active) {
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = 2 * ratio;
-    ctx.strokeStyle = activeInk;
-    ctx.setLineDash([4 * ratio, 4 * ratio]);
+  for (const b of o.bands ?? []) {
+    if (b.points.length < 2) continue;
+    ctx.globalAlpha = b.opacity;
+    ctx.fillStyle = inkOf(b.color);
     ctx.beginPath();
-    line(active);
+    b.points.forEach((p, k) => (k ? ctx.lineTo(X(p.x), Y(p.hi)) : ctx.moveTo(X(p.x), Y(p.hi))));
+    for (let k = b.points.length - 1; k >= 0; k--) ctx.lineTo(X(b.points[k]!.x), Y(b.points[k]!.lo));
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (const l of o.lines ?? []) {
+    ctx.globalAlpha = l.opacity ?? 1;
+    ctx.strokeStyle = inkOf(l.color);
+    ctx.lineWidth = (l.width ?? 2) * ratio;
+    ctx.beginPath();
+    l.points.forEach((p, k) => (k ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))));
     ctx.stroke();
+  }
+  if (o.marker) {
+    const x = X(o.marker.x);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = inkOf('--muted-foreground');
+    ctx.lineWidth = ratio;
+    ctx.setLineDash([3 * ratio, 3 * ratio]);
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, top + height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (o.marker.y !== null) {
+      ctx.fillStyle = inkOf(o.marker.color);
+      ctx.beginPath();
+      ctx.arc(x, Y(o.marker.y), 4.5 * ratio, 0, 2 * Math.PI);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
-
-const RAY_ALPHA = 0.35;
 
 /** Index of the newest x that has at least one non-null value. */
 function lastIndex(data: AlignedData): number {

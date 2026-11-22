@@ -56,6 +56,9 @@ const dayMonth = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long
 export const fmtWeekday = (d: ISODate) => weekdayLong.format(parseISODate(d));
 /** "3. November". */
 export const fmtDayMonth = (d: ISODate) => dayMonth.format(parseISODate(d));
+const dayMonthShort = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
+/** "6. Dez." */
+export const fmtDayMonthShort = (d: ISODate) => dayMonthShort.format(parseISODate(d));
 /** "Montag, 2. November 2026" (heading of the shared day image). */
 export const fmtDayLongYear = (d: ISODate) => dayLongYear.format(parseISODate(d));
 export const fmtDate = (d: ISODate) => dateNumeric.format(parseISODate(d));
