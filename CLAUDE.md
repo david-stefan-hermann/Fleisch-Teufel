@@ -431,7 +431,20 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   Stacked bars are cumulative series drawn from 0, highest first; inner segments set `gapAbove`, segments
   `legend: false` (no legend row, table column or cursor point), a `kind: 'legend'` series carries the total
   (report kcal: `features/reports/chartData.ts`, grey `--bar-neutral` for days without macros). Report choices
-  navigate with `resetScroll: false`.
+  navigate with `resetScroll: false`. `rays` (`ChartRay`: two dates, two values) are straight segments drawn in the
+  `drawAxes` hook (under the series, into the y range); the one starting on the day under the cursor (else the
+  newest) is highlighted, a redraw only when that day changes. `cursorPoint: false` hides the cursor point of a
+  legend value that belongs to another x.
+- Forecasts in the weight chart (plan `docs/plans/2026-11-gewichtsprognosen.md`): switch "Prognosen" under the
+  chart on `/progress` (`ft.progress.forecasts`, per device, `features/progress/forecastPref.ts`). Each day D gets
+  the forecast the app would have made with the data up to D (shared `forecastHistory`, `useForecastHistory`):
+  a line from the 7-day mean at D with the slope (average net kcal of the complete days of the 28 days to D minus
+  maintenance) / 7 700; maintenance from `estimateExpenditure` up to D, else the profile formula (then at least
+  `FORECAST_MIN_DAYS` complete days); no forecast with a weigh-in older than 14 days. With own data the slope is the
+  28-day weight trend. Retrospective from today's records (a later entry or profile change moves old rays),
+  nothing is stored. `weightChart` (`features/progress/weightChart.ts`, pure): with forecasts the x values are
+  every day, the legend series "Prognose +N T" names the end of the day's ray, the x range reaches today + the
+  horizon (7 T: 7 days, 30 T: 14, 90 T and Alle: 28), at most `MAX_RAYS` rays. Off, the chart is as before.
 - Appearance (Mehr → Aussehen, per device in `localStorage`): app theme system/light/dark and logo variant
   (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
   `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.

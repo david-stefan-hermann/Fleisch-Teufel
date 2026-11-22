@@ -50,6 +50,7 @@ export function forecastHistory(params: {
   const rowIndex = new Map(params.rows.map((r, i) => [r.date, i]));
   const out: DayForecast[] = [];
   let w = -1; // index of the last weigh-in on or before the day
+  let w0 = 0; // index of the first weigh-in inside the day's window
   for (const day of dateRange(params.from, params.to)) {
     while (w + 1 < weights.length && weights[w + 1]!.date <= day) w++;
     const i = rowIndex.get(day);
@@ -57,11 +58,13 @@ export function forecastHistory(params: {
     const last = weights[w]!;
     if (diffDays(last.date, day) > FORECAST_MAX_WEIGHT_AGE_DAYS) continue;
     const window = params.rows.slice(Math.max(0, i + 1 - EXPENDITURE_WINDOW_DAYS), i + 1);
+    while (w0 <= w && weights[w0]!.date < window[0]!.date) w0++;
     const intake = netIntake(window.slice(-intakeDays), { ...credit, today: day });
     if (intake.days === 0) continue;
     const netKcal = intake.intakeAvg - intake.exerciseAvg;
-    // `estimateExpenditure` keeps only the weigh-ins inside its window, so none after `day`.
-    const estimate = estimateExpenditure({ rows: window, weights, ...credit, today: day }).value;
+    // Only the weigh-ins of the window: none after `day` (and no filtering of all of them per day).
+    const inWindow = weights.slice(w0, w + 1);
+    const estimate = estimateExpenditure({ rows: window, weights: inWindow, ...credit, today: day }).value;
     let maintenanceKcal: number;
     let basis: DayForecast['basis'];
     if (estimate) {
