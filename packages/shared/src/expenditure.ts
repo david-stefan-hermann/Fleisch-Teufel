@@ -100,13 +100,7 @@ export function estimateExpenditure(params: {
     return missing('tooFew');
   const trend = linearTrend(sorted);
   if (!trend || Math.abs(trend.slopePerDay * 7) > MAX_WEEKLY_TREND_KG) return missing('implausible');
-  const intakeAvg = complete.reduce((s, r) => s + get(r.nutrients, N.kcal), 0) / complete.length;
-  // Only what is credited on the budget comes off: training and steps that are not credited belong
-  // to the everyday movement the expenditure contains anyway (else a target from it would be too low).
-  const credit = { exercise: params.creditExercise !== false, steps: params.creditSteps !== false };
-  const exerciseAvg =
-    complete.reduce((s, r) => s + creditedTrainingKcal(r.exerciseKcal, r.stepsKcal, credit), 0) /
-    complete.length;
+  const { intakeAvg, exerciseAvg } = netIntake(complete, params);
   const base = intakeAvg - exerciseAvg - trend.slopePerDay * KCAL_PER_KG_BODY_WEIGHT;
   if (!Number.isFinite(base) || base < PLAUSIBLE.min || base > PLAUSIBLE.max) return missing('implausible');
   const intakeVar =
@@ -130,6 +124,25 @@ export function estimateExpenditure(params: {
       uncertaintyKcal: Math.round(uncertainty / 10) * 10,
     },
   };
+}
+
+/**
+ * Average intake and credited training over the complete days of `rows` (unrounded). Only what is
+ * credited on the budget comes off: training and steps that are not credited belong to the everyday
+ * movement the expenditure contains anyway (else a target from it would be too low).
+ */
+export function netIntake(
+  rows: readonly DailyRow[],
+  opts: { creditExercise?: boolean; creditSteps?: boolean; today?: ISODate } = {},
+): { intakeAvg: number; exerciseAvg: number; days: number } {
+  const complete = rows.filter((r) => isCompleteDay(r, { today: opts.today }));
+  if (complete.length === 0) return { intakeAvg: 0, exerciseAvg: 0, days: 0 };
+  const credit = { exercise: opts.creditExercise !== false, steps: opts.creditSteps !== false };
+  const intakeAvg = complete.reduce((s, r) => s + get(r.nutrients, N.kcal), 0) / complete.length;
+  const exerciseAvg =
+    complete.reduce((s, r) => s + creditedTrainingKcal(r.exerciseKcal, r.stepsKcal, credit), 0) /
+    complete.length;
+  return { intakeAvg, exerciseAvg, days: complete.length };
 }
 
 /** A daily kcal target from an expenditure and the weekly rate, with the limits of `kcalTarget`. */

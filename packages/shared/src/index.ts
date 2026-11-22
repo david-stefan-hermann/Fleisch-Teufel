@@ -8,6 +8,7 @@ export * from './exercise.js';
 export * from './expenditure.js';
 export * from './foods.js';
 export * from './forecast.js';
+export * from './forecastHistory.js';
 export * from './goals.js';
 export * from './ids.js';
 export * from './nutrients.js';
