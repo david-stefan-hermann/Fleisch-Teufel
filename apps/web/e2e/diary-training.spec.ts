@@ -921,3 +921,75 @@ test('steps from Apple Health: access, import by the shortcut, typed kcal stay, 
   await expect(page.getByRole('heading', { name: 'Letzte Abrufe' })).toBeVisible();
   await expect(page.getByText('1 Tag · 0 geändert · 1 mit Strecke')).toBeVisible();
 });
+
+test('weight chart: forecasts of the single days, switch kept per device', async ({ page }) => {
+  await register(page);
+  await page.goto('/progress');
+  // 30 days with two meals and a weigh-in each, the weight falling steadily.
+  await page.evaluate(async () => {
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = Date.now();
+    const records: unknown[] = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const date = iso(d);
+      const at = d.getTime();
+      records.push({
+        table: 'weightEntries',
+        data: { id: `w:${date}`, updatedAt: now, deleted: false, date, kg: 85 - (29 - i) * 0.07 },
+      });
+      for (const meal of [0, 1])
+        records.push({
+          table: 'foodEntries',
+          data: {
+            id: `e2e-${date}-${meal}`,
+            updatedAt: now,
+            deleted: false,
+            date,
+            meal,
+            loggedAt: at + meal * 3_600_000,
+            foodId: null,
+            source: 'quick',
+            name: meal ? 'Abendessen' : 'Mittagessen',
+            brand: null,
+            grams: null,
+            portionLabel: null,
+            portionGrams: null,
+            quantity: 1,
+            per100: null,
+            nutrients: { ENERCC: 1000 },
+            mealId: null,
+            aiAnalysisId: null,
+          },
+        });
+    }
+    const r = await fetch('/api/sync/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ records }),
+    });
+    if (!r.ok) throw new Error(`push ${r.status}`);
+  });
+  await page.reload();
+  // The hidden table for screen readers (uPlot's legend is a table too).
+  const chart = page.locator('figure.ft-chart table.sr-only');
+  const forecastColumn = chart.locator('th', { hasText: 'Prognose +14 T' });
+  await expect(chart.locator('th', { hasText: '7-Tage-Mittel' })).toHaveCount(1);
+  await expect(forecastColumn).toHaveCount(0);
+
+  const toggle = page.getByRole('switch', { name: 'Prognosen' });
+  await expect(toggle).not.toBeChecked();
+  await toggle.click();
+  await expect(forecastColumn).toHaveCount(1);
+  await expect(page.getByRole('img', { name: /und Prognosen der einzelnen Tage$/ })).toBeVisible();
+  // Today has a forecast: the last row of the table carries a value in the last column.
+  await expect(chart.locator('tbody tr').last().locator('td').last()).toHaveText(/^\d+,?\d* kg$/);
+
+  await page.reload();
+  await expect(toggle).toBeChecked();
+  await expect(forecastColumn).toHaveCount(1);
+  await toggle.click();
+  await expect(forecastColumn).toHaveCount(0);
+});

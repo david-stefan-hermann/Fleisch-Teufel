@@ -15,7 +15,7 @@ import { CalendarDays, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { Chart, xOf, type ChartSeries } from '@/components/Chart';
+import { Chart } from '@/components/Chart';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -30,19 +30,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
+import { useForecastHistory } from '@/hooks/useForecastHistory';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { ExpenditureCard } from './ExpenditureCard';
+import { useForecastPref } from './forecastPref';
+import { weightChart } from './weightChart';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
+/** `horizon`: days each forecast ray reaches ahead. */
 const RANGES = [
-  { id: '7', label: '7 T', days: 7 },
-  { id: '30', label: '30 T', days: 30 },
-  { id: '90', label: '90 T', days: 90 },
-  { id: 'all', label: 'Alle', days: null },
+  { id: '7', label: '7 T', days: 7, horizon: 7 },
+  { id: '30', label: '30 T', days: 30, horizon: 14 },
+  { id: '90', label: '90 T', days: 90, horizon: 28 },
+  { id: 'all', label: 'Alle', days: null, horizon: 28 },
 ] as const;
 
 const kg = (v: number) => `${fmt2(v)} kg`;
@@ -84,27 +89,21 @@ export function ProgressPage() {
   );
   const target = settings?.targetWeightKg ?? null;
 
-  const { data, series, yRange } = useMemo(() => {
-    const xs = visible.map((w) => xOf(w.date));
-    const avgByDate = new Map(avg.map((p) => [p.date, p.kg]));
-    const s: ChartSeries[] = [
-      { label: 'Gewicht', color: '--muted-foreground', kind: 'points', format: kg },
-      { label: '7-Tage-Mittel', color: '--primary', kind: 'line', width: 2.5, format: kg },
-    ];
-    const d: (number | null)[][] = [
-      visible.map((w) => w.kg),
-      visible.map((w) => round(avgByDate.get(w.date) ?? w.kg, 2)),
-    ];
-    if (target !== null) {
-      s.push({ label: 'Ziel', color: '--good', kind: 'line', dash: [6, 6], width: 1.5, format: kg });
-      d.push(visible.map(() => target));
-    }
-    // All values equal (one weigh-in): uPlot would span 50 to 150 kg; ±2 kg around the value instead.
-    const values = d.flat().filter((v): v is number => v !== null);
-    const flat = values.length > 0 && Math.max(...values) - Math.min(...values) < 0.001;
-    const yRange: [number, number] | undefined = flat ? [values[0]! - 2, values[0]! + 2] : undefined;
-    return { data: [xs, ...d] as [number[], ...(number | null)[][]], series: s, yRange };
-  }, [visible, avg, target]);
+  const [forecastsOn, setForecastsOn] = useForecastPref();
+  const forecasts = useForecastHistory(from, forecastsOn);
+  const chart = useMemo(
+    () =>
+      weightChart({
+        visible,
+        avg,
+        target,
+        from,
+        today,
+        forecasts: forecastsOn ? forecasts : undefined,
+        horizon: range.horizon,
+      }),
+    [visible, avg, target, from, today, forecasts, forecastsOn, range.horizon],
+  );
 
   const change = (days: number) => {
     if (!weights || weights.length < 2 || !latest) return null;
@@ -195,17 +194,25 @@ export function ProgressPage() {
           >
             <div className="px-2 pb-3">
               {visible.length > 0 ? (
-                <Chart
-                  xRange={[from, today]}
-                  data={data}
-                  series={series}
-                  yRange={yRange}
-                  title={
-                    range.days
-                      ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
-                      : 'Gewicht gesamt mit 7-Tage-Mittel'
-                  }
-                />
+                <>
+                  <Chart
+                    xRange={chart.xRange}
+                    data={chart.data}
+                    series={chart.series}
+                    yRange={chart.yRange}
+                    rays={chart.rays}
+                    title={
+                      (range.days
+                        ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
+                        : 'Gewicht gesamt mit 7-Tage-Mittel') +
+                      (chart.rays ? ' und Prognosen der einzelnen Tage' : '')
+                    }
+                  />
+                  <div className="flex min-h-11 items-center justify-between px-2">
+                    <Label htmlFor="weight-forecasts">Prognosen</Label>
+                    <Switch id="weight-forecasts" checked={forecastsOn} onCheckedChange={setForecastsOn} />
+                  </div>
+                </>
               ) : (
                 <p className="p-4 text-sm text-muted-foreground">Keine Werte in diesem Zeitraum.</p>
               )}
