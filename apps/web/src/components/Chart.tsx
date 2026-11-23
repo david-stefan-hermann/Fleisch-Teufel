@@ -128,7 +128,23 @@ export function Chart({ data, series, height = 220, title, yRange, xRange }: Cha
       series: s,
       cursor: {
         drag: { x: false, y: false },
-        points: { size: 8 },
+        // The cursor line sits on the day whose values the points and legend show, not under the finger.
+        move: (u, left, top) => {
+          const xs = u.data[0] as number[];
+          if (left < 0 || xs.length === 0) return [left, top];
+          const x = xs[u.posToIdx(left)];
+          return [x === undefined ? left : u.valToPos(x, 'x'), top];
+        },
+        // Filled in the series color with a ring of the card: a hollow point punched a hole into the line.
+        points: {
+          size: 9,
+          width: 2,
+          fill: (u, si) => {
+            const stroke = u.series[si]?.stroke;
+            return typeof stroke === 'function' ? stroke(u, si) : (stroke ?? ink);
+          },
+          stroke: () => surface,
+        },
       },
       legend: { live: true },
       hooks: {

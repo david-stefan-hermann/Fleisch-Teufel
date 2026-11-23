@@ -922,7 +922,9 @@ test('steps from Apple Health: access, import by the shortcut, typed kcal stay, 
   await expect(page.getByText('1 Tag · 0 geändert · 1 mit Strecke')).toBeVisible();
 });
 
-test('weight chart: forecasts of the single days, switch kept per device', async ({ page }) => {
+test('weight chart: forecasts open below it, kept per device; entries show the newest seven', async ({
+  page,
+}) => {
   await register(page);
   await page.goto('/progress');
   // 30 days with two meals and a weigh-in each, the weight falling steadily.
@@ -973,31 +975,42 @@ test('weight chart: forecasts of the single days, switch kept per device', async
     if (!r.ok) throw new Error(`push ${r.status}`);
   });
   await page.reload();
-  // The hidden table for screen readers (uPlot's legend is a table too).
-  const chart = page.locator('figure.ft-chart table.sr-only');
-  const forecastColumn = chart.locator('th', { hasText: /^Prognose$/ });
-  await expect(chart.locator('th', { hasText: '7-Tage-Mittel' })).toHaveCount(1);
-  await expect(forecastColumn).toHaveCount(0);
-
-  const toggle = page.getByRole('switch', { name: 'Prognosen' });
-  await expect(toggle).not.toBeChecked();
+  // The weight chart always; "Prognose" below it opens the second chart.
+  await expect(page.getByRole('img', { name: /^Gewicht der letzten 30 Tage/ })).toBeVisible();
+  const forecastTable = page.locator('figure.ft-chart table.sr-only', {
+    has: page.locator('th', { hasText: /^Erwartet$/ }),
+  });
+  await expect(forecastTable).toHaveCount(0);
+  const toggle = page.getByRole('button', { name: 'Prognose', exact: true });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
-  await expect(forecastColumn).toHaveCount(1);
-  await expect(page.getByRole('img', { name: /der Prognose eines Tages$/ })).toBeVisible();
+  await expect(forecastTable).toHaveCount(1);
+  await expect(page.getByRole('img', { name: /^Gewicht der letzten 30 Tage/ })).toBeVisible();
   // Today has a forecast 14 days ahead: the last row of the table carries it in the last column.
-  await expect(chart.locator('tbody tr').last().locator('td').last()).toHaveText(/^\d+(,\d)? kg für \d/);
-  // The slider chooses a day: one step back, its forecast is for today, the legend names that day.
-  const slider = page.getByRole('slider', { name: 'Tag der Prognose' });
-  await slider.focus();
+  await expect(forecastTable.locator('tbody tr').last().locator('td').last()).toHaveText(
+    /^\d+(,\d)? kg für \d/,
+  );
+  // The chart itself chooses the day: one step back, its forecast is for today.
+  const chooser = page.getByRole('slider', { name: 'Tag der Prognose' });
+  await chooser.focus();
   await page.keyboard.press('ArrowLeft');
   const legend = page.getByTestId('forecast-legend');
   await expect(legend).toContainText('Prognose für heute');
   await expect(legend).toContainText('Erwartet');
   await expect(legend).not.toContainText('Heute,');
 
+  // Open stays open on this device; closing hides the second chart.
   await page.reload();
-  await expect(toggle).toBeChecked();
-  await expect(forecastColumn).toHaveCount(1);
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(forecastTable).toHaveCount(1);
   await toggle.click();
-  await expect(forecastColumn).toHaveCount(0);
+  await expect(forecastTable).toHaveCount(0);
+
+  // The entries list shows the newest seven; the others open below.
+  const entries = page.locator('section', { has: page.getByRole('heading', { name: 'Einträge' }) });
+  const rows = entries.getByRole('button', { name: /kg/ });
+  await expect(rows).toHaveCount(7);
+  const older = entries.getByRole('button', { name: 'Ältere Einträge (23)' });
+  await older.click();
+  await expect(rows).toHaveCount(30);
 });

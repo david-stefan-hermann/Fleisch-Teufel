@@ -305,3 +305,12 @@ Nutzer nach dem Test auf dem iPhone: die simulierte Schwankung wirkt komisch, di
 Gerade sein, mit Erwartungsbereich. Die Prognose des gewählten Tages ist jetzt eine gerade Linie in ihrem
 80-%-Band; `simulateForecast` und die Autokorrelation entfallen, die Streuung des 7-Tage-Mittels um seinen Trend
 (`curveSpread`) bestimmt weiter die Breite des Bandes am Anfang.
+
+## Runde 5: zweites Diagramm zum Aufklappen (2026-11-23)
+
+Nutzer: Fehler im Bild (Tipp ins Gewichtsdiagramm: Loch in der Linie, Cursorlinie neben den Punkten), Regler weg
+(die Hand genügt), Prognose als zweites Diagramm unter „Prognose“ zum Aufklappen, Gewichtseinträge auf die
+letzten 7 begrenzt, der Rest aufklappbar. Umgesetzt: uPlot-Cursor rastet auf dem Tag ein, Cursorpunkte gefüllt;
+das Gewichtsdiagramm bleibt immer, „Prognose“ (`DisclosureTrigger`, gemerkt in `ft.progress.forecasts`) öffnet
+`ForecastChart`; das Diagramm ist selbst der Schieber (`role=slider`, Pfeiltasten); „Ältere Einträge (N)“ klappt
+die übrigen Einträge auf (darin weiter in Schritten von 60).

@@ -267,8 +267,11 @@ test.describe('375 px (iPhone mini and SE)', () => {
     await page.goto('/progress');
     await expect(page.getByRole('img', { name: /^Gewicht/ })).toBeVisible();
     expect(await fitsScreen()).toBe(true);
-    await page.getByRole('switch', { name: 'Prognosen' }).click();
-    await expect(page.getByRole('switch', { name: 'Prognosen' })).toBeChecked();
+    await page.getByRole('button', { name: 'Prognose', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Prognose', exact: true })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     expect(await fitsScreen()).toBe(true);
 
     // Diary: without day arrows the long date fits; it is never cut off.

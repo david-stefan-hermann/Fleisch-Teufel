@@ -1,6 +1,5 @@
 import { addDays } from '@ft/shared';
 import { useCallback, useRef, useState, type PointerEvent } from 'react';
-import { Slider } from '@/components/ui/slider';
 import { fmt1, fmt2, fmtDayMonthShort, fmtDayShort, NO_VALUE } from '@/lib/format';
 import {
   dayView,
@@ -21,8 +20,8 @@ const kg1 = (v: number) => `${fmt1(v)} kg`;
 /**
  * The weight chart with forecasts (mockup v2, variant AB): behind the data the band of what was
  * expected for each day, and the forecast of the chosen day as a straight line with its band. A
- * day is chosen with the slider or by touching the chart (horizontal moves scrub, vertical ones
- * scroll the page). Drawn as SVG: the plain chart (uPlot) has no touch scrubbing.
+ * day is chosen by touching the chart (horizontal moves scrub, vertical ones scroll the page) or with
+ * the arrow keys. Drawn as SVG: uPlot has no touch scrubbing.
  */
 export function ForecastChart({
   model,
@@ -107,13 +106,36 @@ export function ForecastChart({
   const expected = model.expected[sel];
   return (
     <figure className="ft-chart" ref={measure}>
+      {/* The chart itself chooses the day: touch or drag it, or the arrow keys once focused. */}
       <svg
-        role="img"
-        aria-label={title}
+        role="slider"
+        aria-label="Tag der Prognose"
+        aria-roledescription="Diagramm"
+        aria-valuemin={0}
+        aria-valuemax={last}
+        aria-valuenow={sel}
+        aria-valuetext={fmtDayShort(view.date)}
+        tabIndex={0}
         width={width}
         height={HEIGHT}
         viewBox={`0 0 ${width} ${HEIGHT}`}
-        className="block touch-pan-y select-none"
+        className="block touch-pan-y rounded-md select-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        onKeyDown={(e) => {
+          const next =
+            e.key === 'ArrowLeft'
+              ? sel - 1
+              : e.key === 'ArrowRight'
+                ? sel + 1
+                : e.key === 'Home'
+                  ? 0
+                  : e.key === 'End'
+                    ? last
+                    : null;
+          if (next === null) return;
+          e.preventDefault();
+          const clamped = Math.max(0, Math.min(last, next));
+          if (clamped !== sel) onSelect(clamped);
+        }}
         onPointerDown={(e) => {
           dragging.current = true;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -197,18 +219,7 @@ export function ForecastChart({
         />
         {f && <circle cx={sx(sel)} cy={sy(f.startKg)} r={4.5} fill="var(--primary)" />}
       </svg>
-      <div className="px-3 pt-3 pb-1">
-        <Slider
-          aria-label="Tag der Prognose"
-          aria-valuetext={fmtDayShort(view.date)}
-          min={0}
-          max={last}
-          step={1}
-          value={[sel]}
-          onValueChange={([i]) => i !== undefined && i !== sel && onSelect(i)}
-        />
-      </div>
-      <figcaption className="tabular px-2 pt-2 text-sm" data-testid="forecast-legend">
+      <figcaption className="tabular px-2 pt-1 text-sm" data-testid="forecast-legend">
         <p className="font-semibold">
           {isToday ? `Heute, ${fmtDayShort(view.date)}` : fmtDayShort(view.date)}
         </p>

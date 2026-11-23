@@ -12,7 +12,7 @@ import {
   type WeightEntry,
 } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { CalendarDays, Plus, Scale } from 'lucide-react';
+import { CalendarDays, ChevronDown, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
@@ -31,7 +31,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { DisclosureTrigger } from '@/components/NutrientBreakdown';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
@@ -52,6 +53,8 @@ const RANGES = [
 ] as const;
 
 const kg = (v: number) => `${fmt2(v)} kg`;
+/** Weight entries shown without opening "Ältere Einträge". */
+const RECENT_ENTRIES = 7;
 
 export function ProgressPage() {
   const search = useSearch({ from: '/authed/progress' });
@@ -147,6 +150,35 @@ export function ProgressPage() {
   };
   const weekly = trend30 ? round(trend30.slopePerDay * 7, 2) : null;
 
+  // Newest first; the row shows the change against the entry before it.
+  const newest = [...(weights ?? [])].reverse();
+  const entryRow = (w: WeightEntry, index: number) => {
+    const prev = newest[index + 1];
+    const diff = prev ? round(w.kg - prev.kg, 2) : null;
+    return (
+      <li key={w.id}>
+        <SwipeToDelete label={`Eintrag vom ${fmtDate(w.date)} löschen`} onDelete={() => void removeWeight(w)}>
+          <button
+            type="button"
+            onClick={() => setEditing(w)}
+            className="tabular flex min-h-12 w-full items-center justify-between px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+          >
+            <span>{fmtDate(w.date)}</span>
+            <span>
+              <span className="font-semibold">{kg(w.kg)}</span>
+              {diff !== null && diff !== 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {diff > 0 ? '+' : ''}
+                  {fmt2(diff)}
+                </span>
+              )}
+            </span>
+          </button>
+        </SwipeToDelete>
+      </li>
+    );
+  };
+
   return (
     <Page
       title="Fortschritt"
@@ -230,26 +262,32 @@ export function ProgressPage() {
             <div className="px-2 pb-3">
               {visible.length > 0 ? (
                 <>
-                  {forecastModel ? (
-                    <ForecastChart
-                      model={forecastModel}
-                      selected={selectedIndex}
-                      onSelect={(i) => setChosen({ range: range.id, date: forecastModel.dates[i]! })}
-                      title={`${chartTitle}, erwarteten Werten und der Prognose eines Tages`}
-                    />
-                  ) : (
-                    <Chart
-                      xRange={[from, today]}
-                      data={data}
-                      series={series}
-                      yRange={yRange}
-                      title={chartTitle}
-                    />
-                  )}
-                  <div className="flex min-h-11 items-center justify-between px-2">
-                    <Label htmlFor="weight-forecasts">Prognosen</Label>
-                    <Switch id="weight-forecasts" checked={forecastsOn} onCheckedChange={setForecastsOn} />
-                  </div>
+                  <Chart
+                    xRange={[from, today]}
+                    data={data}
+                    series={series}
+                    yRange={yRange}
+                    title={chartTitle}
+                  />
+                  <Collapsible open={forecastsOn} onOpenChange={setForecastsOn} className="mt-2 px-2">
+                    <DisclosureTrigger className="min-h-11 font-semibold">Prognose</DisclosureTrigger>
+                    <CollapsibleContent className="pt-1">
+                      {forecastModel ? (
+                        <ForecastChart
+                          model={forecastModel}
+                          selected={selectedIndex}
+                          onSelect={(i) => setChosen({ range: range.id, date: forecastModel.dates[i]! })}
+                          title={`${chartTitle}, erwarteten Werten und der Prognose eines Tages`}
+                        />
+                      ) : (
+                        forecasts && (
+                          <p className="pb-2 text-sm text-muted-foreground">
+                            Zu wenig Daten für eine Prognose.
+                          </p>
+                        )
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
                 </>
               ) : (
                 <p className="p-4 text-sm text-muted-foreground">Keine Werte in diesem Zeitraum.</p>
@@ -259,45 +297,32 @@ export function ProgressPage() {
 
           <Section title="Einträge">
             <ul className="divide-y divide-border/70 pb-1">
-              {[...(weights ?? [])]
-                .reverse()
-                .slice(0, shown)
-                .map((w, i, arr) => {
-                  const prev = arr[i + 1];
-                  const diff = prev ? round(w.kg - prev.kg, 2) : null;
-                  return (
-                    <li key={w.id}>
-                      <SwipeToDelete
-                        label={`Eintrag vom ${fmtDate(w.date)} löschen`}
-                        onDelete={() => void removeWeight(w)}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setEditing(w)}
-                          className="tabular flex min-h-12 w-full items-center justify-between px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-                        >
-                          <span>{fmtDate(w.date)}</span>
-                          <span>
-                            <span className="font-semibold">{kg(w.kg)}</span>
-                            {diff !== null && diff !== 0 && (
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                {diff > 0 ? '+' : ''}
-                                {fmt2(diff)}
-                              </span>
-                            )}
-                          </span>
-                        </button>
-                      </SwipeToDelete>
-                    </li>
-                  );
-                })}
+              {newest.slice(0, RECENT_ENTRIES).map((w, k) => entryRow(w, k))}
             </ul>
-            {(weights?.length ?? 0) > shown && (
-              <div className="px-4 pb-4">
-                <Button variant="outline" className="w-full" onClick={() => setShown((n) => n + 60)}>
-                  Ältere Einträge laden ({(weights?.length ?? 0) - shown})
-                </Button>
-              </div>
+            {newest.length > RECENT_ENTRIES && (
+              <Collapsible className="border-t border-border/70">
+                <CollapsibleTrigger className="group flex min-h-12 w-full items-center justify-between gap-2 px-4 text-left text-sm font-semibold hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none">
+                  Ältere Einträge ({newest.length - RECENT_ENTRIES})
+                  <ChevronDown
+                    className="size-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ul className="divide-y divide-border/70 border-t border-border/70 pb-1">
+                    {newest
+                      .slice(RECENT_ENTRIES, RECENT_ENTRIES + shown)
+                      .map((w, k) => entryRow(w, RECENT_ENTRIES + k))}
+                  </ul>
+                  {newest.length > RECENT_ENTRIES + shown && (
+                    <div className="px-4 pb-4">
+                      <Button variant="outline" className="w-full" onClick={() => setShown((n) => n + 60)}>
+                        Ältere Einträge laden ({newest.length - RECENT_ENTRIES - shown})
+                      </Button>
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </Section>
         </>

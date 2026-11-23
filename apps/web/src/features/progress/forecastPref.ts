@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-/** Per device: whether the weight chart shows the forecasts of the single days. */
+/** Per device: whether "Prognose" under the weight chart is open. */
 const KEY = 'ft.progress.forecasts';
 
 function read(): boolean {
