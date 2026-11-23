@@ -16,7 +16,7 @@ import { CalendarDays, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useDb } from '@/app/session';
-import { Chart } from '@/components/Chart';
+import { Chart, xOf, type ChartSeries } from '@/components/Chart';
 import { NumberField } from '@/components/NumberField';
 import { EmptyState, Page, Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -41,7 +40,8 @@ import { useForecastHistory } from '@/hooks/useForecastHistory';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { ExpenditureCard } from './ExpenditureCard';
 import { useForecastPref } from './forecastPref';
-import { weightChart } from './weightChart';
+import { aheadDaysFor, forecastChartModel } from './forecastChart';
+import { ForecastChart } from './ForecastChart';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
 
 const RANGES = [
@@ -93,22 +93,52 @@ export function ProgressPage() {
   const [forecastsOn, setForecastsOn] = useForecastPref();
   // The forecasts of the 14 days before the period make up what was expected for its first days.
   const forecasts = useForecastHistory(addDays(from, -EXPECTED_LOOKBACK_DAYS), forecastsOn);
-  // The day whose forecast the chart shows (null: today).
-  const [selected, setSelected] = useState<string | null>(null);
-  const chart = useMemo(
+  const { data, series, yRange } = useMemo(() => {
+    const xs = visible.map((w) => xOf(w.date));
+    const avgByDate = new Map(avg.map((p) => [p.date, p.kg]));
+    const s: ChartSeries[] = [
+      { label: 'Gewicht', color: '--muted-foreground', kind: 'points', format: kg },
+      { label: '7-Tage-Mittel', color: '--primary', kind: 'line', width: 2.5, format: kg },
+    ];
+    const d: (number | null)[][] = [
+      visible.map((w) => w.kg),
+      visible.map((w) => round(avgByDate.get(w.date) ?? w.kg, 2)),
+    ];
+    if (target !== null) {
+      s.push({ label: 'Ziel', color: '--good', kind: 'line', dash: [6, 6], width: 1.5, format: kg });
+      d.push(visible.map(() => target));
+    }
+    // All values equal (one weigh-in): uPlot would span 50 to 150 kg; ±2 kg around the value instead.
+    const values = d.flat().filter((v): v is number => v !== null);
+    const flat = values.length > 0 && Math.max(...values) - Math.min(...values) < 0.001;
+    const yRange: [number, number] | undefined = flat ? [values[0]! - 2, values[0]! + 2] : undefined;
+    return { data: [xs, ...d] as [number[], ...(number | null)[][]], series: s, yRange };
+  }, [visible, avg, target]);
+  const forecastModel = useMemo(
     () =>
-      weightChart({
-        visible,
-        avg,
-        target,
-        from,
-        today,
-        forecasts: forecastsOn ? forecasts : undefined,
-        selected: selected ?? undefined,
-      }),
-    [visible, avg, target, from, today, forecasts, forecastsOn, selected],
+      forecastsOn && forecasts
+        ? forecastChartModel({
+            visible,
+            avg,
+            target,
+            from,
+            today,
+            forecasts,
+            aheadDays: aheadDaysFor(range.days ?? Infinity),
+          })
+        : null,
+    [forecastsOn, forecasts, visible, avg, target, from, today, range.days],
   );
-  const pickDay = (i: number) => setSelected(chart.dates[i] ?? null);
+  // The day whose forecast the chart shows, for the period it was chosen in (else today).
+  const [chosen, setChosen] = useState<{ range: string; date: string } | null>(null);
+  const selectedIndex = forecastModel
+    ? chosen?.range === range.id && forecastModel.dates.includes(chosen.date)
+      ? forecastModel.dates.indexOf(chosen.date)
+      : forecastModel.dates.length - 1
+    : 0;
+  const chartTitle = range.days
+    ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
+    : 'Gewicht gesamt mit 7-Tage-Mittel';
 
   const change = (days: number) => {
     if (!weights || weights.length < 2 || !latest) return null;
@@ -200,33 +230,21 @@ export function ProgressPage() {
             <div className="px-2 pb-3">
               {visible.length > 0 ? (
                 <>
-                  <Chart
-                    xRange={chart.xRange}
-                    data={chart.data}
-                    series={chart.series}
-                    yRange={chart.yRange}
-                    overlay={chart.overlay}
-                    legendIndex={chart.legendIndex}
-                    onPick={chart.overlay ? pickDay : undefined}
-                    title={
-                      (range.days
-                        ? `Gewicht der letzten ${range.days} Tage mit 7-Tage-Mittel`
-                        : 'Gewicht gesamt mit 7-Tage-Mittel') +
-                      (chart.overlay ? ', erwarteten Werten und der Prognose eines Tages' : '')
-                    }
-                  />
-                  {chart.legendIndex !== undefined && (
-                    <div className="px-3 pt-2 pb-1">
-                      <Slider
-                        aria-label="Tag der Prognose"
-                        aria-valuetext={fmtDate(chart.dates[chart.legendIndex]!)}
-                        min={0}
-                        max={chart.dates.length - 1}
-                        step={1}
-                        value={[chart.legendIndex]}
-                        onValueChange={([i]) => i !== undefined && pickDay(i)}
-                      />
-                    </div>
+                  {forecastModel ? (
+                    <ForecastChart
+                      model={forecastModel}
+                      selected={selectedIndex}
+                      onSelect={(i) => setChosen({ range: range.id, date: forecastModel.dates[i]! })}
+                      title={`${chartTitle}, erwarteten Werten und der Prognose eines Tages`}
+                    />
+                  ) : (
+                    <Chart
+                      xRange={[from, today]}
+                      data={data}
+                      series={series}
+                      yRange={yRange}
+                      title={chartTitle}
+                    />
                   )}
                   <div className="flex min-h-11 items-center justify-between px-2">
                     <Label htmlFor="weight-forecasts">Prognosen</Label>

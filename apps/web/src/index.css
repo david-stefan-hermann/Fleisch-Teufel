@@ -55,6 +55,8 @@
   --carbs: oklch(0.75 0.15 75);
   --fat: oklch(0.6 0.16 320);
   --good: oklch(0.6 0.13 155);
+  /* Weight forecasts: a softer sibling of the primary red, so forecast and real mean stay apart. */
+  --forecast: oklch(0.62 0.13 25);
   --warn: oklch(0.7 0.15 65);
   /* As text on the background: the bar colors above are too light for small type (about 2.5:1). */
   --good-text: oklch(0.48 0.13 155);
@@ -129,6 +131,7 @@
   --carbs: oklch(0.66 0.14 70);
   --fat: oklch(0.62 0.15 320);
   --good: oklch(0.72 0.13 155);
+  --forecast: oklch(0.74 0.11 25);
   --good-text: oklch(0.78 0.12 155);
   --warn-text: oklch(0.8 0.13 70);
   --over: oklch(0.68 0.17 27);

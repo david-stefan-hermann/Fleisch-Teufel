@@ -431,11 +431,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   Stacked bars are cumulative series drawn from 0, highest first; inner segments set `gapAbove`, segments
   `legend: false` (no legend row, table column or cursor point), a `kind: 'legend'` series carries the total
   (report kcal: `features/reports/chartData.ts`, grey `--bar-neutral` for days without macros). Report choices
-  navigate with `resetScroll: false`. `overlay` (`ChartOverlay`: bands, lines, a marker on a day) is drawn in the
-  `drawAxes` hook (under the series, into the y range; with an overlay the marker replaces uPlot's cursor line);
-  `legendIndex` is the day the legend shows without a cursor, `onPick` reports the day under the cursor.
-  `ChartSeries.opacity` fades a series, `cursorPoint: false` hides the cursor point of a legend value, `format`
-  gets the x index too.
+  navigate with `resetScroll: false`.
 - Forecasts in the weight chart (plan `docs/plans/2026-11-gewichtsprognosen.md`, mockup
   `2026-11-gewichtsprognosen-mockup.html` v2, variant AB): switch "Prognosen" under the chart on `/progress`
   (`ft.progress.forecasts`, per device, `features/progress/forecastPref.ts`). Each day D has the forecast the app
@@ -443,13 +439,17 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   with the slope (average net kcal of the complete days of the 28 days to D minus maintenance) / 7 700;
   maintenance from `estimateExpenditure` up to D, else the profile formula (then at least `FORECAST_MIN_DAYS`
   complete days); none with a weigh-in older than 14 days. With own data the slope is the 28-day weight trend.
-  Retrospective from today's records, nothing is stored. The chart (`weightChart`, pure): every day is an x value;
-  behind the data the band of what the 14 days before each day forecast for it (`expectedRange`, legend
-  "Erwartet"); one chosen day (default today, slider "Tag der Prognose" or a tap) shows its forecast as a simulated
-  course (`simulateForecast`: AR(1) around the trend with the spread and lag-1 autocorrelation of the 7-day mean
-  around its own trend, `curveNoise`, never the raw weigh-ins; seeded by the date) with its 80 % band
-  (`forecastSpread`) up to today, today's 14 days ahead; weigh-ins and mean after the chosen day are faded;
-  legend "Prognose: x kg für heute" (today: "für <Datum>"). Off, the chart is as before.
+  Retrospective from today's records, nothing is stored. With the switch on the page draws `ForecastChart`
+  (own SVG, not uPlot: uPlot cannot scrub by touch; model in `forecastChart.ts`, pure): every day from the first
+  weigh-in of the period to today, behind the data the band of what the 14 days before each day forecast for it
+  (`expectedRange`), one chosen day (default today; slider "Tag der Prognose", or touch: horizontal moves scrub,
+  `touch-pan-y` keeps vertical scrolling) with its forecast as a simulated course (`simulateForecast`: AR(1)
+  around the trend with spread and lag-1 autocorrelation of the 7-day mean around its own trend, `curveNoise`,
+  never the raw weigh-ins; seeded by the date) and its 80 % band (`forecastSpread`) up to today, today's
+  `aheadDaysFor` (7 T: 7, else 14) days ahead; later weigh-ins and mean faded. Ink `--forecast` (softer red than
+  `--primary`). The y range does not move with the chosen day. Legend of three fixed rows (7-Tage-Mittel,
+  Erwartet, Prognose). The chosen day belongs to its period; another period starts at today. Off (or before
+  any forecast exists), the plain `Chart` as before.
 - Appearance (Mehr → Aussehen, per device in `localStorage`): app theme system/light/dark and logo variant
   (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
   `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.

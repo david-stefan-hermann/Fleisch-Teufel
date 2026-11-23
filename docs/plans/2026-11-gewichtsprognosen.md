@@ -285,3 +285,16 @@ Umgesetzt am 2026-11-22. Abweichungen: Der Regler steht unter der Legende (uPlot
 dem Diagramm); die Prognose nennt den Trendwert, nicht das Ende der simulierten Linie; das Erwartungsband ist
 um 0,1 kg je Seite verbreitert, damit ruhige Wochen keine Haarlinie zeichnen; uPlots Cursorlinie ist mit
 Prognosen aus, die Tagesmarke ersetzt sie (sie rastet auf dem Tag ein).
+
+## Runde 3: Durchgetestet und neu gebaut (2026-11-23)
+
+Der Nutzer fand die Umsetzung von Runde 2 auf dem iPhone „quasi nicht benutzbar“. Touch-Test (iPhone-Emulation,
+echte Touch-Ereignisse) ergab: Wischen über das Diagramm wählte keinen Tag (uPlot kennt kein Touch-Scrubben);
+nach einem Tipp blieb uPlots Cursor stehen, Regler und Legende zeigten verschiedene Tage, die Legende Striche;
+die Legende war fünf Zeilen hoch; Bänder, Prognose und blasse Linie im selben Rot; der gewählte Tag blieb über
+Zeiträume hängen; bei 7 T zwei Drittel Zukunft; der Regler unter der Legende; bei 90 T ein leeres Drittel.
+
+Umbau: eigenes SVG-Diagramm `ForecastChart` nur für eingeschaltete Prognosen (Pointer-Events, `touch-pan-y`),
+Regler direkt darunter, Legende mit drei festen Zeilen (Mittel des letzten Wiegetags, nie leer), Farbe
+`--forecast` aus dem Mockup, feste y-Achse je Zeitraum, Achse ab der ersten Wiegung, 7 Tage Zukunft bei 7 T, der
+gewählte Tag gilt nur in seinem Zeitraum. `Chart` (uPlot) ist wieder auf dem Stand vor den Prognosen.

@@ -990,9 +990,10 @@ test('weight chart: forecasts of the single days, switch kept per device', async
   const slider = page.getByRole('slider', { name: 'Tag der Prognose' });
   await slider.focus();
   await page.keyboard.press('ArrowLeft');
-  const legend = page.locator('figure.ft-chart .u-legend');
-  await expect(legend).toContainText('für heute');
+  const legend = page.getByTestId('forecast-legend');
+  await expect(legend).toContainText('Prognose für heute');
   await expect(legend).toContainText('Erwartet');
+  await expect(legend).not.toContainText('Heute,');
 
   await page.reload();
   await expect(toggle).toBeChecked();
