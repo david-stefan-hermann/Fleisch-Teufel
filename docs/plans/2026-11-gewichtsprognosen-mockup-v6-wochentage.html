@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prognose mit Wochentagen</title>
+    <style>
+      /* Dark only: app tokens of apps/web/src/index.css (:root.dark), --forecast from mockup v4. */
+      :root {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --good: oklch(0.72 0.13 155);
+        --forecast: oklch(0.74 0.11 25);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.5 Inter,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 6px;
+      }
+      p.lead,
+      ul.lead {
+        color: var(--page-muted);
+        max-width: 760px;
+        margin: 6px 0;
+      }
+      .wrap {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        margin-top: 18px;
+      }
+      .phone {
+        width: 390px;
+        max-width: 100%;
+        border: 1px solid oklch(0.36 0.008 40);
+        border-radius: 28px;
+        background: var(--background);
+        color: var(--foreground);
+        padding: 16px 12px 20px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 8px 12px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px 10px;
+      }
+      .card-head h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .seg {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .seg button {
+        background: none;
+        border: 0;
+        color: var(--foreground);
+        font: inherit;
+        font-size: 14px;
+        padding: 6px 10px;
+        min-height: 36px;
+        cursor: pointer;
+      }
+      .seg button + button {
+        border-left: 1px solid var(--border);
+      }
+      .seg button.on {
+        background: var(--muted);
+        font-weight: 600;
+      }
+      svg.chart {
+        display: block;
+        width: 100%;
+        height: auto;
+        touch-action: pan-y;
+        user-select: none;
+        cursor: crosshair;
+      }
+      svg.chart:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .legend {
+        padding: 6px 8px 0;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .legend .day {
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+      .legend dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2px 12px;
+        margin: 0;
+      }
+      .legend dt {
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend dd {
+        margin: 0;
+        font-weight: 600;
+      }
+      .sw-line {
+        width: 14px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--forecast);
+      }
+      .sw-dash {
+        width: 14px;
+        border-top: 2px dashed var(--muted-foreground);
+      }
+      .sw-band {
+        width: 14px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--forecast);
+        opacity: 0.3;
+      }
+      .sw-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 2px solid var(--muted-foreground);
+        margin: 0 3px;
+      }
+      .pattern {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-top: 10px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .pattern .bar {
+        height: 40px;
+        position: relative;
+      }
+      .pattern .bar::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        border-top: 1px solid var(--border);
+      }
+      .pattern .bar i {
+        position: absolute;
+        left: 25%;
+        right: 25%;
+        background: var(--forecast);
+        border-radius: 2px;
+      }
+      .pattern b {
+        display: block;
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .pattern-title {
+        margin: 12px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .state {
+        padding: 2px 8px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Prognose mit Wochentagen: Mockup v6 (Skizze)</h1>
+      <p class="lead">
+        Idee 2 aus der Rückfrage vom 2026-11-23, nur dunkel und nur das Prognosediagramm. Bedienbar: Zeitraum,
+        Tippen und waagerecht Wischen wählt einen Tag, Pfeiltasten. Simulierte Daten: 70 Tage Wiegungen bis
+        Mo., 23. Nov., mit einem eingebauten Wochenmuster (montags schwerer, freitags bis sonntags leichter).
+      </p>
+      <ul class="lead">
+        <li>
+          <b>Kurve eines Tages:</b> Gerade aus den 28 Tagen bis zu ihm, plus das Wochentagsmuster, das die App
+          aus den Wiegungen der 8 Wochen bis zu ihm gelernt hat (Abweichung jeder Wiegung vom geglätteten
+          Verlauf, gemittelt pro Wochentag). Sie sagt also voraus, was die Waage an jedem Tag zeigen wird,
+          nicht das Mittel.
+        </li>
+        <li>
+          <b>Bereich:</b> jeder Tag des Zeitraums hat seine eigene Kurve, jede läuft bis zum rechten Rand. Der
+          Bereich an einer Stelle reicht von der tiefsten bis zur höchsten Kurve, die dort schon begonnen hat.
+        </li>
+        <li>
+          <b>Gewählter Tag:</b> seine Kurve hell, die Gerade darunter gestrichelt, darunter sein gelerntes
+          Muster. Wiegungen nach dem Tag sind blass.
+        </li>
+      </ul>
+      <div class="wrap" id="frames"></div>
+    </main>
+
+    <script>
+      const TODAY = new Date(2026, 10, 23);
+      const N = 120;
+      const day = (i) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - (N - 1 - i));
+      const wd = (i) => (day(i).getDay() + 6) % 7; // 0 = Monday
+      const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      const fmtShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+      const fmtDM = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
+      const f1 = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+      const f2 = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+      const sign = (v) =>
+        (v > 0.005 ? '+' : v < -0.005 ? '−' : '') +
+        Math.abs(v).toLocaleString('de-DE', { maximumFractionDigits: 1 });
+      const DASH = '–';
+
+      // ---------- data ----------
+      function rng(seed) {
+        let s = seed >>> 0 || 1;
+        return () => {
+          s ^= s << 13;
+          s ^= s >>> 17;
+          s ^= s << 5;
+          return ((s >>> 0) % 1e9) / 1e9;
+        };
+      }
+      const r0 = rng(11);
+      const gauss = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, r0()))) * Math.cos(2 * Math.PI * r0());
+      const START = N - 70;
+      const WEEK = [0.45, 0.2, 0.05, -0.1, -0.2, -0.25, -0.15];
+      let truth = 86.4;
+      let water = 0;
+      const W = [];
+      for (let i = START; i < N; i++) {
+        truth += i < START + 25 ? -0.08 : i < START + 40 ? -0.01 : -0.07;
+        water = 0.5 * water + gauss() * 0.18;
+        if (r0() < 0.85 || i >= N - 2) W.push({ i, kg: Math.round((truth + water + WEEK[wd(i)]) * 10) / 10 });
+      }
+      const weightOn = new Map(W.map((w) => [w.i, w.kg]));
+
+      function regress(pts) {
+        const n = pts.length;
+        const mx = pts.reduce((s, p) => s + p.i, 0) / n;
+        const my = pts.reduce((s, p) => s + p.kg, 0) / n;
+        let num = 0;
+        let den = 0;
+        for (const p of pts) {
+          num += (p.i - mx) * (p.kg - my);
+          den += (p.i - mx) ** 2;
+        }
+        return { slope: num / den, at: (i) => my + (num / den) * (i - mx) };
+      }
+
+      // The curve of day d: straight line of the 28 days up to d plus the weekday pattern of the 56 days up to d.
+      const cache = new Map();
+      function curveOf(d) {
+        if (cache.has(d)) return cache.get(d);
+        let c = null;
+        const pts = W.filter((w) => w.i <= d && w.i > d - 28);
+        const last = W.filter((w) => w.i <= d).at(-1);
+        if (pts.length >= 6 && pts.at(-1).i - pts[0].i >= 14 && last && d - last.i <= 14) {
+          const line = regress(pts);
+          // Smoothed course: mean of the weigh-ins within ±3 days, never after d.
+          const near = W.filter((w) => w.i <= d && w.i > d - 56);
+          const sums = Array(7).fill(0);
+          const counts = Array(7).fill(0);
+          for (const w of near) {
+            const around = near.filter((v) => Math.abs(v.i - w.i) <= 3);
+            if (around.length < 4) continue;
+            const smooth = around.reduce((s, v) => s + v.kg, 0) / around.length;
+            sums[wd(w.i)] += w.kg - smooth;
+            counts[wd(w.i)]++;
+          }
+          if (counts.every((n) => n >= 2)) {
+            const raw = sums.map((s, k) => s / counts[k]);
+            const mid = raw.reduce((a, b) => a + b) / 7;
+            const pattern = raw.map((v) => v - mid);
+            c = { d, line, pattern, at: (i) => line.at(i) + pattern[wd(i)] };
+          }
+        }
+        cache.set(d, c);
+        return c;
+      }
+
+      // ---------- chart ----------
+      const NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs, parent) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+      const H = 240;
+      const WP = 344;
+      const PAD = { l: 34, r: 8, t: 10, b: 24 };
+      const tickStep = (span) => (span > 8 ? 2 : span > 3 ? 1 : 0.5);
+      function niceRange(vals) {
+        let lo = Math.min(...vals) - 0.2;
+        let hi = Math.max(...vals) + 0.2;
+        const step = tickStep(hi - lo);
+        return [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
+      }
+
+      function chart(box, st) {
+        const ahead = st.range === 7 ? 7 : 14;
+        const last = N - 1;
+        const end = last + ahead;
+        const from = W.find((w) => w.i >= N - st.range)?.i ?? N - st.range;
+        const days = [];
+        for (let d = from; d <= last; d++) if (curveOf(d)) days.push(d);
+        if (!days.length) {
+          box.insertAdjacentHTML('beforeend', '<p class="state">Zu wenig Daten für eine Prognose.</p>');
+          return;
+        }
+        // Band: at each x, lowest and highest curve that has begun there.
+        const band = [];
+        for (let x = days[0]; x <= end; x++) {
+          let lo = Infinity;
+          let hi = -Infinity;
+          for (const d of days) {
+            if (d > x) break;
+            const v = curveOf(d).at(x);
+            lo = Math.min(lo, v);
+            hi = Math.max(hi, v);
+          }
+          band.push({ i: x, lo, hi });
+        }
+        const pts = W.filter((w) => w.i >= from);
+        const [y0, y1] = niceRange([...pts.map((w) => w.kg), ...band.flatMap((b) => [b.lo, b.hi])]);
+        const span = end - from;
+        const sx = (i) => PAD.l + ((i - from + 0.5) / (span + 1)) * (WP - PAD.l - PAD.r);
+        const sy = (v) => PAD.t + ((y1 - v) / (y1 - y0)) * (H - PAD.t - PAD.b);
+        const sel = Math.max(days[0], Math.min(last, st.sel ?? last));
+
+        const svg = el(
+          'svg',
+          {
+            class: 'chart',
+            viewBox: `0 0 ${WP} ${H}`,
+            tabindex: 0,
+            role: 'slider',
+            'aria-label': 'Tag der Prognose',
+            'aria-valuetext': fmtShort.format(day(sel)),
+          },
+          box,
+        );
+        for (let v = y0, step = tickStep(y1 - y0); v <= y1 + 1e-9; v += step) {
+          el('line', { x1: PAD.l, x2: WP - PAD.r, y1: sy(v), y2: sy(v), stroke: 'var(--border)' }, svg);
+          const t = el(
+            'text',
+            {
+              x: PAD.l - 6,
+              y: sy(v) + 4,
+              'text-anchor': 'end',
+              'font-size': 11,
+              fill: 'var(--muted-foreground)',
+            },
+            svg,
+          );
+          t.textContent = (Math.round(v * 10) / 10).toLocaleString('de-DE');
+        }
+        const step = span <= 16 ? 3 : span <= 30 ? 7 : span <= 60 ? 14 : 30;
+        const ticks = [];
+        for (let i = last; i >= from; i -= step) ticks.push(i);
+        for (let i = last + step; i <= end; i += step) ticks.push(i);
+        for (const i of ticks) {
+          const x = sx(i);
+          if (x < PAD.l + 18) continue;
+          const atEnd = x > WP - PAD.r - 22;
+          const t = el(
+            'text',
+            {
+              x: atEnd ? WP - 2 : x,
+              y: H - 6,
+              'text-anchor': atEnd ? 'end' : 'middle',
+              'font-size': 11,
+              fill: 'var(--muted-foreground)',
+            },
+            svg,
+          );
+          t.textContent = fmtDM.format(day(i));
+        }
+        // Today.
+        el('line', { x1: sx(last), x2: sx(last), y1: PAD.t, y2: H - PAD.b, stroke: 'var(--border)' }, svg);
+
+        const poly = (ps) =>
+          ps.map((p, k) => `${k ? 'L' : 'M'}${sx(p.i).toFixed(1)},${sy(p.kg).toFixed(1)}`).join('');
+        el(
+          'path',
+          {
+            d:
+              poly(band.map((b) => ({ i: b.i, kg: b.hi }))) +
+              [...band]
+                .reverse()
+                .map((b) => `L${sx(b.i).toFixed(1)},${sy(b.lo).toFixed(1)}`)
+                .join('') +
+              'Z',
+            fill: 'var(--forecast)',
+            'fill-opacity': 0.2,
+          },
+          svg,
+        );
+        const c = curveOf(sel);
+        if (c) {
+          el(
+            'path',
+            {
+              d: poly([
+                { i: sel, kg: c.line.at(sel) },
+                { i: end, kg: c.line.at(end) },
+              ]),
+              stroke: 'var(--muted-foreground)',
+              'stroke-width': 1.2,
+              'stroke-dasharray': '4 3',
+              fill: 'none',
+            },
+            svg,
+          );
+          const ps = [];
+          for (let i = sel; i <= end; i++) ps.push({ i, kg: c.at(i) });
+          el(
+            'path',
+            {
+              d: poly(ps),
+              stroke: 'var(--forecast)',
+              'stroke-width': 2,
+              fill: 'none',
+              'stroke-linejoin': 'round',
+            },
+            svg,
+          );
+        }
+        for (const w of pts)
+          el(
+            'circle',
+            {
+              cx: sx(w.i),
+              cy: sy(w.kg),
+              r: 3,
+              fill: 'var(--card)',
+              stroke: 'var(--muted-foreground)',
+              'stroke-width': 1.8,
+              opacity: w.i > sel ? 0.35 : 1,
+            },
+            svg,
+          );
+        el(
+          'line',
+          {
+            x1: sx(sel),
+            x2: sx(sel),
+            y1: PAD.t,
+            y2: H - PAD.b,
+            stroke: 'var(--muted-foreground)',
+            'stroke-dasharray': '3 3',
+          },
+          svg,
+        );
+        if (c)
+          el(
+            'circle',
+            {
+              cx: sx(sel),
+              cy: sy(c.at(sel)),
+              r: 4.5,
+              fill: 'var(--forecast)',
+              stroke: 'var(--card)',
+              'stroke-width': 2,
+            },
+            svg,
+          );
+
+        const choose = (i) => {
+          const next = Math.max(days[0], Math.min(last, i));
+          if (next === st.sel) return;
+          st.sel = next;
+          render(true);
+        };
+        let drag = false;
+        const pick = (e) => {
+          const r = svg.getBoundingClientRect();
+          const x = ((e.clientX - r.left) / r.width) * WP;
+          choose(Math.round(from - 0.5 + ((x - PAD.l) / (WP - PAD.l - PAD.r)) * (span + 1)));
+        };
+        svg.addEventListener('pointerdown', (e) => {
+          drag = true;
+          pick(e);
+        });
+        svg.addEventListener('pointermove', (e) => drag && pick(e));
+        svg.addEventListener('pointerup', () => (drag = false));
+        svg.addEventListener('pointercancel', () => (drag = false));
+        svg.addEventListener('keydown', (e) => {
+          const keys = { ArrowLeft: sel - 1, ArrowRight: sel + 1, Home: from, End: last };
+          if (!(e.key in keys)) return;
+          e.preventDefault();
+          choose(keys[e.key]);
+        });
+
+        const b = band.at(-1);
+        const weighed = weightOn.get(sel);
+        const lg = document.createElement('div');
+        lg.className = 'legend';
+        lg.innerHTML = `<p class="day">${sel === last ? 'Heute, ' : ''}${fmtShort.format(day(sel))}</p><dl>
+          <dt><span class="sw-dot"></span>Gewogen</dt><dd>${weighed != null ? f2(weighed) + ' kg' : DASH}</dd>
+          <dt><span class="sw-line"></span>Erwartet an dem Tag</dt><dd>${c ? f1(c.at(sel)) + ' kg' : DASH}</dd>
+          <dt><span class="sw-line"></span>Prognose für ${fmtDM.format(day(end))} (${WD[wd(end)]})</dt><dd>${c ? f1(c.at(end)) + ' kg' : DASH}</dd>
+          <dt><span class="sw-dash"></span>Ohne Wochentag</dt><dd>${c ? f1(c.line.at(end)) + ' kg' : DASH}</dd>
+          <dt><span class="sw-band"></span>Bereich am ${fmtDM.format(day(end))}</dt><dd>${f1(b.lo)} bis ${f1(b.hi)} kg</dd>
+        </dl>`;
+        if (c) {
+          const max = Math.max(0.3, ...c.pattern.map(Math.abs));
+          lg.insertAdjacentHTML(
+            'beforeend',
+            `<p class="pattern-title">Wochentage bis ${fmtDM.format(day(sel))}</p><div class="pattern">${c.pattern
+              .map((v, k) => {
+                const h = (Math.abs(v) / max) * 50;
+                const pos = v >= 0 ? `bottom:50%;height:${h}%` : `top:50%;height:${h}%`;
+                return `<div><div class="bar"><i style="${pos}"></i></div><b>${sign(v)}</b>${WD[k]}</div>`;
+              })
+              .join('')}</div>`,
+          );
+        }
+        box.appendChild(lg);
+      }
+
+      // ---------- frame ----------
+      const st = { range: 30, sel: null };
+      const root = document.getElementById('frames');
+      function render(keepFocus) {
+        root.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.className = 'phone';
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<div class="card-head"><h3>Prognose</h3><div class="seg">${[7, 30, 90]
+          .map((r) => `<button data-r="${r}" class="${st.range === r ? 'on' : ''}">${r} T</button>`)
+          .join('')}</div></div>`;
+        card.querySelectorAll('[data-r]').forEach((b) =>
+          b.addEventListener('click', () => {
+            st.range = +b.dataset.r;
+            st.sel = null;
+            render();
+          }),
+        );
+        chart(card, st);
+        ph.appendChild(card);
+        root.appendChild(ph);
+        if (keepFocus) root.querySelector('svg')?.focus();
+      }
+      render();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1027 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prognose geglättet</title>
+    <style>
+      /* Dark only: app tokens of apps/web/src/index.css (:root.dark), --forecast from mockup v4. */
+      :root {
+        color-scheme: dark;
+        --page: oklch(0.13 0.005 40);
+        --page-ink: oklch(0.95 0.006 60);
+        --page-muted: oklch(0.72 0.012 50);
+        --background: oklch(0.18 0.006 40);
+        --foreground: oklch(0.95 0.006 60);
+        --card: oklch(0.225 0.008 40);
+        --primary: oklch(0.64 0.17 25);
+        --muted: oklch(0.27 0.008 40);
+        --muted-foreground: oklch(0.7 0.012 50);
+        --border: oklch(0.32 0.008 40);
+        --good: oklch(0.72 0.13 155);
+        --forecast: oklch(0.74 0.11 25);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--page-ink);
+        font:
+          15px/1.5 Inter,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1300px;
+        margin: 0 auto;
+        padding: 24px 16px 64px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 6px;
+      }
+      p.lead,
+      ul.lead {
+        color: var(--page-muted);
+        max-width: 760px;
+        margin: 6px 0;
+      }
+      .wrap {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        margin-top: 18px;
+      }
+      .phone {
+        width: 390px;
+        max-width: 100%;
+        border: 1px solid oklch(0.36 0.008 40);
+        border-radius: 28px;
+        background: var(--background);
+        color: var(--foreground);
+        padding: 16px 12px 20px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 8px 12px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px 10px;
+      }
+      .card-head h3 {
+        margin: 0;
+        font-size: 16px;
+      }
+      .seg {
+        display: flex;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .seg button {
+        background: none;
+        border: 0;
+        color: var(--foreground);
+        font: inherit;
+        font-size: 14px;
+        padding: 6px 10px;
+        min-height: 36px;
+        cursor: pointer;
+      }
+      .seg button + button {
+        border-left: 1px solid var(--border);
+      }
+      .seg button.on {
+        background: var(--muted);
+        font-weight: 600;
+      }
+      svg.chart {
+        display: block;
+        width: 100%;
+        height: auto;
+        touch-action: pan-y;
+        user-select: none;
+        cursor: crosshair;
+      }
+      svg.chart:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .legend {
+        padding: 6px 8px 0;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      .legend .day {
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+      .legend dl {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 2px 12px;
+        margin: 0;
+      }
+      .legend dt {
+        color: var(--muted-foreground);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .legend dd {
+        margin: 0;
+        font-weight: 600;
+      }
+      .sw-line {
+        width: 14px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--forecast);
+      }
+      .sw-dash {
+        width: 14px;
+        border-top: 2px dashed var(--muted-foreground);
+      }
+      .sw-band {
+        width: 14px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--forecast);
+        opacity: 0.3;
+      }
+      .sw-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        border: 2px solid var(--muted-foreground);
+        margin: 0 3px;
+      }
+      .pattern {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-top: 10px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+      .pattern .bar {
+        height: 40px;
+        position: relative;
+      }
+      .pattern .bar::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        border-top: 1px solid var(--border);
+      }
+      .pattern .bar i {
+        position: absolute;
+        left: 25%;
+        right: 25%;
+        background: var(--forecast);
+        border-radius: 2px;
+      }
+      .pattern b {
+        display: block;
+        color: var(--foreground);
+        font-weight: 600;
+      }
+      .pattern-title {
+        margin: 12px 0 0;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .state {
+        padding: 2px 8px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+      }
+      .sw-level {
+        width: 14px;
+        height: 3px;
+        border-radius: 2px;
+        background: var(--primary);
+      }
+      .sw-band2 {
+        width: 14px;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--forecast);
+        opacity: 0.55;
+      }
+      .cover {
+        margin-top: 12px;
+      }
+      .cover-bars {
+        display: grid;
+        grid-template-columns: repeat(14, 1fr);
+        gap: 3px;
+        height: 46px;
+        position: relative;
+        align-items: end;
+      }
+      .cover-bars i {
+        background: var(--muted-foreground);
+        border-radius: 2px 2px 0 0;
+        opacity: 0.7;
+      }
+      .cover-bars .ref {
+        position: absolute;
+        left: 0;
+        right: 0;
+        border-top: 1px dashed var(--forecast);
+      }
+      .cover-axis {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--muted-foreground);
+      }
+      .phone-label {
+        font-size: 13px;
+        color: var(--page-muted);
+        margin: 0 0 8px 4px;
+        max-width: 390px;
+        min-height: 60px;
+      }
+      .phone-label b {
+        color: var(--page-ink);
+        font-size: 15px;
+      }
+      .kcal-title {
+        margin: 6px 8px 0;
+        font-size: 12px;
+        color: var(--muted-foreground);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Prognose mit Kalorien, geglättet: Mockup v9 (Skizze, drei Datensätze)</h1>
+      <p class="lead">
+        Wie v7 (nur dunkel, drei Verläufe über 90 Tage bis Mo., 23. Nov., Wasserschwankung um ±0,5 kg,
+        Ausreißer), jetzt mit den eingetragenen Kalorien. Bedienbar: Zeitraum, Tippen und waagerecht Wischen
+        wählt einen Tag, Pfeiltasten.
+      </p>
+      <div
+        class="lead"
+        style="border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin: 10px 0"
+      >
+        <b>Neu gegenüber v8 (geglättet):</b> Der Fächer liegt auf dem Niveau und ist glatt (seine Breite
+        enthält Wasser und Wochentag als Streuung der Wiegungen, die Rückrechnung prüft genau diesen Fächer).
+        Die Kurve behält ihre Wochentagszacken über die ganze Länge (sie ist, was die Waage zeigen wird); nur
+        der Fächer um sie ist glatt. Prognosewert in der Legende = Niveau am Ende (ohne den Wochentag des
+        Enddatums).
+      </div>
+      <ul class="lead">
+        <li>
+          <b>Modell:</b> Kalman-Filter mit Niveau, Bedarf (kcal am Tag) und Wochentagseffekt. Jeden Tag ändert
+          sich das Niveau um (eingetragen − Bedarf) / 7 700 kg. Die Waage korrigiert Niveau und Bedarf; der
+          Bedarf darf nur langsam wandern. Er beginnt bei der Formel und lernt, was bei dir tatsächlich gilt
+          (auch, wenn zu wenig eingetragen wird: dann ist er „Bedarf, so wie du einträgst“).
+        </li>
+        <li>
+          <b>Tage ohne Einträge:</b> ein einzelner vergessener Tag (Lücke unter 3 Tagen) zählt mit dem eigenen
+          Durchschnitt der letzten 28 eingetragenen Tage; eine längere Lücke (Urlaub, Pause) zählt als Bedarf,
+          mit großer Unsicherheit, statt etwas zu erfinden.
+        </li>
+        <li>
+          <b>Prognose:</b> ab dem gewählten Tag bis zum rechten Rand, mit dem Durchschnitt der eingetragenen
+          Kalorien der 28 Tage davor („so weiteressen wie zuletzt“). Die Streuung der Tageskalorien und die
+          Unsicherheit des Bedarfs machen den Fächer breiter. Fächer wie v7, außen per Rückrechnung
+          nachjustiert.
+        </li>
+        <li>
+          <b>Gestrichelt:</b> die Prognose ohne Kalorien (Modell v7) zum Vergleich. Darunter die Kalorien:
+          Balken = eingetragen, rote Linie = gelernter Bedarf, gestrichelt ab dem gewählten Tag = angenommenes
+          Essen.
+        </li>
+      </ul>
+      <div class="wrap" id="frames"></div>
+    </main>
+
+    <script>
+      const TODAY = new Date(2026, 10, 23);
+      const N = 120;
+      const START = N - 90;
+      const KCAL_KG = 7700;
+      const day = (i) => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - (N - 1 - i));
+      const wd = (i) => (day(i).getDay() + 6) % 7;
+      const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+      const fmtShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+      const fmtDM = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
+      const f1 = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      const fk = (v) => (Math.round(v / 10) * 10).toLocaleString('de-DE') + ' kcal';
+      const pct = (v) => Math.round(v * 100) + ' %';
+      const DASH = '–';
+
+      function rng(seed) {
+        let s = seed >>> 0 || 1;
+        return () => {
+          s ^= s << 13;
+          s ^= s >>> 17;
+          s ^= s << 5;
+          return ((s >>> 0) % 1e9) / 1e9;
+        };
+      }
+
+      // ---------- three data sets: weigh-ins and logged kcal, 90 days up to Mo., 23. Nov. ----------
+      // Truth: weight follows (eaten − expenditure) / 7 700; the scale adds water, weekday and salty days.
+      const DATASETS = [
+        {
+          title: 'Abnehmen, unregelmäßig gewogen',
+          about:
+            'Verbrauch 2.500 kcal, isst im Schnitt 2.150 (am Wochenende mehr), trägt etwa 5 % zu wenig ein und vergisst jeden zwölften Tag. Gewogen meist Mo, Mi, Fr, Sa. Die Formel schätzt den Bedarf 150 kcal zu hoch.',
+          seed: 3,
+          formula: 2650,
+          gen(r, g) {
+            const out = [];
+            let truth = 88.2;
+            let water = 0;
+            const often = [0.8, 0.25, 0.75, 0.25, 0.7, 0.6, 0.2];
+            for (let i = START; i < N; i++) {
+              const eat = 2050 + (wd(i) >= 5 ? 250 : 0) + g() * 320;
+              truth += (eat - 2500) / KCAL_KG;
+              water = 0.6 * water + g() * 0.32 + (r() < 0.05 ? 0.7 : 0) + (wd(i) === 0 ? 0.15 : 0);
+              out.push({
+                i,
+                kcal: r() < 0.92 ? eat * 0.95 : null,
+                kg: r() < often[wd(i)] || i === N - 1 ? truth + water : null,
+              });
+            }
+            return out;
+          },
+        },
+        {
+          title: 'Halten, mit Urlaub',
+          about:
+            'Verbrauch 2.250 kcal, isst im Schnitt so viel. Zehn Tage Urlaub mit 3.000 kcal, ohne Einträge und ohne Waage, danach ein Wasserbuckel von gut 1 kg und drei Wochen etwas weniger (2.150). Formel 200 kcal zu tief.',
+          seed: 7,
+          formula: 2050,
+          gen(r, g) {
+            const out = [];
+            let truth = 71.8;
+            let water = 0;
+            const away = N - 38;
+            const back = away + 10;
+            for (let i = START; i < N; i++) {
+              const trip = i >= away && i < back;
+              const base = trip ? 3000 : i >= back && i < back + 21 ? 2150 : 2250;
+              const eat = base + (wd(i) >= 5 ? 150 : -60) + g() * 300;
+              truth += (eat - 2250) / KCAL_KG;
+              water = 0.6 * water + g() * 0.3 + (r() < 0.05 ? 0.7 : 0);
+              const bump = i >= back ? 1.1 * Math.exp(-(i - back) / 3) : 0;
+              out.push({
+                i,
+                kcal: !trip && r() < 0.9 ? eat : null,
+                kg: !trip && (r() < 0.8 || i === N - 1) ? truth + water + bump : null,
+              });
+            }
+            return out;
+          },
+        },
+        {
+          title: 'Aufbauen, täglich gewogen',
+          about:
+            'Verbrauch 2.650 kcal, isst im Schnitt 2.850, trägt an etwa jedem siebten Tag nichts ein. Jeden Tag gewogen (ein paar Tage vergessen). Formel 100 kcal zu hoch.',
+          seed: 21,
+          formula: 2750,
+          gen(r, g) {
+            const out = [];
+            let truth = 67.4;
+            let water = 0;
+            for (let i = START; i < N; i++) {
+              const eat = 2850 + g() * 350;
+              truth += (eat - 2650) / KCAL_KG;
+              water = 0.5 * water + g() * 0.3 + (r() < 0.05 ? 0.7 : 0);
+              out.push({
+                i,
+                kcal: r() < 0.86 ? eat : null,
+                kg: r() < 0.95 || i === N - 1 ? truth + water : null,
+              });
+            }
+            return out;
+          },
+        },
+      ];
+
+      // ---------- Kalman filter, state [level, b, g1..g6] (dummy seasonal, the 7th = -sum) ----------
+      // Mode 'kcal': b = maintenance (kcal), level += (logged − b) / 7 700. Mode 'trend' (v7): b = kg per day.
+      const K = 8;
+      const zeros = () => Array.from({ length: K }, () => Array(K).fill(0));
+      const mul = (A, B) => A.map((row) => B[0].map((_, j) => row.reduce((s, a, k) => s + a * B[k][j], 0)));
+      const tr = (A) => A[0].map((_, j) => A.map((r) => r[j]));
+      const add = (A, B) => A.map((r, i) => r.map((v, j) => v + B[i][j]));
+      function baseF() {
+        const F = zeros();
+        F[0][0] = 1;
+        F[1][1] = 1;
+        for (let j = 2; j < K; j++) F[2][j] = -1;
+        for (let j = 3; j < K; j++) F[j][j - 1] = 1;
+        return F;
+      }
+      const F_TREND = baseF();
+      F_TREND[0][1] = 1;
+      const F_KCAL = baseF();
+      F_KCAL[0][1] = -1 / KCAL_KG;
+      const F_FREE = baseF(); // a day without entries: the level keeps its value, only its noise grows
+      const T = (F) => ({ F, Ft: tr(F) });
+      const MATS = { trend: T(F_TREND), kcal: T(F_KCAL), free: T(F_FREE) };
+      const zx = (x) => x[0] + x[2];
+      const zPz = (P) => P[0][0] + 2 * P[0][2] + P[2][2];
+      const MISSING_SD = 600; // kcal: how far a day without entries may be off the maintenance
+      function predict(x, P, m, c0, q0, p) {
+        const x2 = m.F.map((r) => r.reduce((s, a, k) => s + a * x[k], 0));
+        x2[0] += c0;
+        const P2 = add(mul(mul(m.F, P), m.Ft), zeros());
+        P2[0][0] += q0;
+        P2[1][1] += p.qb ** 2;
+        P2[2][2] += p.qg ** 2;
+        return { x: x2, P: P2 };
+      }
+      // Transition from day i to i + 1 with what was logged on day i.
+      // A forgotten day counts with the person's own average of the last EAT_DAYS logged days (its spread as
+      // uncertainty); longer gaps and days without any history count as maintenance.
+      const EAT_DAYS = 28;
+      const FILL_FORGOTTEN = true;
+      const GAP_DAYS = 3;
+      function transition(mode, kcal, p, fill) {
+        if (mode === 'trend') return { m: MATS.trend, c0: 0, q0: p.ql ** 2 };
+        if (kcal == null && fill && FILL_FORGOTTEN)
+          return { m: MATS.kcal, c0: fill.mean / KCAL_KG, q0: p.ql ** 2 + (fill.sd / KCAL_KG) ** 2 };
+        if (kcal == null) return { m: MATS.free, c0: 0, q0: p.ql ** 2 + (MISSING_SD / KCAL_KG) ** 2 };
+        return { m: MATS.kcal, c0: kcal / KCAL_KG, q0: p.ql ** 2 };
+      }
+      const q80 = (xs) => {
+        const s = [...xs].sort((a, b) => a - b);
+        return s[Math.floor(0.8 * (s.length - 1))];
+      };
+      const GRID = {
+        kcal: {
+          obs: [0.2, 0.3, 0.4, 0.5],
+          ql: [0.01, 0.02, 0.03],
+          qb: [2, 5, 10, 20],
+          qg: [0.005, 0.02, 0.05],
+        },
+        trend: {
+          obs: [0.2, 0.3, 0.4, 0.5],
+          ql: [0.01, 0.02, 0.03, 0.05],
+          qb: [0.0005, 0.001, 0.003, 0.01],
+          qg: [0.005, 0.02, 0.05],
+        },
+      };
+
+      function fitModel(days, mode, formula) {
+        const byI = new Map(days.map((d) => [d.i, d]));
+        const W = days.filter((d) => d.kg != null);
+        const first = W[0].i;
+        // Only a forgotten day is filled: one inside a run of fewer than GAP_DAYS days without entries. A longer
+        // gap (holiday, a break from logging) stays unknown: maintenance with a wide uncertainty.
+        const fills = new Map();
+        for (let i = START; i < N; i++) {
+          if (byI.get(i)?.kcal != null) continue;
+          let a = i;
+          let b = i;
+          while (a - 1 >= START && byI.get(a - 1)?.kcal == null) a--;
+          while (b + 1 < N && byI.get(b + 1)?.kcal == null) b++;
+          if (b - a + 1 < GAP_DAYS) fills.set(i, eatingAt(i));
+        }
+        function run(p) {
+          let x = [W[0].kg, mode === 'kcal' ? formula : 0, 0, 0, 0, 0, 0, 0];
+          let P = zeros();
+          P[0][0] = 1;
+          P[1][1] = mode === 'kcal' ? 250 ** 2 : 0.05 ** 2;
+          for (let j = 2; j < K; j++) P[j][j] = 0.4 ** 2;
+          const out = new Map();
+          let ll = 0;
+          for (let i = first; i < N; i++) {
+            if (i > first) {
+              const t = transition(mode, byI.get(i - 1)?.kcal, p, fills.get(i - 1));
+              ({ x, P } = predict(x, P, t.m, t.c0, t.q0, p));
+            }
+            const y = byI.get(i)?.kg;
+            if (y != null) {
+              const S = zPz(P) + p.obs ** 2;
+              const v = y - zx(x);
+              if (i > first + 14) ll += -0.5 * (Math.log(S) + (v * v) / S);
+              const PZ = P.map((row) => row[0] + row[2]);
+              const Kg = PZ.map((v2) => v2 / S);
+              x = x.map((xi, k) => xi + Kg[k] * v);
+              P = P.map((row, a) => row.map((pv, b) => pv - Kg[a] * PZ[b]));
+            }
+            out.set(i, { x, P });
+          }
+          return { out, ll };
+        }
+        // Maximum likelihood on a small grid (the app would re-fit now and then).
+        let best = null;
+        const G = GRID[mode];
+        for (const obs of G.obs)
+          for (const ql of G.ql)
+            for (const qb of G.qb)
+              for (const qg of G.qg) {
+                const res = run({ obs, ql, qb, qg });
+                if (!best || res.ll > best.ll) best = { ...res, p: { obs, ql, qb, qg } };
+              }
+        const PAR = best.p;
+        const FILT = best.out;
+        const FIRST = first + 21;
+        // What the forecast of day d assumes for the days after it: the mean and spread of the last 14 logged days.
+        function eatingAt(d) {
+          const xs = [];
+          for (let i = d; i > d - EAT_DAYS && i >= START; i--) {
+            const k = byI.get(i)?.kcal;
+            if (k != null) xs.push(k);
+          }
+          if (!xs.length) return null;
+          const mean = xs.reduce((a, b) => a + b) / xs.length;
+          const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / xs.length);
+          return { mean, sd };
+        }
+        const cache = new Map();
+        function forecastFrom(d, H) {
+          const key = d + ':' + H;
+          if (cache.has(key)) return cache.get(key);
+          let { x, P } = FILT.get(d);
+          const eat = mode === 'kcal' ? eatingAt(d) : null;
+          // Spread of single weigh-ins around the level from the weekday effects known at d.
+          const gs = [x[2], x[3], x[4], x[5], x[6], x[7]];
+          gs.push(-gs.reduce((a, b) => a + b, 0));
+          const gVar = gs.reduce((a, v) => a + v * v, 0) / 7;
+          const pts = [{ i: d, kg: zx(x), sd: Math.sqrt(P[0][0]), level: x[0], b: x[1] }];
+          for (let h = 1; h <= H; h++) {
+            // Day d's own entries are complete only at its end: from it on, the assumed eating applies.
+            const t =
+              mode === 'kcal' && eat
+                ? { m: MATS.kcal, c0: eat.mean / KCAL_KG, q0: PAR.ql ** 2 + (eat.sd / KCAL_KG) ** 2 }
+                : transition(mode, null, PAR);
+            ({ x, P } = predict(x, P, t.m, t.c0, t.q0, PAR));
+            pts.push({ i: d + h, kg: zx(x), sd: Math.sqrt(P[0][0]), level: x[0], b: x[1] });
+          }
+          // The band sits on the level and is smooth. The curve is the predicted weigh-ins lightly smoothed
+          // (weights 1/4, 1/2, 1/4 over neighbouring days) and drawn as a curve, like the level line.
+          for (const pt of pts) {
+            pt.obsSd = Math.sqrt(pt.sd ** 2 + PAR.obs ** 2 + gVar);
+          }
+          pts.forEach((pt, k) => {
+            const prev = pts[k - 1]?.kg ?? pt.kg;
+            const next = pts[k + 1]?.kg ?? pt.kg;
+            pt.show = 0.25 * prev + 0.5 * pt.kg + 0.25 * next;
+          });
+          cache.set(key, pts);
+          return pts;
+        }
+        const zs = [];
+        const zByH = Array.from({ length: 15 }, () => []);
+        for (let d = FIRST; d < N - 1; d++) {
+          const fc = forecastFrom(d, 14);
+          for (let h = 1; h <= 14 && d + h < N; h++) {
+            const y = byI.get(d + h)?.kg;
+            if (y == null) continue;
+            const z = Math.abs(y - fc[h].level) / fc[h].obsSd;
+            zs.push(z);
+            zByH[h].push(z);
+          }
+        }
+        const ZCAL = q80(zs);
+        return {
+          FILT,
+          FIRST,
+          PAR,
+          forecastFrom,
+          eatingAt,
+          ZCAL,
+          checks: zs.length,
+          coverModel: zs.filter((z) => z <= 1.28).length / zs.length,
+          coverByH: zByH.map((xs) => (xs.length ? xs.filter((z) => z <= ZCAL).length / xs.length : null)),
+        };
+      }
+
+      function buildModel(ds) {
+        const r = rng(ds.seed);
+        const g = () => Math.sqrt(-2 * Math.log(Math.max(1e-9, r()))) * Math.cos(2 * Math.PI * r());
+        const days = ds.gen(r, g).map((d) => ({
+          i: d.i,
+          kcal: d.kcal == null ? null : Math.round(d.kcal / 10) * 10,
+          kg: d.kg == null ? null : Math.round(d.kg * 10) / 10,
+        }));
+        return {
+          ds,
+          days,
+          W: days.filter((d) => d.kg != null),
+          weightOn: new Map(days.filter((d) => d.kg != null).map((d) => [d.i, d.kg])),
+          kcal: fitModel(days, 'kcal', ds.formula),
+          trend: fitModel(days, 'trend'),
+        };
+      }
+
+      // ---------- charts ----------
+      const NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs, parent) {
+        const e = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+        if (parent) parent.appendChild(e);
+        return e;
+      }
+      const H = 240;
+      const HK = 84;
+      const WP = 344;
+      const PAD = { l: 34, r: 8, t: 10, b: 24 };
+      const tickStep = (span) => (span > 8 ? 2 : span > 3 ? 1 : 0.5);
+      const text = (svg, x, y, s, anchor) => {
+        const t = el(
+          'text',
+          { x, y, 'text-anchor': anchor, 'font-size': 11, fill: 'var(--muted-foreground)' },
+          svg,
+        );
+        t.textContent = s;
+      };
+      function clipFor(svg, h) {
+        const id = 'c' + Math.random().toString(36).slice(2);
+        el(
+          'rect',
+          { x: PAD.l, y: PAD.t, width: WP - PAD.l - PAD.r, height: h - PAD.t - PAD.b },
+          el('clipPath', { id }, el('defs', {}, svg)),
+        );
+        return el('g', { 'clip-path': `url(#${id})` }, svg);
+      }
+
+      function chart(box, st, M) {
+        const A = M.kcal;
+        const ahead = st.range === 7 ? 7 : 14;
+        const last = N - 1;
+        const end = last + ahead;
+        const from = Math.max(M.W[0].i, N - st.range);
+        const first = Math.max(from, A.FIRST);
+        const sel = Math.max(first, Math.min(last, st.sel ?? last));
+        const fc = A.forecastFrom(sel, end - sel);
+        const fcOld = M.trend.forecastFrom(sel, end - sel);
+        const today = A.forecastFrom(last, ahead);
+        const pts = M.W.filter((w) => w.i >= from);
+        const level = [];
+        for (let i = from; i <= last; i++) level.push({ i, kg: A.FILT.get(i).x[0] });
+        const vals = [...pts.map((w) => w.kg), ...level.map((l) => l.kg)];
+        for (const p of today) vals.push(p.level - A.ZCAL * p.obsSd, p.level + A.ZCAL * p.obsSd);
+        const lo0 = Math.min(...vals) - 0.2;
+        const hi0 = Math.max(...vals) + 0.2;
+        const stp = tickStep(hi0 - lo0);
+        const y0 = Math.floor(lo0 / stp) * stp;
+        const y1 = Math.ceil(hi0 / stp) * stp;
+        const span = end - from;
+        const sx = (i) => PAD.l + ((i - from + 0.5) / (span + 1)) * (WP - PAD.l - PAD.r);
+        const sy = (v) => PAD.t + ((y1 - v) / (y1 - y0)) * (H - PAD.t - PAD.b);
+        const tstep = span <= 16 ? 3 : span <= 30 ? 7 : span <= 60 ? 14 : 30;
+        const ticks = [];
+        for (let i = last; i >= from; i -= tstep) ticks.push(i);
+        for (let i = last + tstep; i <= end; i += tstep) ticks.push(i);
+
+        const svg = el(
+          'svg',
+          {
+            class: 'chart',
+            viewBox: `0 0 ${WP} ${H}`,
+            tabindex: 0,
+            role: 'slider',
+            'aria-label': 'Tag der Prognose',
+            'aria-valuetext': fmtShort.format(day(sel)),
+          },
+          box,
+        );
+        for (let v = y0; v <= y1 + 1e-9; v += stp) {
+          el('line', { x1: PAD.l, x2: WP - PAD.r, y1: sy(v), y2: sy(v), stroke: 'var(--border)' }, svg);
+          text(svg, PAD.l - 6, sy(v) + 4, (Math.round(v * 10) / 10).toLocaleString('de-DE'), 'end');
+        }
+        for (const i of ticks) {
+          const x = sx(i);
+          if (x < PAD.l + 18) continue;
+          const atEnd = x > WP - PAD.r - 22;
+          text(svg, atEnd ? WP - 2 : x, H - 6, fmtDM.format(day(i)), atEnd ? 'end' : 'middle');
+        }
+        el('line', { x1: sx(last), x2: sx(last), y1: PAD.t, y2: H - PAD.b, stroke: 'var(--border)' }, svg);
+        const g = clipFor(svg, H);
+        const poly = (ps, ys = sy, key = 'kg') =>
+          ps.map((p, k) => `${k ? 'L' : 'M'}${sx(p.i).toFixed(1)},${ys(p[key]).toFixed(1)}`).join('');
+        // Catmull-Rom through the points, as cubic Bézier segments: a curve, not connected dots.
+        const curve = (ps, ys = sy, key = 'kg') => {
+          const P = ps.map((p) => [sx(p.i), ys(p[key])]);
+          if (P.length < 3) return poly(ps, ys, key);
+          let d = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
+          for (let k = 0; k < P.length - 1; k++) {
+            const p0 = P[k - 1] ?? P[k];
+            const p1 = P[k];
+            const p2 = P[k + 1];
+            const p3 = P[k + 2] ?? p2;
+            const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+            const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+            d += `C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+          }
+          return d;
+        };
+        const area = (ps, lo, hi) =>
+          ps.map((p, k) => `${k ? 'L' : 'M'}${sx(p.i).toFixed(1)},${sy(hi(p)).toFixed(1)}`).join('') +
+          [...ps]
+            .reverse()
+            .map((p) => `L${sx(p.i).toFixed(1)},${sy(lo(p)).toFixed(1)}`)
+            .join('') +
+          'Z';
+        el(
+          'path',
+          {
+            d: area(
+              fc,
+              (p) => p.level - A.ZCAL * p.obsSd,
+              (p) => p.level + A.ZCAL * p.obsSd,
+            ),
+            fill: 'var(--forecast)',
+            'fill-opacity': 0.15,
+          },
+          g,
+        );
+        el(
+          'path',
+          {
+            d: area(
+              fc,
+              (p) => p.level - 1.28 * p.sd,
+              (p) => p.level + 1.28 * p.sd,
+            ),
+            fill: 'var(--forecast)',
+            'fill-opacity': 0.3,
+          },
+          g,
+        );
+        el(
+          'path',
+          {
+            d: curve(fcOld, sy, 'show'),
+            stroke: 'var(--muted-foreground)',
+            'stroke-width': 1.3,
+            'stroke-dasharray': '4 3',
+            fill: 'none',
+          },
+          g,
+        );
+        const before = level.filter((l) => l.i <= sel);
+        const after = level.filter((l) => l.i >= sel);
+        el(
+          'path',
+          { d: curve(after), stroke: 'var(--primary)', 'stroke-width': 2.5, fill: 'none', opacity: 0.3 },
+          g,
+        );
+        el('path', { d: curve(before), stroke: 'var(--primary)', 'stroke-width': 2.5, fill: 'none' }, g);
+        el(
+          'path',
+          {
+            d: curve(fc, sy, 'show'),
+            stroke: 'var(--forecast)',
+            'stroke-width': 2,
+            fill: 'none',
+            'stroke-linejoin': 'round',
+          },
+          g,
+        );
+        for (const w of pts)
+          el(
+            'circle',
+            {
+              cx: sx(w.i),
+              cy: sy(w.kg),
+              r: 3,
+              fill: 'var(--card)',
+              stroke: 'var(--muted-foreground)',
+              'stroke-width': 1.8,
+              opacity: w.i > sel ? 0.35 : 1,
+            },
+            g,
+          );
+        const selLine = (s, h) =>
+          el(
+            'line',
+            {
+              x1: sx(sel),
+              x2: sx(sel),
+              y1: PAD.t,
+              y2: h - PAD.b,
+              stroke: 'var(--muted-foreground)',
+              'stroke-dasharray': '3 3',
+            },
+            s,
+          );
+        selLine(svg, H);
+        el(
+          'circle',
+          {
+            cx: sx(sel),
+            cy: sy(fc[0].level),
+            r: 4.5,
+            fill: 'var(--primary)',
+            stroke: 'var(--card)',
+            'stroke-width': 2,
+          },
+          svg,
+        );
+
+        // Calories: logged per day, learned maintenance, assumed eating after the chosen day.
+        const ks = M.days.filter((d) => d.i >= from);
+        const maint = [];
+        for (let i = from; i <= last; i++) maint.push({ i, b: A.FILT.get(i).x[1] });
+        const eat = A.eatingAt(sel);
+        const kv = [...ks.filter((d) => d.kcal != null).map((d) => d.kcal), ...maint.map((m) => m.b)];
+        if (eat) kv.push(eat.mean);
+        const k0 = Math.floor((Math.min(...kv) - 100) / 500) * 500;
+        const k1 = Math.ceil((Math.max(...kv) + 100) / 500) * 500;
+        const ky = (v) => PAD.t + ((k1 - v) / (k1 - k0)) * (HK - PAD.t - PAD.b);
+        const ksvg = el('svg', { class: 'chart', viewBox: `0 0 ${WP} ${HK}`, 'aria-hidden': 'true' }, box);
+        for (const v of [k0, k1]) {
+          el('line', { x1: PAD.l, x2: WP - PAD.r, y1: ky(v), y2: ky(v), stroke: 'var(--border)' }, ksvg);
+          text(ksvg, 0, ky(v) + 4, v.toLocaleString('de-DE'), 'start');
+        }
+        for (const i of ticks) {
+          const x = sx(i);
+          if (x < PAD.l + 18) continue;
+          const atEnd = x > WP - PAD.r - 22;
+          text(ksvg, atEnd ? WP - 2 : x, HK - 6, fmtDM.format(day(i)), atEnd ? 'end' : 'middle');
+        }
+        const kg2 = clipFor(ksvg, HK);
+        const bw = Math.max(1.5, ((WP - PAD.l - PAD.r) / (span + 1)) * 0.7);
+        for (const d of ks)
+          if (d.kcal != null)
+            el(
+              'rect',
+              {
+                x: sx(d.i) - bw / 2,
+                y: ky(d.kcal),
+                width: bw,
+                height: Math.max(0, ky(k0) - ky(d.kcal)),
+                fill: 'var(--muted-foreground)',
+                opacity: d.i > sel ? 0.2 : 0.45,
+              },
+              kg2,
+            );
+        el(
+          'path',
+          {
+            d: poly(
+              maint.filter((m) => m.i <= sel),
+              ky,
+              'b',
+            ),
+            stroke: 'var(--primary)',
+            'stroke-width': 2,
+            fill: 'none',
+          },
+          kg2,
+        );
+        el(
+          'path',
+          {
+            d: poly(
+              [
+                { i: sel, b: fc[0].b },
+                { i: end, b: fc[0].b },
+              ],
+              ky,
+              'b',
+            ),
+            stroke: 'var(--primary)',
+            'stroke-width': 1.5,
+            fill: 'none',
+            opacity: 0.5,
+          },
+          kg2,
+        );
+        if (eat)
+          el(
+            'path',
+            {
+              d: poly(
+                [
+                  { i: sel, b: eat.mean },
+                  { i: end, b: eat.mean },
+                ],
+                ky,
+                'b',
+              ),
+              stroke: 'var(--forecast)',
+              'stroke-width': 1.5,
+              'stroke-dasharray': '4 3',
+              fill: 'none',
+            },
+            kg2,
+          );
+        selLine(ksvg, HK);
+
+        const choose = (i) => {
+          const next = Math.max(first, Math.min(last, i));
+          if (next === sel) return;
+          st.sel = next;
+          render(svg);
+        };
+        let drag = false;
+        const pick = (e) => {
+          const r = svg.getBoundingClientRect();
+          const x = ((e.clientX - r.left) / r.width) * WP;
+          choose(Math.round(from - 0.5 + ((x - PAD.l) / (WP - PAD.l - PAD.r)) * (span + 1)));
+        };
+        svg.addEventListener('pointerdown', (e) => {
+          drag = true;
+          pick(e);
+        });
+        svg.addEventListener('pointermove', (e) => drag && pick(e));
+        svg.addEventListener('pointerup', () => (drag = false));
+        svg.addEventListener('pointercancel', () => (drag = false));
+        svg.addEventListener('keydown', (e) => {
+          const keys = { ArrowLeft: sel - 1, ArrowRight: sel + 1, Home: first, End: last };
+          if (!(e.key in keys)) return;
+          e.preventDefault();
+          choose(keys[e.key]);
+        });
+
+        const e = fc.at(-1);
+        const weighed = M.weightOn.get(sel);
+        const lg = document.createElement('div');
+        lg.className = 'legend';
+        lg.innerHTML = `<p class="day">${sel === last ? 'Heute, ' : ''}${fmtShort.format(day(sel))}</p><dl>
+          <dt><span class="sw-dot"></span>Gewogen</dt><dd>${weighed != null ? f1(weighed) + ' kg' : DASH}</dd>
+          <dt><span class="sw-level"></span>Niveau</dt><dd>${f1(fc[0].level)} kg</dd>
+          <dt><span class="sw-level"></span>Bedarf (gelernt)</dt><dd>${fk(fc[0].b)}</dd>
+          <dt><span class="sw-dash" style="border-color:var(--forecast)"></span>Gegessen Ø 28 T</dt><dd>${eat ? fk(eat.mean) : DASH}</dd>
+          <dt><span class="sw-line"></span>Prognose ${fmtDM.format(day(end))}</dt><dd>${f1(e.level)} kg</dd>
+          <dt><span class="sw-band2"></span>Kurve (80 %)</dt><dd>${f1(e.level - 1.28 * e.sd)} bis ${f1(e.level + 1.28 * e.sd)} kg</dd>
+          <dt><span class="sw-band"></span>Wiegung (80 %)</dt><dd>${f1(e.level - A.ZCAL * e.obsSd)} bis ${f1(e.level + A.ZCAL * e.obsSd)} kg</dd>
+          <dt><span class="sw-dash"></span>Ohne Kalorien</dt><dd>${f1(fcOld.at(-1).level)} kg</dd>
+        </dl>`;
+        const fac = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+        lg.insertAdjacentHTML(
+          'beforeend',
+          `<div class="cover"><p class="pattern-title">Treffer nach Abstand (${A.checks} Prüfungen)</p><div class="cover-bars">${A.coverByH
+            .slice(1)
+            .map((c) => `<i style="height:${(c ?? 0) * 100}%" title="${c != null ? pct(c) : ''}"></i>`)
+            .join(
+              '',
+            )}<span class="ref" style="bottom:80%"></span></div><div class="cover-axis"><span>1 T</span><span>7 T</span><span>14 T</span></div>
+          <p class="pattern-title" style="margin-top:6px">Mit Kalorien: ungeprüft ${pct(A.coverModel)} getroffen, Faktor ${fac(A.ZCAL)}. Ohne Kalorien: ${pct(M.trend.coverModel)}, Faktor ${fac(M.trend.ZCAL)}.</p></div>`,
+        );
+        box.appendChild(lg);
+      }
+
+      // ---------- frames: one phone per data set ----------
+      const models = DATASETS.map(buildModel);
+      const states = models.map(() => ({ range: 30, sel: null }));
+      const root = document.getElementById('frames');
+      function render(focusSvg) {
+        const idx = focusSvg ? [...root.querySelectorAll('svg[role=slider]')].indexOf(focusSvg) : -1;
+        root.innerHTML = '';
+        models.forEach((M, k) => {
+          const st = states[k];
+          const wrap = document.createElement('div');
+          wrap.innerHTML = `<p class="phone-label"><b>${k + 1} · ${M.ds.title}</b><br />${M.ds.about}</p>`;
+          const ph = document.createElement('div');
+          ph.className = 'phone';
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `<div class="card-head"><h3>Prognose</h3><div class="seg">${[7, 30, 90]
+            .map((r) => `<button data-r="${r}" class="${st.range === r ? 'on' : ''}">${r} T</button>`)
+            .join('')}</div></div>`;
+          card.querySelectorAll('[data-r]').forEach((b) =>
+            b.addEventListener('click', () => {
+              st.range = +b.dataset.r;
+              st.sel = null;
+              render();
+            }),
+          );
+          chart(card, st, M);
+          ph.appendChild(card);
+          wrap.appendChild(ph);
+          root.appendChild(wrap);
+        });
+        if (idx >= 0) root.querySelectorAll('svg[role=slider]')[idx]?.focus();
+      }
+      render();
+      for (const M of models)
+        console.log(
+          M.ds.title,
+          'kcal',
+          JSON.stringify(M.kcal.PAR),
+          M.kcal.ZCAL.toFixed(2),
+          M.kcal.coverModel.toFixed(2),
+          'b_end',
+          Math.round(M.kcal.FILT.get(N - 1).x[1]),
+          '| trend',
+          M.trend.ZCAL.toFixed(2),
+          M.trend.coverModel.toFixed(2),
+        );
+    </script>
+  </body>
+</html>

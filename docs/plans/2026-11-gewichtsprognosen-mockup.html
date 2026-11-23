@@ -35,7 +35,7 @@
         --note-border: oklch(0.31 0.008 40);
         --frame-border: oklch(0.36 0.008 40);
       }
-      /* App tokens, copied from apps/web/src/index.css (--forecast is new with this feature). */
+      /* App tokens, copied from apps/web/src/index.css (--forecast is new with this feature); checked 2026-11-23. */
       .light {
         color-scheme: light;
         --background: oklch(0.985 0.004 60);
@@ -46,10 +46,11 @@
         --muted: oklch(0.955 0.008 60);
         --muted-foreground: oklch(0.5 0.015 45);
         --border: oklch(0.91 0.008 60);
-        --accent: oklch(0.955 0.008 60);
+        --accent: oklch(0.94 0.012 50);
+        --input: oklch(0.89 0.01 60);
+        --ring: oklch(0.6 0.15 25);
         --good: oklch(0.6 0.13 155);
         --forecast: oklch(0.62 0.13 25);
-        --cursor: oklch(0.6 0.05 230);
       }
       .dark {
         color-scheme: dark;
@@ -61,10 +62,11 @@
         --muted: oklch(0.27 0.008 40);
         --muted-foreground: oklch(0.7 0.012 50);
         --border: oklch(0.32 0.008 40);
-        --accent: oklch(0.27 0.008 40);
+        --accent: oklch(0.3 0.01 40);
+        --input: oklch(0.36 0.01 40);
+        --ring: oklch(0.6 0.15 25);
         --good: oklch(0.72 0.13 155);
         --forecast: oklch(0.74 0.11 25);
-        --cursor: oklch(0.65 0.05 230);
       }
       * {
         box-sizing: border-box;
@@ -161,33 +163,35 @@
         overflow: hidden;
         background: var(--background);
         color: var(--foreground);
-        font-size: 15px;
+        font-size: 16px;
       }
       .appbar {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 14px 18px 10px;
-        font-size: 20px;
-        font-weight: 700;
+        height: 56px;
+        padding: 0 16px;
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.025em;
+        border-bottom: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
       }
-      .appbar span:last-child {
-        font-weight: 400;
-        font-size: 26px;
-        line-height: 1;
+      .appbar svg {
+        display: block;
       }
       .content {
-        padding: 0 12px 16px;
+        padding: 16px;
         display: grid;
-        gap: 12px;
+        gap: 16px;
       }
       .tabbar {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
         align-items: center;
-        border-top: 1px solid var(--border);
+        border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
         padding: 8px 6px 14px;
         font-size: 11px;
+        font-weight: 500;
         text-align: center;
         color: var(--muted-foreground);
       }
@@ -196,8 +200,8 @@
       }
       .tabbar .plus {
         justify-self: center;
-        width: 46px;
-        height: 46px;
+        width: 48px;
+        height: 48px;
         border-radius: 50%;
         background: var(--primary);
         color: var(--primary-foreground);
@@ -207,41 +211,47 @@
       }
       .card {
         background: var(--card);
-        border: 1px solid var(--border);
+        border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
         border-radius: 16px;
+        box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
         overflow: hidden;
       }
       .card-head {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 14px 16px 6px;
+        gap: 8px;
+        min-height: 48px;
+        padding: 8px 16px 0;
       }
       .card-head h3 {
         margin: 0;
-        font-size: 17px;
+        font-size: 16px;
+        font-weight: 600;
       }
+      /* ToggleGroup variant outline, size sm. */
       .seg {
         display: flex;
-        border: 1px solid var(--border);
-        border-radius: 8px;
+        border: 1px solid var(--input);
+        border-radius: 12px;
         overflow: hidden;
         font-size: 12px;
       }
       .seg button {
         font: inherit;
+        font-weight: 500;
         color: inherit;
         background: none;
         border: 0;
-        padding: 4px 8px;
+        height: 30px;
+        padding: 0 8px;
         cursor: pointer;
       }
       .seg button + button {
-        border-left: 1px solid var(--border);
+        border-left: 1px solid var(--input);
       }
       .seg button.on {
-        background: var(--muted);
-        font-weight: 600;
+        background: var(--accent);
       }
       .stats {
         display: grid;
@@ -258,7 +268,7 @@
       }
       .stats dd {
         margin: 0;
-        font-size: 19px;
+        font-size: 20px;
         font-weight: 700;
       }
       .stats dd.sub {
@@ -278,10 +288,10 @@
         font-variant-numeric: tabular-nums;
       }
       .expend b {
-        font-size: 28px;
+        font-size: 30px;
       }
       .expend .pm {
-        font-size: 19px;
+        font-size: 20px;
         font-weight: 600;
         color: var(--muted-foreground);
       }
@@ -306,7 +316,7 @@
         border-radius: 6px;
       }
       svg.chart.scrub:focus-visible {
-        outline: 3px solid color-mix(in oklch, var(--primary) 45%, transparent);
+        outline: 3px solid color-mix(in oklch, var(--ring) 50%, transparent);
       }
       /* uPlot legend look (the plain weight chart). */
       .ulegend {
@@ -315,15 +325,20 @@
         justify-content: center;
         gap: 6px 16px;
         padding: 8px 8px 0;
-        font-size: 13px;
+        font-size: 12px;
+        color: var(--muted-foreground);
         font-variant-numeric: tabular-nums;
+      }
+      .ulegend b {
+        color: var(--foreground);
+        font-weight: 600;
       }
       .ulegend .date {
         width: 100%;
         text-align: center;
       }
       .ulegend .k {
-        color: var(--muted-foreground);
+        font-weight: 500;
       }
       .ulegend .box {
         display: inline-block;
@@ -342,16 +357,25 @@
         min-height: 44px;
         padding: 0 8px;
         border: 0;
-        border-radius: 10px;
+        border-radius: 14px;
         background: none;
         font: inherit;
+        font-size: 14px;
         font-weight: 600;
         color: var(--muted-foreground);
         cursor: pointer;
         text-align: left;
       }
       .disclosure:hover {
-        background: var(--accent);
+        background: color-mix(in oklch, var(--accent) 60%, transparent);
+      }
+      .disclosure .chev {
+        width: 16px;
+        height: 16px;
+      }
+      .older .chev {
+        width: 20px;
+        height: 20px;
       }
       .chev {
         transition: transform 0.15s;
@@ -365,7 +389,7 @@
         font-variant-numeric: tabular-nums;
       }
       .flegend .day {
-        font-weight: 650;
+        font-weight: 600;
         margin: 0 0 4px;
       }
       .flegend dl {
@@ -382,7 +406,7 @@
       }
       .flegend dd {
         margin: 0;
-        font-weight: 650;
+        font-weight: 600;
       }
       .sw-line {
         display: inline-block;
@@ -451,8 +475,8 @@
       .loadmore {
         margin: 6px 16px 16px;
         height: 40px;
-        border-radius: 10px;
-        border: 1px solid var(--border);
+        border-radius: 12px;
+        border: 1px solid var(--input);
         display: grid;
         place-items: center;
         font-size: 14px;
@@ -479,7 +503,7 @@
   </head>
   <body>
     <main>
-      <h1>Prognosen im Gewichtsverlauf: Mockup v3</h1>
+      <h1>Prognosen im Gewichtsverlauf: Mockup v4</h1>
       <p class="lead">
         Vollständige Beschreibung des umgesetzten Stands (Commit <code>501a300</code>, 2026-11-23): die Seite
         „Fortschritt“ mit Gewichtsdiagramm, aufklappbarer Prognose und gekürzter Eintragsliste. Alle Rahmen
@@ -508,6 +532,23 @@
           <li>
             Gewichtsdiagramm: der Cursor rastet auf dem Tag ein, die Cursorpunkte sind gefüllt (vorher ein
             Loch in der Linie und die Cursorlinie neben den Punkten).
+          </li>
+        </ul>
+      </div>
+      <div class="note">
+        <b>v4: Abgleich mit dem App-Design</b> (2026-11-23). Die Rahmen nutzen jetzt die Maße der echten
+        Bausteine (<code>Page</code>, <code>Section</code>, <code>ToggleGroup</code>,
+        <code>DisclosureTrigger</code>, uPlot-Legende) und die Tokens aus <code>index.css</code>. Zwei Stellen
+        weichen damit vom gebauten Stand ab und sind im Plan als Arbeit geführt:
+        <ul>
+          <li>
+            Die <b>Cursorlinie des Gewichtsdiagramms</b> ist <code>--muted-foreground</code>, gestrichelt wie
+            die Linie des gewählten Tages im Prognosediagramm (gebaut: das feste Blaugrau von uPlot,
+            <code>#607D8B</code>, kein Token, in beiden Themes gleich).
+          </li>
+          <li>
+            Die Zeile <b>„Prognose“</b> hat 14 px wie „Nährwerte“ (gebaut: 16 px, weil
+            <code>text-sm</code> fehlt).
           </li>
         </ul>
       </div>
@@ -581,9 +622,9 @@
         <tr>
           <th>„Prognose“</th>
           <td>
-            Zeile mit Pfeil unter dem Gewichtsdiagramm (wie „Nährwerte“). Tippen klappt auf und zu; der
-            Zustand bleibt pro Gerät (<code>ft.progress.forecasts</code>). Die Prognosedaten werden nur
-            gelesen, solange offen.
+            Zeile mit Pfeil unter dem Gewichtsdiagramm (<code>DisclosureTrigger</code> mit
+            <code>text-sm</code>, wie „Nährwerte“). Tippen klappt auf und zu; der Zustand bleibt pro Gerät
+            (<code>ft.progress.forecasts</code>). Die Prognosedaten werden nur gelesen, solange offen.
           </td>
         </tr>
         <tr>
@@ -606,7 +647,8 @@
           <th>Gewichtsdiagramm</th>
           <td>
             Tippen oder Wischen zeigt die Werte des Tages in der Legende (uPlot, wie bisher). Cursorlinie auf
-            dem Tag, Cursorpunkte gefüllt in der Kurvenfarbe mit Rand in Kartenfarbe.
+            dem Tag in <code>--muted-foreground</code>, gestrichelt; Cursorpunkte gefüllt in der Kurvenfarbe
+            mit Rand in Kartenfarbe.
           </td>
         </tr>
       </table>
@@ -663,8 +705,8 @@
         <tr>
           <th>Gewählter Tag</th>
           <td>
-            Senkrechte gestrichelte Linie, Punkt in <code>--primary</code> am Start der Geraden (fehlt ohne
-            Prognose).
+            Senkrechte gestrichelte Linie in <code>--muted-foreground</code>, Punkt in
+            <code>--primary</code> am Start der Geraden (fehlt ohne Prognose).
           </td>
         </tr>
         <tr>
@@ -957,8 +999,8 @@
               x2: s.x(cur.i),
               y1: PAD.t,
               y2: H - PAD.b,
-              stroke: 'var(--cursor)',
-              'stroke-dasharray': '5 3',
+              stroke: 'var(--muted-foreground)',
+              'stroke-dasharray': '3 3',
             },
             svg,
           );
@@ -1177,14 +1219,14 @@
         const lastW = W.at(-1);
         return `<div class="card"><dl class="stats">
           <div><dt>Trend</dt><dd>${f2(meanOn(N - 1))} kg</dd><dd class="sub">${f2(lastW.kg)} kg am ${fmtNum.format(day(lastW.i))}</dd></div>
-          <div><dt>Trend / Woche</dt><dd>−0,46 kg</dd><dd class="sub">letzte 30 Tage</dd></div>
+          <div><dt>Trend / Woche</dt><dd>-0,46 kg</dd><dd class="sub">letzte 30 Tage</dd></div>
           <div><dt>Bis zum Ziel</dt><dd>${f2(Math.abs(lastW.kg - TARGET))} kg</dd><dd class="sub">Ziel 80 kg</dd></div>
         </dl><p class="bmi">BMI 24,3</p></div>`;
       }
       function expendCard() {
         return `<div class="card"><div class="card-head"><h3>Bedarf aus deinen Daten</h3></div><div class="expend">
-          <b>2.540</b> <span class="pm">± 90</span> <span class="muted small">kcal am Tag, ohne Training · Formel 2.480 kcal</span>
-          <p class="muted small" style="margin:6px 0 0">Aus Ø 2.050 kcal gegessen, Gewichtstrend −0,46 kg pro Woche, 26 vollständige Tage und 24 Wiegungen seit 27.10.2026.</p>
+          <b>2.540</b> <span class="pm">± 90</span> <span class="muted" style="font-size:14px">kcal am Tag, ohne Training · Formel 2.480 kcal</span>
+          <p class="muted small" style="margin:6px 0 0">Aus Ø 2.050 kcal gegessen, Gewichtstrend -0,46 kg pro Woche, 26 vollständige Tage und 24 Wiegungen seit 27.10.2026.</p>
         </div></div>`;
       }
       function weightCard(st) {
@@ -1280,11 +1322,10 @@
         if (parts.includes('bar'))
           ph.insertAdjacentHTML(
             'beforeend',
-            '<div class="appbar"><span>Fortschritt</span><span>+</span></div>',
+            '<div class="appbar"><span>Fortschritt</span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></div>',
           );
         const c = document.createElement('div');
         c.className = 'content';
-        if (!parts.includes('bar')) c.style.paddingTop = '12px';
         ph.appendChild(c);
         if (parts.includes('stats')) c.insertAdjacentHTML('beforeend', statsCard());
         if (parts.includes('expend')) c.insertAdjacentHTML('beforeend', expendCard());
