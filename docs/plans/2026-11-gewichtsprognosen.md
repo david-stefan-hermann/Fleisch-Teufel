@@ -314,3 +314,10 @@ letzten 7 begrenzt, der Rest aufklappbar. Umgesetzt: uPlot-Cursor rastet auf dem
 das Gewichtsdiagramm bleibt immer, „Prognose“ (`DisclosureTrigger`, gemerkt in `ft.progress.forecasts`) öffnet
 `ForecastChart`; das Diagramm ist selbst der Schieber (`role=slider`, Pfeiltasten); „Ältere Einträge (N)“ klappt
 die übrigen Einträge auf (darin weiter in Schritten von 60).
+
+## Mockup v3 (2026-11-23)
+
+Auf Wunsch des Nutzers beschreibt `2026-11-gewichtsprognosen-mockup.html` jetzt als v3 den umgesetzten Stand
+vollständig: die ganze Seite, Gewichtsdiagramm mit Cursor, Prognose mit heute und mit einem vergangenen Tag, alle
+Zeiträume, Sonderfälle (zu wenig Daten, Tag ohne Prognose, Beginn des Erwartungsbands), Einträge zu und auf,
+dazu Bedienung, Zeichenregeln, Legende und Rechnung als Tabellen. Bedienbar, mit derselben Rechnung wie die App.
