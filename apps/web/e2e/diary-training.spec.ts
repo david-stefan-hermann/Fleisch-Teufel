@@ -978,7 +978,7 @@ test('weight chart: forecasts open below it, kept per device; entries show the n
   // The weight chart always; "Prognose" below it opens the second chart.
   await expect(page.getByRole('img', { name: /^Gewicht der letzten 30 Tage/ })).toBeVisible();
   const forecastTable = page.locator('figure.ft-chart table.sr-only', {
-    has: page.locator('th', { hasText: /^Erwartet$/ }),
+    has: page.locator('th', { hasText: /^Niveau$/ }),
   });
   await expect(forecastTable).toHaveCount(0);
   const toggle = page.getByRole('button', { name: 'Prognose', exact: true });
@@ -990,14 +990,18 @@ test('weight chart: forecasts open below it, kept per device; entries show the n
   await expect(forecastTable.locator('tbody tr').last().locator('td').last()).toHaveText(
     /^\d+(,\d)? kg für \d/,
   );
-  // The chart itself chooses the day: one step back, its forecast is for today.
+  // The chart itself chooses the day: one step back, its forecast still reaches the right edge.
+  const legend = page.getByTestId('forecast-legend');
+  await expect(legend).toContainText('Heute,');
+  await expect(legend).toContainText('Bedarf (gelernt)');
+  await expect(legend).toContainText('Treffer nach Abstand');
+  const end = (await legend.getByText(/^Prognose \d+\. /).textContent())!;
   const chooser = page.getByRole('slider', { name: 'Tag der Prognose' });
   await chooser.focus();
   await page.keyboard.press('ArrowLeft');
-  const legend = page.getByTestId('forecast-legend');
-  await expect(legend).toContainText('Prognose für heute');
-  await expect(legend).toContainText('Erwartet');
   await expect(legend).not.toContainText('Heute,');
+  await expect(legend.getByText(end, { exact: true })).toBeVisible();
+  await expect(page.getByTestId('forecast-kcal')).toBeVisible();
 
   // Open stays open on this device; closing hides the second chart.
   await page.reload();

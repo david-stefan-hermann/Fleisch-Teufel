@@ -435,24 +435,31 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (report kcal: `features/reports/chartData.ts`, grey `--bar-neutral` for days without macros). Report choices
   navigate with `resetScroll: false`.
 - Forecasts under the weight chart (plan `docs/plans/2026-11-gewichtsprognosen.md`, mockup
-  `2026-11-gewichtsprognosen-mockup.html` v2, variant AB): on `/progress` the weight chart (uPlot) stays as it is;
-  below it "Prognose" (`DisclosureTrigger`, open state per device in `ft.progress.forecasts`,
-  `features/progress/forecastPref.ts`) opens a second chart, `ForecastChart` (own SVG, not uPlot: uPlot cannot
-  scrub by touch; model in `forecastChart.ts`, pure). Each day D has the forecast the app would have made with the
-  data up to D (shared `forecastHistory`, `useForecastHistory`, read only while open): from the 7-day mean at D
-  with the slope (average net kcal of the complete days of the 28 days to D minus maintenance) / 7 700;
-  maintenance from `estimateExpenditure` up to D, else the profile formula (then at least `FORECAST_MIN_DAYS`
-  complete days); none with a weigh-in older than 14 days. With own data the slope is the 28-day weight trend.
-  Retrospective from today's records, nothing is stored. The chart: every day from the first weigh-in of the
-  period to today; behind the data the band of what the 14 days before each day forecast for it
-  (`expectedRange`); one chosen day (default today; touch or drag the chart, horizontal moves scrub,
-  `touch-pan-y` keeps vertical scrolling; the chart is a `role=slider` "Tag der Prognose" for the arrow keys; no
-  separate slider, user decision 2026-11-23) with its forecast as a straight line in its 80 % band
-  (`forecastSpread`: spread of the 7-day mean around its own trend, `curveSpread`, plus the slope error) up to
-  today, today's `aheadDaysFor` (7 T: 7, else 14) days ahead; later weigh-ins and mean faded. Ink `--forecast`.
-  The y range does not move with the chosen day. Legend of three fixed rows (7-Tage-Mittel, Erwartet, Prognose).
-  The chosen day belongs to its period. The entries list below shows the newest seven (`RECENT_ENTRIES`), the
-  others under "Ältere Einträge (N)".
+  `2026-11-gewichtsprognosen-mockup-v9-geglaettet.html` for the chart, v4 `2026-11-gewichtsprognosen-mockup.html`
+  for the rest): on `/progress` the weight chart (uPlot) stays as it is (its cursor line is `--muted-foreground`,
+  `.ft-chart .u-cursor-x`, for every uPlot chart); below it "Prognose" (`DisclosureTrigger` `text-sm`, open state
+  per device in `ft.progress.forecasts`, `features/progress/forecastPref.ts`) opens `ForecastChart` (own SVG, not
+  uPlot: uPlot cannot scrub by touch; pure model in `forecastChart.ts`). The model is shared `weightModel.ts`
+  (`buildWeightModel`, `modelDays`; `useWeightModel` reads from the first weigh-in to today, only while open): a
+  Kalman filter with level, maintenance (kcal, starts at the profile formula) and weekday effect; the net kcal of
+  complete days (credited training and steps off) move the level by (kcal − maintenance) / 7 700, weigh-ins correct
+  all three. A forgotten day (run of days without complete entries shorter than `GAP_DAYS` 3) counts with the own
+  average of the last `EAT_DAYS` 28 logged days, a longer gap as maintenance with `MISSING_SD`. Parameters by maximum
+  likelihood on a small grid over `FIT_DAYS` 180 (they are the only thing fitted on all data; the state of day D
+  uses nothing after D). The forecast of day D eats like the 28 days before D, from `FIRST_FORECAST_DAYS` 21 after
+  the first weigh-in, none with a weigh-in older than 14 days. Back-test: every weigh-in 1 to 14 days after each day
+  of the last 180 against that day's forecast, the outer band's factor is the 80th percentile of the z values
+  (`Calibration`, `weighInHalf` never narrower than the level band). Mode `trend` (no kcal, level plus drifting
+  slope) is the dashed "Ohne Kalorien". The chart: axis from the first day of the period with data to today plus
+  `aheadDaysFor` (7 T: 7, else 14); level line, weigh-ins, and the chosen day's forecast up to the right edge as a
+  curve (`show`: expected weigh-ins smoothed ¼ ½ ¼, drawn with `curvePath`, Catmull-Rom, never as connected dots)
+  in a smooth band on the level (inner 80 % of the level, outer 80 % of a weigh-in); below it a kcal strip (logged
+  net kcal, learned maintenance, assumed eating); legend of fixed rows, "Treffer nach Abstand" bars and the
+  uncalibrated hit rates with and without calories. One chosen day (default today; touch or drag, horizontal moves
+  scrub, `touch-pan-y` keeps vertical scrolling, `role=slider` "Tag der Prognose" for the arrow keys; no separate
+  slider). The y range does not move with the chosen day; what a past day draws beyond it is clipped. The "Bedarf
+  aus deinen Daten" card still uses `estimateExpenditure` (user decision 2026-11-23: switch later). The entries
+  list below shows the newest seven (`RECENT_ENTRIES`), the others under "Ältere Einträge (N)".
 - Appearance (Mehr → Aussehen, per device in `localStorage`): app theme system/light/dark and logo variant
   (follows the app or fixed). `public/theme-init.js` sets `.dark`/`.light` on `<html>` before the first paint,
   `src/lib/appearance.ts` (`useAppearance`) keeps it, the theme-color meta, favicon and apple-touch-icon in sync.

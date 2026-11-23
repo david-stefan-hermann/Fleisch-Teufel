@@ -267,6 +267,10 @@
 .ft-chart .u-legend th {
   font-weight: 500;
 }
+/* The cursor line in the ink of the chart text, dashed like the chosen day of the forecast chart. */
+.ft-chart .u-cursor-x {
+  border-right-color: var(--muted-foreground);
+}
 
 /* Native search clear button in the neutral ink instead of the platform blue. */
 input[type='search']::-webkit-search-cancel-button {

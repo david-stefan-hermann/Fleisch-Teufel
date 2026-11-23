@@ -1,7 +1,6 @@
 import {
   addDays,
   bmi,
-  EXPECTED_LOOKBACK_DAYS,
   dayId,
   DEFAULT_WEIGHT_RANGE,
   DEFAULT_WEIGHT_STEP,
@@ -37,7 +36,7 @@ import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
 import { useGoals, useSettings, useToday, useWeights } from '@/hooks/data';
-import { useForecastHistory } from '@/hooks/useForecastHistory';
+import { useWeightModel } from '@/hooks/useWeightModel';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { ExpenditureCard } from './ExpenditureCard';
 import { useForecastPref } from './forecastPref';
@@ -94,8 +93,7 @@ export function ProgressPage() {
   const target = settings?.targetWeightKg ?? null;
 
   const [forecastsOn, setForecastsOn] = useForecastPref();
-  // The forecasts of the 14 days before the period make up what was expected for its first days.
-  const forecasts = useForecastHistory(addDays(from, -EXPECTED_LOOKBACK_DAYS), forecastsOn);
+  const weightModel = useWeightModel(forecastsOn);
   const { data, series, yRange } = useMemo(() => {
     const xs = visible.map((w) => xOf(w.date));
     const avgByDate = new Map(avg.map((p) => [p.date, p.kg]));
@@ -119,24 +117,22 @@ export function ProgressPage() {
   }, [visible, avg, target]);
   const forecastModel = useMemo(
     () =>
-      forecastsOn && forecasts
+      forecastsOn && weightModel
         ? forecastChartModel({
-            visible,
-            avg,
-            target,
+            models: weightModel.models,
+            days: weightModel.days,
             from,
             today,
-            forecasts,
             aheadDays: aheadDaysFor(range.days ?? Infinity),
           })
         : null,
-    [forecastsOn, forecasts, visible, avg, target, from, today, range.days],
+    [forecastsOn, weightModel, from, today, range.days],
   );
   // The day whose forecast the chart shows, for the period it was chosen in (else today).
   const [chosen, setChosen] = useState<{ range: string; date: string } | null>(null);
   const selectedIndex = forecastModel
     ? chosen?.range === range.id && forecastModel.dates.includes(chosen.date)
-      ? forecastModel.dates.indexOf(chosen.date)
+      ? Math.max(forecastModel.firstChoice, forecastModel.dates.indexOf(chosen.date))
       : forecastModel.dates.length - 1
     : 0;
   const chartTitle = range.days
@@ -270,17 +266,17 @@ export function ProgressPage() {
                     title={chartTitle}
                   />
                   <Collapsible open={forecastsOn} onOpenChange={setForecastsOn} className="mt-2 px-2">
-                    <DisclosureTrigger className="min-h-11 font-semibold">Prognose</DisclosureTrigger>
+                    <DisclosureTrigger className="min-h-11 text-sm font-semibold">Prognose</DisclosureTrigger>
                     <CollapsibleContent className="pt-1">
                       {forecastModel ? (
                         <ForecastChart
                           model={forecastModel}
                           selected={selectedIndex}
                           onSelect={(i) => setChosen({ range: range.id, date: forecastModel.dates[i]! })}
-                          title={`${chartTitle}, erwarteten Werten und der Prognose eines Tages`}
+                          title={`Niveau des Gewichts und Prognose eines Tages`}
                         />
                       ) : (
-                        forecasts && (
+                        weightModel && (
                           <p className="pb-2 text-sm text-muted-foreground">
                             Zu wenig Daten für eine Prognose.
                           </p>

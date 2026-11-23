@@ -1,84 +1,76 @@
-import type { DayForecast } from '@ft/shared';
+import { addDays, buildWeightModel, type ModelDay, type ModelParams } from '@ft/shared';
 import { describe, expect, it } from 'vitest';
-import { aheadDaysFor, dayView, forecastChartModel, niceRange } from '@/features/progress/forecastChart';
+import {
+  aheadDaysFor,
+  curvePath,
+  dayView,
+  forecastChartModel,
+  niceRange,
+} from '@/features/progress/forecastChart';
 
-const fc = (date: string, startKg = 80, slopePerDay = -0.1): DayForecast => ({
-  date,
-  startKg,
-  slopePerDay,
-  maintenanceKcal: 2500,
-  netKcal: 1730,
-  basis: 'data',
-  noiseSdKg: 0,
-  slopeSeKg: 0,
-});
+const START = '2026-09-01';
+const TODAY = '2026-11-23';
+const FIXED: ModelParams = { obs: 0.3, ql: 0.02, qb: 5, qg: 0.005 };
 
-const visible = [
-  { date: '2026-11-02', kg: 81 },
-  { date: '2026-11-05', kg: 80 },
-];
-const avg = [
-  { date: '2026-10-28', kg: 81.8 },
-  { date: '2026-11-02', kg: 81 },
-  { date: '2026-11-05', kg: 80.5 },
-];
-const forecasts = [
-  fc('2026-10-30', 81.5),
-  fc('2026-11-02', 81, -0.2),
-  fc('2026-11-05'),
-  fc('2026-11-06', 80.2, 0),
-];
-const base = { visible, avg, target: 75, from: '2026-11-01', today: '2026-11-06', forecasts, aheadDays: 14 };
+/** 84 days losing on 2 000 kcal against 2 400: weighed on most days, every day logged but every ninth. */
+const days: ModelDay[] = Array.from({ length: 84 }, (_, i) => ({
+  date: addDays(START, i),
+  kg: i % 4 === 3 ? null : Math.round((85 - (i * 400) / 7700 + (i % 3) * 0.2) * 10) / 10,
+  kcal: i % 9 === 8 ? null : 2000,
+}));
+const kcal = buildWeightModel({ days, mode: 'kcal', startMaintenance: 2400, params: FIXED })!;
+const trend = buildWeightModel({ days, mode: 'trend', params: { ...FIXED, qb: 0.001 } })!;
+const models = { kcal, trend };
 
 describe('forecast chart', () => {
-  it('needs a forecast inside the period', () => {
-    expect(forecastChartModel({ ...base, forecasts: [fc('2026-10-30')] })).toBeNull();
+  it('needs a model with a forecast inside the period', () => {
+    expect(forecastChartModel({ models: null, days, from: START, today: TODAY, aheadDays: 14 })).toBeNull();
+    const m = forecastChartModel({ models, days, from: START, today: TODAY, aheadDays: 14 })!;
+    // The first three weeks have no forecast: the chart begins with the data, the choice three weeks later.
+    expect(m.dates[0]).toBe(START);
+    expect(m.dates.at(-1)).toBe(TODAY);
+    expect(m.firstChoice).toBe(21);
   });
 
-  it('begins at the first weigh-in, every day carries the mean of the last weigh-in up to it', () => {
-    const m = forecastChartModel(base)!;
-    expect(m.dates[0]).toBe('2026-11-02');
-    expect(m.dates).toHaveLength(5);
-    expect(m.weights).toEqual([
-      { i: 0, kg: 81 },
-      { i: 3, kg: 80 },
-    ]);
-    expect(m.meanOn).toEqual([81, 81, 81, 80.5, 80.5]);
-    // Without weigh-ins in the period it begins with the period and the mean from before it.
-    const empty = forecastChartModel({ ...base, visible: [] })!;
-    expect(empty.dates[0]).toBe('2026-11-01');
-    expect(empty.meanOn[0]).toBe(81.8);
+  it('begins at the period when the data begins earlier', () => {
+    const m = forecastChartModel({ models, days, from: '2026-10-25', today: TODAY, aheadDays: 14 })!;
+    expect(m.dates).toHaveLength(30);
+    expect(m.firstChoice).toBe(0);
+    expect(m.weights[0]!.i).toBeGreaterThanOrEqual(0);
+    expect(m.level).toHaveLength(30);
+    expect(m.kcal.every((k) => k.kcal === 2000)).toBe(true);
   });
 
-  it('expects for a day what the 14 days before it forecast', () => {
-    const m = forecastChartModel(base)!;
-    // 4 Nov: 30 Oct (81,5 − 0,5) and 2 Nov (81 − 0,4).
-    expect(m.expected[2]!.lo).toBeCloseTo(80.6, 9);
-    expect(m.expected[2]!.hi).toBeCloseTo(81, 9);
-    // 2 Nov: only 30 Oct before it (81,5 − 0,3).
-    expect(m.expected[0]!.lo).toBeCloseTo(81.2, 9);
+  it('draws the forecast of every chosen day up to the right edge', () => {
+    const m = forecastChartModel({ models, days, from: '2026-10-25', today: TODAY, aheadDays: 14 })!;
+    const today = dayView(m, 29);
+    expect(today.curve[0]!.i).toBe(29);
+    expect(today.curve.at(-1)!.i).toBe(29 + 14);
+    expect(today.end!.date).toBe(addDays(TODAY, 14));
+    const past = dayView(m, 5);
+    expect(past.curve[0]!.i).toBe(5);
+    expect(past.curve.at(-1)!.i).toBe(29 + 14);
+    expect(past.end!.date).toBe(addDays(TODAY, 14));
+    expect(past.trend.at(-1)!.i).toBe(29 + 14);
+    // Losing: the forecast ends lower, the bands hold the level, the weigh-in band is wider.
+    expect(past.end!.level).toBeLessThan(past.level!);
+    expect(past.end!.curve[0]).toBeLessThan(past.end!.level);
+    expect(past.end!.weighIn[0]).toBeLessThanOrEqual(past.end!.curve[0]);
+    expect(past.eating!.mean).toBe(2000);
   });
 
-  it('keeps the y range when another day is chosen and includes target and today’s forecast', () => {
-    const m = forecastChartModel(base)!;
-    expect(m.yRange[0]).toBeLessThanOrEqual(75);
-    expect(m.yRange[1]).toBeGreaterThanOrEqual(81.8);
+  it('keeps the y range when another day is chosen and includes today’s outer band', () => {
+    const m = forecastChartModel({ models, days, from: '2026-10-25', today: TODAY, aheadDays: 14 })!;
+    const v = dayView(m, 29);
+    expect(m.yRange[0]).toBeLessThanOrEqual(v.end!.weighIn[0]);
+    expect(m.yRange[1]).toBeGreaterThanOrEqual(Math.max(...m.weights.map((w) => w.kg)));
+    expect(m.kcalRange[0]).toBeLessThanOrEqual(2000);
+    expect(m.kcalRange[1]).toBeGreaterThanOrEqual(2000);
   });
 
-  it('shows today 14 days ahead and a past day up to today', () => {
-    const m = forecastChartModel(base)!;
-    const today = dayView(m, 4);
-    expect(today.line).toEqual([
-      { i: 4, kg: 80.2 },
-      { i: 18, kg: 80.2 },
-    ]);
-    expect(today.band).toHaveLength(15);
-    expect(today.prognosis).toEqual({ kg: 80.2, date: '2026-11-20' });
-    const past = dayView(m, 0);
-    expect(past.line.at(-1)!.i).toBe(4);
-    expect(past.prognosis!.kg).toBeCloseTo(80.2, 9);
-    expect(past.prognosis!.date).toBe('2026-11-06');
-    expect(dayView(m, 1)).toMatchObject({ forecast: null, line: [], prognosis: null });
+  it('clamps a choice before the first forecast', () => {
+    const m = forecastChartModel({ models, days, from: START, today: TODAY, aheadDays: 14 })!;
+    expect(dayView(m, 3).index).toBe(21);
   });
 
   it('looks a week ahead in the 7-day view, else two', () => {
@@ -90,5 +82,23 @@ describe('forecast chart', () => {
   it('rounds the y range outward, at least a kilogram high', () => {
     expect(niceRange([80.2, 80.4])).toEqual([79.5, 81]);
     expect(niceRange([75, 84])).toEqual([74, 86]);
+  });
+
+  it('draws a curve through the points, not connected dots', () => {
+    expect(curvePath([])).toBe('');
+    expect(
+      curvePath([
+        [0, 0],
+        [10, 5],
+      ]),
+    ).toBe('M0.0,0.0L10.0,5.0');
+    const d = curvePath([
+      [0, 0],
+      [10, 10],
+      [20, 0],
+    ]);
+    expect(d.startsWith('M0.0,0.0C')).toBe(true);
+    expect(d.endsWith('20.0,0.0')).toBe(true);
+    expect(d.match(/C/g)).toHaveLength(2);
   });
 });

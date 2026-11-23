@@ -1,323 +1,147 @@
 # Prognosen im Gewichtsverlauf: Implementierungsplan
 
-Implementierungsplan für eine neue Opus-5.5-Sitzung. Den Statusblock in dieser Datei pflegen.
+Maßgeblich für das Prognosediagramm ist das Mockup `docs/plans/2026-11-gewichtsprognosen-mockup-v9-geglaettet.html`
+(v9, 2026-11-23, nur dunkel skizziert; hell mit denselben Tokens). Für alles andere auf der Seite (Gewichtsdiagramm,
+Zeile „Prognose“, Einträge) gilt weiter Mockup v4 `docs/plans/2026-11-gewichtsprognosen-mockup.html`. Wo Plan und
+Mockup sich widersprechen, gilt das Mockup; den Widerspruch melden statt still zu entscheiden. Den Statusblock in
+dieser Datei pflegen.
 
 ## Status
 
-Geplant am 2026-11-22 auf `097201a`, umgesetzt am selben Tag, Runde 2 (Darstellung AB) ebenfalls. Nicht gepusht. Push-Stand nie aus diesem Dokument
-ableiten: `git fetch` + `git status -sb`.
+Geplant am 2026-11-22 auf `097201a`. Gebaut in fünf Runden bis `501a300`, Mockup v4 am 2026-11-23. Danach
+Feedback auf die Bänder („überhaupt nicht logisch herzuleiten“) und Mockups v5 bis v9 am 2026-11-23; v9 vom Nutzer
+zur Umsetzung freigegeben („lass uns das so umsetzen“), Runde 6 dieses Plans, am selben Tag umgesetzt (alle
+Prüfungen grün, Sichtprüfung und Touch-Test mit einem 90-Tage-Testnutzer; die Demo-Daten tragen zu wenig kcal ein,
+um den Bedarf sinnvoll zu zeigen). Abnahme auf dem iPhone offen. Nicht gepusht. Push-Stand nie aus
+diesem Dokument ableiten: `git fetch` + `git status -sb`.
 
-| Block | Commit    | Inhalt                                                        |
-| ----- | --------- | ------------------------------------------------------------- |
-| 1     | `c94b477` | Shared: `forecastHistory` (reine Rechnung, Unit-Tests)        |
-| 2     | `81d704e` | `Chart`: Strahlen (`rays`), y-Bereich, Hervorhebung am Cursor |
-| 3     | `e5031cc` | Fortschritt: Schalter, Datenabfrage, Diagramm, E2E            |
-| 4     | (Doku)    | Doku: `CLAUDE.md`, dieser Statusblock                         |
+| Stand             | Commit    | Inhalt                                                                           |
+| ----------------- | --------- | -------------------------------------------------------------------------------- |
+| Rechnung          | `c94b477` | Shared `forecastHistory` (wird durch Runde 6 ersetzt)                            |
+| Runde 1, Strahlen | `81d704e` | `Chart` mit Strahlen, Schalter (verworfen, wieder ausgebaut)                     |
+|                   | `e5031cc` |                                                                                  |
+|                   | `1c77636` |                                                                                  |
+| Runde 2, AB       | `41870ce` | Erwartungsband und Zeitreise in uPlot (verworfen: per Touch nicht bedienbar)     |
+| Runde 3           | `9dafcfa` | Eigenes SVG-Diagramm `ForecastChart`, `Chart.tsx` zurück (bleibt)                |
+| Runde 4           | `d8c76c6` | Prognose als Gerade im 80-%-Bereich (wird durch Runde 6 ersetzt)                 |
+| Runde 5           | `501a300` | Zweites Diagramm unter „Prognose“, kein Regler, Einträge gekürzt (bleibt)        |
+| Mockup v3, v4     | `387f360` | v4 nicht committet: Abgleich mit dem App-Design                                  |
+| Mockups v5 bis v9 | offen     | v5 Bereich aus Treffern, v6 Wochentage, v7 Kalman, v8 mit kcal, v9 freigegeben   |
+| Runde 6           | offen     | Umgesetzt 2026-11-23, nicht committet: Modell, Diagramm nach v9, zwei Restpunkte |
 
-Abweichungen vom Plan:
+## Worum es geht
 
-- `forecastAt(f, days)` (shared) rechnet das Ende eines Strahls; `forecastHistory` gibt `estimateExpenditure` nur die
-  Wiegungen des 28-Tage-Fensters.
-- `ChartSeries.cursorPoint: false`: die Legenden-Serie „Prognose +N T“ zeichnete ihren Cursorpunkt am Tag des
-  Cursors, obwohl der Wert zum Ende des Strahls gehört.
-- Kein Deckel für „Alle“: drei Jahre synthetische Daten rechnen in etwa 60 ms (warm, 100 ms beim ersten Lauf).
-- Der Schalter steht immer unter dem Diagramm, sobald der Zeitraum Wiegungen hat.
-- A2 ersetzt (Nutzer, 2026-11-22): Jeder Strahl reicht bis zum Ende des Zeitraums (heute), nicht einen festen
-  Horizont weit. Die x-Achse endet wie ohne Prognosen bei heute, die Legende heißt „Prognose für heute“ und nennt,
-  was der Tag unter dem Cursor für heute vorhergesagt hat.
+Wunsch (Nutzer, 2026-11-22): Im Gewichtsverlauf (`/progress`) sehen, was die App an jedem Tag des Zeitraums
+vorhergesagt hätte, gerechnet nur mit den Daten bis zu diesem Tag. Feedback 2026-11-23: die Prognose reicht immer
+bis zum rechten Rand; der Bereich muss sich herleiten lassen; „Kalorien MÜSSEN mit rein“; die Prognose ist eine
+Kurve, keine verbundenen Punkte, mit leichter Glättung.
 
-Prüfung: `pnpm lint`, `pnpm typecheck`, `pnpm test` grün; E2E `weight chart: forecasts …` und `ios-layout` grün.
-Sichtprüfung mit den Demo-Daten (390 × 844, hell und dunkel, alle vier Zeiträume): Mit Schalter aus ist die
-Leinwand pixelgleich zum Stand vor dem Umbau (alter und neuer Build gegen dieselbe Datenbank verglichen). Offen:
-A1 (Modell).
+Ergebnis:
 
-## Context
+- Gewichtsdiagramm (uPlot), Zeile „Prognose“ zum Aufklappen und Einträge bleiben wie gebaut (Mockup v4).
+- Das Prognosediagramm zeigt ein Zeitreihenmodell (Kalman-Filter) mit Niveau, gelerntem Bedarf und
+  Wochentagseffekt, gespeist von Wiegungen und eingetragenen Kalorien. Die Prognose des gewählten Tages läuft bis
+  zum rechten Rand (heute plus 14 Tage, bei 7 T plus 7), in einem glatten Fächer, dessen äußerer Teil per
+  Rückrechnung auf 80 % nachjustiert ist.
 
-Wunsch (Nutzer, 2026-11-22): Im Gewichtsverlauf (`/progress`) soll man sich einblenden können, was die App an
-jedem Tag des Zeitraums vorhergesagt hätte. Bei 30 Tagen also: eine Prognosekurve für den Tag vor 30 Tagen
-(gerechnet nur mit den Daten bis zu diesem Tag), eine für den Tag vor 29 Tagen, und so weiter bis heute. Man
-sieht dann, wie sich die Vorhersage von Tag zu Tag verschoben hat und wie gut sie zu dem passt, was danach
-wirklich gewogen wurde.
+Weder Schema noch Migration noch Dexie-Version ändern sich. Kein Server-Code.
 
-Stand im Code:
+## Entscheidungen des Nutzers (2026-11-23)
 
-- `apps/web/src/features/progress/ProgressPage.tsx`: Abschnitt „Gewichtsverlauf“ mit `Chart` (uPlot): Punkte
-  „Gewicht“, Linie „7-Tage-Mittel“ (`movingAverage`), gestrichelte Linie „Ziel“. Zeitraum über den Suchparameter
-  `range` (7 T, 30 T, 90 T, Alle). x-Werte sind heute nur die Tage mit Wiegung.
-- Eine Prognosekurve gibt es bisher nicht. Die einzige Prognose der App steht auf „Tag abschließen“
-  (`CompleteDayPage.tsx`, `fiveWeekForecast`): Gewicht in fünf Wochen, wenn jeder Tag wie dieser wäre, gerechnet
-  aus Netto-kcal gegen den Erhaltungsbedarf. Der Erhaltungsbedarf kommt aus den eigenen Daten
-  (`estimateExpenditure`, `useExpenditure`), sonst aus der Formel (`bodyProfile` + `tdee`).
-- `packages/shared/src/expenditure.ts` (`estimateExpenditure`), `forecast.ts` (`linearTrend`, `movingAverage`,
-  `weightForDay`), `reports.ts` (`dailyRows`, `isCompleteDay`).
+- In die App: Kalorienstreifen, Trefferquote als Text, Trefferbalken nach Abstand, gestrichelte Linie „Ohne
+  Kalorien“ (alles wie v9).
+- Die Karte „Bedarf aus deinen Daten“ bleibt vorerst, wie sie ist; die Prognose zeigt ihren gelernten Bedarf in
+  der Legende. Zwei Zahlen, die abweichen dürfen; die Karte umzustellen ist ein eigener späterer Schritt.
+- Vergessene Tage werden behoben (in v9 nachgetragen und an den drei Datensätzen geprüft): ein Tag ohne
+  vollständige Einträge in einer Lücke unter 3 Tagen zählt mit dem eigenen Durchschnitt der letzten 28
+  eingetragenen Tage; längere Lücken zählen als Bedarf mit großer Unsicherheit.
 
-Weder Schema noch Migration noch Dexie-Version ändern sich. Es wird nichts gespeichert außer einem Schalter pro
-Gerät (`localStorage`). Kein Server-Code.
+## Das Modell (Runde 6, neu)
 
-### Das Modell (festgelegt)
+Neue Datei `packages/shared/src/weightModel.ts` (rein, ohne Dexie), Tests `packages/shared/test/weight-model.test.ts`.
+Ersetzt `forecastHistory.ts` samt Tests (`forecastHistory`, `forecastSpread`, `expectedRange`, `curveSpread`,
+`forecastAt`, `EXPECTED_LOOKBACK_DAYS`, `FORECAST_*`); `estimateExpenditure` und die Karte bleiben unberührt.
 
-Die Prognose des Tages D benutzt nur Tage und Wiegungen mit Datum ≤ D:
+Eingabe: eine Zeile pro Kalendertag vom ersten bis zum letzten Tag (heute) mit
 
-- **Start**: das 7-Tage-Mittel am Tag D (Wert von `movingAverage` an der letzten Wiegung ≤ D). So zweigt jeder
-  Strahl von der Linie ab, die das Diagramm schon zeigt. Ist die letzte Wiegung älter als
-  `FORECAST_MAX_WEIGHT_AGE_DAYS` (14), gibt es für D keine Prognose.
-- **Steigung** (kg pro Tag): `(Netto-kcal Ø − Erhaltungsbedarf) / KCAL_PER_KG_BODY_WEIGHT`, dieselbe
-  Energiebilanz wie `fiveWeekForecast`, aber mit dem Durchschnitt statt eines einzelnen Tages:
-  - Netto-kcal Ø: gegessen minus angerechnetes Training und Schritte (`creditedTrainingKcal`, Einstellungen
-    `addExerciseCalories`/`addStepsCalories`), gemittelt über die vollständigen Tage (`isCompleteDay` mit
-    `today: D`) der `EXPENDITURE_WINDOW_DAYS` (28) Tage bis D.
-  - Erhaltungsbedarf: dieselbe Kette wie auf „Tag abschließen“: `estimateExpenditure` für das Fenster bis D
-    (`basis: 'data'`), sonst die Formel `tdee(bodyProfile(settings, Gewicht an D, D), activityLevel)`
-    (`basis: 'formula'`, auch bei `reason: 'implausible'`). Ohne vollständiges Profil keine Prognose.
-  - Für `basis: 'formula'` braucht es mindestens `FORECAST_MIN_DAYS` (7) vollständige Tage im Fenster, sonst
-    keine Prognose für D.
-- **Form**: eine Gerade von D bis D + Horizont. Über zwei bis vier Wochen ist die Krümmung (Bedarf sinkt mit
-  dem Gewicht) kleiner als die Strichbreite.
+- `kg`: Wiegung des Tages (mehrere: der Mittelwert), sonst null;
+- `kcal`: Netto-kcal eines vollständigen Tages (`isCompleteDay` mit `today`): gegessen minus angerechnetes Training
+  und Schritte (`creditedTrainingKcal` nach den Einstellungen), sonst null;
+- dazu der Startwert des Bedarfs: Formel `tdee(bodyProfile(...))` an der ersten Wiegung, ohne Profil der
+  Durchschnitt der ersten 28 eingetragenen Tage, sonst 2 000 kcal; Unsicherheit 250 kcal.
 
-Folge, die man kennen muss: Mit `basis: 'data'` ist die Steigung gleich dem linearen Gewichtstrend der 28 Tage
-bis D (so ist der Bedarf aus eigenen Daten definiert: Zufuhr minus Trend × 7 700). Die Prognose sagt dann „es
-geht weiter wie in den letzten vier Wochen“. Erst mit `basis: 'formula'` rechnet sie Zufuhr gegen Formelbedarf.
-Das ist dieselbe Aussage, die „Tag abschließen“ für einen Durchschnittstag machen würde.
+Zustand `[Niveau kg, Bedarf kcal, g1..g6]` (Wochentag als Dummy-Saison, der siebte = minus Summe). Übergang von Tag
+t zu t + 1:
 
-### Annahmen (im Plan festgelegt, bei Widerspruch melden statt still zu entscheiden)
+- eingetragen: Niveau += (kcal_t − Bedarf) / 7 700;
+- vergessen (Lücke < `GAP_DAYS` 3, mit Geschichte): wie eingetragen mit dem Mittel der letzten `EAT_DAYS` (28)
+  eingetragenen Tage, dessen Streuung als zusätzliches Rauschen des Niveaus;
+- sonst (lange Lücke, keine Geschichte): Niveau bleibt, Rauschen (`MISSING_SD` 600 kcal / 7 700)²;
+- immer: Rauschen Niveau `ql`², Bedarf `qb`², Wochentag `qg`².
 
-- **A1 (Modell):** wie oben. Alternative, falls der Nutzer mehr Bewegung in den Strahlen will: Zufuhr nur der
-  letzten 7 Tage gegen den Bedarf der 28 Tage („wenn du so weiter isst wie diese Woche“). Dann wäre nur der
-  Parameter `intakeDays` von `forecastHistory` zu ändern; ihn deshalb von Anfang an vorsehen (Standard 28).
-- **A2 (Horizont):** hängt am Zeitraum: 7 T → 7 Tage, 30 T → 14, 90 T → 28, Alle → 28. Bei eingeschalteten
-  Prognosen reicht die x-Achse bis heute + Horizont, damit die Prognose von heute ganz zu sehen ist.
-- **A3 (rückblickend, kein Protokoll):** Gerechnet wird aus den heutigen Datensätzen der Tage bis D, nicht aus
-  einem damals gespeicherten Stand. Ein nachgetragener Eintrag, ein später abgeschlossener Tag oder ein
-  geändertes Profil (Größe, Aktivität; die Einstellungen haben keine Historie) ändern auch alte Strahlen. Kein
-  Speichern von Prognosen: das wäre eine neue synchronisierte Tabelle für einen kleinen Gewinn.
-- **A4 (Tag D selbst):** `isCompleteDay(row, { today: D })`: der Tag D zählt nur, wenn er abgeschlossen wurde,
-  genau wie die App es an diesem Tag gesehen hat.
-- **A5 (Schalter):** ein `Switch` „Prognosen“ unter dem Diagramm, pro Gerät gemerkt (`ft.progress.forecasts`,
-  Standard aus). Kein Erklärtext (Nutzerregel): Legende und Hervorhebung zeigen, was zu sehen ist.
-- **A6 (Menge):** höchstens `MAX_RAYS` (120) Strahlen; bei mehr Tagen („Alle“) jeder n-te Tag, der
-  hervorgehobene immer.
+Beobachtung: Wiegung = Niveau + Wochentagseffekt + Rauschen `obs`². Die vier Parameter per größter
+Wahrscheinlichkeit auf einem Gitter (`obs` 0,2/0,3/0,4/0,5; `ql` 0,01/0,02/0,03; `qb` 2/5/10/20; `qg`
+0,005/0,02/0,05), gerechnet über die letzten `FIT_DAYS` (180) Tage, Wiegungen der ersten 14 Tage nicht im Maß.
 
-## Block 1: Shared `forecastHistory`
+Prognose ab Tag d (nur der gefilterte Zustand an d, also nur Daten bis d), h = 0 bis H Tage:
 
-Neue Datei `packages/shared/src/forecastHistory.ts`, in `index.ts` exportieren. Rein, ohne Dexie.
+- Essen danach: Mittel und Streuung der letzten 28 eingetragenen Tage bis d („so weiteressen wie zuletzt“);
+- je Tag: `kg` (Niveau + Wochentag), `show` (kg geglättet: ¼ Vortag, ½ Tag, ¼ Folgetag), `level`, `levelSd`
+  (Niveau), `obsSd` = √(levelSd² + obs² + Streuung der Wochentagseffekte an d), `maintenance`;
+- erst ab `FIRST_FORECAST_DAYS` (21) Tagen nach der ersten Wiegung; keine Prognose, wenn die letzte Wiegung bis d
+  älter als 14 Tage ist.
 
-```ts
-export const FORECAST_MIN_DAYS = 7;
-export const FORECAST_MAX_WEIGHT_AGE_DAYS = 14;
+Rückrechnung: für jeden Tag d der letzten 180 Tage mit Prognose jede Wiegung 1 bis 14 Tage danach (bis heute):
+z = |Wiegung − level| / obsSd. Faktor = 80. Perzentil der z (statt 1,28); ohne mindestens 20 Prüfungen 1,28.
+Ergebnis: Faktor, Anzahl, Trefferquote ungeprüft (z ≤ 1,28), Trefferquote nachjustiert je Abstand 1 bis 14.
 
-export interface DayForecast {
-  date: ISODate; // the day the forecast was made on
-  startKg: number; // 7-day mean on that day
-  slopePerDay: number; // kg per day
-  maintenanceKcal: number;
-  netKcal: number;
-  basis: 'data' | 'formula';
-}
+„Ohne Kalorien“: dasselbe Modell im Modus `trend` (Zustand `[Niveau, Steigung kg/Tag, g1..g6]`, Niveau +=
+Steigung, keine kcal; Gitter für die Steigung 0,0005/0,001/0,003/0,01) mit eigener Rückrechnung.
 
-export function forecastHistory(params: {
-  /** Daily rows from at least `EXPENDITURE_WINDOW_DAYS - 1` days before `from` up to `to`. */
-  rows: readonly DailyRow[];
-  /** All live weigh-ins (any dates). */
-  weights: readonly WeightPoint[];
-  from: ISODate;
-  to: ISODate;
-  settings: Pick<Settings, /* what bodyProfile needs */ … | 'activityLevel'> | undefined;
-  creditExercise?: boolean;
-  creditSteps?: boolean;
-  intakeDays?: number; // default EXPENDITURE_WINDOW_DAYS (A1)
-}): DayForecast[]; // one per day with a forecast, ascending; days without one are left out
-```
+## Die Seite (Runde 6)
 
-Umsetzung:
+- `apps/web/src/hooks/useWeightModel.ts` (ersetzt `useForecastHistory.ts`): liest ab der ersten Wiegung bis heute
+  Tagebuch, Training, Wiegungen, Ziele, Notizen, Einstellungen, baut `dailyRows` und rechnet beide Modelle; liest
+  nichts, solange „Prognose“ zu ist.
+- `features/progress/forecastChart.ts` (rein): Achse vom ersten Tag des Zeitraums mit Wiegung bis heute plus
+  `aheadDaysFor`; feste y-Achse je Zeitraum aus Wiegungen, Niveau und dem äußeren Fächer der heutigen Prognose;
+  was ein vergangener Tag darüber hinaus zeichnet, wird abgeschnitten. `dayView`: Prognose des gewählten Tages bis
+  zum rechten Rand.
+- `features/progress/ForecastChart.tsx` nach v9, Ebenen von hinten: Gitter, äußerer Fächer (`--forecast` 15 %),
+  innerer Fächer (30 %), „Ohne Kalorien“ gestrichelt (`--muted-foreground`, 1,3 px), Niveau (`--primary` 2,5 px,
+  nach dem gewählten Tag 30 %), Prognose (`--forecast` 2 px, `show`), Wiegungen (nach dem Tag 35 %), Linie des
+  Tages, Punkt auf dem Niveau. Kurven als Catmull-Rom (kubische Bézier), nicht als Polylinie; Fächer glatt auf dem
+  Niveau. Heute als feine senkrechte Linie (`--border`). Keine Ziellinie (v9 hat keine).
+- Kalorienstreifen darunter (84 px, gleiche x-Achse): Balken der eingetragenen Netto-kcal, Bedarf (`--primary`)
+  bis zum gewählten Tag, danach blass waagerecht, angenommenes Essen gestrichelt (`--forecast`).
+- Legende (feste Zeilen): Tag; Gewogen; Niveau; Bedarf (gelernt); Gegessen Ø 28 T; Prognose <Datum>
+  (Niveau am Ende); Kurve (80 %); Wiegung (80 %); Ohne Kalorien. Darunter „Treffer nach Abstand (N Prüfungen)“ mit
+  14 Balken und der 80-%-Linie, darunter „Mit Kalorien: ungeprüft X % getroffen, Faktor Y. Ohne Kalorien: X %,
+  Faktor Y.“ (Angaben über die Daten).
+- Tag wählen wie bisher (Tippen, waagerecht wischen, Pfeiltasten, Pos1, Ende), nur Tage mit Prognose.
+- Tabelle für Screenreader: Datum, Niveau, Prognose für das Enddatum.
 
-1. `movingAverage(weights, 7)` einmal rechnen (läuft rückwärts, benutzt also nur Wiegungen ≤ ihrem Datum). Für
-   jeden Tag D mit einem Zeiger die letzte Wiegung ≤ D mitführen (Zeilen und Wiegungen sind sortiert; nicht pro
-   Tag neu filtern).
-2. Pro Tag D in `[from, to]`: `window = rows` bis einschließlich D (`estimateExpenditure` schneidet selbst die
-   letzten 28 ab), `estimateExpenditure({ rows: window, weights, creditExercise, creditSteps, today: D })`.
-   Achtung: `estimateExpenditure` filtert die Wiegungen auf das Fenster, die Wiegungen nach D fallen dadurch
-   weg (Test dafür schreiben, das ist der Kern der Funktion).
-3. Netto-Durchschnitt: Die Mittelung über die vollständigen Tage steckt heute in `estimateExpenditure`. Als
-   kleine exportierte Hilfsfunktion in `expenditure.ts` herausziehen
-   (`netIntake(rows, { creditExercise, creditSteps, today }) → { intakeAvg, exerciseAvg, days }`, ungerundet) und
-   in `estimateExpenditure` benutzen; das Verhalten dort bleibt gleich (bestehende Tests müssen unverändert grün
-   sein). `intakeDays` schneidet das Fenster für diesen Durchschnitt.
-4. Erhaltungsbedarf nach der Kette oben; `bodyProfile(settings, weightForDay(weights bis D, D), D)`. Die
-   Signaturen von `bodyProfile`/`tdee` in `tdee.ts` nachlesen und `CompleteDayPage.tsx` als Vorbild nehmen (ohne
-   dessen dritten Rückfall „Ziel minus geplantes Delta“).
-5. Steigung über `MAX_WEEKLY_TREND_KG`-artige Grenze kappen ist nicht nötig; aber `Number.isFinite` prüfen und
-   Tage ohne endliche Steigung auslassen.
+## Restpunkte aus v4 (mit Runde 6)
 
-Aufwand: Tage × 28, für mehrere Jahre unkritisch.
+1. Cursorlinie des Gewichtsdiagramms in `--muted-foreground`: `.ft-chart .u-cursor-x { border-right-color:
+var(--muted-foreground); }` in `index.css` (gilt für alle uPlot-Diagramme, gewollt).
+2. Zeile „Prognose“ mit `text-sm` (`DisclosureTrigger className="min-h-11 text-sm font-semibold"`).
 
-Tests (`packages/shared/test/forecast-history.test.ts`, Hilfen aus `expenditure.test.ts` wiederverwenden):
+Danach `CLAUDE.md` (Absatz „Forecasts under the weight chart“ neu) und dieser Statusblock.
 
-- konstante Zufuhr, linear fallendes Gewicht, genug Daten: `basis: 'data'`, Steigung ≈ Trendsteigung, Start =
-  7-Tage-Mittel.
-- Wiegungen und Einträge nach D ändern die Prognose von D nicht (Datensatz verlängern, Ergebnis für D gleich).
-- zu wenig für die Schätzung, aber 7 vollständige Tage und Profil: `basis: 'formula'`, Steigung =
-  `(netto − tdee) / 7700`.
-- weniger als 7 vollständige Tage, kein Profil, letzte Wiegung älter als 14 Tage: Tag fehlt im Ergebnis.
-- Tag D mit zwei Mahlzeiten, nicht abgeschlossen, zählt für D nicht, für D + 1 schon.
-- Training angerechnet / nicht angerechnet verschiebt `netKcal` wie in `estimateExpenditure`.
+## Was es nicht gibt (nicht wieder einbauen)
 
-## Block 2: `Chart` kann Strahlen
-
-`apps/web/src/components/Chart.tsx`, allgemein gehalten (kein Wissen über Gewicht):
-
-```ts
-export interface ChartRay {
-  /** ISO dates and values of both ends. */
-  from: string;
-  to: string;
-  y0: number;
-  y1: number;
-}
-// ChartProps
-rays?: ChartRay[];
-/** CSS custom properties: all rays, and the one of the day under the cursor. */
-rayColor?: string; // default '--muted-foreground'
-rayActiveColor?: string; // default '--primary'
-```
-
-- Strahlen und Farben wie die anderen Props über `latest.current` lesen; sie gehören nicht zur `structure`
-  (neue Strahlen bauen den Plot nicht neu). Nach einer Änderung von `rays` ohne Datenänderung `u.redraw()`.
-- Zeichnen im Hook `drawAxes` (nach Gitter, vor den Serien, die Strahlen liegen also unter Punkten und Linie):
-  `ctx.save()`, auf `u.bbox` clippen, alle Strahlen mit 1 px (× `devicePixelRatio`) und `globalAlpha` etwa 0,35
-  in `rayColor`; danach den aktiven Strahl mit 2 px, gestrichelt `[4, 4]`, voller Deckkraft in `rayActiveColor`.
-  Positionen mit `u.valToPos(xOf(date), 'x', true)` / `u.valToPos(y, 'y', true)`.
-- Aktiver Strahl: der, dessen `from` der Tag unter dem Cursor ist (`xs[u.cursor.idx]`), ohne Cursor der Tag
-  von `lastIndex(u.data)` (wie die Legende). Im `setCursor`-Hook den zuletzt gezeichneten Index merken und nur
-  bei einem Wechsel `u.redraw(false)` aufrufen (nicht bei jeder Mausbewegung). Prüfen, dass `redraw` im
-  `setCursor`-Hook keine Schleife auslöst; sonst über `requestAnimationFrame` entkoppeln.
-- y-Bereich: die Strahlenenden müssen hinein. Die y-`range`-Funktion immer setzen (heute nur mit `yRange`):
-  ohne festes `yRange` `min`/`max` um die y-Werte der Strahlen erweitern und mit `uPlot.rangeNum(lo, hi, 0.1,
-true)` auffüllen (das ist uPlots eigene Auffüllung, das Bild ohne Strahlen darf sich nicht ändern: mit einem
-  Screenshot vor und nach dem Umbau prüfen). `hasYRange` entfällt dann als Abhängigkeit des Aufbaus.
-- Die versteckte Tabelle bleibt, wie sie ist; die Prognose kommt als Legenden-Serie hinein (Block 3).
-- Farben: vor der Wahl den Skill `dataviz` laden und Deckkraft und Farben in hell und dunkel prüfen (Regel aus
-  `CLAUDE.md`: Text in Tintentönen, eine y-Achse). Die Vorgaben oben sind der Ausgangspunkt, kein Dogma: die
-  7-Tage-Linie muss die deutlichste Marke bleiben.
-
-Test in `apps/web/test/components.test.tsx` nur, wenn dort schon `Chart` gerendert wird (uPlot braucht Canvas);
-sonst deckt die E2E-Prüfung aus Block 3 das ab.
-
-## Block 3: Fortschrittsseite
-
-1. **Schalter**: `src/lib/appearance.ts` hält schon Geräte-Einstellungen (`ft.weekStrip`). Für diesen einen
-   Schalter kein Eintrag unter „Aussehen“: ein kleiner Hook in `features/progress/forecastPref.ts`
-   (`useForecastPref(): [boolean, (on: boolean) => void]`, `localStorage` `ft.progress.forecasts`, mit try/catch
-   und `useSyncExternalStore` nach dem Muster in `appearance.ts`). Unter dem Diagramm eine Zeile mit `Label`
-   „Prognosen“ und `Switch` (`components/ui/switch.tsx`), nur wenn es Wiegungen im Zeitraum gibt.
-2. **Daten**: `apps/web/src/hooks/useForecastHistory.ts` nach dem Vorbild von `useExpenditure.ts` (dieselben
-   Abfragen, `mealRecordsFor`, `dailyRows` mit `notes`), aber für `[from − 27 Tage, today]`, und nur wenn der
-   Schalter an ist (sonst gibt die Abfrage sofort `[]` zurück und liest nichts). Ergebnis: `DayForecast[]` für
-   `[from, today]`. Bei „Alle“ ist `from` die erste Wiegung; die Abfrage liest dann das ganze Tagebuch, das
-   ist für die Jahre eines Nutzers vertretbar, aber mit den Demo-Daten und einer künstlich verlängerten
-   Datenbank einmal messen (über 300 ms: `from` für die Prognosen auf heute − 365 Tage begrenzen).
-3. **Diagramm** (`ProgressPage.tsx`, die `useMemo`-Rechnung in eine reine Funktion
-   `features/progress/weightChart.ts` ziehen, damit sie testbar ist):
-   - Horizont aus dem Zeitraum (A2): `RANGES` um `horizon` ergänzen.
-   - Mit Schalter an sind die x-Werte alle Tage von `from` bis heute (nicht nur Wiegetage), „Gewicht“ und
-     „7-Tage-Mittel“ an Tagen ohne Wiegung `null` (die Linie überbrückt Lücken schon, `spanGaps`), „Ziel“ an
-     jedem Tag. So hat jeder Tag einen Cursor-Index und damit seinen Strahl. Mit Schalter aus bleibt alles wie
-     heute (gleiche Daten, gleiche Serien, kein Neuaufbau beim Laden).
-   - `rays`: pro `DayForecast` `{ from: date, to: addDays(date, horizon), y0: startKg, y1: startKg +
-slopePerDay * horizon }`, auf `MAX_RAYS` ausgedünnt (A6; der Chart hebt hervor, was es gibt: beim
-     Ausdünnen den letzten Tag immer behalten).
-   - Legenden-Serie `{ label: 'Prognose +14 T', color: '--primary', kind: 'legend', format: kg }` (Zahl = der
-     Horizont) mit `y1` des Tages, `null` ohne Prognose. Die Legende zeigt so beim Tippen auf einen Tag, wo die
-     App das Gewicht damals nach dem Horizont gesehen hat, und ohne Tippen die Prognose von heute.
-   - `xRange`: `[from, addDays(today, horizon)]`, sobald es mindestens einen Strahl gibt, sonst wie heute.
-   - `flat`-Sonderfall (alle Werte gleich): die Strahlenenden mitzählen.
-   - `title` des Diagramms um „und Prognosen der einzelnen Tage“ ergänzen, wenn an.
-4. **Leerer Fall**: Schalter an, aber kein Tag hat eine Prognose (zu wenig Daten): das Diagramm bleibt wie
-   ohne Prognosen. Kein Hinweistext; die `ExpenditureCard` darüber sagt schon, was fehlt.
-5. **Tests**:
-   - `apps/web/test/lib.test.ts` oder neue Datei: `weightChart` (x-Werte mit und ohne Schalter, Strahlen,
-     Ausdünnen, Legendenwert, `xRange`).
-   - E2E (`diary-training.spec.ts` hat die `/progress`-Tests, dort anhängen): Daten für 30 Tage anlegen (je
-     Tag zwei Mahlzeiten und eine Wiegung; vorhandene Helfer der Spec benutzen), Schalter „Prognosen“
-     einschalten, die versteckte Tabelle hat die Spalte „Prognose +14 T“ mit einem Wert für heute, nach
-     Reload ist der Schalter noch an, ausschalten entfernt die Spalte. `ios-layout.spec.ts`: die Seite passt
-     mit Schalter weiter ohne seitliches Scrollen.
-
-## Block 4: Doku
-
-- `CLAUDE.md`: im Punkt „Charts“ die Strahlen (`rays`, im `drawAxes`-Hook, aktiver Strahl folgt dem Cursor)
-  ergänzen; neuer Punkt „Prognosen im Gewichtsverlauf“ (Modell in drei Sätzen, `forecastHistory`,
-  `useForecastHistory`, `ft.progress.forecasts`, A3 „rückblickend aus heutigen Daten“).
-- Statusblock dieser Datei, Abweichungen und Prüfung wie in den Plänen der Runden 12 und 13.
+- Strahlen aller Tage gleichzeitig (Runde 1), Prognose im uPlot-Diagramm (Runde 2), eine simulierte
+  Schwankungslinie (Runde 2), Regler, Schalter, Erklärtexte.
+- Das Erwartungsband „Erwartet“ (Hülle der Prognosen der 14 Tage davor) und den Bereich aus Kurvenschwankung plus
+  Trendfehler (v4): „nicht logisch herzuleiten“.
+- Die Hülle aller Tageskurven als Bereich (v6), Zacken nur in der ersten Woche (v9 erster Stand).
 
 ## Verifikation
 
-- Nach jedem Block: `pnpm lint`, `pnpm typecheck`, `pnpm test`; am Ende `pnpm e2e`.
-- Sichtprüfung mit den Demo-Daten (`pnpm --filter @ft/api seed:demo`, 6 Wochen; Login-Hinweis: Screenshots
-  per eigenem Playwright-Skript über den Proxy, siehe Memory „Dev-Proxy-Login“), 390 × 844, hell und dunkel,
-  alle vier Zeiträume, Schalter an und aus. Zu prüfen:
-  - Schalter aus: Diagramm pixelgleich zu vorher (y-Bereich, Block 2).
-  - Die Strahlen zweigen von der 7-Tage-Linie ab, die Linie und die Punkte bleiben klar lesbar.
-  - Tippen auf einen Tag hebt dessen Strahl hervor und die Legende nennt Datum und Prognosewert.
-  - Bei 7 T und 30 T bleibt genug Platz für die Vergangenheit (A2); sonst Horizont kürzen und melden.
-- Screenshots (30 T, hell und dunkel, an) dem Nutzer zeigen, bevor gepusht wird: es gab kein Mockup, das Bild
-  ist die Abnahme. Dabei A1 (Modell) und A2 (Horizont) ansprechen.
-- Nicht pushen ohne Auftrag.
-
-## Runde 2: Darstellung AB (Mockup v2)
-
-Der Nutzer fand die Strahlen (Stand `1c77636`) optisch schlecht. Mockup `2026-11-gewichtsprognosen-mockup.html`
-v2, gewählt am 2026-11-22: **AB**, Zeitreise im Erwartungsband. Entscheidungen:
-
-- Es gibt keine Strahlen mehr. Mit eingeschaltetem Schalter liegt das **Erwartungsband** im Hintergrund: für jeden Tag
-  die Spanne dessen, was die Prognosen der 14 Tage davor für ihn vorhergesagt haben (`expectedRange`).
-- Ein **gewählter Tag** (Standard heute; Regler unter dem Diagramm oder Tipp ins Diagramm) zeigt seine Prognose
-  als simulierte Linie mit Band (80 %, `1,28 × √(σ² + (SE × h)²)`) bis heute, am heutigen Tag 14 Tage nach vorn.
-  Gewichte und 7-Tage-Mittel nach dem gewählten Tag werden blass.
-- **Simulierte Schwankung** (Nutzer: die rohe Streuung der Wiegungen ist viel zu unruhig): geschätzt aus der
-  geglätteten echten Kurve, dem 7-Tage-Mittel der 28 Tage bis D minus seiner Trendgeraden: Streuung σ und
-  Lag-1-Autokorrelation φ (0 bis 0,95). Daraus ein AR(1)-Weg um den Trend, deterministisch mit dem Datum als
-  Startwert (`simulateForecast`).
-- Legende: Datum, Gewicht, 7-Tage-Mittel, Ziel, „Erwartet: a bis b kg“, „Prognose: x kg für heute“ (am heutigen
-  Tag „für <Datum + 14>“). Sie zeigt den gewählten Tag, nicht den neuesten.
-- C, D, E des Mockups v1 abgelehnt. Das Modell (A1) bleibt.
-
-Umgesetzt am 2026-11-22. Abweichungen: Der Regler steht unter der Legende (uPlot rendert die Legende direkt unter
-dem Diagramm); die Prognose nennt den Trendwert, nicht das Ende der simulierten Linie; das Erwartungsband ist
-um 0,1 kg je Seite verbreitert, damit ruhige Wochen keine Haarlinie zeichnen; uPlots Cursorlinie ist mit
-Prognosen aus, die Tagesmarke ersetzt sie (sie rastet auf dem Tag ein).
-
-## Runde 3: Durchgetestet und neu gebaut (2026-11-23)
-
-Der Nutzer fand die Umsetzung von Runde 2 auf dem iPhone „quasi nicht benutzbar“. Touch-Test (iPhone-Emulation,
-echte Touch-Ereignisse) ergab: Wischen über das Diagramm wählte keinen Tag (uPlot kennt kein Touch-Scrubben);
-nach einem Tipp blieb uPlots Cursor stehen, Regler und Legende zeigten verschiedene Tage, die Legende Striche;
-die Legende war fünf Zeilen hoch; Bänder, Prognose und blasse Linie im selben Rot; der gewählte Tag blieb über
-Zeiträume hängen; bei 7 T zwei Drittel Zukunft; der Regler unter der Legende; bei 90 T ein leeres Drittel.
-
-Umbau: eigenes SVG-Diagramm `ForecastChart` nur für eingeschaltete Prognosen (Pointer-Events, `touch-pan-y`),
-Regler direkt darunter, Legende mit drei festen Zeilen (Mittel des letzten Wiegetags, nie leer), Farbe
-`--forecast` aus dem Mockup, feste y-Achse je Zeitraum, Achse ab der ersten Wiegung, 7 Tage Zukunft bei 7 T, der
-gewählte Tag gilt nur in seinem Zeitraum. `Chart` (uPlot) ist wieder auf dem Stand vor den Prognosen.
-
-## Runde 4: wieder eine Gerade (2026-11-23)
-
-Nutzer nach dem Test auf dem iPhone: die simulierte Schwankung wirkt komisch, die Prognose soll wieder eine
-Gerade sein, mit Erwartungsbereich. Die Prognose des gewählten Tages ist jetzt eine gerade Linie in ihrem
-80-%-Band; `simulateForecast` und die Autokorrelation entfallen, die Streuung des 7-Tage-Mittels um seinen Trend
-(`curveSpread`) bestimmt weiter die Breite des Bandes am Anfang.
-
-## Runde 5: zweites Diagramm zum Aufklappen (2026-11-23)
-
-Nutzer: Fehler im Bild (Tipp ins Gewichtsdiagramm: Loch in der Linie, Cursorlinie neben den Punkten), Regler weg
-(die Hand genügt), Prognose als zweites Diagramm unter „Prognose“ zum Aufklappen, Gewichtseinträge auf die
-letzten 7 begrenzt, der Rest aufklappbar. Umgesetzt: uPlot-Cursor rastet auf dem Tag ein, Cursorpunkte gefüllt;
-das Gewichtsdiagramm bleibt immer, „Prognose“ (`DisclosureTrigger`, gemerkt in `ft.progress.forecasts`) öffnet
-`ForecastChart`; das Diagramm ist selbst der Schieber (`role=slider`, Pfeiltasten); „Ältere Einträge (N)“ klappt
-die übrigen Einträge auf (darin weiter in Schritten von 60).
-
-## Mockup v3 (2026-11-23)
-
-Auf Wunsch des Nutzers beschreibt `2026-11-gewichtsprognosen-mockup.html` jetzt als v3 den umgesetzten Stand
-vollständig: die ganze Seite, Gewichtsdiagramm mit Cursor, Prognose mit heute und mit einem vergangenen Tag, alle
-Zeiträume, Sonderfälle (zu wenig Daten, Tag ohne Prognose, Beginn des Erwartungsbands), Einträge zu und auf,
-dazu Bedienung, Zeichenregeln, Legende und Rechnung als Tabellen. Bedienbar, mit derselben Rechnung wie die App.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm e2e` (Spec `weight chart: forecasts …`, `ios-layout`).
+- Rechenzeit des Modells auf den Demo-Daten messen (Ziel unter 200 ms auf dem Desktop).
+- Sichtprüfung gegen v9 mit den Demo-Daten (`pnpm --filter @ft/api seed:demo`), 390 × 844, hell und dunkel, alle
+  vier Zeiträume, ein vergangener Tag gewählt.
+- Bedienung mit echten Touch-Ereignissen (Chromium mit iPhone-Emulation, CDP `Input.dispatchTouchEvent`).
+- Abnahme durch den Nutzer auf dem iPhone, erst danach pushen.
