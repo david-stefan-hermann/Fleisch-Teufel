@@ -20,7 +20,7 @@ const kg1 = (v: number) => `${fmt1(v)} kg`;
 
 /**
  * The weight chart with forecasts (mockup v2, variant AB): behind the data the band of what was
- * expected for each day, and the forecast of the chosen day as a simulated course with its band. A
+ * expected for each day, and the forecast of the chosen day as a straight line with its band. A
  * day is chosen with the slider or by touching the chart (horizontal moves scrub, vertical ones
  * scroll the page). Drawn as SVG: the plain chart (uPlot) has no touch scrubbing.
  */
@@ -173,7 +173,7 @@ export function ForecastChart({
         <g fill="none" strokeLinejoin="round" strokeLinecap="round">
           <path d={path(meanAfter)} stroke="var(--primary)" strokeWidth={2.5} opacity={LATER_OPACITY} />
           <path d={path(meanBefore)} stroke="var(--primary)" strokeWidth={2.5} />
-          {view.course.length > 1 && <path d={path(view.course)} stroke="var(--forecast)" strokeWidth={2} />}
+          {view.line.length > 1 && <path d={path(view.line)} stroke="var(--forecast)" strokeWidth={2} />}
         </g>
         {model.weights.map((w) => (
           <circle

@@ -2,12 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { addDays, dateRange } from '../src/dates.js';
 import { estimateExpenditure } from '../src/expenditure.js';
 import {
-  curveNoise,
+  curveSpread,
   expectedRange,
   forecastAt,
   forecastHistory,
   forecastSpread,
-  simulateForecast,
   type DayForecast,
 } from '../src/forecastHistory.js';
 import { linearTrend, movingAverage } from '../src/forecast.js';
@@ -148,22 +147,18 @@ const fc = (date: string, over: Partial<DayForecast> = {}): DayForecast => ({
   netKcal: 1730,
   basis: 'data',
   noiseSdKg: 0.1,
-  noisePhi: 0.8,
   slopeSeKg: 0.01,
   ...over,
 });
 
-describe('forecast course', () => {
-  it('measures the fluctuation of the smoothed curve around its trend', () => {
+describe('forecast band', () => {
+  it('measures how far the smoothed curve strays from its trend', () => {
     const straight = days(20).map((d, i) => ({ date: d, kg: 80 - 0.05 * i }));
-    expect(curveNoise(straight)).toEqual({ sd: 0, phi: 0 });
-    // A slow wave: clearly fluctuating, and one day is much like the one before.
+    expect(curveSpread(straight)).toBe(0);
     const wave = days(28).map((d, i) => ({ date: d, kg: 80 - 0.05 * i + 0.2 * Math.sin(i / 3) }));
-    const n = curveNoise(wave);
-    expect(n.sd).toBeGreaterThan(0.08);
-    expect(n.sd).toBeLessThan(0.2);
-    expect(n.phi).toBeGreaterThan(0.8);
-    expect(curveNoise(wave.slice(0, 3))).toEqual({ sd: 0, phi: 0 });
+    expect(curveSpread(wave)).toBeGreaterThan(0.08);
+    expect(curveSpread(wave)).toBeLessThan(0.2);
+    expect(curveSpread(wave.slice(0, 3))).toBe(0);
   });
 
   it('takes the noise of the 7-day mean, not of the single weigh-ins', () => {
@@ -174,18 +169,6 @@ describe('forecast course', () => {
     const [f] = forecastHistory({ rows, weights, from: ds[39]!, to: ds[39]!, settings });
     expect(f!.noiseSdKg).toBeLessThan(0.1);
     expect(f!.slopeSeKg).toBeGreaterThan(0);
-  });
-
-  it('simulates the same course for the same day, around the trend', () => {
-    const f = fc('2026-11-01');
-    const a = simulateForecast(f, 14);
-    expect(a).toHaveLength(15);
-    expect(a[0]).toBe(80);
-    expect(simulateForecast(f, 14)).toEqual(a);
-    expect(simulateForecast(fc('2026-11-02'), 14)).not.toEqual(a);
-    a.forEach((kg, h) => expect(Math.abs(kg - (80 - 0.1 * h))).toBeLessThan(0.6));
-    // Without fluctuation it is the straight trend.
-    expect(simulateForecast(fc('2026-11-01', { noiseSdKg: 0 }), 3)).toEqual([80, 79.9, 79.8, 79.7]);
   });
 
   it('widens the band with the days ahead', () => {

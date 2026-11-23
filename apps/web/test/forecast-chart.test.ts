@@ -10,7 +10,6 @@ const fc = (date: string, startKg = 80, slopePerDay = -0.1): DayForecast => ({
   netKcal: 1730,
   basis: 'data',
   noiseSdKg: 0,
-  noisePhi: 0,
   slopeSeKg: 0,
 });
 
@@ -69,13 +68,17 @@ describe('forecast chart', () => {
   it('shows today 14 days ahead and a past day up to today', () => {
     const m = forecastChartModel(base)!;
     const today = dayView(m, 4);
-    expect(today.course).toHaveLength(15);
+    expect(today.line).toEqual([
+      { i: 4, kg: 80.2 },
+      { i: 18, kg: 80.2 },
+    ]);
+    expect(today.band).toHaveLength(15);
     expect(today.prognosis).toEqual({ kg: 80.2, date: '2026-11-20' });
     const past = dayView(m, 0);
-    expect(past.course.at(-1)!.i).toBe(4);
+    expect(past.line.at(-1)!.i).toBe(4);
     expect(past.prognosis!.kg).toBeCloseTo(80.2, 9);
     expect(past.prognosis!.date).toBe('2026-11-06');
-    expect(dayView(m, 1)).toMatchObject({ forecast: null, course: [], prognosis: null });
+    expect(dayView(m, 1)).toMatchObject({ forecast: null, line: [], prognosis: null });
   });
 
   it('looks a week ahead in the 7-day view, else two', () => {

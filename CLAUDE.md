@@ -443,9 +443,9 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   (own SVG, not uPlot: uPlot cannot scrub by touch; model in `forecastChart.ts`, pure): every day from the first
   weigh-in of the period to today, behind the data the band of what the 14 days before each day forecast for it
   (`expectedRange`), one chosen day (default today; slider "Tag der Prognose", or touch: horizontal moves scrub,
-  `touch-pan-y` keeps vertical scrolling) with its forecast as a simulated course (`simulateForecast`: AR(1)
-  around the trend with spread and lag-1 autocorrelation of the 7-day mean around its own trend, `curveNoise`,
-  never the raw weigh-ins; seeded by the date) and its 80 % band (`forecastSpread`) up to today, today's
+  `touch-pan-y` keeps vertical scrolling) with its forecast as a straight line (user decision 2026-11-23: no
+  simulated fluctuation) in its 80 % band (`forecastSpread`: the spread of the 7-day mean around its own trend,
+  `curveSpread`, plus the slope error) up to today, today's
   `aheadDaysFor` (7 T: 7, else 14) days ahead; later weigh-ins and mean faded. Ink `--forecast` (softer red than
   `--primary`). The y range does not move with the chosen day. Legend of three fixed rows (7-Tage-Mittel,
   Erwartet, Prognose). The chosen day belongs to its period; another period starts at today. Off (or before

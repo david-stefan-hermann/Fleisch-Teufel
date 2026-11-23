@@ -298,3 +298,10 @@ Umbau: eigenes SVG-Diagramm `ForecastChart` nur für eingeschaltete Prognosen (P
 Regler direkt darunter, Legende mit drei festen Zeilen (Mittel des letzten Wiegetags, nie leer), Farbe
 `--forecast` aus dem Mockup, feste y-Achse je Zeitraum, Achse ab der ersten Wiegung, 7 Tage Zukunft bei 7 T, der
 gewählte Tag gilt nur in seinem Zeitraum. `Chart` (uPlot) ist wieder auf dem Stand vor den Prognosen.
+
+## Runde 4: wieder eine Gerade (2026-11-23)
+
+Nutzer nach dem Test auf dem iPhone: die simulierte Schwankung wirkt komisch, die Prognose soll wieder eine
+Gerade sein, mit Erwartungsbereich. Die Prognose des gewählten Tages ist jetzt eine gerade Linie in ihrem
+80-%-Band; `simulateForecast` und die Autokorrelation entfallen, die Streuung des 7-Tage-Mittels um seinen Trend
+(`curveSpread`) bestimmt weiter die Breite des Bandes am Anfang.

@@ -4,7 +4,6 @@ import {
   diffDays,
   expectedRange,
   forecastSpread,
-  simulateForecast,
   type DayForecast,
   type ISODate,
   type WeightPoint,
@@ -44,10 +43,10 @@ export interface DayView {
   index: number;
   date: ISODate;
   forecast: DayForecast | null;
-  /** The simulated course and its 80 % band, from the day to today (today: `aheadDays` ahead). */
-  course: DayValue[];
+  /** The forecast as a straight line and its 80 % band, from the day to today (today: `aheadDays` ahead). */
+  line: DayValue[];
   band: { i: number; lo: number; hi: number }[];
-  /** The trend value at the end of the course, and that day. */
+  /** The value at the end of the line, and that day. */
   prognosis: { kg: number; date: ISODate } | null;
 }
 
@@ -112,16 +111,19 @@ export function forecastChartModel(params: {
   };
 }
 
-/** The chosen day's forecast: course, band and the value at its end. */
+/** The chosen day's forecast: line, band and the value at its end. */
 export function dayView(model: ForecastChartModel, index: number): DayView {
   const i0 = Math.max(0, Math.min(model.dates.length - 1, index));
   const date = model.dates[i0]!;
   const f = model.byDate.get(date) ?? null;
-  if (!f) return { index: i0, date, forecast: null, course: [], band: [], prognosis: null };
+  if (!f) return { index: i0, date, forecast: null, line: [], band: [], prognosis: null };
   const isToday = i0 === model.dates.length - 1;
   const days = isToday ? model.aheadDays : model.dates.length - 1 - i0;
-  const course = simulateForecast(f, days).map((kg, h) => ({ i: i0 + h, kg }));
-  const band = course.map((_, h) => {
+  const line = [
+    { i: i0, kg: f.startKg },
+    { i: i0 + days, kg: f.startKg + f.slopePerDay * days },
+  ];
+  const band = Array.from({ length: days + 1 }, (_, h) => {
     const mid = f.startKg + f.slopePerDay * h;
     const spread = forecastSpread(f, h);
     return { i: i0 + h, lo: mid - spread, hi: mid + spread };
@@ -130,7 +132,7 @@ export function dayView(model: ForecastChartModel, index: number): DayView {
     index: i0,
     date,
     forecast: f,
-    course,
+    line,
     band,
     prognosis: { kg: f.startKg + f.slopePerDay * days, date: addDays(date, days) },
   };
