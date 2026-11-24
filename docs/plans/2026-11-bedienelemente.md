@@ -1,6 +1,7 @@
 # Bedienelemente: eine Sprache
 
-Stand 2026-11-23, geplant auf 387f360. Maßgeblich ist das Mockup `2026-11-bedienelemente-mockup.html` (v2, vom
+Stand 2026-11-23, geplant auf 387f360, gegen 0de50fd nachgeprüft (nur `ProgressPage.tsx` hat sich seither
+verschoben, alle Zeilennummern unten gelten für 0de50fd). Maßgeblich ist das Mockup `2026-11-bedienelemente-mockup.html` (v2, vom
 Nutzer am 2026-11-23 angenommen mit einer Änderung: Fuß- und Aufklappzeilen bekommen nie eine andere
 Hintergrundfarbe).
 
@@ -30,7 +31,7 @@ offen und Tastaturfokus, und nur an Eintragszeilen und Zielen im Text.
 
 Bleibt, weil schon je eine Bauart: Buttons, Chips (`MealSuggestions`, `TrainingChip`), die gestrichelten
 „hinzufügen“-Flächen, Auswahlkarten (Ziele, Aktivität, `MacroPlanPicker`), Wochenleiste, `AddSheet`-Kacheln,
-`PhotoStrip` „+“, der kcal-Schalter in `NutrientBreakdown` (ein Umschalter mit eigenem Dauerhintergrund).
+`PhotoStrip` „+“, die Karte „Etikett fotografieren“ (`CustomFoodPage.tsx` 481), der kcal-Schalter in `NutrientBreakdown` (ein Umschalter mit eigenem Dauerhintergrund).
 Einzige Angleichung dort: die drei gestrichelten Flächen bekommen dieselbe Klasse (`border-input`, `font-medium`
 fehlen heute in `MealCard.tsx:258` und `ExerciseCard.tsx:178`).
 
@@ -59,9 +60,9 @@ hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none`), dazu `r
 Eintragszeile (`rowClass` / `rowWithLinkClass`, heute schon fast gleich, nur `transition-colors` und `select-none`
 schwanken; `select-none` bleibt per `className` an den ziehbaren Zeilen):
 `AddFoodPage.tsx` 572, 620, 652, 694 · `CustomFoodsPage.tsx` 33 · `MealCard.tsx` 507, 635 · `ExerciseCard.tsx`
-268, 301 · `PendingAnalysisRow.tsx` 55 · `StepsRow.tsx` 51 · `ProgressPage.tsx` 164 (`min-h-12` wird `min-h-14`
+268, 301 · `PendingAnalysisRow.tsx` 55 · `StepsRow.tsx` 51 · `ProgressPage.tsx` 160 (`min-h-12` wird `min-h-14`
 nur, wenn die Zeile zweizeilig ist; sonst `className="min-h-12"`) · `MealsPage.tsx` 59 · `TrainingSearchPage.tsx`
-150, 373 · `TrainingsPage.tsx` 73 · `MorePage.tsx` 46 · `MealLogView.tsx` 223 (heute `/40` und Ring) ·
+150 (einzeilig, `className="min-h-12"`), 373 · `TrainingsPage.tsx` 73 · `MorePage.tsx` 46 · `MealLogView.tsx` 223 (heute `/40` und Ring) ·
 `TrainingRow.tsx` 45 (heute ohne Zeiger-Hervorhebung).
 
 Fuß- und Aufklappzeile (`FooterRow`):
@@ -70,8 +71,8 @@ Fuß- und Aufklappzeile (`FooterRow`):
 | -------------------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `WeekReviewCard.tsx` 117 „N von 7 Tagen …“                                 | Zeile mit `hover:bg-accent/60`             | `FooterRow icon="right"`, `px-4 border-t`                                                 |
 | `CalorieCard.tsx` 61 „Nährstoffe“ / „Weniger“                              | zentrierte Pille, 12 px, `hover:bg-accent` | `FooterRow icon="down"`, Text links, `-mx-4 -mb-4 mt-4 w-[calc(100%+2rem)] px-4 border-t` |
-| `ProgressPage.tsx` 273 „Prognose“                                          | `DisclosureTrigger`, 16 px halbfett        | `FooterRow`, Hülle `mt-2 border-t border-border/70 px-4` statt `px-2`                     |
-| `ProgressPage.tsx` 304 „Ältere Einträge (N)“                               | schwarz halbfett, Pfeil 20 px, `min-h-12`  | `FooterRow`, `px-4`                                                                       |
+| `ProgressPage.tsx` 269 „Prognose“                                          | `DisclosureTrigger`, 14 px halbfett        | `FooterRow`, Hülle `mt-2 border-t border-border/70 px-4` statt `px-2`                     |
+| `ProgressPage.tsx` 300 „Ältere Einträge (N)“                               | schwarz halbfett, Pfeil 20 px, `min-h-12`  | `FooterRow`, `px-4`                                                                       |
 | `NutrientsDisclosure.tsx` 38 „Nährwerte“                                   | `DisclosureTrigger`                        | `FooterRow`                                                                               |
 | `NutrientBreakdown.tsx` 188, `NutrientEditor.tsx` 175 „Weitere Nährstoffe“ | `DisclosureTrigger`                        | `FooterRow`                                                                               |
 | `NutrientBreakdown.tsx` 203, `NutrientEditor.tsx` 193 „Alle N Nährstoffe“  | `DisclosureTrigger`, 13 px, `min-h-10`     | `FooterRow` (14 px, 44 px)                                                                |
@@ -81,7 +82,7 @@ Die Karte der Tagesübersicht ist als Ganzes tippbar (`cursor-pointer` an der `s
 ist ihr sichtbarer Schalter.
 
 Abschnitt zum Aufklappen (`SectionToggle`): `QueueList.tsx` 44 „Offene Analysen (N)“ (Pfeil 20 px,
-`hover:bg-accent/60` fallen weg) · `StepsSettingsPage.tsx` 166 (heute Icon-Button rechts im Kopf; neu ist die ganze
+`hover:bg-accent/60` fallen weg) · `StepsSettingsPage.tsx` 166 bis 178 (heute Icon-Button rechts im Kopf; neu ist die ganze
 Kopfzeile der Schalter, `aria-label` entfällt, weil der Titel der Name ist).
 
 Ziel im Text (`InlineTarget`): `MealNameMenu.tsx` 54 (heute `-mx-1.5 -my-0.5 px-1.5 py-0.5`) · `MealCard.tsx` 108
@@ -98,7 +99,10 @@ Textlink (`TextLink`): `QueueList.tsx` 127 und `PendingAnalysisRow.tsx` 86 „Wi
 `NoteCard.tsx` 121 „Alle vergangenen Tage abschließen“ (`tone="quiet"`) · `NoteCard.tsx` 80 bleibt (grüner
 Zustand mit Symbol, kein Link im Sinn der Regel).
 
-Zeilennummern gelten für 387f360; vor dem Umbau mit
+Das Prognose-Diagramm (`ForecastChart.tsx`, seit 0de50fd neu gebaut) hat nichts Antippbares außer dem Diagramm
+selbst (`role=slider`); dort ist nichts umzustellen.
+
+Vor dem Umbau mit
 `grep -rn "hover:bg-\|underline\|Chevron" apps/web/src --include=*.tsx` gegenprüfen und jede Fundstelle
 außerhalb von `components/ui` einer Bauart zuordnen. Bleibt eine übrig, die in keine passt: nicht umbauen,
 im Statusblock nennen.
@@ -106,24 +110,30 @@ im Statusblock nennen.
 ## Lint-Regel
 
 `eslint.config.js`, Block für `apps/web/**/*.tsx` ohne `components/ui/**` und `components/tappable.tsx`:
-`no-restricted-syntax` auf Zeichenketten und Template-Teile, die `hover:bg-accent` oder
-`underline-offset-` enthalten (Selektor `Literal[value=/hover:bg-accent|underline-offset-/]` und dasselbe für
-`TemplateElement`), Meldung: „Use rowClass, InlineTarget, FooterRow or TextLink from components/tappable“.
-Die Stellen aus „Bleibt“ mit `hover:bg-accent` (Chips, gestrichelte Flächen, Auswahlkarten, Wochenleiste,
-`AddSheet`) bekommen ihre Klasse ebenfalls aus `tappable.tsx` (`dashedAddClass`, `choiceHoverClass`), damit
-die Regel ohne Ausnahmen auskommt.
+`no-restricted-syntax` (gibt es in der Konfiguration noch nicht) auf Zeichenketten und Template-Teile, die
+`hover:bg-accent` oder die Klasse `underline` enthalten (Selektor
+`Literal[value=/hover:bg-accent|(^|\s)underline(\s|$)/]` und dasselbe für `TemplateElement` über `value.raw`),
+Meldung: „Use rowClass, InlineTarget, FooterRow or TextLink from components/tappable“.
+Das bloße `underline` muss mit hinein: elf der Textlinks (`AddFoodPage.tsx` 362, 440, `ReviewStep.tsx`, `AboutPage.tsx`,
+`GoalsPage.tsx`, `ProfilePage.tsx`, `QuickEntryFields.tsx`, `CompleteDayPage.tsx` 175) tragen kein
+`underline-offset-`. `hover:underline` (`NoteCard.tsx` 80) trifft der Ausdruck nicht.
+Die Stellen aus „Bleibt“ mit `hover:bg-accent` bekommen ihre Klasse ebenfalls aus `tappable.tsx`, damit die Regel
+ohne Ausnahmen auskommt: `dashedAddClass` für `MealCard.tsx` 258, 292 und `ExerciseCard.tsx` 178;
+`choiceHoverClass` (`hover:bg-accent`) für `MealSuggestions.tsx` 125, `TrainingChips.tsx` 48, `GoalsPage.tsx` 183,
+`OnboardingPage.tsx` 243, 269, `MacroPlanPicker.tsx` 139, `WeekStrip.tsx` 50, `AddSheet.tsx` 200, `PhotoStrip.tsx` 110
+(heute `/60`) und `CustomFoodPage.tsx` 481 (heute `/40`).
 
 ## CLAUDE.md
 
-Neuer Punkt unter „Conventions & gotchas“: die fünf Bauarten, die Datei, die Pfeilregel, die Lint-Regel. Den
-Satz zu `DisclosureTrigger` im Abschnitt „Forecasts“ anpassen. Im Plan `2026-11-gewichtsprognosen.md` entfällt
-der offene Punkt 2 (`text-sm` an „Prognose“), das Mockup v4 dort zeigt die Zeile noch in der alten Bauart:
-einen Satz dazu in dessen Statusblock.
+Neuer Punkt unter „Conventions & gotchas“: die fünf Bauarten, die Datei, die Pfeilregel, die Lint-Regel. Im
+Abschnitt „Forecasts under the weight chart“ steht „`DisclosureTrigger` `text-sm`“: durch `FooterRow` ersetzen.
+Im Plan `2026-11-gewichtsprognosen.md` ist Restpunkt 2 (`text-sm` an „Prognose“) erledigt und wird hiermit
+überholt, die Mockups dort zeigen die Zeile noch halbfett in Schwarz: einen Satz dazu in dessen Statusblock.
 
 ## Verifikation
 
-- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm e2e` grün. E2E-Specs, die Aufklapper über Rolle und Namen
-  finden, bleiben gültig; wo `StepsSettingsPage` über „Anleitung aufklappen“ gesucht wird, auf den Titel umstellen.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm e2e` grün. E2E-Specs finden die Aufklapper über Rolle und Namen
+  („Prognose“ in `diary-training.spec.ts`) und bleiben gültig; „Anleitung aufklappen“ sucht kein Spec.
 - Screenshots hell und dunkel (iPhone-Größe, Demo-Nutzer) von: Tagebuch mit Mahlzeit und Wochenkarte,
   Tagesübersicht zu und offen, `/progress` mit Prognose zu und offen, Meal-Editor mit „Nährwerte“, `/add` mit
   „Meals (N)“, `/photo` mit „Offene Analysen“. Gegen das Mockup halten.
@@ -133,4 +143,4 @@ einen Satz dazu in dessen Statusblock.
 
 ## Status
 
-Geplant 2026-11-23. Nicht umgesetzt.
+Geplant 2026-11-23, am selben Tag gegen 0de50fd nachgeprüft (Gewichtsprognose Runde 6 ist drin). Nicht umgesetzt.
