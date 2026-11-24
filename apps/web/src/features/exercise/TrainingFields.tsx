@@ -1,5 +1,6 @@
 import { EXERCISE_TYPE_MAP, INTENSITY_LABELS_DE, uuidv7, type Intensity } from '@ft/shared';
 import { useId, useState, type ReactNode } from 'react';
+import { TextLink } from '@/components/tappable';
 import { DurationWheel } from '@/components/DurationWheel';
 import { useDb } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
@@ -244,13 +245,9 @@ export function TrainingKcal({
         )}
       </div>
       {typed ? (
-        <button
-          type="button"
-          className="justify-self-start text-left text-xs text-primary underline underline-offset-2"
-          onClick={() => onOwnChange?.(null)}
-        >
+        <TextLink className="justify-self-start text-left" onClick={() => onOwnChange?.(null)}>
           Berechneten Wert verwenden ({fmt0(computed)} kcal)
-        </button>
+        </TextLink>
       ) : (
         <p className="text-xs text-muted-foreground">
           (MET {met ? fmt1(met) : NO_VALUE} − 1) × {fmt1(weightKg)} kg ×{' '}

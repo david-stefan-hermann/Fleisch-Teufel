@@ -1,10 +1,7 @@
 import type { NutrientMap } from '@ft/shared';
 import type { ReactNode } from 'react';
-import {
-  DisclosureTrigger,
-  NutrientBreakdown,
-  type NutrientBreakdownProps,
-} from '@/components/NutrientBreakdown';
+import { DisclosureRow } from '@/components/tappable';
+import { NutrientBreakdown, type NutrientBreakdownProps } from '@/components/NutrientBreakdown';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
@@ -35,7 +32,7 @@ export function NutrientsDisclosure({
       onOpenChange={onOpenChange}
       className={cn('-mx-4 -mb-4 border-t border-border/70 px-4', className)}
     >
-      <DisclosureTrigger className="min-h-11 text-sm font-semibold">Nährwerte</DisclosureTrigger>
+      <DisclosureRow>Nährwerte</DisclosureRow>
       <CollapsibleContent className="pt-1 pb-3">
         <NutrientBreakdown title={title} nutrients={nutrients} targets={targets} />
       </CollapsibleContent>

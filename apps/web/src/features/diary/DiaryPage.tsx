@@ -1,6 +1,7 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { Share, Target } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { inlineTargetClass } from '@/components/tappable';
 import { Page } from '@/components/Page';
 import { SyncIndicator } from '@/components/SyncIndicator';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { NoteCard } from './NoteCard';
 import { ShareDayDialog } from './share/ShareDayDialog';
 import { showsWeekReview, WeekReviewCard } from './WeekReviewCard';
 import { RecalcGoalCard } from '@/features/goals/RecalcGoalCard';
+import { cn } from '@/lib/utils';
 import { WeekStrip } from './WeekStrip';
 
 export function DiaryPage() {
@@ -68,7 +70,13 @@ export function DiaryPage() {
             The transparent date input lies on top of the label: a tap hits the input itself, which is
             the only way iOS Safari opens its picker (showPicker() on a hidden input does nothing there).
           */}
-          <label className="relative min-w-0 cursor-pointer rounded-md px-1 hover:bg-accent focus-within:ring-[3px] focus-within:ring-ring/50">
+          <label
+            className={cn(
+              inlineTargetClass,
+              // The input below is the tap area (iOS opens its picker only on a direct tap).
+              'min-w-0 cursor-pointer focus-within:ring-[3px] focus-within:ring-ring/50 after:hidden',
+            )}
+          >
             <span ref={dateText} className="block truncate">
               {fitsLong ? longDate : fmtRelativeDay(date, today, true)}
             </span>
@@ -83,7 +91,7 @@ export function DiaryPage() {
             <input
               type="date"
               aria-label="Datum wählen"
-              className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              className="absolute -top-1.5 left-0 h-[calc(100%+0.75rem)] w-full cursor-pointer opacity-0"
               value={date}
               onClick={(e) => {
                 try {

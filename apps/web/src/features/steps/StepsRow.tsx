@@ -2,8 +2,10 @@ import type { ExerciseEntry } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { Footprints } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { rowWithLinkClass } from '@/components/tappable';
 import { Badge } from '@/components/ui/badge';
 import { fmt0, fmt1 } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 /** "6,1 km" from meters. */
 export const fmtKm = (m: number) => `${fmt1(m / 1000)} km`;
@@ -48,7 +50,7 @@ export const stepsTitle = (entry: Pick<ExerciseEntry, 'steps'>) => `${fmt0(entry
 /** The diary's steps row: a stretched link to the steps page (fetching sits in the card header). */
 export function StepsRow({ entry, credited }: { entry: ExerciseEntry; credited: boolean }) {
   return (
-    <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
+    <div className={cn(rowWithLinkClass, 'relative w-full select-none')}>
       <StepsRowBody
         entry={entry}
         credited={credited}

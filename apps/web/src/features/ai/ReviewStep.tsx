@@ -15,6 +15,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Camera, Check, PencilLine, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { textLinkClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { AmountEditor, type Amount } from '@/components/AmountEditor';
 import { AnalyzingOverlay } from '@/components/AnalyzingOverlay';
@@ -583,7 +584,7 @@ function ReviewRow({
           <p className="text-sm text-muted-foreground">
             Nicht in der Datenbank: Nährwerte von der KI geschätzt ({fmt0(get(food.nutrients, N.kcal))}{' '}
             kcal/100 g).{' '}
-            <button type="button" onClick={onSearch} className="text-primary underline">
+            <button type="button" onClick={onSearch} className={textLinkClass({ inline: true })}>
               Selbst suchen
             </button>
           </p>
@@ -596,7 +597,7 @@ function ReviewRow({
         ) : (
           <p className="text-sm text-muted-foreground">
             Kein passendes Lebensmittel gefunden, wird nicht eingetragen.{' '}
-            <button type="button" onClick={onSearch} className="text-primary underline">
+            <button type="button" onClick={onSearch} className={textLinkClass({ inline: true })}>
               Selbst suchen
             </button>
           </p>

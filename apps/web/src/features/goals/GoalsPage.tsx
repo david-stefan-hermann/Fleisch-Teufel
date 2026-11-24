@@ -20,6 +20,7 @@ import { Link } from '@tanstack/react-router';
 import { Calculator, History } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { choiceHoverClass, textLinkClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { MacroPlanPicker } from '@/components/MacroPlanPicker';
@@ -180,7 +181,7 @@ function GoalsForm({
                 onClick={() => setSelected(i)}
                 className={cn(
                   'flex h-14 flex-col items-center justify-center rounded-lg border text-xs transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                  selected === i ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-accent',
+                  selected === i ? 'border-primary bg-primary text-primary-foreground' : choiceHoverClass,
                 )}
               >
                 <span>{w}</span>
@@ -243,7 +244,7 @@ function GoalsForm({
                 {' '}
                 <button
                   type="button"
-                  className="text-primary underline"
+                  className={textLinkClass({ inline: true })}
                   onClick={() => setDay({ kcal: Math.round(macroKcal) })}
                 >
                   Kalorien anpassen

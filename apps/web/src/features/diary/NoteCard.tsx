@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { CheckCircle2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { TextLink } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -106,8 +107,8 @@ function CompletePastDays({ date }: { date: ISODate }) {
   const { run, busy } = useSubmitting();
   if (!open?.length) return null;
   return (
-    <button
-      type="button"
+    <TextLink
+      tone="quiet"
       disabled={busy}
       onClick={() =>
         void run(async () => {
@@ -118,10 +119,10 @@ function CompletePastDays({ date }: { date: ISODate }) {
           });
         })
       }
-      className="-my-1 min-h-11 justify-self-center rounded-md px-2 text-sm font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+      className="-my-1 min-h-11 justify-self-center px-2 disabled:opacity-50"
     >
       Alle vergangenen Tage abschließen
-    </button>
+    </TextLink>
   );
 }
 

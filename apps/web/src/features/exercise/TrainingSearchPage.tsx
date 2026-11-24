@@ -11,6 +11,7 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Bookmark, Pin, Plus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Page } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -147,7 +148,7 @@ export function TrainingSearchPage() {
       <button
         type="button"
         onClick={() => setCustomName(q)}
-        className="flex min-h-12 w-full items-center gap-2 px-4 text-left text-primary hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+        className={cn(rowClass, 'min-h-12 w-full gap-2 text-left text-primary')}
       >
         <Plus className="size-4 shrink-0" aria-hidden />
         <span className="truncate">Eigene Sportart „{q}“ anlegen</span>
@@ -369,8 +370,7 @@ function RowList({
 }
 
 function SearchRow({ row, search }: { row: Row; search: { date: string; into?: string } }) {
-  const className =
-    'flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none';
+  const className = rowClass;
   const tail = (
     <div className="tabular shrink-0 text-right">
       <div className="font-semibold">{fmt0(row.kcal)} kcal</div>

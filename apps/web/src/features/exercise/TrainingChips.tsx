@@ -1,5 +1,6 @@
 import { Bookmark, Check, Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { choiceHoverClass } from '@/components/tappable';
 import { cn } from '@/lib/utils';
 
 /**
@@ -45,7 +46,7 @@ export function TrainingChip({
       {...(pressed !== undefined && { 'aria-pressed': pressed })}
       className={cn(
         'grid h-11 max-w-48 min-w-0 content-center rounded-xl border px-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50',
-        pressed ? 'border-exercise/60 bg-exercise/15' : 'border-border bg-background hover:bg-accent',
+        pressed ? 'border-exercise/60 bg-exercise/15' : cn('border-border bg-background', choiceHoverClass),
       )}
     >
       <span className="flex items-center gap-1 truncate text-sm font-medium">

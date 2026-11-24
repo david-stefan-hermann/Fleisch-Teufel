@@ -11,9 +11,10 @@ import {
   type WeightEntry,
 } from '@ft/shared';
 import { useNavigate, useSearch } from '@tanstack/react-router';
-import { CalendarDays, ChevronDown, Plus, Scale } from 'lucide-react';
+import { CalendarDays, Plus, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { DisclosureRow, rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Chart, xOf, type ChartSeries } from '@/components/Chart';
 import { NumberField } from '@/components/NumberField';
@@ -30,8 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DisclosureTrigger } from '@/components/NutrientBreakdown';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { TapeMeasure } from '@/components/TapeMeasure';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { deleteRecord, restoreRecord, saveRecord } from '@/db/write';
@@ -43,6 +43,7 @@ import { useForecastPref } from './forecastPref';
 import { aheadDaysFor, forecastChartModel } from './forecastChart';
 import { ForecastChart } from './ForecastChart';
 import { fmt1, fmt2, fmtDate, fmtFixed, fmtRelativeDay, NO_VALUE } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 const RANGES = [
   { id: '7', label: '7 T', days: 7 },
@@ -157,7 +158,7 @@ export function ProgressPage() {
           <button
             type="button"
             onClick={() => setEditing(w)}
-            className="tabular flex min-h-12 w-full items-center justify-between px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+            className={cn(rowClass, 'tabular min-h-12 w-full justify-between text-left')}
           >
             <span>{fmtDate(w.date)}</span>
             <span>
@@ -265,9 +266,13 @@ export function ProgressPage() {
                     yRange={yRange}
                     title={chartTitle}
                   />
-                  <Collapsible open={forecastsOn} onOpenChange={setForecastsOn} className="mt-2 px-2">
-                    <DisclosureTrigger className="min-h-11 text-sm font-semibold">Prognose</DisclosureTrigger>
-                    <CollapsibleContent className="pt-1">
+                  <Collapsible
+                    open={forecastsOn}
+                    onOpenChange={setForecastsOn}
+                    className="-mx-2 mt-2 border-t border-border/70"
+                  >
+                    <DisclosureRow className="px-4">Prognose</DisclosureRow>
+                    <CollapsibleContent className="px-2 pt-1">
                       {forecastModel ? (
                         <ForecastChart
                           model={forecastModel}
@@ -297,13 +302,9 @@ export function ProgressPage() {
             </ul>
             {newest.length > RECENT_ENTRIES && (
               <Collapsible className="border-t border-border/70">
-                <CollapsibleTrigger className="group flex min-h-12 w-full items-center justify-between gap-2 px-4 text-left text-sm font-semibold hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none">
+                <DisclosureRow className="px-4">
                   Ältere Einträge ({newest.length - RECENT_ENTRIES})
-                  <ChevronDown
-                    className="size-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                    aria-hidden
-                  />
-                </CollapsibleTrigger>
+                </DisclosureRow>
                 <CollapsibleContent>
                   <ul className="divide-y divide-border/70 border-t border-border/70 pb-1">
                     {newest

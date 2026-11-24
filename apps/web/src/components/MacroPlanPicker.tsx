@@ -8,6 +8,7 @@ import {
   type MacroPlan,
 } from '@ft/shared';
 import { Check } from 'lucide-react';
+import { choiceHoverClass } from '@/components/tappable';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import { fmt0, fmt1, NO_VALUE } from '@/lib/format';
@@ -136,7 +137,7 @@ function Choice({
       onClick={onSelect}
       className={cn(
         'flex items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-        selected ? 'border-primary bg-primary/5' : 'hover:bg-accent',
+        selected ? 'border-primary bg-primary/5' : choiceHoverClass,
       )}
     >
       <div className="min-w-0 flex-1">

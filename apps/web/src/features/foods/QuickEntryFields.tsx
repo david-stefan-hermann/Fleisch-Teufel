@@ -1,4 +1,5 @@
 import { kcalFromMacros } from '@ft/shared';
+import { textLinkClass } from '@/components/tappable';
 import { HintCount, HintField } from '@/components/HintField';
 import { NumberField } from '@/components/NumberField';
 import { Label } from '@/components/ui/label';
@@ -122,7 +123,7 @@ export function QuickEntryFields({
           {value.kcal === null && !disabled && (
             <button
               type="button"
-              className="text-primary underline"
+              className={textLinkClass({ inline: true })}
               onClick={() => set({ kcal: Math.round(macroKcal) })}
             >
               Übernehmen

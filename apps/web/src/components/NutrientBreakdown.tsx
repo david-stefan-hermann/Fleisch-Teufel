@@ -12,10 +12,10 @@ import {
   type ResolvedTargets,
 } from '@ft/shared';
 import catalog from '@ft/shared/nutrients-catalog.json';
-import { ChevronDown } from 'lucide-react';
 import { Fragment, useId, useState, type ReactNode } from 'react';
+import { DisclosureRow } from '@/components/tappable';
 import { isOverTarget, MACRO_BG, OVER_TEXT, overToneOf, TargetBar } from '@/components/MacroBars';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { fmt0, fmtGrams, fmtPercent, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -185,7 +185,7 @@ export function NutrientBreakdown({
         onOpenChange={onMicrosOpenChange}
         className="mt-2 border-t border-border/70 pt-1.5"
       >
-        <DisclosureTrigger className="min-h-11 text-sm font-semibold">Weitere Nährstoffe</DisclosureTrigger>
+        <DisclosureRow>Weitere Nährstoffe</DisclosureRow>
         <CollapsibleContent>
           <ul className="grid gap-3 pt-1 pb-1">
             {MICRO_NUTRIENTS.map((code) => (
@@ -200,9 +200,7 @@ export function NutrientBreakdown({
           </ul>
           {catalogRows.length > DISPLAY_NUTRIENTS.length && (
             <Collapsible className="mt-2">
-              <DisclosureTrigger className="min-h-10 text-[0.8125rem]">
-                Alle {catalogRows.length} Nährstoffe
-              </DisclosureTrigger>
+              <DisclosureRow>Alle {catalogRows.length} Nährstoffe</DisclosureRow>
               <CollapsibleContent>
                 <dl className="grid text-xs">
                   {catalogRows.map((c) => (
@@ -221,24 +219,6 @@ export function NutrientBreakdown({
         </CollapsibleContent>
       </Collapsible>
     </div>
-  );
-}
-
-/** Row trigger of the overview's collapsibles ("Weitere Nährstoffe", the ingredient "Nährwerte"). */
-export function DisclosureTrigger({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <CollapsibleTrigger
-      className={cn(
-        'group -mx-2 flex w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-left text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-        className,
-      )}
-    >
-      <span>{children}</span>
-      <ChevronDown
-        className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-        aria-hidden
-      />
-    </CollapsibleTrigger>
   );
 }
 

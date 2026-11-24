@@ -1,13 +1,14 @@
 import { DEFAULT_STEPS_MINIMUM } from '@ft/shared';
-import { ChevronDown, Copy, RefreshCw } from 'lucide-react';
+import { Copy, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { SectionToggle } from '@/components/tappable';
 import { isAndroid, isIos } from '@/app/pwa';
 import { useSession } from '@/app/session';
 import { NumberField } from '@/components/NumberField';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -163,23 +164,8 @@ export function StepsSettingsPage() {
       )}
 
       <Collapsible open={open} onOpenChange={setGuideOpen}>
-        <Section
-          title={android ? 'HC Webhook' : 'Kurzbefehl'}
-          action={
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={open ? 'Anleitung zuklappen' : 'Anleitung aufklappen'}
-              >
-                <ChevronDown
-                  className={cn('transition-transform motion-reduce:transition-none', open && 'rotate-180')}
-                  aria-hidden
-                />
-              </Button>
-            </CollapsibleTrigger>
-          }
-        >
+        <Section>
+          <SectionToggle>{android ? 'HC Webhook' : 'Kurzbefehl'}</SectionToggle>
           <CollapsibleContent>{android ? <HcWebhookGuide /> : <ShortcutGuide />}</CollapsibleContent>
         </Section>
       </Collapsible>

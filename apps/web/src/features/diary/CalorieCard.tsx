@@ -1,11 +1,10 @@
 import { get, N, type DaySummary } from '@ft/shared';
-import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { FooterRow, TextLink } from '@/components/tappable';
 import { CalorieRing } from '@/components/CalorieRing';
 import { MacroBars } from '@/components/MacroBars';
 import { NutrientBreakdown } from '@/components/NutrientBreakdown';
 import { fmt0 } from '@/lib/format';
-import { cn } from '@/lib/utils';
 
 export function CalorieCard({
   summary,
@@ -44,28 +43,20 @@ export function CalorieCard({
             showMicroSources={sources}
             defaultMicrosOpen
           />
-          <button
-            type="button"
-            onClick={() => setSources(!sources)}
-            className="mt-1 min-h-8 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-          >
+          <TextLink tone="quiet" onClick={() => setSources(!sources)} className="mt-1 min-h-8">
             {sources ? 'Quellen ausblenden' : 'Woher kommen die Zielwerte?'}
-          </button>
+          </TextLink>
         </div>
       )}
-      <button
-        type="button"
+      <FooterRow
+        icon="down"
         aria-expanded={open}
         aria-controls="day-details"
         onClick={() => setOpen(!open)}
-        className="-mb-2 mt-2 flex h-9 w-full items-center justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="-mx-4 -mb-4 mt-4 w-[calc(100%+2rem)] border-t border-border/70 px-4"
       >
         {open ? 'Weniger' : 'Nährstoffe'}
-        <ChevronDown
-          className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')}
-          aria-hidden
-        />
-      </button>
+      </FooterRow>
     </section>
   );
 }

@@ -13,6 +13,7 @@ import { Link } from '@tanstack/react-router';
 import { ChevronDown, ClipboardPaste, Dumbbell, Plus } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { dashedAddClass, rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -175,7 +176,7 @@ export function ExerciseCard({
             to="/exercise"
             search={{ date }}
             onClick={() => rememberStart(date)}
-            className="mx-4 mb-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className={cn(dashedAddClass, 'mx-4 mb-4 h-11 w-auto')}
           >
             <Dumbbell className="size-4" aria-hidden /> Training eintragen
           </Link>
@@ -264,10 +265,7 @@ function EntryLink({
       to="/exercise-entry/$entryId"
       params={{ entryId: entry.id }}
       draggable={false}
-      className={cn(
-        'flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none',
-        className,
-      )}
+      className={cn(rowClass, 'select-none', className)}
     >
       {children}
     </Link>
@@ -298,7 +296,7 @@ function TrainingGroupRow({
           aria-expanded={open}
           aria-controls={listId}
           onClick={() => setOpen((o) => !o)}
-          className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+          className={cn(rowClass, 'w-full text-left select-none')}
         >
           <TrainingGroupRowBody title={title} entries={entries} open={open} />
         </button>

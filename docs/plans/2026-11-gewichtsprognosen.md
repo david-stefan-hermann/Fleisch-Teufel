@@ -12,7 +12,8 @@ Geplant am 2026-11-22 auf `097201a`. Gebaut in fünf Runden bis `501a300`, Mocku
 Feedback auf die Bänder („überhaupt nicht logisch herzuleiten“) und Mockups v5 bis v9 am 2026-11-23; v9 vom Nutzer
 zur Umsetzung freigegeben („lass uns das so umsetzen“), Runde 6 dieses Plans, am selben Tag umgesetzt (alle
 Prüfungen grün, Sichtprüfung und Touch-Test mit einem 90-Tage-Testnutzer; die Demo-Daten tragen zu wenig kcal ein,
-um den Bedarf sinnvoll zu zeigen). Abnahme auf dem iPhone offen. Nicht gepusht. Push-Stand nie aus
+um den Bedarf sinnvoll zu zeigen). Abnahme auf dem iPhone offen. Restpunkt 2 ist durch den Plan `2026-11-bedienelemente.md` überholt: „Prognose“ ist seit 2026-11-24 eine
+`DisclosureRow` (14 px, mittelgrau, `font-medium`); die Mockups hier zeigen die Zeile noch halbfett in Schwarz. Nicht gepusht. Push-Stand nie aus
 diesem Dokument ableiten: `git fetch` + `git status -sb`.
 
 | Stand             | Commit    | Inhalt                                                                           |

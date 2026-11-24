@@ -15,6 +15,7 @@ import { Link, useNavigate, useRouter } from '@tanstack/react-router';
 import { ChevronDown, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { ConflictBanner } from '@/components/ConflictBanner';
 import { MealPhoto } from '@/components/MealPhoto';
@@ -40,6 +41,7 @@ import { isBasePortion } from '@/lib/amounts';
 import { openTarget, returnFromInto, type FoodInto } from '@/lib/into';
 import { prepareFlowTarget, useReturnToDiary } from '@/lib/logFlow';
 import { DayNote } from '@/components/DayNote';
+import { cn } from '@/lib/utils';
 import { logItems } from './logMeal';
 
 const FACTOR_MIN = 0.5;
@@ -220,7 +222,7 @@ export function MealLogView({
                     aria-expanded={openIndex === i}
                     aria-controls={`ingredient-${i}-nutrients`}
                     onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                    className="group flex min-h-12 w-full items-center gap-3 py-2 pr-3 pl-4 text-left select-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none focus-visible:ring-inset"
+                    className={cn(rowClass, 'group w-full pr-3 text-left select-none')}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{it.name}</div>

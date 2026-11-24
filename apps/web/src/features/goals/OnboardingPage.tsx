@@ -22,6 +22,7 @@ import {
 import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { choiceHoverClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MacroPlanPicker } from '@/components/MacroPlanPicker';
 import { NumberField } from '@/components/NumberField';
@@ -240,7 +241,7 @@ function OnboardingForm({
                 onClick={() => setActivity(a)}
                 className={cn(
                   'rounded-xl border p-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                  activity === a ? 'border-primary bg-primary/5' : 'hover:bg-accent',
+                  activity === a ? 'border-primary bg-primary/5' : choiceHoverClass,
                 )}
               >
                 <div className="font-medium">{ACTIVITY_LABELS_DE[a].title}</div>
@@ -266,7 +267,7 @@ function OnboardingForm({
                     onClick={() => chooseGoal(k)}
                     className={cn(
                       'flex items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                      goalKind === k ? 'border-primary bg-primary/5' : 'hover:bg-accent',
+                      goalKind === k ? 'border-primary bg-primary/5' : choiceHoverClass,
                     )}
                   >
                     <div className="min-w-0 flex-1">

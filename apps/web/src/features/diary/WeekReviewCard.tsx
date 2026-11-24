@@ -1,7 +1,8 @@
 import { addDays, dailyRows, startOfWeek, weekdayIndex, weekSummary, type ISODate } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { FooterRow } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Section } from '@/components/Page';
 import { mealRecordsFor } from '@/db/diaryMeals';
@@ -111,17 +112,14 @@ export function WeekReviewCard({ today }: { today: ISODate }) {
           </dd>
         </div>
       </dl>
-      <Link
-        to="/reports"
-        search={{ range: 'week', end: sunday }}
-        className="flex min-h-11 items-center justify-between gap-2 border-t border-border/70 px-4 text-sm text-muted-foreground hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-      >
-        <span>
-          {fmt0(s.completeDays)} von 7 Tagen vollständig erfasst
-          {s.loggedDays > s.completeDays ? `, ${fmt0(s.loggedDays - s.completeDays)} nur zum Teil` : ''}
-        </span>
-        <ChevronRight className="size-4 shrink-0" aria-hidden />
-      </Link>
+      <FooterRow icon="right" className="border-t border-border/70 px-4" asChild>
+        <Link to="/reports" search={{ range: 'week', end: sunday }}>
+          <span>
+            {fmt0(s.completeDays)} von 7 Tagen vollständig erfasst
+            {s.loggedDays > s.completeDays ? `, ${fmt0(s.loggedDays - s.completeDays)} nur zum Teil` : ''}
+          </span>
+        </Link>
+      </FooterRow>
     </Section>
   );
 }

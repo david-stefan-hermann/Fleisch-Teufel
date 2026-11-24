@@ -98,6 +98,17 @@ Serve the production web build through the API (same origin, service worker acti
   new meals: the first rename stores `legacyMealNames`, so old days keep theirs) and deletes own names (meals
   keep the name they carry). Older app versions keep logging by `meal` (the third rule places those entries)
   and show at most four slots.
+- Tappable elements that are not a `Button` (plan `docs/plans/2026-11-bedienelemente.md`, mockup v2) come from
+  `components/tappable.tsx`: list rows that open a page or log use `rowClass` (`rowWithLinkClass` with a stretched
+  link; `min-h-14`, pointer `bg-accent/60`, focus `bg-accent`); footer and disclosure rows are `FooterRow`
+  (`icon` right = page, down = opens; `asChild` for a `Link`) or `DisclosureRow` as a `CollapsibleTrigger` (14 px
+  grey `font-medium`, `min-h-11`, never a background; no own side padding, `px-4` directly in a `Section`); a card
+  title that collapses its card is `SectionToggle`; a word or value in a header is `InlineTarget` /
+  `inlineTargetClass` (32 px box, 44 px tap area via `after:`); text that does something is `TextLink` /
+  `textLinkClass` (`tone` primary or quiet, `inline` in a sentence). Arrows `size-4` grey at the right end (only
+  the 12 px group subline keeps `size-3.5`). Chips, choice cards, tiles, the week strip and `PhotoStrip` take
+  `choiceHoverClass`, the dashed add areas `dashedAddClass`. A lint rule (`no-restricted-syntax` in
+  `eslint.config.js`) refuses `hover:bg-accent` and the class `underline` outside `components/ui` and that file.
 - Lists: `src/components/SwipeToDelete.tsx` wraps rows for swipe-left delete (always with an undo toast;
   `contentClassName="bg-background"` for rows outside a card). Deleted weights and meals show in the trash
   (`/settings/trash`, `src/db/trash.ts`, search via `matchesTrash`); "Endgültig löschen" ("Alle löschen" per
@@ -437,7 +448,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
 - Forecasts under the weight chart (plan `docs/plans/2026-11-gewichtsprognosen.md`, mockup
   `2026-11-gewichtsprognosen-mockup-v9-geglaettet.html` for the chart, v4 `2026-11-gewichtsprognosen-mockup.html`
   for the rest): on `/progress` the weight chart (uPlot) stays as it is (its cursor line is `--muted-foreground`,
-  `.ft-chart .u-cursor-x`, for every uPlot chart); below it "Prognose" (`DisclosureTrigger` `text-sm`, open state
+  `.ft-chart .u-cursor-x`, for every uPlot chart); below it "Prognose" (`DisclosureRow`, open state
   per device in `ft.progress.forecasts`, `features/progress/forecastPref.ts`) opens `ForecastChart` (own SVG, not
   uPlot: uPlot cannot scrub by touch; pure model in `forecastChart.ts`). The model is shared `weightModel.ts`
   (`buildWeightModel`, `modelDays`; `useWeightModel` reads from the first weigh-in to today, only while open): a

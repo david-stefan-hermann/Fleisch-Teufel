@@ -1,15 +1,16 @@
 import { get, N, uuidv7, type Food, type Meal, type Portion } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, Globe, LoaderCircle, Plus, Search, WifiOff, X } from 'lucide-react';
+import { Globe, LoaderCircle, Plus, Search, WifiOff, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { DisclosureRow, rowClass, TextLink } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MealPhoto } from '@/components/MealPhoto';
 import { EmptyState, Page } from '@/components/Page';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addFoodToDraft } from '@/db/aiDraft';
@@ -41,6 +42,7 @@ import { fmt0 } from '@/lib/format';
 import { parseFoodInto, type FoodInto } from '@/lib/into';
 import { prepareFlowTarget } from '@/lib/logFlow';
 import { entryAmountLabel } from '@/features/diary/MealCard';
+import { cn } from '@/lib/utils';
 
 type Tab = 'frequent' | 'recent' | 'mine';
 const TABS: { id: Tab; label: string }[] = [
@@ -330,13 +332,9 @@ export function AddFoodPage() {
             {local?.suggestion && (
               <p className="mb-2 text-sm text-muted-foreground">
                 Meintest du{' '}
-                <button
-                  type="button"
-                  className="min-h-10 font-medium text-primary underline underline-offset-2"
-                  onClick={() => setQuery(local.suggestion!)}
-                >
+                <TextLink className="min-h-10" onClick={() => setQuery(local.suggestion!)}>
                   „{local.suggestion}“
-                </button>
+                </TextLink>
                 ?
               </p>
             )}
@@ -355,14 +353,11 @@ export function AddFoodPage() {
             )}
             {rows && rows.length === 0 && onlineState !== 'loading' && (
               <EmptyState icon={<Search />} title={`Nichts gefunden für „${q}“`}>
-                <Link
-                  to="/custom-food/$id"
-                  params={{ id: 'new' }}
-                  search={{ name: q, ...linkSearch }}
-                  className="text-primary underline"
-                >
-                  Eigenes Lebensmittel anlegen
-                </Link>
+                <TextLink inline asChild>
+                  <Link to="/custom-food/$id" params={{ id: 'new' }} search={{ name: q, ...linkSearch }}>
+                    Eigenes Lebensmittel anlegen
+                  </Link>
+                </TextLink>
               </EmptyState>
             )}
             <OnlineStatus state={onlineState} short={q.length < 3} />
@@ -399,13 +394,9 @@ export function AddFoodPage() {
               icon={<Search />}
               title={`Nichts in „${TABS.find((t) => t.id === filter)?.label}“ für „${q}“`}
             >
-              <button
-                type="button"
-                className="min-h-10 font-medium text-primary underline underline-offset-2"
-                onClick={searchEverywhere}
-              >
+              <TextLink className="min-h-10" onClick={searchEverywhere}>
                 Überall suchen
-              </button>
+              </TextLink>
             </EmptyState>
           ))}
 
@@ -433,14 +424,11 @@ export function AddFoodPage() {
             )}
             {own.meals.length === 0 && own.custom.length === 0 && (
               <EmptyState icon={<Search />} title="Nichts Eigenes gefunden">
-                <Link
-                  to="/custom-food/$id"
-                  params={{ id: 'new' }}
-                  search={{ name: q, ...linkSearch }}
-                  className="text-primary underline"
-                >
-                  Eigenes Lebensmittel anlegen
-                </Link>
+                <TextLink inline asChild>
+                  <Link to="/custom-food/$id" params={{ id: 'new' }} search={{ name: q, ...linkSearch }}>
+                    Eigenes Lebensmittel anlegen
+                  </Link>
+                </TextLink>
               </EmptyState>
             )}
           </>
@@ -449,13 +437,7 @@ export function AddFoodPage() {
         {!typing && tab === 'mine' && (
           <>
             <Collapsible open={mealsOpen} onOpenChange={toggleMeals} className="mb-4">
-              <CollapsibleTrigger className="group -mx-2 flex min-h-11 w-[calc(100%+1rem)] items-center justify-between rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none">
-                <span>Meals{meals ? ` (${meals.length})` : ''}</span>
-                <ChevronDown
-                  className="size-5 transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-                  aria-hidden
-                />
-              </CollapsibleTrigger>
+              <DisclosureRow>Meals{meals ? ` (${meals.length})` : ''}</DisclosureRow>
               <CollapsibleContent>
                 <MealList meals={meals} search={linkSearch} />
               </CollapsibleContent>
@@ -565,12 +547,7 @@ function SearchResultRow({
     const m = row.meal;
     return (
       <li>
-        <Link
-          to="/meals/$mealId"
-          params={{ mealId: m.id }}
-          search={search}
-          className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-        >
+        <Link to="/meals/$mealId" params={{ mealId: m.id }} search={search} className={rowClass}>
           <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
           <div className="min-w-0 flex-1">
             <div className="line-clamp-2 font-medium break-words">{m.name}</div>
@@ -613,12 +590,7 @@ function FoodRow({
   const origin = food.brand ?? (food.source === 'bls' ? 'BLS' : food.source === 'custom' ? 'Eigenes' : null);
   return (
     <li>
-      <Link
-        to="/food/$foodId"
-        params={{ foodId: food.id }}
-        search={search}
-        className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-      >
+      <Link to="/food/$foodId" params={{ foodId: food.id }} search={search} className={rowClass}>
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 font-medium break-words">{food.name}</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -645,12 +617,7 @@ function MealList({ meals, search }: { meals: Meal[] | undefined; search: FoodLi
     <ul className="-mx-4 divide-y divide-border/70">
       {meals.map((m) => (
         <li key={m.id}>
-          <Link
-            to="/meals/$mealId"
-            params={{ mealId: m.id }}
-            search={search}
-            className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-          >
+          <Link to="/meals/$mealId" params={{ mealId: m.id }} search={search} className={rowClass}>
             <MealPhoto photoId={m.photoId} alt="" className="size-10 shrink-0 rounded-lg" />
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{m.name}</div>
@@ -691,7 +658,7 @@ function RecentList({
             to="/food/$foodId"
             params={{ foodId: r.foodId }}
             search={search}
-            className="flex min-h-14 min-w-0 flex-1 items-center gap-3 py-2 pl-4 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
+            className={cn(rowClass, 'min-w-0 flex-1 pr-0')}
           >
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{r.name}</div>

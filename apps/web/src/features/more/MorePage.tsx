@@ -19,6 +19,7 @@ import {
 import { useLiveQuery } from 'dexie-react-hooks';
 import { MEAL_COUNT, type Settings } from '@ft/shared';
 import type { ReactNode } from 'react';
+import { rowClass } from '@/components/tappable';
 import { useSession, useSessionContext } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { syncLabel, useSyncState } from '@/components/SyncIndicator';
@@ -29,6 +30,7 @@ import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
 import { DEFAULT_WEEK_MARKS, useAppearance, WEEK_MARKS } from '@/lib/appearance';
 import { fmtReceived, useStepsStatus } from '@/lib/steps';
+import { cn } from '@/lib/utils';
 
 const THEME_LABEL = { system: 'Wie das System', light: 'Hell', dark: 'Dunkel' } as const;
 const ICON_LABEL = { auto: 'wie die App', light: 'hell', dark: 'dunkel' } as const;
@@ -43,14 +45,14 @@ function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: st
     <li>
       <Link
         to={to}
-        className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none [&>svg:first-child]:size-5 [&>svg:first-child]:text-muted-foreground"
+        className={cn(rowClass, '[&>svg:first-child]:size-5 [&>svg:first-child]:text-muted-foreground')}
       >
         {icon}
         <div className="min-w-0 flex-1">
           <div className="font-medium">{label}</div>
           {hint && <div className="truncate text-xs text-muted-foreground">{hint}</div>}
         </div>
-        <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+        <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
     </li>
   );

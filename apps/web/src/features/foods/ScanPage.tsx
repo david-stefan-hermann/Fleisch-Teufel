@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Keyboard, LoaderCircle, PackageSearch, ScanText } from 'lucide-react';
 import { useCallback, useEffect, useState, useRef } from 'react';
+import { TextLink } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { BarcodeScanner, validGtin, type ScannerError } from '@/components/BarcodeScanner';
 import { Page } from '@/components/Page';
@@ -133,13 +134,9 @@ export function ScanPage() {
                     Selbst anlegen
                   </Button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setState({ kind: 'scanning' })}
-                  className="justify-self-center text-sm text-primary underline underline-offset-2 hover:no-underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                >
+                <TextLink onClick={() => setState({ kind: 'scanning' })} className="justify-self-center">
                   Weiter scannen
-                </button>
+                </TextLink>
               </>
             ) : (
               <div className="flex gap-2">

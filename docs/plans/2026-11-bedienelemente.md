@@ -143,4 +143,23 @@ Im Plan `2026-11-gewichtsprognosen.md` ist Restpunkt 2 (`text-sm` an „Prognose
 
 ## Status
 
-Geplant 2026-11-23, am selben Tag gegen 0de50fd nachgeprüft (Gewichtsprognose Runde 6 ist drin). Nicht umgesetzt.
+Geplant 2026-11-23, am selben Tag gegen 0de50fd nachgeprüft (Gewichtsprognose Runde 6 ist drin). Umgesetzt
+2026-11-24 auf ea98814. Abweichungen vom Plan:
+
+- `FooterRow` als `CollapsibleTrigger` heißt `DisclosureRow` (dieselben Klassen, ohne `asChild`-Verschachtelung an
+  jeder Stelle). `DisclosureTrigger` ist entfernt.
+- `SectionToggle` hat kein `pt-2` wie der `Section`-Kopf: zugeklappt ist der Kopf die ganze Karte und soll mittig
+  stehen.
+- „Prognose“: die Hülle ist `-mx-2 mt-2 border-t` innerhalb des `px-2` der Diagrammkarte, die Zeile `px-4`,
+  der Inhalt `px-2`, damit das Diagramm so breit bleibt wie vorher.
+- Datum im Tagebuchkopf: der Kasten ist `InlineTarget`, die 44 px Tippfläche ist das unsichtbare Datumsfeld selbst
+  (iOS öffnet die Auswahl nur bei direktem Tipp), deshalb dort `after:hidden`.
+- `PhotoStrip` „+“ und die Karte „Etikett fotografieren“ nehmen `choiceHoverClass` (`hover:bg-accent`) statt `/60`
+  und `/40`.
+- Übrig nach dem Gegen-grep: nur `NoteCard.tsx` 80 (`hover:underline`, bleibt laut Plan).
+
+Geprüft: lint, typecheck, test, e2e (81) grün; Screenshots hell und dunkel mit dem Demo-Nutzer; Touch (CDP) an
+Mahlzeitname (Menü öffnet, auch 4 px unter dem Kasten), kcal-Link (Kasten 32 px, 4 px Abstand, Tipp 5 px über dem
+Kasten öffnet die Seite), Tagesübersicht (Zeile und Karte klappen je einmal), „Prognose“, „Ältere Einträge“,
+„Meals (N)“, „Nährwerte“. Die Wochenkarte erscheint nur montags und ist nicht auf dem Bildschirm geprüft.
+Abnahme auf dem iPhone offen.

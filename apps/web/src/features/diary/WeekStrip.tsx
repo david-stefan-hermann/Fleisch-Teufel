@@ -1,6 +1,7 @@
 import { addDays, parseISODate, WEEKDAYS_SHORT_DE, weekdayIndex, type ISODate } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { choiceHoverClass } from '@/components/tappable';
 import { Button } from '@/components/ui/button';
 import { useStripMarks } from '@/hooks/data';
 import { useAppearance } from '@/lib/appearance';
@@ -47,7 +48,7 @@ export function WeekStrip({ date, today }: { date: ISODate; today: ISODate }) {
                 className={cn(
                   stripDayClass({ mark, selected, today: d === today, variant }),
                   'touch-manipulation transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
-                  !stripDayTinted(mark, selected, variant) && 'hover:bg-accent',
+                  !stripDayTinted(mark, selected, variant) && choiceHoverClass,
                 )}
               >
                 {/* The name is the full text (an aria-label differing from the visible "Mo 9" is an axe finding). */}

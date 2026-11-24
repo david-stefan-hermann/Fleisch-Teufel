@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { choiceHoverClass } from '@/components/tappable';
 import { MealPhoto } from '@/components/MealPhoto';
 import { cn } from '@/lib/utils';
 
@@ -107,7 +108,10 @@ export function PhotoStrip({
                 aria-label={addLabel}
                 disabled={busy}
                 onClick={onAdd}
-                className="grid size-14 place-items-center rounded-xl border-2 border-dashed border-border text-muted-foreground hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-40"
+                className={cn(
+                  'grid size-14 place-items-center rounded-xl border-2 border-dashed border-border text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-40',
+                  choiceHoverClass,
+                )}
               >
                 <Plus className="size-6" aria-hidden />
               </button>

@@ -13,6 +13,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react';
+import { choiceHoverClass } from '@/components/tappable';
 import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { useDb } from '@/app/session';
 import { SheetAssistantButton } from '@/features/assistant/AssistantButton';
@@ -197,7 +198,7 @@ function AddSheet({
                 'flex aspect-square touch-manipulation flex-col items-center justify-center gap-2 rounded-2xl p-2 text-center text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:aspect-auto sm:h-24',
                 it.primary
                   ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:bg-primary/90 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
-                  : 'bg-secondary hover:bg-accent',
+                  : cn('bg-secondary', choiceHoverClass),
               )}
             >
               <it.icon className={cn('size-7', it.primary ? 'text-primary-foreground' : 'text-primary')} />

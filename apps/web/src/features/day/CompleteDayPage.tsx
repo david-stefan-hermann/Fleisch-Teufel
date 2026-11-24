@@ -13,6 +13,7 @@ import {
 import { Link, useNavigate, useParams, useRouter } from '@tanstack/react-router';
 import { CheckCircle2, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { textLinkClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Page, Section } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -128,7 +129,7 @@ export function CompleteDayPage() {
             <Link
               to="/photo"
               search={{ date, meal: next.slot, dm: 'new', form: true }}
-              className="font-medium text-primary underline underline-offset-2"
+              className={textLinkClass({ inline: true })}
             >
               Schnell schätzen
             </Link>
@@ -172,7 +173,7 @@ export function CompleteDayPage() {
         <Section>
           <p className="p-4 text-sm text-muted-foreground">
             Für die Prognose fehlt dein Gewicht.{' '}
-            <Link to="/progress" search={{ log: true }} className="text-primary underline">
+            <Link to="/progress" search={{ log: true }} className={textLinkClass({ inline: true })}>
               Gewicht eintragen
             </Link>
           </p>

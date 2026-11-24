@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { rowWithLinkClass, TextLink } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -52,7 +53,7 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
 
   return (
     <SwipeToDelete label={`${name} löschen`} onDelete={() => void discard()} disabled={dragging}>
-      <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
+      <div className={cn(rowWithLinkClass, 'relative w-full select-none')}>
         <div className="relative size-12 shrink-0">
           <MealPhoto
             blob={first?.blob ?? null}
@@ -79,14 +80,13 @@ export function PendingAnalysisRow({ item }: { item: AiQueueItem }) {
           </Link>
           <div className={cn('text-xs text-muted-foreground', failed && 'text-over')}>{state}</div>
           {failed && (
-            <button
-              type="button"
+            <TextLink
               draggable={false}
               onClick={() => void retryQueueItem(db, item.localId!)}
-              className="relative z-10 -my-1 rounded-md py-2 pr-3 text-sm font-medium text-primary underline underline-offset-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              className="relative z-10 -my-1 py-2 pr-3"
             >
               Wiederholen
-            </button>
+            </TextLink>
           )}
         </div>
         <div

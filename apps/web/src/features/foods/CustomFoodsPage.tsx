@@ -2,6 +2,7 @@ import { get, N } from '@ft/shared';
 import { Link } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Salad } from 'lucide-react';
+import { rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { EmptyState, Page } from '@/components/Page';
 import { Button } from '@/components/ui/button';
@@ -27,11 +28,7 @@ export function CustomFoodsPage() {
       <ul className="-mx-4 divide-y divide-border/70">
         {foods?.map((f) => (
           <li key={f.id}>
-            <Link
-              to="/custom-food/$id"
-              params={{ id: f.id }}
-              className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-            >
+            <Link to="/custom-food/$id" params={{ id: f.id }} className={rowClass}>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{f.name}</div>
                 <div className="truncate text-xs text-muted-foreground">

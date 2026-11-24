@@ -1,3 +1,4 @@
+import { textLinkClass } from '@/components/tappable';
 import { AppLogo } from '@/components/AppLogo';
 import { Page, Section } from '@/components/Page';
 import { useSessionContext } from '@/app/session';
@@ -28,7 +29,7 @@ export function AboutPage() {
               Lebensmittel mit 138 Nährstoffen, kostenfrei bereitgestellt.{' '}
               <a
                 href="https://www.blsdb.de"
-                className="text-primary underline"
+                className={textLinkClass({ inline: true })}
                 rel="noreferrer"
                 target="_blank"
               >
@@ -42,7 +43,7 @@ export function AboutPage() {
               Produktdaten © Open-Food-Facts-Mitwirkende, lizenziert unter der{' '}
               <a
                 href="https://opendatacommons.org/licenses/odbl/1-0/"
-                className="text-primary underline"
+                className={textLinkClass({ inline: true })}
                 rel="noreferrer"
                 target="_blank"
               >
@@ -51,7 +52,7 @@ export function AboutPage() {
               . Angaben ohne Gewähr.{' '}
               <a
                 href="https://world.openfoodfacts.org"
-                className="text-primary underline"
+                className={textLinkClass({ inline: true })}
                 rel="noreferrer"
                 target="_blank"
               >

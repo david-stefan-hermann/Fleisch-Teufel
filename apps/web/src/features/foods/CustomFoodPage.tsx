@@ -11,6 +11,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, ScanBarcode, ScanText, Sparkles, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { choiceHoverClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { BarcodeScanSheet } from '@/components/BarcodeScanSheet';
 import { LabelCaptureSheet } from '@/components/LabelCaptureSheet';
@@ -478,7 +479,10 @@ function LabelEntry({
       type="button"
       disabled={offline}
       onClick={onOpen}
-      className="mb-4 flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-xs hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+      className={cn(
+        'mb-4 flex min-h-16 w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-xs focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50',
+        choiceHoverClass,
+      )}
     >
       <ScanText className="size-7 shrink-0 text-primary" aria-hidden />
       <span>

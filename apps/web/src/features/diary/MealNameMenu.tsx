@@ -2,6 +2,7 @@ import { sameMealName } from '@ft/shared';
 import { Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { inlineTargetClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MarqueeText } from '@/components/MarqueeText';
 import { NameDialog } from '@/components/NameDialog';
@@ -17,6 +18,7 @@ import { chooseMealName, ownMealNames, type DiaryDayMeal } from '@/db/diaryMeals
 import { DEFAULT_SETTINGS } from '@/db/settings';
 import { useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
+import { cn } from '@/lib/utils';
 
 /** The name of a diary meal in its card header: a tap offers the standard names, own ones and a new one. */
 export function MealNameMenu({ meal }: { meal: DiaryDayMeal }) {
@@ -51,7 +53,7 @@ export function MealNameMenu({ meal }: { meal: DiaryDayMeal }) {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`${meal.name}, Name ändern`}
-          className="relative -mx-1.5 -my-0.5 max-w-full min-w-0 rounded-lg px-1.5 py-0.5 text-left font-semibold after:absolute after:inset-x-0 after:-inset-y-2 after:content-[''] hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none data-[state=open]:bg-accent"
+          className={cn(inlineTargetClass, 'max-w-full min-w-0 text-left font-semibold')}
         >
           <MarqueeText text={meal.name} />
         </DropdownMenuTrigger>

@@ -14,6 +14,7 @@ import { Link } from '@tanstack/react-router';
 import { Camera, ChevronDown, ChevronRight, ClipboardPaste, ListPlus, Moon, Plus } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { dashedAddClass, inlineTargetClass, rowClass, rowWithLinkClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MarqueeText } from '@/components/MarqueeText';
 import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
@@ -96,7 +97,7 @@ export function MealCard({
         )}
         titleClassName="min-w-0"
         title={
-          <span className="flex min-h-11 min-w-0 items-baseline gap-1">
+          <span className="flex min-h-11 min-w-0 items-center gap-5">
             {/* A meal of waiting analyses only has no record yet that could take a name. */}
             {entries.length > 0 ? <MealNameMenu meal={meal} /> : <MarqueeText text={name} />}
             {entries.length > 0 && (
@@ -105,7 +106,7 @@ export function MealCard({
                 to="/diary-meal"
                 search={target}
                 aria-label={`${name}, ${fmt0(kcal)} kcal`}
-                className="-mr-2 flex min-h-11 shrink-0 items-center gap-2 rounded-lg pr-2 pl-1 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                className={cn(inlineTargetClass, 'shrink-0 gap-2')}
               >
                 <span className="tabular text-sm font-normal text-muted-foreground">{fmt0(kcal)} kcal</span>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -255,7 +256,7 @@ export function EmptyMealCard({
         preload="intent"
         onClick={startLogging}
         search={target}
-        className="mx-4 mb-4 flex h-11 w-[calc(100%-2rem)] items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        className={cn(dashedAddClass, 'mx-4 mb-4 h-11 w-[calc(100%-2rem)]')}
       >
         Essen eintragen
       </Link>
@@ -289,7 +290,7 @@ export function AddMealLink({ date, next }: { date: ISODate; next: MealChoice['n
           preload="intent"
           onClick={startLogging}
           search={{ date, meal: next.slot, dm: 'new' }}
-          className="flex h-11 items-center justify-center gap-2 rounded-xl border border-dashed border-input text-sm font-medium text-muted-foreground transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className={cn(dashedAddClass, 'h-11')}
         >
           <Plus className="size-4" aria-hidden />
           Mahlzeit hinzufügen
@@ -503,10 +504,7 @@ function EntryRow({
         to={e.source === 'quick' ? '/quick-add' : '/entry/$entryId'}
         params={{ entryId: e.id }}
         search={e.source === 'quick' ? { date, meal, entryId: e.id } : undefined}
-        className={cn(
-          'flex min-h-14 items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none',
-          className,
-        )}
+        className={cn(rowClass, 'select-none', className)}
         draggable={false}
       >
         <EntryRowBody entry={e} />
@@ -632,7 +630,7 @@ function GroupRow({
           onCopy={() => onCopy('group', name, entries)}
           disabled={dragging}
         >
-          <div className="relative flex min-h-14 w-full items-center gap-3 px-4 py-2 transition-colors select-none hover:bg-accent/60 has-[a:focus-visible]:bg-accent">
+          <div className={cn(rowWithLinkClass, 'relative w-full select-none')}>
             <GroupRowBody
               photo={
                 photoId && (

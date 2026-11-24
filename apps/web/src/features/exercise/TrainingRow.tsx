@@ -1,5 +1,6 @@
 import { ChevronDown, X } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { rowClass } from '@/components/tappable';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,7 +43,7 @@ export function TrainingRow({
         type="button"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex min-h-14 min-w-0 flex-1 items-center gap-3 px-4 py-2 text-left focus-visible:bg-accent focus-visible:outline-none"
+        className={cn(rowClass, 'min-w-0 flex-1 text-left')}
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
@@ -57,7 +58,10 @@ export function TrainingRow({
         </div>
         <span className="tabular font-semibold text-exercise">+{fmt0(kcal)}</span>
         <ChevronDown
-          className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-4 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none',
+            open && 'rotate-180',
+          )}
           aria-hidden
         />
       </button>

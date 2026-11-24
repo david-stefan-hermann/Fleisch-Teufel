@@ -6,8 +6,9 @@ import {
   type ResolvedTargets,
 } from '@ft/shared';
 import catalog from '@ft/shared/nutrients-catalog.json';
+import { DisclosureRow, TextLink } from '@/components/tappable';
 import { MACRO_BG } from '@/components/MacroBars';
-import { DisclosureTrigger, EnergySplitBar, MacroShareBar, MicroRow } from '@/components/NutrientBreakdown';
+import { EnergySplitBar, MacroShareBar, MicroRow } from '@/components/NutrientBreakdown';
 import { NumberField } from '@/components/NumberField';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
@@ -135,13 +136,9 @@ export function NutrientEditor({
           ) : (
             <>
               {source === 'kj' ? 'aus deinen kJ' : 'eigene Eingabe'} ·{' '}
-              <button
-                type="button"
-                onClick={onResetKcal}
-                className="text-primary underline underline-offset-2 hover:no-underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
+              <TextLink inline onClick={onResetKcal}>
                 aus Makros berechnen
-              </button>
+              </TextLink>
             </>
           ))}
       </p>
@@ -172,7 +169,7 @@ export function NutrientEditor({
       </ul>
 
       <Collapsible defaultOpen={defaultMicrosOpen} className="mt-2 border-t border-border/70 pt-1.5">
-        <DisclosureTrigger className="min-h-11 text-sm font-semibold">Weitere Nährstoffe</DisclosureTrigger>
+        <DisclosureRow>Weitere Nährstoffe</DisclosureRow>
         <CollapsibleContent>
           <ul className="grid gap-3 pt-1 pb-1">
             {MICRO_NUTRIENTS.map((code) => {
@@ -190,7 +187,7 @@ export function NutrientEditor({
             })}
           </ul>
           <Collapsible className="mt-2">
-            <DisclosureTrigger className="min-h-10 text-[0.8125rem]">Alle 10 Nährstoffe</DisclosureTrigger>
+            <DisclosureRow>Alle 10 Nährstoffe</DisclosureRow>
             <CollapsibleContent>
               <dl className="grid text-xs">
                 {ALL.map((c) => (

@@ -1,11 +1,12 @@
-import { ChevronDown, LoaderCircle } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { SectionToggle, TextLink } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { MealPhoto, PhotoCount } from '@/components/MealPhoto';
 import { Section } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import type { AiQueueItem } from '@/db/dexie';
 import { fmtTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -41,13 +42,7 @@ export function QueueList({ queue, onOpen }: { queue: AiQueueItem[]; onOpen: (lo
           writeQueueOpen(next);
         }}
       >
-        <CollapsibleTrigger className="group flex min-h-12 w-full items-center justify-between gap-2 px-4 text-left hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none">
-          <h2 className="text-base font-semibold">Offene Analysen ({queue.length})</h2>
-          <ChevronDown
-            className="size-5 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 motion-reduce:transition-none"
-            aria-hidden
-          />
-        </CollapsibleTrigger>
+        <SectionToggle>Offene Analysen ({queue.length})</SectionToggle>
         <CollapsibleContent>
           <ul className="divide-y divide-border/70 border-t border-border/70">
             {queue.map((q) => (
@@ -121,13 +116,9 @@ function QueueRow({ item, onOpen }: { item: AiQueueItem; onOpen: () => void }) {
               </div>
             </button>
             {failed && (
-              <button
-                type="button"
-                onClick={() => void retryQueueItem(db, item.localId!)}
-                className="-my-1 rounded-md py-2 pr-3 text-sm font-medium text-primary underline underline-offset-2 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
+              <TextLink onClick={() => void retryQueueItem(db, item.localId!)} className="-my-1 py-2 pr-3">
                 Wiederholen
-              </button>
+              </TextLink>
             )}
           </div>
         </div>

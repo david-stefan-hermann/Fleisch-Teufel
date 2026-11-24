@@ -32,4 +32,21 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: { ...reactHooks.configs.recommended.rules },
   },
+  {
+    // One design language for tappable elements (docs/plans/2026-11-bedienelemente.md).
+    files: ['apps/web/**/*.tsx'],
+    ignores: ['apps/web/src/components/ui/**', 'apps/web/src/components/tappable.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...[
+          'Literal[value=/hover:bg-accent|(^|\\s)underline(\\s|$)/]',
+          'TemplateElement[value.raw=/hover:bg-accent|(^|\\s)underline(\\s|$)/]',
+        ].map((selector) => ({
+          selector,
+          message: 'Use rowClass, InlineTarget, FooterRow or TextLink from components/tappable',
+        })),
+      ],
+    },
+  },
 );

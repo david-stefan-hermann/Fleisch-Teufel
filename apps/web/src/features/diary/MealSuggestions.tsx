@@ -2,6 +2,7 @@ import { get, N, sameMealName } from '@ft/shared';
 import { History } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
+import { choiceHoverClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import type { UserDb } from '@/db/dexie';
 import { prepareMealTarget, type MealRef } from '@/db/diaryMeals';
@@ -122,7 +123,10 @@ function Chip({
       disabled={disabled}
       onClick={onClick}
       aria-label={`${title}, ${detail}, eintragen`}
-      className="grid h-11 max-w-44 min-w-0 content-center rounded-xl border border-border bg-background px-3 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+      className={cn(
+        'grid h-11 max-w-44 min-w-0 content-center rounded-xl border border-border bg-background px-3 text-left transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50',
+        choiceHoverClass,
+      )}
     >
       <span className="flex items-center gap-1 truncate text-sm font-medium">
         {icon}

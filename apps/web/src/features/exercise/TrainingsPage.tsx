@@ -3,6 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Bookmark, Pin, Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { rowClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { Page } from '@/components/Page';
 import { SwipeToDelete } from '@/components/SwipeToDelete';
@@ -67,11 +68,7 @@ export function TrainingsPage() {
                   });
                 }}
               >
-                <Link
-                  to="/trainings/$templateId"
-                  params={{ templateId: t.id }}
-                  className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-accent/60 focus-visible:bg-accent focus-visible:outline-none"
-                >
+                <Link to="/trainings/$templateId" params={{ templateId: t.id }} className={rowClass}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 font-medium">
                       <Icon

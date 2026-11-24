@@ -16,6 +16,7 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { textLinkClass } from '@/components/tappable';
 import { useDb } from '@/app/session';
 import { DiscardDialog } from '@/components/DiscardDialog';
 import { NumberField } from '@/components/NumberField';
@@ -226,7 +227,7 @@ function ProfileForm({ initial, weightKg }: { initial: Settings; weightKg: numbe
         </div>
       </Section>
       <p className="mt-3 text-center text-sm text-muted-foreground">
-        <Link to="/onboarding" className="text-primary underline">
+        <Link to="/onboarding" className={textLinkClass({ inline: true })}>
           Ziele neu berechnen
         </Link>
       </p>
