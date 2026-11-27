@@ -190,6 +190,8 @@ export const contextDaySchema = z.object({
     .array(z.object({ id, name: z.string().max(120), minutes: z.number(), intensity: intensitySchema }))
     .max(40),
   weightKg: z.number().nullable(),
+  /** The day was closed ("Tag abschließen"). Older app versions send nothing. */
+  closed: z.boolean().optional(),
 });
 export type ContextDay = z.infer<typeof contextDaySchema>;
 
@@ -205,18 +207,23 @@ export const recentUtteranceSchema = z.object({
 
 /**
  * What the device knows and the server may not yet (the device is the truth: the sync can lag): the
- * time, the diary of today and yesterday with entry ids, targets, the last three utterances, where the
- * previous one wrote and an open question.
+ * time, the app's day, the diary of today and yesterday (and of an earlier day the diary shows) with
+ * entry ids, targets, the last three utterances, where the previous one wrote and an open question.
  */
 export const assistantContextSchema = z.object({
   /** Local time of the utterance, "YYYY-MM-DDTHH:MM". */
   now: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+  /**
+   * The app's day at that moment: the calendar day of `now`, or the one before until the account's
+   * day starts (`settings.dayStartHour`). Older app versions send none: then it is the day of `now`.
+   */
+  today: isoDateSchema.optional(),
   /** The day the diary showed when the person spoke. */
   shownDate: isoDateSchema,
   mealNames: z.array(z.string().trim().min(1).max(40)).length(MEAL_COUNT),
   targets: z.object({ kcal: z.number().nullable(), proteinG: z.number().nullable() }).nullable(),
-  /** Today and yesterday. */
-  days: z.array(contextDaySchema).max(2),
+  /** Today and yesterday, then the shown day when it is an earlier one. */
+  days: z.array(contextDaySchema).max(3),
   recent: z.array(recentUtteranceSchema).max(3).default([]),
   /** Day and meal the directly previous utterance wrote to. */
   previousTarget: z

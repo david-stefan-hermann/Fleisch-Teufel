@@ -279,12 +279,30 @@ describe('new meals', () => {
 });
 
 describe('times', () => {
-  it('knows the night only up to five in the morning', () => {
+  it('knows the night only up to the start of the day', () => {
     expect(canBeNight(4)).toBe(true);
     expect(canBeNight(5)).toBe(false);
+    expect(canBeNight(2, 3)).toBe(true);
+    expect(canBeNight(3, 3)).toBe(false);
+    expect(canBeNight(6, 7)).toBe(true);
+    // A day that starts at midnight keeps the range the app always had.
+    expect(canBeNight(4, 0)).toBe(true);
+    expect(canBeNight(5, 0)).toBe(false);
+  });
+
+  it('keeps the moon of a meal whatever the start of the day is now', () => {
     expect(isNightOf(DATE, eatenAtOf(DATE, 4, 59, true))).toBe(true);
-    expect(isNightOf(DATE, eatenAtOf(DATE, 5, 0, true))).toBe(false);
+    expect(isNightOf(DATE, eatenAtOf(DATE, 6, 30, true))).toBe(true);
     expect(isNightOf(DATE, at(4))).toBe(false);
+  });
+
+  it('takes a logging after midnight as the time of a new meal of the day before', () => {
+    const night = eatenAtOf(DATE, 1, 30, true);
+    expect(newMealEatenAt(DATE, 'Snacks', NAMES, night)).toBe(night);
+    expect(newMealEatenAt(DATE, 'Snacks', NAMES, night, 1)).not.toBe(night);
+    const late = eatenAtOf(DATE, 6, 30, true);
+    expect(newMealEatenAt(DATE, 'Snacks', NAMES, late)).not.toBe(late);
+    expect(newMealEatenAt(DATE, 'Snacks', NAMES, late, 7)).toBe(late);
   });
 
   it('keeps the wall clock across a change to summer and winter time', () => {

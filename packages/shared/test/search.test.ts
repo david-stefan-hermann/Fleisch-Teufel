@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { indexItem, normalize, search, searchKey } from '../src/search.js';
+import { indexItem, normalize, queryTerms, queryWords, search, searchKey } from '../src/search.js';
 
 const foods = [
   { id: '1', name: 'Hühnerei roh' },
@@ -103,5 +103,22 @@ describe('search rules', () => {
   it('searches brands and meal ingredients with less weight', () => {
     expect(ids('arla')).toEqual(['off']);
     expect(ids('butter')).toEqual(['meal']);
+  });
+});
+
+describe('queryTerms', () => {
+  it('keeps the words that count, as typed', () => {
+    expect(queryTerms('Skyr - Gut und Günstig')).toEqual(['skyr', 'gut', 'günstig']);
+    expect(queryTerms('gut & günstig skyr')).toEqual(['gut', 'günstig', 'skyr']);
+    expect(queryWords('Skyr Gut&Günstig')).toEqual(['skyr', 'gut', 'gunstig']);
+    expect(queryTerms(' & ')).toEqual([]);
+  });
+
+  it('drops a last word that is only the start of a stop word', () => {
+    expect(queryTerms('skyr gut u')).toEqual(['skyr', 'gut']);
+    expect(queryTerms('skyr gut un')).toEqual(['skyr', 'gut']);
+    // Alone it is the whole query, and in the middle it is a word.
+    expect(queryTerms('u')).toEqual(['u']);
+    expect(queryTerms('u skyr')).toEqual(['u', 'skyr']);
   });
 });

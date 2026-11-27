@@ -1,4 +1,4 @@
-import { today } from '@ft/shared';
+import { today } from './day';
 import { useRouter } from '@tanstack/react-router';
 import { knowsMeal, prepareMealTarget, type LogTarget, type MealRef } from '@/db/diaryMeals';
 import type { UserDb } from '@/db/dexie';

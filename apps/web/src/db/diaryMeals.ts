@@ -81,7 +81,11 @@ export type EntryMealPlace = Pick<FoodEntry, 'id' | 'meal' | 'diaryMealId'>;
 async function mealNames(db: UserDb) {
   const settings = await db.settings.get(SETTINGS_ID);
   const standard = settings?.mealNames ?? [...DEFAULT_MEAL_NAMES];
-  return { standard, unrecorded: settings?.legacyMealNames ?? standard };
+  return {
+    standard,
+    unrecorded: settings?.legacyMealNames ?? standard,
+    dayStartHour: settings?.dayStartHour ?? null,
+  };
 }
 
 /**
@@ -157,7 +161,14 @@ async function buildDay(
     ...entries,
     ...pending.map((p) => ({ diaryMealId: p.diaryMealId })),
   ]);
-  return buildDayMeals({ date, entries, records, pending, names: names.unrecorded });
+  return buildDayMeals({
+    date,
+    entries,
+    records,
+    pending,
+    names: names.unrecorded,
+    dayStartHour: names.dayStartHour,
+  });
 }
 
 /** The meals of a day as the diary shows them. */
@@ -245,14 +256,14 @@ export async function prepareMealTarget(db: UserDb, ref: MealRef, at = Date.now(
   if (!dm) return { date, meal, diaryMealId: null };
   const day = await readPlannedDay(db, date);
   if (dm === 'new') {
-    const { standard } = await mealNames(db);
+    const { standard, dayStartHour } = await mealNames(db);
     const name = ref.name?.trim() || nextMealName(standard, day);
     const slot = slotForNewMeal(name, standard, day);
     return {
       date,
       meal: slot,
       diaryMealId: uuidv7(),
-      create: { name, eatenAt: newMealEatenAt(date, name, standard, at) },
+      create: { name, eatenAt: newMealEatenAt(date, name, standard, at, dayStartHour) },
       ...keepSharing(day, date, slot),
     };
   }
@@ -420,11 +431,11 @@ export async function moveEntriesToNewDiaryMeal(
       (e): e is FoodEntry => !!e && !e.deleted && e.date === date,
     );
     if (entries.length === 0) return null;
-    const { standard } = await mealNames(db);
+    const { standard, dayStartHour } = await mealNames(db);
     const youngest = Math.max(...entries.map((e) => e.loggedAt));
     const { meal, diaryMealId } = await applyLogTarget(db, {
       ...target,
-      create: { name, eatenAt: newMealEatenAt(date, name, standard, youngest) },
+      create: { name, eatenAt: newMealEatenAt(date, name, standard, youngest, dayStartHour) },
     });
     const into = { id: diaryMealId!, slot: meal };
     return {

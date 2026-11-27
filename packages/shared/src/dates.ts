@@ -28,8 +28,38 @@ export function parseISODate(value: ISODate): Date {
   return new Date(y, m - 1, d);
 }
 
-export function today(now: Date = new Date()): ISODate {
-  return toISODate(now);
+/** The hour the app's day begins at unless the account chose another (`settings.dayStartHour`). */
+export const DEFAULT_DAY_START_HOUR = 5;
+/** The hours the setting offers. */
+export const DAY_START_HOURS = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const;
+
+/** The hour of the setting: null (never set) is the default. */
+export function dayStartOf(setting: number | null | undefined): number {
+  return setting ?? DEFAULT_DAY_START_HOUR;
+}
+
+/**
+ * The app's day of a moment: the calendar day, or the one before while the clock has not reached
+ * the day's start (`settings.dayStartHour`, null = `DEFAULT_DAY_START_HOUR`). The one place that
+ * says what "today" is; steps alone stay on the calendar day (`toISODate`).
+ */
+export function today(now: Date = new Date(), dayStartHour?: number | null): ISODate {
+  const day = toISODate(now);
+  return now.getHours() < dayStartOf(dayStartHour) ? addDays(day, -1) : day;
+}
+
+/** The moment the app's day of `now` ends: the next start of a day on the local clock. */
+export function nextDayStart(now: Date = new Date(), dayStartHour?: number | null): Date {
+  const d = parseISODate(addDays(today(now, dayStartHour), 1));
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), dayStartOf(dayStartHour));
+}
+
+/**
+ * Until this hour a time after midnight can belong to the evening before ("Nacht auf"): the day's
+ * start; with a day that starts at midnight the range the app always had.
+ */
+export function nightEndHour(dayStartHour?: number | null): number {
+  return dayStartOf(dayStartHour) || DEFAULT_DAY_START_HOUR;
 }
 
 export function addDays(date: ISODate, days: number): ISODate {

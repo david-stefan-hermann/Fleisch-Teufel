@@ -1,6 +1,8 @@
-import { today, uuidv7, type AssistantTurnResult, type Food } from '@ft/shared';
+import { dayId, today, uuidv7, type AssistantTurnResult, type Food } from '@ft/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserDb } from '@/db/dexie';
+import { saveSettings } from '@/db/settings';
+import { saveRecord } from '@/db/write';
 import {
   contextFor,
   discardTurn,
@@ -183,8 +185,15 @@ describe('assistant queue', () => {
     const lunch = `dm:${TODAY}:1`;
     expect(ctx.previousTarget).toEqual({ date: TODAY, meal: 1, diaryMealId: lunch });
     // The meals of the day as the diary shows them, every entry in its meal.
+    // Before the day's start the meal is one of the night (the test runs on the real clock).
     expect(ctx.days[0]!.meals).toEqual([
-      { id: lunch, name: 'Mittagessen', time: expect.stringMatching(/^\d\d:\d\d$/), night: false, slot: 1 },
+      {
+        id: lunch,
+        name: 'Mittagessen',
+        time: expect.stringMatching(/^\d\d:\d\d$/),
+        night: new Date().getHours() < 5,
+        slot: 1,
+      },
     ]);
     expect(ctx.days[0]!.entries).toEqual([
       expect.objectContaining({ name: 'Magerquark', diaryMealId: lunch }),
@@ -235,6 +244,40 @@ describe('assistant queue', () => {
     await done(waited - 10 * 60_000, 'Zwei Eier');
     await done(waited - RECENT_UTTERANCE_MS - 60_000, 'Brot');
     expect((await contextFor(d, next(waited))).recent.map((r) => r.said)).toEqual(['Zwei Eier']);
+  });
+
+  it('sends the day of the app, and the shown day with its closed flag when it lies further back', async () => {
+    const d = db();
+    // 01:30 on the 14th: with the day starting at 5 it is still the 13th.
+    const night = new Date(2026, 10, 14, 1, 30).getTime();
+    const turn = (shownDate: string) => ({
+      requestId: uuidv7(),
+      createdAt: night,
+      source: 'text' as const,
+      shownDate,
+      status: 'waiting' as const,
+    });
+    await saveRecord(d, 'dayNotes', {
+      id: dayId.note('2026-11-10'),
+      date: '2026-11-10',
+      note: '',
+      completedAt: night - 86_400_000,
+    });
+    const ctx = await contextFor(d, turn('2026-11-10'));
+    expect(ctx.now).toBe('2026-11-14T01:30');
+    expect(ctx.today).toBe('2026-11-13');
+    expect(ctx.days.map((x) => [x.date, x.closed])).toEqual([
+      ['2026-11-13', false],
+      ['2026-11-12', false],
+      ['2026-11-10', true],
+    ]);
+    // Yesterday is in the list anyway.
+    expect((await contextFor(d, turn('2026-11-12'))).days).toHaveLength(2);
+
+    await saveSettings(d, { dayStartHour: 0 });
+    const midnight = await contextFor(d, turn('2026-11-13'));
+    expect(midnight.today).toBe('2026-11-14');
+    expect(midnight.days.map((x) => x.date)).toEqual(['2026-11-14', '2026-11-13']);
   });
 
   it('drops a discarded turn, also when its answer arrives late', async () => {

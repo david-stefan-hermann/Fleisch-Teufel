@@ -1,7 +1,7 @@
 /**
  * The food search the model uses during a photo analysis (`search_foods`). It sees what the person
- * would find: BLS and cached OFF products, the person's own foods, a live OFF search when little
- * turns up locally, and marks for foods chosen in earlier reviews or logged often. Every food handed
+ * would find: BLS and cached OFF products, the person's own foods, the branded products of Open Food
+ * Facts when little turns up locally (always for the assistant), and marks for foods chosen in earlier reviews or logged often. Every food handed
  * to the model is kept in `seen`: only those ids are accepted as its choice.
  */
 import {
@@ -155,8 +155,13 @@ export async function createFoodSearch(
       }
       const chosenIds = new Set(chosen.map((f) => f.id));
 
+      // The assistant hears brand names ("Skyr von Gut & Günstig"): with the own product catalog its
+      // search always covers the branded products, ranked together with everything else.
+      const brands =
+        opts.detail && catalog.hasCatalog ? await catalog.searchCatalogHits(query, SEARCH_LIMIT) : [];
       const local = [
         ...catalog.searchLocal(query, SEARCH_LIMIT),
+        ...brands,
         ...search(ownIndex, query, SEARCH_LIMIT, () => OWN_BOOST).map((h) => ({
           food: h.item,
           score: h.score,

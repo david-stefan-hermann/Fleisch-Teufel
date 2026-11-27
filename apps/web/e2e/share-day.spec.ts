@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { shiftDay } from './days';
+import { appDay, shiftDay } from './days';
 
 test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet', async ({ page }) => {
   await page.context().addInitScript(() => {
@@ -51,7 +51,9 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
     w.__mealInImage = false;
     new MutationObserver(() => {
       const text = document.querySelector('body > div[style*="-10000px"]')?.textContent ?? '';
-      if (text.includes(`${time}Frühstück`)) w.__mealInImage = true;
+      // A meal logged before the day start carries "Nacht auf <Tag>" between time and name.
+      const at = text.indexOf(time!);
+      if (at >= 0 && text.slice(at, at + 40).includes('Frühstück')) w.__mealInImage = true;
     }).observe(document.body, { childList: true, subtree: true });
   }, time);
 
@@ -69,10 +71,7 @@ test('Tag teilen: dialog with defaults, a PNG of the day goes to the share sheet
 
   await dialog.getByRole('button', { name: 'Teilen' }).click();
   await expect(dialog).toBeHidden({ timeout: 20_000 });
-  const today = await page.evaluate(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
+  const today = await appDay(page);
   const shared = await page.evaluate(() => (window as unknown as { __shared: unknown[] }).__shared);
   expect(shared).toEqual([
     { name: `fleisch-teufel_tagebuch_${today}.png`, type: 'image/png', size: expect.any(Number) },

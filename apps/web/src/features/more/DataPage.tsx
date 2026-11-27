@@ -1,4 +1,4 @@
-import { SYNC_TABLES, today } from '@ft/shared';
+import { SYNC_TABLES } from '@ft/shared';
 import { useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Copy, Download, RefreshCw, Upload } from 'lucide-react';
@@ -13,6 +13,7 @@ import { createBackup, parseBackup, restoreBackup } from '@/db/backup';
 import { countRejectedPhotos } from '@/db/photos';
 import { rejectedReason, rejectedTitle, TABLE_LABELS } from '@/features/more/rejectedRecords';
 import { canShareFiles, shareOrDownloadText } from '@/features/reports/export';
+import { today } from '@/lib/day';
 import { clearErrorLog, errorLogText, useErrorLog } from '@/lib/errorLog';
 import { errorMessage } from '@/lib/api';
 import { fmtAgo, fmt0, fmt1, fmtTime, fmtDate } from '@/lib/format';

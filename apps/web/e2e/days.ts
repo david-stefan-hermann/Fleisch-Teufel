@@ -1,20 +1,41 @@
 import { expect, type Page } from '@playwright/test';
 
+/** The hour a day of the app begins at (shared `DEFAULT_DAY_START_HOUR`): before it, it is still yesterday. */
+const DAY_START_HOUR = 5;
+
+/**
+ * The app's day `offset` days from its today, as the browser of the test sees it: the calendar day,
+ * or the one before while the clock is before the day start.
+ */
+export function appDay(page: Page, offset = 0): Promise<string> {
+  return page.evaluate(
+    ([d, start]) => {
+      const t = new Date();
+      if (t.getHours() < start!) t.setDate(t.getDate() - 1);
+      t.setDate(t.getDate() + d!);
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    },
+    [offset, DAY_START_HOUR],
+  );
+}
+
 /**
  * Moves the diary `delta` days through the week strip (the header has no day arrows): week arrows
  * until the target day is in the strip, then its day link. Works in both strip modes and on every
  * weekday (on a Monday yesterday is in the previous week).
  */
 export async function shiftDay(page: Page, delta: number): Promise<void> {
-  const { from, target, today } = await page.evaluate((d) => {
-    const iso = (t: Date) =>
-      `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-    const now = new Date();
-    const today = iso(now);
-    const from = new URLSearchParams(location.search).get('date') ?? today;
-    const [y, m, day] = from.split('-').map(Number);
-    return { from, today, target: iso(new Date(y!, m! - 1, day! + d)) };
-  }, delta);
+  const today = await appDay(page);
+  const { from, target } = await page.evaluate(
+    ([d, today]) => {
+      const iso = (t: Date) =>
+        `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      const from = new URLSearchParams(location.search).get('date') ?? (today as string);
+      const [y, m, day] = from.split('-').map(Number);
+      return { from, target: iso(new Date(y!, m! - 1, day! + (d as number))) };
+    },
+    [delta, today] as const,
+  );
   const strip = page.locator('ol').filter({ has: page.locator('a[aria-current]') });
   const dayLink = (d: string) =>
     strip.getByRole('link', { name: new RegExp(`^${DAY_NAME.format(noon(d))}(,|$)`) });

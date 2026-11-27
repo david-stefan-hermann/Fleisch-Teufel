@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   addStepsCalories: null,
   customMealNames: null,
   legacyMealNames: null,
+  dayStartHour: null,
 };
 
 /**

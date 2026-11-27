@@ -2,12 +2,14 @@
  * Housekeeping that runs at start and once a day: photos nobody references any more, sessions that
  * expired, and cached Open Food Facts products nobody uses. All grow without bound otherwise (every
  * analysed plate stays as bytea forever, every online search keeps up to 50 products in memory).
+ * The same timer renews the own product catalog once a week (`off/import.ts`).
  */
 import { ASSISTANT_AUDIO_DAYS } from '@ft/shared';
 import { sql } from 'drizzle-orm';
 import type { Db } from './db/client.js';
 import type { FoodCatalog } from './foods/catalog.js';
 import { log } from './log.js';
+import { importOffCatalog, offImportDue } from './off/import.js';
 
 /** A photo must be this old before it may go: a device may still be about to push the meal that uses it. */
 export const PHOTO_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -89,10 +91,32 @@ export async function runMaintenance(db: Db, catalog?: FoodCatalog): Promise<voi
   }
 }
 
+/** Where the weekly import of the product catalog reads OFF's export from. */
+export interface OffImportSource {
+  url: string;
+  userAgent: string;
+}
+
+/** Imports OFF's export into `off_catalog` when the weekly run is due. Never throws. */
+export async function runOffImport(db: Db, catalog: FoodCatalog, source: OffImportSource): Promise<void> {
+  try {
+    if (!(await offImportDue(db))) return;
+    log.info('OFF catalog import started');
+    await importOffCatalog(db, source.url, source.userAgent);
+    await catalog.refreshCatalog();
+  } catch (e) {
+    log.warn('OFF catalog import failed', { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
 /** Runs the housekeeping now and then daily; the timer never keeps the process alive. */
-export function startMaintenance(db: Db, catalog?: FoodCatalog): () => void {
-  void runMaintenance(db, catalog);
-  const timer = setInterval(() => void runMaintenance(db, catalog), DAY_MS);
+export function startMaintenance(db: Db, catalog?: FoodCatalog, offImport?: OffImportSource): () => void {
+  const run = async () => {
+    await runMaintenance(db, catalog);
+    if (catalog && offImport) await runOffImport(db, catalog, offImport);
+  };
+  void run();
+  const timer = setInterval(() => void run(), DAY_MS);
   timer.unref();
   return () => clearInterval(timer);
 }

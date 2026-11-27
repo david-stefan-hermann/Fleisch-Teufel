@@ -93,7 +93,8 @@ export async function createTurnHost(
   aliases: Aliases,
 ): Promise<{ host: ToolHost; state: TurnState }> {
   const { db } = deps;
-  const today = ctx.now.slice(0, 10);
+  // The app's day as the device counts it (the account's start of the day); older apps: the calendar.
+  const today = ctx.today ?? ctx.now.slice(0, 10);
   const yesterday = addDays(today, -1);
   const state: TurnState = { ops: [], question: null };
 
@@ -160,16 +161,23 @@ export async function createTurnHost(
   for (const d of ctx.days) if (d.meals) knowMeals(d.date, d.meals);
 
   /** Names of meals without a record, as the account's settings had them before the first rename. */
-  let unrecordedNames: string[] | null = null;
+  let unrecorded: { names: string[]; dayStartHour: number | null } | null = null;
   const namesOfUnrecorded = async () => {
-    if (!unrecordedNames) {
+    if (!unrecorded) {
       const [row] = await db
-        .select({ mealNames: userSettings.mealNames, legacy: userSettings.legacyMealNames })
+        .select({
+          mealNames: userSettings.mealNames,
+          legacy: userSettings.legacyMealNames,
+          dayStartHour: userSettings.dayStartHour,
+        })
         .from(userSettings)
         .where(eq(userSettings.userId, userId));
-      unrecordedNames = row?.legacy ?? row?.mealNames ?? [...ctx.mealNames];
+      unrecorded = {
+        names: row?.legacy ?? row?.mealNames ?? [...ctx.mealNames],
+        dayStartHour: row?.dayStartHour ?? null,
+      };
     }
-    return unrecordedNames;
+    return unrecorded;
   };
 
   /** A day from the server's records: live entries and the meals they show in (`buildDayMeals`). */
@@ -202,7 +210,8 @@ export async function createTurnHost(
       date: d,
       entries,
       records: [...records, ...elsewhere] as unknown as DiaryMeal[],
-      names,
+      names: names.names,
+      dayStartHour: names.dayStartHour,
     });
     const mealOfEntry = new Map(meals.flatMap((m) => m.entries.map((e) => [e.id, m.id] as const)));
     if (listsMeals && !dayMeals.has(d)) knowMeals(d, meals);
@@ -356,6 +365,7 @@ export async function createTurnHost(
   const getDay = async (input: Input) => {
     const d = date(input.date);
     if (d === today || d === yesterday) return 'Today and yesterday are in the prompt.';
+    if (ctx.days.some((x) => x.date === d)) return 'That day is in the prompt.';
     const [{ rows: entries, meals: ofDay, mealOfEntry }, trainings, weights] = await Promise.all([
       readServerDay(d),
       db

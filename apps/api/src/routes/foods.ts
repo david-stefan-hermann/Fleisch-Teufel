@@ -8,7 +8,7 @@ export function foodRoutes({ db, catalog }: Deps) {
   const app = new Hono<AppEnv>();
   app.use('*', requireUser(db));
 
-  /** Online search in Open Food Facts (the device searches BLS itself, offline). */
+  /** Branded products (the own Open Food Facts catalog); the device searches BLS itself, offline. */
   app.get('/search', async (c) => {
     const q = (c.req.query('q') ?? '').trim();
     const limit = Math.min(50, Math.max(1, Number(c.req.query('limit') ?? 20) || 20));

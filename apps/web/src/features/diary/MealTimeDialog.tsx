@@ -14,6 +14,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Wheel } from '@/components/Wheel';
 import { setDiaryMealTime, type DiaryDayMeal } from '@/db/diaryMeals';
+import { useSettings } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { fmtDayShort, fmtTime, fmtWeekdayShort } from '@/lib/format';
 
@@ -43,11 +44,13 @@ export function MealTimeDialog({
 function MealTimeForm({ meal, onClose }: { meal: DiaryDayMeal; onClose: () => void }) {
   const db = useDb();
   const { run, busy } = useSubmitting();
+  // The night after a day reaches up to the start of the next one (the account's setting).
+  const dayStartHour = useSettings()?.dayStartHour;
   const start = new Date(meal.eatenAt);
   const [hour, setHour] = useState(start.getHours());
   const [minute, setMinute] = useState(start.getMinutes());
   const [night, setNight] = useState(meal.night);
-  const nightAllowed = canBeNight(hour);
+  const nightAllowed = canBeNight(hour, dayStartHour);
   const eatenAt = eatenAtOf(meal.date, hour, minute, night && nightAllowed);
   // What the dialog shows against what it started with: `meal.eatenAt` has seconds (the first entry's time).
   const changed =
@@ -55,8 +58,8 @@ function MealTimeForm({ meal, onClose }: { meal: DiaryDayMeal; onClose: () => vo
 
   const turnHour = (h: number) => {
     setHour(h);
-    // From five o'clock on a time is on the meal's own day again.
-    if (!canBeNight(h)) setNight(false);
+    // From the start of the day on a time is on the meal's own day again.
+    if (!canBeNight(h, dayStartHour)) setNight(false);
   };
 
   async function apply() {

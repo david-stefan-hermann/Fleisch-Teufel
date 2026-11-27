@@ -38,7 +38,7 @@ export function assistantTools(): Tool[] {
     {
       name: 'get_day',
       description:
-        'Read entries, trainings and weight of a day other than today and yesterday (those are in the prompt).',
+        'Read entries, trainings and weight of a day that is not in the prompt (today, yesterday and the day the diary shows are).',
       input_schema: obj({ date }, ['date']),
     },
     {

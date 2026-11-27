@@ -148,6 +148,20 @@
       "when": 1795054795488,
       "tag": "0020_diary-meals",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795750277532,
+      "tag": "0021_off-catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795750568794,
+      "tag": "0022_day-start",
+      "breakpoints": true
     }
   ]
 }

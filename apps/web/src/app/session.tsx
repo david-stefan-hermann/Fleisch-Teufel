@@ -11,6 +11,7 @@ import { SyncEngine } from '@/sync/syncEngine';
 import { startQueueProcessing } from '@/features/ai/queue';
 import { startAssistantQueue } from '@/features/assistant/queue';
 import { disableReminder } from '@/lib/reminder';
+import { watchDayStart } from '@/lib/day';
 import { recordError } from '@/lib/errorLog';
 
 const USER_KEY = 'ft.user';
@@ -134,6 +135,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     session.sync.start();
     const stopQueue = startQueueProcessing(session.db);
     const stopAssistant = startAssistantQueue(session.db);
+    const stopDay = watchDayStart(session.db);
     // Background check of the server session.
     endpoints.me().then(
       () => setNeedsReauth(false),
@@ -145,6 +147,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       session.sync.stop();
       stopQueue();
       stopAssistant();
+      stopDay();
     };
   }, [session]);
 

@@ -7,7 +7,6 @@ import {
   type Portion,
   portionsFor,
   targetsForDate,
-  today,
   uuidv7,
 } from '@ft/shared';
 import { Link, useNavigate, useParams, useRouter, useRouterState, useSearch } from '@tanstack/react-router';
@@ -45,6 +44,7 @@ import { findFood, rememberFood, userPortions, type FoodMiss } from '@/foods/foo
 import { useGoals, useMealChoice, useToday } from '@/hooks/data';
 import { useSubmitting } from '@/hooks/useSubmitting';
 import { editorPortions, isBasePortion, normalizeAmount } from '@/lib/amounts';
+import { today } from '@/lib/day';
 import { goBackOr } from '@/lib/history';
 import { formatInto, openTarget, parseFoodInto, returnFromInto, type FoodInto } from '@/lib/into';
 import { prepareFlowTarget, useReturnToDiary } from '@/lib/logFlow';

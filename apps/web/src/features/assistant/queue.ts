@@ -68,8 +68,12 @@ async function dayOf(db: UserDb, date: ISODate): Promise<ContextDay> {
   ]);
   const mealName = new Map(meals.map((m) => [m.id, m.name]));
   const mealOfEntry = new Map(dayMeals.flatMap((m) => m.entries.map((e) => [e.id, m.id] as const)));
+  const closed = (await db.dayNotes.where('date').equals(date).toArray()).some(
+    (n) => !n.deleted && n.completedAt,
+  );
   return {
     date,
+    closed,
     // The meals as the diary shows them (names of old days as they were, not the renamed ones).
     meals: dayMeals.map((m) => ({
       id: m.id,
@@ -101,14 +105,16 @@ async function dayOf(db: UserDb, date: ISODate): Promise<ContextDay> {
 export const RECENT_UTTERANCE_MS = 3 * 60 * 60_000;
 
 /**
- * What the device tells the server about this utterance: its time, the diary of that day and the day
- * before, targets, the last three utterances of the window before it (`RECENT_UTTERANCE_MS`, counted
+ * What the device tells the server about this utterance: its time, the app's day at that moment
+ * (`settings.dayStartHour`), the diary of that day, the day before and an earlier day the diary
+ * showed, targets, the last three utterances of the window before it (`RECENT_UTTERANCE_MS`, counted
  * from the utterance, so one that waited offline keeps its conversation), where the directly previous
  * one of the window wrote, an open question.
  */
 export async function contextFor(db: UserDb, turn: AssistantTurn): Promise<AssistantContext> {
-  const today = todayOf(new Date(turn.createdAt));
   const settings = (await db.settings.toArray())[0] ?? DEFAULT_SETTINGS;
+  const today = todayOf(new Date(turn.createdAt), settings.dayStartHour);
+  const yesterday = addDays(today, -1);
   const goals = (await db.goals.toArray()).filter((g) => !g.deleted);
   const targets = goals.length ? targetsForDate(goals, today) : null;
   const before = (
@@ -124,10 +130,15 @@ export async function contextFor(db: UserDb, turn: AssistantTurn): Promise<Assis
   const target = prev && !prev.undoneAt ? lastTarget(prev.applied ?? []) : null;
   return {
     now: localStamp(turn.createdAt),
+    today,
     shownDate: turn.shownDate,
     mealNames: settings.mealNames,
     targets: targets ? { kcal: targets.kcal, proteinG: targets.proteinG } : null,
-    days: [await dayOf(db, today), await dayOf(db, addDays(today, -1))],
+    days: [
+      await dayOf(db, today),
+      await dayOf(db, yesterday),
+      ...(turn.shownDate < yesterday ? [await dayOf(db, turn.shownDate)] : []),
+    ],
     recent: before.slice(-3).map((t) => ({
       date: localStamp(t.createdAt).slice(0, 10),
       at: localStamp(t.createdAt).slice(11),
@@ -294,7 +305,12 @@ async function finishTurn(db: UserDb, turn: AssistantTurn, answer: AssistantTurn
     result = await applyOps(
       db,
       answer.ops,
-      { now: turn.createdAt, today: todayOf(new Date(turn.createdAt)), mealNames: settings.mealNames },
+      {
+        now: turn.createdAt,
+        today: todayOf(new Date(turn.createdAt), settings.dayStartHour),
+        dayStartHour: settings.dayStartHour,
+        mealNames: settings.mealNames,
+      },
       async (r) => {
         // Discarded meanwhile (swipe in the history): nothing of it may land in the diary.
         const now = await db.assistantTurns.get(turn.localId!);

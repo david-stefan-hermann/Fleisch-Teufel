@@ -66,7 +66,11 @@ export async function main() {
   const here = dirname(fileURLToPath(import.meta.url));
   const webDist = env.WEB_DIST ?? resolve(here, 'public');
   const app = createApp(deps, { webDist });
-  const stopMaintenance = startMaintenance(deps.db, deps.catalog);
+  const offImport =
+    env.OFF_IMPORT === 'on' || (env.OFF_IMPORT === 'auto' && env.NODE_ENV === 'production')
+      ? { url: env.OFF_DUMP_URL, userAgent: `FleischTeufel/${VERSION} (${env.OFF_CONTACT_EMAIL})` }
+      : undefined;
+  const stopMaintenance = startMaintenance(deps.db, deps.catalog, offImport);
   const stopReminders = deps.push ? startReminders(deps.db, deps.push) : () => {};
   const server = serve({ fetch: app.fetch, port: env.PORT, hostname: env.HOST }, (info) => {
     log.info(`${APP_NAME} ${VERSION} listening`, {

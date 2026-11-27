@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { appDay } from './days';
 
 async function register(page: Page) {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
@@ -15,14 +16,7 @@ async function register(page: Page) {
 const mealCard = (page: Page, name: string) =>
   page.locator('section').filter({ has: page.getByRole('heading', { level: 2, name }) });
 
-/** Yesterday as the browser sees it (the app's "today" is the device's local date). */
-async function yesterday(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  });
-}
+const yesterday = (page: Page) => appDay(page, -1);
 
 test('"Zuletzt hier" logs yesterday\'s food again with one tap; "Wie gestern" copies a meal; both undo', async ({
   page,

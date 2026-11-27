@@ -31,9 +31,10 @@ async function saveDiaryMeal(page: Page, mealName: string, name: string) {
  * (its products are sorted into the list).
  */
 async function resultNames(page: Page): Promise<string[]> {
-  const names = page.locator('main ul').first().locator('a .line-clamp-2');
+  const list = page.locator('main ul').first();
+  const names = list.locator('a .line-clamp-2');
   await expect(names.first()).toBeVisible();
-  await expect(page.getByText('Suche Markenprodukte…')).toHaveCount(0, { timeout: 15_000 });
+  await expect(list).not.toHaveAttribute('data-online', 'loading', { timeout: 15_000 });
   return names.allTextContents();
 }
 

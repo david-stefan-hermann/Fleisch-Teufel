@@ -1,14 +1,16 @@
 /**
  * The daily reminder ("Heute noch nichts eingetragen") over Web Push: one subscription per device
  * with a local time of day. Every minute the server looks for subscriptions whose time has come in
- * their own time zone, skips those whose person already logged food today, sends the rest once, and
+ * their own time zone, skips those whose person already logged food today (the app's day: it begins
+ * at the account's `settings.dayStartHour`), sends the rest once, and
  * drops endpoints the push service reports as gone. Forgetting is the most common reason diaries
  * stay empty; one reminder a day, off by default, is the whole feature.
  */
+import { addDays, dayStartOf } from '@ft/shared';
 import { and, eq, sql } from 'drizzle-orm';
 import webPush from 'web-push';
 import type { Db } from './db/client.js';
-import { foodEntries, pushSubscriptions } from './db/schema.js';
+import { foodEntries, pushSubscriptions, userSettings } from './db/schema.js';
 import { log } from './log.js';
 
 export interface PushTarget {
@@ -83,6 +85,14 @@ export function localClock(now: Date, tz: string): { date: string; minutes: numb
   };
 }
 
+/**
+ * The app's day of a local clock: the calendar day, or the one before until the account's day
+ * starts (`settings.dayStartHour`, null = the default).
+ */
+export function appDay(clock: { date: string; minutes: number }, dayStartHour: number | null): string {
+  return clock.minutes < dayStartOf(dayStartHour) * 60 ? addDays(clock.date, -1) : clock.date;
+}
+
 export const REMIND_AT = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
@@ -91,13 +101,13 @@ const minutesOf = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.
 export function dueSubscriptions<T extends { remindAt: string; tz: string; lastSentOn: string | null }>(
   rows: readonly T[],
   now: Date,
-): (T & { localDate: string })[] {
-  const out: (T & { localDate: string })[] = [];
+): (T & { localDate: string; localMinutes: number })[] {
+  const out: (T & { localDate: string; localMinutes: number })[] = [];
   for (const r of rows) {
     if (!REMIND_AT.test(r.remindAt) || !validTimeZone(r.tz)) continue;
     const { date, minutes } = localClock(now, r.tz);
     if (r.lastSentOn === date || minutes < minutesOf(r.remindAt)) continue;
-    out.push({ ...r, localDate: date });
+    out.push({ ...r, localDate: date, localMinutes: minutes });
   }
   return out;
 }
@@ -116,8 +126,8 @@ export const REMINDER_PAYLOAD = JSON.stringify({
 });
 
 /**
- * One pass: sends the reminders that are due to people without a diary entry today (their local
- * day), marks the day as handled when it was sent or skipped (an error retries the next minute),
+ * One pass: sends the reminders that are due to people without a diary entry today (the app's day
+ * on their local clock, `appDay`), marks the calendar day as handled when it was sent or skipped (an error retries the next minute),
  * removes gone endpoints and those that failed for `GIVE_UP_MS`.
  */
 export async function sendReminders(
@@ -128,15 +138,17 @@ export async function sendReminders(
   const result = { sent: 0, skipped: 0, removed: 0, failed: 0 };
   const rows = await db.select().from(pushSubscriptions);
   for (const sub of dueSubscriptions(rows, now)) {
+    const [settings] = await db
+      .select({ dayStartHour: userSettings.dayStartHour })
+      .from(userSettings)
+      .where(and(eq(userSettings.userId, sub.userId), eq(userSettings.deleted, false)))
+      .limit(1);
+    const day = appDay({ date: sub.localDate, minutes: sub.localMinutes }, settings?.dayStartHour ?? null);
     const [logged] = await db
       .select({ id: foodEntries.id })
       .from(foodEntries)
       .where(
-        and(
-          eq(foodEntries.userId, sub.userId),
-          eq(foodEntries.date, sub.localDate),
-          eq(foodEntries.deleted, false),
-        ),
+        and(eq(foodEntries.userId, sub.userId), eq(foodEntries.date, day), eq(foodEntries.deleted, false)),
       )
       .limit(1);
     const handled = () =>

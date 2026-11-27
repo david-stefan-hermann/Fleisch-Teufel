@@ -5,12 +5,13 @@
  * an utterance runs (recording, text, thinking, a question). It steps aside while a dialog is open
  * (Radix, vaul and `FullscreenOverlay` all carry `role=dialog`), unless it is busy with an utterance.
  */
-import { today, type ISODate } from '@ft/shared';
+import { type ISODate } from '@ft/shared';
 import { useRouter, useRouterState } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useSession, useSessionContext } from '@/app/session';
 import { ASSISTANT_SCALE, useAppearance } from '@/lib/appearance';
+import { today } from '@/lib/day';
 import { AssistantButton } from './AssistantButton';
 import { AssistantController } from './controller';
 import { useSkin } from './skins/useSkin';

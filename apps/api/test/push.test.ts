@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pushSubscriptions } from '../src/db/schema.js';
 import { knownPushEndpoint } from '../src/routes/push.js';
 import {
+  appDay,
   dueSubscriptions,
   GIVE_UP_MS,
   localClock,
@@ -65,6 +66,14 @@ describe('local clock', () => {
     expect(dueSubscriptions(rows, at('20:30')).map((r) => r.endpoint)).toEqual(['a', 'd']);
     expect(dueSubscriptions(rows, at('20:30'))[0]!.localDate).toBe('2026-10-24');
     expect(dueSubscriptions(rows, at('19:59'))).toEqual([]);
+  });
+
+  it('counts the hours before the start of the day for the day before', () => {
+    expect(appDay({ date: '2026-11-01', minutes: 90 }, null)).toBe('2026-10-31');
+    expect(appDay({ date: '2026-11-01', minutes: 5 * 60 }, null)).toBe('2026-11-01');
+    expect(appDay({ date: '2026-11-01', minutes: 90 }, 0)).toBe('2026-11-01');
+    expect(appDay({ date: '2026-11-01', minutes: 3 * 60 - 1 }, 3)).toBe('2026-10-31');
+    expect(appDay({ date: '2026-11-01', minutes: 3 * 60 }, 3)).toBe('2026-11-01');
   });
 });
 
@@ -230,6 +239,44 @@ describe('sending reminders', () => {
       lastSentOn: '2026-10-21',
       failingSince: null,
     });
+  });
+
+  it('asks for the day of the app: before its start that is the day before', async () => {
+    await ctx.db.delete(pushSubscriptions);
+    sent.length = 0;
+    outcomes.clear();
+    // Bob has an entry on 2026-10-20 (the test above) and wants the reminder at one at night.
+    await bob.req('PUT', '/api/push/subscription', sub('b-night', '01:00'));
+    const settings = (dayStartHour: number | null, updatedAt: number) => ({
+      table: 'settings',
+      data: {
+        id: 'profile',
+        updatedAt,
+        deleted: false,
+        sex: null,
+        birthDate: null,
+        heightCm: null,
+        activityLevel: 'light',
+        targetWeightKg: null,
+        weeklyRateKg: 0,
+        mealNames: ['A', 'B', 'C', 'D'],
+        addExerciseCalories: true,
+        onboardedAt: null,
+        dayStartHour,
+      },
+    });
+    const none = { sent: 0, skipped: 0, removed: 0, failed: 0 };
+    // The day still is the 20th at 01:00 of the 21st: something is logged, no reminder.
+    expect(await sendReminders(ctx.db, sender, at('01:00', '2026-10-21'))).toEqual({ ...none, skipped: 1 });
+    // With a day that starts at midnight it is the 21st, and that day is empty.
+    const pushed = await bob.post('/api/sync/push', { records: [settings(0, Date.now())] });
+    expect(pushed.json.rejected).toEqual([]);
+    await ctx.db.update(pushSubscriptions).set({ lastSentOn: null });
+    expect(await sendReminders(ctx.db, sender, at('01:00', '2026-10-21'))).toEqual({ ...none, sent: 1 });
+    // A start at two o'clock: 01:00 belongs to the 20th again.
+    await bob.post('/api/sync/push', { records: [settings(2, Date.now() + 1)] });
+    await ctx.db.update(pushSubscriptions).set({ lastSentOn: null });
+    expect(await sendReminders(ctx.db, sender, at('01:00', '2026-10-21'))).toEqual({ ...none, skipped: 1 });
   });
 
   it('keeps a subscription through errors and gives it up only after a week without success', async () => {

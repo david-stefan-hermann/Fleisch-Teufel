@@ -36,7 +36,7 @@ test('the assistant logs a typed sentence; the toast undoes it', async ({ page }
     const body = r.request().postDataBuffer()!.toString('utf8');
     const field = (name: string) => new RegExp(`name="${name}"\\r\\n\\r\\n([^\\r]*)`).exec(body)?.[1] ?? '';
     sent = { text: field('text'), context: JSON.parse(field('context')) };
-    const date = sent.context.now ? String(sent.context.now).slice(0, 10) : '';
+    const date = String(sent.context.today ?? sent.context.now ?? '').slice(0, 10);
     await r.fulfill({
       json: {
         turnId: field('requestId'),

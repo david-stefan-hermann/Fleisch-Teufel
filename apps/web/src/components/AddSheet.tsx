@@ -1,4 +1,4 @@
-import { addDays, today as todayOf } from '@ft/shared';
+import { addDays } from '@ft/shared';
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Dumbbell, Scale } from 'lucide-react';
@@ -20,6 +20,7 @@ import { SheetAssistantButton } from '@/features/assistant/AssistantButton';
 import { useAssistant } from '@/features/assistant/AssistantProvider';
 import { useSkin } from '@/features/assistant/skins/useSkin';
 import { ASSISTANT_SCALE, useAppearance, type AssistantSize } from '@/lib/appearance';
+import { dayStartHour, today as todayOf } from '@/lib/day';
 import { rememberLogStart } from '@/lib/logFlow';
 import { readNextMeal } from '@/db/diaryMeals';
 import { logTargetFor } from '@/lib/meals';
@@ -109,6 +110,7 @@ function AddSheet({
       entries: recent?.entries ?? [],
       pending: recent?.pending ?? [],
       newMealSlot: recent?.next.slot,
+      dayStartHour: dayStartHour(),
     });
   };
   /** Logging returns to the page the sheet was opened on, when that is the diary of the day. */

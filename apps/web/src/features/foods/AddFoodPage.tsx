@@ -1,7 +1,7 @@
 import { get, N, uuidv7, type Food, type Meal, type Portion } from '@ft/shared';
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Globe, LoaderCircle, Plus, Search, WifiOff, X } from 'lucide-react';
+import { Globe, Plus, Search, WifiOff, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DisclosureRow, rowClass, TextLink } from '@/components/tappable';
@@ -90,7 +90,8 @@ export function AddFoodPage() {
   const tab = TABS.find((t) => t.id === search.tab)?.id ?? DEFAULT_TAB;
   const [query, setQuery] = useState(search.q ?? '');
   const q = useDebounced(query.trim(), 150);
-  const qOnline = useDebounced(query.trim(), 600);
+  // The branded products come from the server's own catalog: asked with the same text as the device search.
+  const qOnline = q;
   // The typed text lives in the URL too (debounced, replace): opening a result and coming back keeps it.
   // A filter belongs to the text: below two characters it is gone.
   useEffect(() => {
@@ -135,7 +136,7 @@ export function AddFoodPage() {
     pinned: number;
   } | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const wantsOnline = searching && qOnline.length >= 3;
+  const wantsOnline = searching;
   // Results belong to the query they were fetched for; anything else is still loading.
   const online: {
     q: string;
@@ -185,8 +186,7 @@ export function AddFoodPage() {
   // Online products join the list once they belong to the query the local results are for.
   const onlineFoods = online && online.q === q ? online.foods : null;
   const pinned = online && online.q === q ? online.pinned : 0;
-  // Until the answer for the current query is there (debounce included), the online search loads.
-  const onlineState = q.length < 3 ? null : online?.q === q ? online.state : 'loading';
+  const onlineState = online?.q === q ? online.state : null;
   const rows = useMemo(
     () =>
       local
@@ -339,7 +339,12 @@ export function AddFoodPage() {
               </p>
             )}
             {rows && rows.length > 0 && (
-              <ul ref={listRef} data-q={q} className="-mx-4 divide-y divide-border/70">
+              <ul
+                ref={listRef}
+                data-q={q}
+                data-online={onlineState ?? 'none'}
+                className="-mx-4 divide-y divide-border/70"
+              >
                 {rows.map((r) => (
                   <SearchResultRow
                     key={r.id}
@@ -360,7 +365,7 @@ export function AddFoodPage() {
                 </TextLink>
               </EmptyState>
             )}
-            <OnlineStatus state={onlineState} short={q.length < 3} />
+            <OnlineStatus state={onlineState} />
           </>
         )}
 
@@ -490,30 +495,18 @@ async function addRecentToTarget(db: UserDb, into: FoodInto, r: RecentFood, date
 }
 
 /** Below the results: what the online search for branded products (Open Food Facts) is doing. */
-function OnlineStatus({
-  state,
-  short,
-}: {
-  state: 'loading' | 'done' | 'offline' | 'limited' | 'error' | null;
-  short: boolean;
-}) {
+function OnlineStatus({ state }: { state: 'loading' | 'done' | 'offline' | 'limited' | 'error' | null }) {
+  // While the answer is on its way nothing is said: it arrives while the person types.
+  if (state === 'loading' || state === null) return null;
   const text =
-    state === 'loading'
-      ? 'Suche Markenprodukte…'
-      : state === 'offline'
-        ? 'Offline: nur lokale Ergebnisse. Markenprodukte und Barcode-Scan wieder, sobald du verbunden bist.'
-        : state === 'limited'
-          ? 'Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.'
-          : state === 'error'
-            ? 'Open Food Facts antwortet gerade nicht.'
-            : 'Markenprodukte: Open Food Facts.';
-  // Below 3 characters there is no online search, so nothing to report.
-  if (short && (state === 'done' || state === null)) return null;
+    state === 'offline'
+      ? 'Offline: nur lokale Ergebnisse. Markenprodukte und Barcode-Scan wieder, sobald du verbunden bist.'
+      : state === 'error'
+        ? 'Open Food Facts antwortet gerade nicht.'
+        : 'Markenprodukte: Open Food Facts.';
   return (
     <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-      {state === 'loading' ? (
-        <LoaderCircle className="size-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden />
-      ) : state === 'offline' ? (
+      {state === 'offline' ? (
         <WifiOff className="size-4 shrink-0" aria-hidden />
       ) : (
         <Globe className="size-4 shrink-0" aria-hidden />

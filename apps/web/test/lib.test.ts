@@ -156,6 +156,24 @@ describe('meal for the next entry (30 minute rule)', () => {
     expect(target(at(6, 0, 26), late)).toEqual(fresh());
   });
 
+  it('the start of the day decides which entry was made for yesterday', () => {
+    // 04:50 on the 6th, logged for the 5th; the day begins at 5.
+    const night = [logged(YESTERDAY, 3, at(6, 4, 50))];
+    expect(target(at(6, 5, 10), night)).toEqual({ date: YESTERDAY, meal: 3, dm: MEAL });
+    const from = (dayStartHour: number) =>
+      logTargetFor({
+        shownDate: TODAY,
+        today: TODAY,
+        now: at(6, 5, 10),
+        entries: night,
+        newMealSlot: 2,
+        dayStartHour,
+      });
+    expect(from(8)).toEqual({ date: YESTERDAY, meal: 3, dm: MEAL });
+    // From midnight that entry was added to yesterday on the 6th: it says nothing about today.
+    expect(from(0)).toEqual(fresh());
+  });
+
   it('an entry added to yesterday today triggers nothing on today', () => {
     expect(target(at(6, 14, 5), [logged(YESTERDAY, 2, at(6, 14))])).toEqual(fresh());
   });

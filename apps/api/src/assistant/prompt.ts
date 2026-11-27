@@ -2,7 +2,10 @@
  * The assistant's system prompt and the per-utterance message. The system prompt comes from the spike
  * (`assistant_test2.py`, 30 test sentences) with one change: the clock rule for the meal is gone (it
  * was unreliable). Without a named meal the model leaves `meal` out and the device decides
- * (`logTargetFor`). The system prompt never changes per request, so it stays in the prompt cache.
+ * (`logTargetFor`). The day follows the rules of "The day": what the utterance names, then the day of
+ * the utterance before, then an earlier day the diary shows, else the app's day ("Today", which
+ * begins at the account's `dayStartHour`; "Now" stays the real clock). The system prompt never
+ * changes per request, so it stays in the prompt cache.
  */
 import { addDays, WEEKDAYS_LONG_DE, weekdayIndex, type AssistantContext } from '@ft/shared';
 
@@ -23,7 +26,13 @@ for it; when a search has no usable row, log that component with \`log_estimate\
 - Amounts the person does not give: the last logged amount, else the portion from the search that matches their word \
 ("ein Becher", "ein Stück"). When neither exists but a normal serving is narrow (a handful of nuts, a tablespoon of \
 sauce, a restaurant portion of a dish), take it and set \`guessed: true\` on that item; the app marks it as estimated.
-- Day and meal: take what the person says ("gestern Abend", "zum Mittagessen"; "heute Morgen" is the first meal). \
+- The day: "Today" in the message is the person's day in the app. It can be the calendar day before "Now" while \
+the clock shows the small hours: their day has not ended yet, and "heute" and "gestern" count from Today, never from \
+the calendar. The day of what you log or read is settled in this order: (1) the day the utterance names ("heute", \
+"gestern Abend", "am Montag"), whatever the diary shows; "heute" is always Today. (2) For a follow-up, the day of the \
+utterance before (see Follow-ups). (3) When the message says the diary shows an earlier day and the utterance says \
+"hier" or names no day at all, that shown day: the person is looking at it and adds to it. (4) Otherwise Today.
+- The meal: take what the person says ("gestern Abend", "zum Mittagessen"; "heute Morgen" is the first meal). \
 When the utterance names no meal or time of day, leave \`meal\` out: the app picks it.
 - When the diary lists its meals with ids and times ("m1 Frühstück (08:10)"), \`meal\` is the id of one of them, or a \
 name: a name the day does not have yet starts a new meal with that name ("neue Mahlzeit Kuchen bei Oma" is \
@@ -59,8 +68,14 @@ protein, carbs and fat already contain (4/4/9 kcal per gram), a weight that jump
 of the tongue or a recognition error. Ask with the likely correction as an option instead of logging it.
 - A change or deletion fits more than one entry and the recent utterances do not point to one of them.
 - Something the operation cannot do without is missing: a weight without a number, a training without a sport.
+- The diary shows an earlier day that the message marks as closed, and the utterance would write to it only because \
+it is shown (rule 3 of "The day": it says "hier" or names no day): before anything is written, ask "Der <Wochentag> \
+ist abgeschlossen. Trotzdem dort eintragen?" with the options "Ja" and "Nein". You may search first, but log nothing \
+in that turn. After "Ja" carry the utterance out on that day without asking again. After "Nein" log nothing and \
+reply "Nicht eingetragen.". Never ask this when the utterance names its day ("gestern Abend ...", "heute ..."), when \
+it follows up on an utterance that already wrote to that day, or when it only reads or answers a question.
 When something needs a question, ask everything it needs in that one question ("Welche Pizza, und wie viel?"), never \
-in two turns. Never ask to confirm what you understood, about the meal, about brands, or about details that change the entry only a \
+in two turns. Apart from the closed day, never ask to confirm what you understood, about the meal, about brands, or about details that change the entry only a \
 little. When one part of an utterance needs a question, carry out the clear parts first and ask about the rest in the \
 same turn. An utterance that answers your question (see the recent utterances) completes that action; do not ask the \
 same thing again. Either log a guess (\`guessed: true\`, \`log_estimate\`) or ask about it, never both for the same item.
@@ -68,7 +83,7 @@ same thing again. Either log a guess (\`guessed: true\`, \`log_estimate\`) or as
 Reply
 End with one short German sentence: what was done, without kcal lists, without your reasoning or calculation steps, no \
 advice, no emojis, and never mention that you left the meal to the app. After \`ask\`, write nothing. When you \
-did nothing (nothing to log or change and no question about the data), write nothing at all: never explain why, the app \
+did nothing (nothing to log or change and no question about the data, and not the "Nein" to a closed day), write nothing at all: never explain why, the app \
 shows that it did not understand. A question about the data gets one or two short German sentences with \
 the numbers that answer it, the result only.`;
 
@@ -160,10 +175,20 @@ export function dayText(day: DayLines, mealNames: readonly string[], aliases: Al
   return lines.join('\n');
 }
 
-/** The user message of one utterance: time, diary of today and yesterday, recent utterances, the sentence. */
+const weekday = (d: string) => WEEKDAYS_LONG_DE[weekdayIndex(d)];
+
+/**
+ * The user message of one utterance: the clock, the app's day, the diary of today, yesterday and an
+ * earlier shown day, recent utterances, the sentence. An older app sends no `today`: then the
+ * calendar day of the clock is the day, as it was.
+ */
 export function utterancePrompt(ctx: AssistantContext, transcript: string, aliases: Aliases): string {
-  const [date, clock] = ctx.now.split('T') as [string, string];
+  const [calendar, clock] = ctx.now.split('T') as [string, string];
+  const date = ctx.today ?? calendar;
   const yesterday = addDays(date, -1);
+  const shown = ctx.shownDate;
+  const shownDay = shown < yesterday ? ctx.days.find((x) => x.date === shown) : undefined;
+  const closed = ctx.days.find((x) => x.date === shown)?.closed === true;
   const listsMeals = sendsMeals(ctx);
   const day = (d: string): DayLines =>
     ctx.days.find((x) => x.date === d) ?? {
@@ -185,12 +210,21 @@ export function utterancePrompt(ctx: AssistantContext, transcript: string, alias
   const today = dayText(day(date), ctx.mealNames, aliases);
   const before = dayText(day(yesterday), ctx.mealNames, aliases);
   return (
-    `Now: ${WEEKDAYS_LONG_DE[weekdayIndex(date)]} ${date} ${clock}. Yesterday: ${yesterday}. ` +
-    (ctx.shownDate !== date ? `The diary shows ${ctx.shownDate}. ` : '') +
+    `Now: ${weekday(calendar)} ${calendar} ${clock}. ` +
+    (date === calendar
+      ? `Today: ${date}. `
+      : `Today: ${weekday(date)} ${date} (the person's day has not ended yet). `) +
+    `Yesterday: ${yesterday}. ` +
+    (shown < date
+      ? `The diary shows ${weekday(shown)} ${shown}, an earlier day${closed ? ', closed (abgeschlossen)' : ''}. `
+      : shown !== date
+        ? `The diary shows ${shown}. `
+        : '') +
     `${listsMeals ? 'Usual meal names' : 'Meals'}: ${ctx.mealNames.join(', ')}.\n` +
     (targets ? `Daily targets: ${targets}.\n` : '') +
     `\nDiary today (${date}):\n${today}\n\n` +
     `Diary yesterday (${yesterday}):\n${before}\n\n` +
+    (shownDay ? `Diary of the shown day (${shown}):\n${dayText(shownDay, ctx.mealNames, aliases)}\n\n` : '') +
     'Recent utterances (oldest first):\n' +
     (ctx.recent
       .map(

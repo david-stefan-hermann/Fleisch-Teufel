@@ -10,7 +10,6 @@ import {
   macrosForPlan,
   kcalFromMacros,
   planFromPreset,
-  today as todayOf,
   weeklyRateForGoal,
   weightOn,
   type ActivityLevel,
@@ -37,6 +36,7 @@ import { saveOnboarding } from './saveOnboarding';
 import { DEFAULT_SETTINGS, useSettings, useWeights } from '@/hooks/data';
 import { useExpenditure } from '@/hooks/useExpenditure';
 import { useSubmitting } from '@/hooks/useSubmitting';
+import { today as todayOf } from '@/lib/day';
 import { fmt0, fmt1, fmt2, NO_VALUE } from '@/lib/format';
 import { cn } from '@/lib/utils';
 

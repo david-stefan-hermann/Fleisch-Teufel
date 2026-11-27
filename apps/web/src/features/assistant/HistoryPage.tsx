@@ -5,7 +5,7 @@
  * other devices are added from the server (read only). A recording plays while it is there (on the
  * device while it waits, on the server for `ASSISTANT_AUDIO_DAYS`).
  */
-import { today as todayOf, type AssistantOp, type AssistantTurnRow } from '@ft/shared';
+import { type AssistantOp, type AssistantTurnRow } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Pause, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import type { AssistantTurn } from '@/db/dexie';
 import { useSettings } from '@/hooks/data';
 import { api } from '@/lib/api';
+import { today as todayOf } from '@/lib/day';
 import { fmtRelativeDay, fmtTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { discardTurn, retryTurn, undoTurn } from './queue';

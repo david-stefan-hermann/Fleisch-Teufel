@@ -101,6 +101,11 @@ export const settingsSchema = z.object({
   customMealNames: z.array(mealNameSchema).max(MAX_CUSTOM_MEAL_NAMES).nullable().default(null),
   /** The four names before the first rename: what meals without a record are called (null = `mealNames`). */
   legacyMealNames: z.array(mealNameSchema).length(MEAL_COUNT).nullable().default(null),
+  /**
+   * The hour the app's day begins at (null = `DEFAULT_DAY_START_HOUR`): before it the clock still
+   * counts for the day before. The app offers `DAY_START_HOURS`.
+   */
+  dayStartHour: z.number().int().min(0).max(23).nullable().default(null),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -500,6 +505,10 @@ export interface ServerInfo {
   blsVersion: string;
   /** Foods in the server's BLS catalog (a quick sanity check of the deployment). */
   blsFoods?: number;
+  /** Branded products in the server's own Open Food Facts catalog (0 until the first import). */
+  offProducts?: number;
+  /** When that catalog was imported last (epoch ms). */
+  offImportedAt?: number | null;
 }
 
 // ---------------------------------------------------------------- foods (catalog)

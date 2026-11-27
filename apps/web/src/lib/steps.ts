@@ -5,10 +5,11 @@
  * (`steps.status`), so the diary knows offline whether to offer the button and nothing jumps.
  * The token itself is shown once on the settings page and never stored.
  */
-import { toISODate, type StepsStatus } from '@ft/shared';
+import { type StepsStatus } from '@ft/shared';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useSyncExternalStore } from 'react';
 import { isIos } from '@/app/pwa';
+import { today } from './day';
 import { useDb } from '@/app/session';
 import type { UserDb } from '@/db/dexie';
 import { api } from '@/lib/api';
@@ -143,7 +144,8 @@ export async function runStepsShortcut(
 
 /** "heute, 14:02", "gestern, 22:00", else "3. November, 14:02" (for "Zuletzt empfangen"). */
 export function fmtReceived(ms: number, todayDate: string): string {
-  const day = toISODate(new Date(ms));
+  // The app's day of that moment, like `todayDate`: a call at 00:50 was "heute" at 01:00.
+  const day = today(new Date(ms));
   const rel = fmtRelativeDay(day, todayDate);
   const near = rel !== fmtDayLong(day);
   return `${near ? rel.toLowerCase() : fmtDayMonth(day)}, ${fmtTime(ms)}`;

@@ -18,6 +18,14 @@ const envSchema = z.object({
   OFF_CONTACT_EMAIL: z.string().default('fleisch-teufel@example.invalid'),
   OFF_BASE_URL: z.string().url().default('https://world.openfoodfacts.org'),
   OFF_SEARCH_URL: z.string().url().default('https://search.openfoodfacts.org'),
+  /**
+   * The own product catalog: OFF's data export (a URL or a local file) is imported weekly. `auto`
+   * imports in production only (the export is 1.5 GB), `on`/`off` force it.
+   */
+  OFF_DUMP_URL: z
+    .string()
+    .default('https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz'),
+  OFF_IMPORT: z.enum(['auto', 'on', 'off']).default('auto'),
   ANTHROPIC_API_KEY: z.string().optional(),
   /** Feature flag for the AI photo analysis; defaults to on when a key is present. */
   AI_ENABLED: z.enum(['true', 'false']).optional(),

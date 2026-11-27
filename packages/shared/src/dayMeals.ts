@@ -4,14 +4,12 @@
  * entries the app logs into such a meal name it by that id.
  * Pure: no clock and no database, times are read in the device's time zone.
  */
-import { addDays, parseISODate, toISODate, type ISODate } from './dates.js';
+import { addDays, nightEndHour, parseISODate, toISODate, type ISODate } from './dates.js';
 import { dayId, type DiaryMeal, type FoodEntry } from './schemas.js';
 
 /** A new meal starts when the last entry is older than this. */
 export const NEW_MEAL_GAP_MS = 30 * 60_000;
 export const EXTRA_MEAL_NAME = 'Weitere Mahlzeit';
-/** Until this hour a time after midnight can still belong to the evening before. */
-export const NIGHT_END_HOUR = 5;
 
 /** Hour and minute a meal gets when nothing says when it was eaten, by its position. */
 const TYPICAL_TIMES = [
@@ -62,6 +60,8 @@ export interface BuildDayMealsInput<P> {
   pending?: readonly PendingMealItem<P>[];
   /** Names of meals without a record: `legacyMealNames ?? mealNames`. */
   names: readonly string[];
+  /** `settings.dayStartHour`: how far into the night after it a time still belongs to the day. */
+  dayStartHour?: number | null;
 }
 
 const fold = (name: string) => name.trim().toLocaleLowerCase('de');
@@ -69,20 +69,27 @@ const fold = (name: string) => name.trim().toLocaleLowerCase('de');
 /** Two spellings of one meal name. */
 export const sameMealName = (a: string, b: string): boolean => fold(a) === fold(b);
 
-/** Whether a moment belongs to the day: on its calendar day or in the night after it. */
-function fitsDay(date: ISODate, at: number): boolean {
+/**
+ * Whether a moment belongs to the day: on its calendar day or in the night after it, up to the
+ * start of the next day (`nightEndHour`).
+ */
+function fitsDay(date: ISODate, at: number, dayStartHour?: number | null): boolean {
   const d = new Date(at);
   const day = toISODate(d);
-  return day === date || (day === addDays(date, 1) && d.getHours() < NIGHT_END_HOUR);
+  return day === date || (day === addDays(date, 1) && canBeNight(d.getHours(), dayStartHour));
 }
 
+/**
+ * Eaten in the night after the day. No hour limit here: a meal keeps its moon when the day's start
+ * is moved later.
+ */
 export function isNightOf(date: ISODate, eatenAt: number): boolean {
-  const d = new Date(eatenAt);
-  return toISODate(d) === addDays(date, 1) && d.getHours() < NIGHT_END_HOUR;
+  return toISODate(new Date(eatenAt)) === addDays(date, 1);
 }
 
-export function canBeNight(hour: number): boolean {
-  return hour < NIGHT_END_HOUR;
+/** Whether a time of this hour can be "Nacht auf <Tag>": before the day's start. */
+export function canBeNight(hour: number, dayStartHour?: number | null): boolean {
+  return hour < nightEndHour(dayStartHour);
 }
 
 export function eatenAtOf(date: ISODate, hour: number, minute: number, night = false): number {
@@ -96,8 +103,14 @@ export function typicalEatenAt(date: ISODate, position: number): number {
 }
 
 /** The time of a new meal: now while logging on that day, else the typical time of its name. */
-export function newMealEatenAt(date: ISODate, name: string, names: readonly string[], at: number): number {
-  if (fitsDay(date, at)) return at;
+export function newMealEatenAt(
+  date: ISODate,
+  name: string,
+  names: readonly string[],
+  at: number,
+  dayStartHour?: number | null,
+): number {
+  if (fitsDay(date, at, dayStartHour)) return at;
   return typicalEatenAt(
     date,
     names.findIndex((n) => fold(n) === fold(name)),
@@ -249,7 +262,7 @@ export function buildDayMeals<P = unknown>(input: BuildDayMealsInput<P>): DayMea
             .filter((e) => e.meal === meal.slot && (!e.diaryMealId || e.diaryMealId === meal.id))
             .map((e) => e.loggedAt)
         : [];
-      const fitting = [...old, ...times].filter((at) => fitsDay(date, at));
+      const fitting = [...old, ...times].filter((at) => fitsDay(date, at, input.dayStartHour));
       eatenAt = fitting.length ? Math.min(...fitting) : typicalEatenAt(date, meal.slot);
     }
     return { ...meal, eatenAt, night: isNightOf(date, eatenAt) };

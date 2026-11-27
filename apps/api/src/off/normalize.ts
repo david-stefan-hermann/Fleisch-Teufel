@@ -75,9 +75,32 @@ export function offNutrients(nutriments: Record<string, unknown> | undefined): N
   return completeNutrients(out);
 }
 
-function brandOf(p: OffProduct): string | null {
-  const b = Array.isArray(p.brands) ? p.brands[0] : p.brands?.split(',')[0];
-  return b?.trim() || null;
+/**
+ * Products whose brand OFF delivered only as a tag ("xx:gut-gunstig"): readable, but poorer than the
+ * spelling of a product page ("Gut & Günstig"), so the catalog never replaces a known brand by it.
+ */
+const tagBranded = new WeakSet<Food>();
+
+export function hasTagBrand(food: Food): boolean {
+  return tagBranded.has(food);
+}
+
+/**
+ * A brand as OFF delivers it, made readable: the first of a list, without the language prefix of the
+ * search ("xx:Milsani"); a bare tag ("gut-gunstig") gets spaces and capitals ("Gut Gunstig").
+ */
+export function cleanBrand(raw: string | null | undefined): { brand: string | null; tag: boolean } {
+  const b = (raw ?? '').replace(/^[a-z]{2}:/, '').trim();
+  if (!b) return { brand: null, tag: false };
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(b)) return { brand: b, tag: false };
+  return {
+    brand: b.replace(/(^|-)([a-z0-9])/g, (_, sep: string, c: string) => (sep ? ' ' : '') + c.toUpperCase()),
+    tag: true,
+  };
+}
+
+function brandOf(p: OffProduct): { brand: string | null; tag: boolean } {
+  return cleanBrand(Array.isArray(p.brands) ? p.brands[0] : p.brands?.split(',')[0]);
 }
 
 export function normalizeOffProduct(p: OffProduct): Food | null {
@@ -106,13 +129,14 @@ export function normalizeOffProduct(p: OffProduct): Food | null {
   }
 
   const popularity = Math.round(num(p.unique_scans_n) ?? 0);
-  return {
+  const { brand, tag } = brandOf(p);
+  const food: Food = {
     id: foodIds.off(code),
     source: 'off',
     sourceId: code,
     name: name.slice(0, 200),
     nameEn: null,
-    brand: brandOf(p)?.slice(0, 200) ?? null,
+    brand: brand?.slice(0, 200) ?? null,
     group: null,
     unit,
     nutrients,
@@ -120,6 +144,8 @@ export function normalizeOffProduct(p: OffProduct): Food | null {
     imageUrl: p.image_front_small_url ?? null,
     ...(popularity ? { popularity } : {}),
   };
+  if (tag) tagBranded.add(food);
+  return food;
 }
 
 /** Normalizes an EAN-8/UPC-A/EAN-13 so "0" padded codes find the same product. */

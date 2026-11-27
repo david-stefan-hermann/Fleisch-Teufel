@@ -91,6 +91,7 @@ describe('sync', () => {
       addStepsCalories: false,
       customMealNames: ['Kuchen bei Oma'],
       legacyMealNames: ['Frühstück', 'Mittag', 'Abend', 'Snacks'],
+      dayStartHour: 3,
     };
     const goal = {
       id: dayId.goal('2026-10-01'),
@@ -377,6 +378,7 @@ describe('sync', () => {
       goalKind: null,
       customMealNames: null,
       legacyMealNames: null,
+      dayStartHour: null,
     });
   });
 

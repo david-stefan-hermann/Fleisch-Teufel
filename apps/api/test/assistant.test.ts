@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { AiCallError, AiOutputError } from '../src/ai/analyze.js';
 import { transcriptionCostUsd } from '../src/ai/pricing.js';
-import { Aliases, utterancePrompt } from '../src/assistant/prompt.js';
+import { Aliases, ASSISTANT_SYSTEM, replyOf, utterancePrompt } from '../src/assistant/prompt.js';
 import { assistantTools } from '../src/assistant/tools.js';
 import { sniffAudio } from '../src/assistant/transcribe.js';
 import type { Assistant, AudioInput, ToolHost } from '../src/assistant/types.js';
@@ -190,6 +190,45 @@ describe('assistant', () => {
       expect.stringContaining('unknown entry id'),
       expect.stringContaining('future'),
       expect.stringContaining('unknown meal'),
+    ]);
+  });
+
+  it('checks dates against the day of the app and knows the entries of the shown day', async () => {
+    const old = uuidv7();
+    script = [
+      // The clock says the 13th, the person's day is still the 12th: the 14th is two days ahead.
+      { name: 'set_weight', input: { date: '2026-11-14', kg: 80 } },
+      { name: 'set_weight', input: { date: TODAY, kg: 80 } },
+      { name: 'get_day', input: { date: '2026-11-09' } },
+      { name: 'update_entry', input: { entryId: 'e1', grams: 300 } },
+    ];
+    const r = await turn(alice, {
+      text: 'Das waren 300 Gramm.',
+      context: JSON.stringify(
+        context({
+          now: `${TODAY}T01:30`,
+          today: YESTERDAY,
+          shownDate: '2026-11-09',
+          days: [
+            {
+              date: '2026-11-09',
+              closed: true,
+              entries: [
+                { id: old, meal: 2, name: 'Lasagne', grams: 400, kcal: 600, proteinG: 30, group: null },
+              ],
+              trainings: [],
+              weightKg: null,
+            },
+          ],
+        }),
+      ),
+    });
+    expect(understood[0]!.results[0]).toContain('future');
+    expect(understood[0]!.results[2]).toBe('That day is in the prompt.');
+    expect(understood[0]!.prompt).toContain('Diary of the shown day (2026-11-09):');
+    expect(r.json.ops).toEqual([
+      { kind: 'setWeight', date: TODAY, kg: 80 },
+      { kind: 'updateEntry', entryId: old, grams: 300 },
     ]);
   });
 
@@ -712,5 +751,88 @@ describe('assistant prompt', () => {
   it('shows only the time for an older app', () => {
     const ctx = assistantContextSchema.parse(context({ recent: [{ ...said, at: '18:05' }] }));
     expect(utterancePrompt(ctx, 'Ich habe Fotos', new Aliases())).toContain('\n- 18:05 said: "Lasagne"');
+  });
+
+  const emptyDay = (date: string, closed?: boolean) => ({
+    date,
+    entries: [],
+    trainings: [],
+    weightKg: null,
+    meals: [],
+    ...(closed !== undefined && { closed }),
+  });
+  const promptOf = (over: Partial<Context>) =>
+    utterancePrompt(assistantContextSchema.parse(context(over)), 'M&Ms und eine Mate', new Aliases());
+
+  it('takes the calendar day of the clock as today for an older app', () => {
+    const text = promptOf({ now: `${TODAY}T01:30` });
+    expect(text).toContain(`Now: Freitag ${TODAY} 01:30. Today: ${TODAY}. Yesterday: ${YESTERDAY}. `);
+    expect(text).toContain(`Diary today (${TODAY}):`);
+  });
+
+  it('names the day of the app next to the real clock before the day begins', () => {
+    const text = promptOf({ now: `${TODAY}T01:30`, today: YESTERDAY, shownDate: YESTERDAY });
+    expect(text).toContain(
+      `Now: Freitag ${TODAY} 01:30. Today: Donnerstag ${YESTERDAY} (the person's day has not ended yet). Yesterday: 2026-11-11. `,
+    );
+    expect(text).toContain(`Diary today (${YESTERDAY}):`);
+    expect(text).toContain('Diary yesterday (2026-11-11):');
+    expect(text).not.toContain('The diary shows');
+  });
+
+  it('says that the diary shows an earlier day, and whether it is closed', () => {
+    const open = promptOf({ today: TODAY, shownDate: YESTERDAY, days: [emptyDay(YESTERDAY, false)] });
+    expect(open).toContain(`The diary shows Donnerstag ${YESTERDAY}, an earlier day. `);
+    expect(open).not.toContain('Diary of the shown day');
+    const closed = promptOf({ today: TODAY, shownDate: YESTERDAY, days: [emptyDay(YESTERDAY, true)] });
+    expect(closed).toContain(
+      `The diary shows Donnerstag ${YESTERDAY}, an earlier day, closed (abgeschlossen). `,
+    );
+  });
+
+  it('lists a shown day older than yesterday as a third diary', () => {
+    const id = uuidv7();
+    const text = promptOf({
+      today: TODAY,
+      shownDate: '2026-11-10',
+      days: [
+        emptyDay(TODAY),
+        emptyDay(YESTERDAY),
+        {
+          ...emptyDay('2026-11-10', true),
+          meals: [{ id: 'dm:2026-11-10:2', name: 'Abendessen', time: '19:00', night: false, slot: 2 }],
+          entries: [
+            {
+              id,
+              meal: 2,
+              name: 'Lasagne',
+              grams: 400,
+              kcal: 600,
+              proteinG: 30,
+              group: null,
+              diaryMealId: 'dm:2026-11-10:2',
+            },
+          ],
+        },
+      ],
+    });
+    expect(text).toContain('The diary shows Dienstag 2026-11-10, an earlier day, closed (abgeschlossen). ');
+    expect(text).toContain('Diary of the shown day (2026-11-10):\n  m1 Abendessen (19:00):\n    e1: Lasagne');
+  });
+
+  it('keeps a later shown day as it was', () => {
+    expect(promptOf({ shownDate: '2026-11-14' })).toContain('The diary shows 2026-11-14. ');
+  });
+
+  it('accepts three days and refuses a fourth', () => {
+    const days = [TODAY, YESTERDAY, '2026-11-10', '2026-11-09'].map((d) => emptyDay(d));
+    expect(assistantContextSchema.safeParse(context({ days: days.slice(0, 3) })).success).toBe(true);
+    expect(assistantContextSchema.safeParse(context({ days })).success).toBe(false);
+  });
+
+  it('has the rules of the day and of the closed day', () => {
+    expect(ASSISTANT_SYSTEM).toContain('"heute" is always Today');
+    expect(ASSISTANT_SYSTEM).toContain('Trotzdem dort eintragen?');
+    expect(replyOf('Nicht eingetragen.', 0)).toBe('Nicht eingetragen.');
   });
 });

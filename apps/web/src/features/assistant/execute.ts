@@ -52,9 +52,13 @@ export interface ApplyEnv {
   /** Epoch ms of the utterance (the meal for "no meal named" is chosen for this moment). */
   now: number;
   today: ISODate;
+  /** `settings.dayStartHour`: where the rule for the hours after midnight ends. */
+  dayStartHour?: number | null;
   /** Names of the four indexes: only for a meal this device cannot name otherwise. */
   mealNames: readonly string[];
 }
+
+type PlaceEnv = Pick<ApplyEnv, 'now' | 'today' | 'dayStartHour'>;
 
 export type CameraOp = Extract<AssistantOp, { kind: 'openCamera' }>;
 
@@ -71,10 +75,10 @@ const DEFAULT_SPORT = { minutes: 30, intensity: 'moderate' as Intensity };
 
 /**
  * Day and meal for an operation without a meal: the rules of the "+" in the tab bar. The day is the
- * "+"'s shown day: today follows its rules fully (over midnight that can be yesterday's meal), on
+ * "+"'s shown day: today follows its rules fully (over the start of the day that can be yesterday's meal), on
  * another day named on purpose the last entry made for that day counts.
  */
-async function pickMeal(db: UserDb, date: ISODate, env: Pick<ApplyEnv, 'now' | 'today'>): Promise<MealRef> {
+async function pickMeal(db: UserDb, date: ISODate, env: PlaceEnv): Promise<MealRef> {
   const entries = await db.foodEntries
     .where('date')
     .anyOf([...new Set([env.today, addDays(env.today, -1), date])])
@@ -88,6 +92,7 @@ async function pickMeal(db: UserDb, date: ISODate, env: Pick<ApplyEnv, 'now' | '
     entries,
     pending,
     newMealSlot: slot,
+    dayStartHour: env.dayStartHour,
   });
 }
 
@@ -141,7 +146,7 @@ async function knowsMeal(db: UserDb, date: ISODate, id: string): Promise<boolean
  * The meal an operation names, as this device finds it: by id, then by name (a name the day does not
  * have begins a new meal with it), then by index, else the rules of the "+".
  */
-async function refOf(db: UserDb, p: OpPlace, env: Pick<ApplyEnv, 'now' | 'today'>): Promise<MealRef> {
+async function refOf(db: UserDb, p: OpPlace, env: PlaceEnv): Promise<MealRef> {
   const { date } = p;
   if (p.diaryMealId && (await knowsMeal(db, date, p.diaryMealId)))
     return { date, meal: p.meal ?? 0, dm: p.diaryMealId };

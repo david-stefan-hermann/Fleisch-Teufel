@@ -4,7 +4,7 @@
  * (https://openfoodfacts.github.io/openfoodfacts-server/api/). Requests above the limit are not
  * sent; callers fall back to the local cache.
  */
-import type { Food } from '@ft/shared';
+import { queryTerms, type Food } from '@ft/shared';
 import { log } from '../log.js';
 import { RateLimiter } from '../rate-limit.js';
 import { normalizeOffProduct, type OffProduct } from './normalize.js';
@@ -24,6 +24,10 @@ const FIELDS = [
   'nutriments',
   'unique_scans_n',
 ].join(',');
+
+/** Products sold where the app is used: Germany, Austria, Switzerland. */
+export const OFF_COUNTRIES = ['en:germany', 'en:austria', 'en:switzerland'];
+const COUNTRY_FILTER = `countries:(${OFF_COUNTRIES.map((c) => `"${c}"`).join(' OR ')})`;
 
 export class OffRateLimitedError extends Error {
   constructor(public readonly retryAfterMs: number) {
@@ -77,11 +81,15 @@ export function createOffClient(opts: OffClientOptions): OffClient {
     async search(query, limit = 20) {
       const wait = searchLimiter.take();
       if (wait > 0) throw new OffRateLimitedError(wait);
-      const q = encodeURIComponent(query);
+      // Stop words and punctuation would have to stand in the product too ("gut und günstig" finds
+      // nothing, "gut günstig" does).
+      const terms = queryTerms(query).join(' ') || query;
+      const q = encodeURIComponent(terms);
+      const local = encodeURIComponent(`${terms} ${COUNTRY_FILTER}`);
       // Search-a-licious (Elasticsearch based, beta) …
       try {
         const { status, body } = await getJson(
-          `${opts.searchUrl}/search?q=${q}&page_size=${limit}&langs=de,en&fields=${FIELDS}`,
+          `${opts.searchUrl}/search?q=${local}&page_size=${limit}&langs=de,en&fields=${FIELDS}`,
         );
         if (status === 200) {
           const hits = (body as { hits?: OffProduct[] }).hits ?? [];

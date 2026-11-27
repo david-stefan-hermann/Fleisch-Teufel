@@ -10,6 +10,7 @@ import {
   ListOrdered,
   Mic,
   Salad,
+  Sunrise,
   Target,
   Trash2,
   User,
@@ -17,7 +18,7 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { MEAL_COUNT, type Settings } from '@ft/shared';
+import { DEFAULT_DAY_START_HOUR, dayStartOf, MEAL_COUNT, type Settings } from '@ft/shared';
 import type { ReactNode } from 'react';
 import { rowClass } from '@/components/tappable';
 import { useSession, useSessionContext } from '@/app/session';
@@ -28,6 +29,7 @@ import { ownMealNames } from '@/db/diaryMeals';
 import { trashCount } from '@/db/trash';
 import { saveSettings } from '@/db/settings';
 import { useSettings, useToday } from '@/hooks/data';
+import { dayStartLabel } from '@/features/more/DayStartPage';
 import { DEFAULT_WEEK_MARKS, useAppearance, WEEK_MARKS } from '@/lib/appearance';
 import { fmtReceived, useStepsStatus } from '@/lib/steps';
 import { cn } from '@/lib/utils';
@@ -56,6 +58,11 @@ function Row({ to, icon, label, hint }: { to: string; icon: ReactNode; label: st
       </Link>
     </li>
   );
+}
+/** Named only when it is not the default. */
+function dayStartHint(settings: Settings): string | undefined {
+  const hour = dayStartOf(settings.dayStartHour);
+  return hour === DEFAULT_DAY_START_HOUR ? undefined : dayStartLabel(hour);
 }
 
 export function MorePage() {
@@ -88,6 +95,12 @@ export function MorePage() {
             icon={<ListOrdered aria-hidden />}
             label="Mahlzeiten-Namen"
             hint={settings && mealNamesHint(settings)}
+          />
+          <Row
+            to="/settings/day-start"
+            icon={<Sunrise aria-hidden />}
+            label="Tagesbeginn"
+            hint={settings && dayStartHint(settings)}
           />
         </ul>
       </Section>

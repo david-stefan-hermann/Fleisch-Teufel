@@ -88,7 +88,7 @@ Serve the production web build through the API (same origin, service worker acti
   flow begins at most one new meal: its steps settle targets with `prepareFlowTarget` (`lib/logFlow.ts`), which
   keeps a begun meal in `ft.logStart`; a later `dm: 'new'` of that day means it while it exists (`resolveFlowMeal`,
   also in `useMealChoice`). The card:
-  the time above it (`MealStamp`; tap: `MealTimeDialog`, hour and minute wheels, 00:00 to 04:59 may be "Nacht
+  the time above it (`MealStamp`; tap: `MealTimeDialog`, hour and minute wheels, a time before the day's start (`canBeNight`, `nightEndHour`: `dayStartHour`, 5 when that is 0) may be "Nacht
   auf <Tag>": the meal stays on its day, sorts to its end and carries a moon; `setDiaryMealTime` sets
   `timeEdited`), the name (`MealNameMenu`: the four standard names, own names from the synced
   `settings.customMealNames`, "Eigener Name"; a name too long for the header runs as `MarqueeText`), kcal and
@@ -153,10 +153,21 @@ Serve the production web build through the API (same origin, service worker acti
   bread; in hyphenated names the last part is the head; words after "mit" count as ingredients), typos from 5
   letters (`fuzzy` hits, `suggestQuery` for "Meintest du"), synonyms for words BLS spells differently
   (`synonyms.ts`). Ranking: basic foods before dishes (BLS X/Y), dry products down, OFF products with
-  `popularity` (scans, not stored). Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
+  `popularity` (scans). Branded products come from the server's own catalog (plan
+  `docs/plans/2026-11-lebensmittelsuche.md`): table `off_catalog` (server only, about 335 000 products sold in
+  Germany, Austria and Switzerland, `pg_trgm` index on `search_key`), filled by `off/import.ts` from OFF's data
+  export (streamed, upserts under a run number, older rows deleted only after a run that found at least 80 %;
+  weekly from `maintenance.ts`, in production by default, `OFF_IMPORT` on/off, `OFF_DUMP_URL`; by hand
+  `pnpm --filter @ft/api off:import [file or URL]`; `/api/info` has `offProducts`, `offImportedAt`).
+  `FoodCatalog.searchOff` asks it once it is imported (`searchCatalogHits`: SQL picks up to 300 candidates that
+  contain every word, a trigram fallback for typos, then the shared ranking together with the products in use,
+  German ones first on equal points) and OFF's live search only before that (`searchLive`: stop words removed via
+  `queryTerms`, the three countries as filter, single words when the whole query finds too little). A catalog
+  product somebody opens or scans is copied into `foods`. Brands are cleaned by `cleanBrand` ("xx:" prefixes, bare
+  tags); typos in brand names are not forgiven. The assistant's `search_foods` always includes the catalog. Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
   BLS): add a line whenever a real query ranks badly. On `/add` (`searchLocal`, `mergeOnline` in
-  `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; OFF results are sorted into it
-  when they arrive, but only below the rows that are on the screen at that moment (`pinned`, counted by
+  `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; the server's branded products are asked with the same
+  text (2 characters, 150 ms, no status line while loading) and sorted into it when they arrive, but only below the rows that are on the screen at that moment (`pinned`, counted by
   `rowsOnScreen` when the answer comes): what the person is about to tap never jumps away. Rows show the last
   logged amount, else a serving (never the whole package), and "N× gegessen". Tabs "Häufig"/"Kürzlich"/"Eigene":
   typing (2 characters) searches everything and no tab is active; a tap on a tab keeps the text and searches
@@ -215,7 +226,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   "Gewicht eintragen", "Essen eintragen" (middle, primary), "Training eintragen". Without a chosen meal the sheet
   asks `logTargetFor` (`lib/meals.ts`, pure; the caller passes `newMealSlot` from `readNextMeal`) for day and meal:
   the meal of the youngest entry while it is at most `NEW_MEAL_GAP_MS` (30 minutes) old (its current meal, also
-  after a drag to another one), over midnight the entry made before midnight for that day (then the forms say
+  after a drag to another one), over the start of the day (`dayStartHour`) the entry made before it for that day (then the forms say
   the day with `DayNote` and the diary of yesterday opens afterwards), else `dm: 'new'`, a new meal with the next
   name; waiting analyses count like entries. On another day than today the youngest entry made for that day
   counts. The "+" of a meal always wins. `/photo` is the
@@ -617,7 +628,8 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   correct value smaller; its test button (`test: true`) writes nothing. `StepsSettingsPage` shows address, `Bearer` value and
   setup on Android (`isAndroid`); there is no ↻ there.
 - Reminder (Mehr → Erinnerung, `features/more/ReminderPage.tsx`, `lib/reminder.ts`): Web Push, one
-  notification a day at a chosen local time, only when nothing is logged that day, per device
+  notification a day at a chosen local time, only when nothing is logged that day (the app's day of the account,
+  `appDay` with `userSettings.dayStartHour`; `lastSentOn` stays the calendar date), per device
   (`push_subscriptions`, server only, `apps/api/src/push.ts` sends every minute). Needs `VAPID_PUBLIC_KEY`/
   `VAPID_PRIVATE_KEY` on the server (`pnpm --filter @ft/api push:keys`); iOS only as installed app. Signing
   out removes the device's subscription. `sw.ts` shows the notification and opens the diary on tap. Endpoints
@@ -657,7 +669,7 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   write tools are only checked and returned as `AssistantOp`s, entry ids as short aliases `e1`, trainings `x1`;
   a swap of foods is `replace_entry` (op `replaceEntry`: the entry keeps day, meal, group and position, the old amount
   unless a new one is said; never log beside the old one), `delete_trainings` fixes a training; meals: the device
-  sends `days[].meals` of today and yesterday and the tools' `meal` is a free string, a short id `m1` or a name,
+  sends `days[].meals` of today, yesterday and an older shown day and the tools' `meal` is a free string, a short id `m1` or a name,
   a name the day lacks starts a new meal with it; ops carry `diaryMealId` and `mealName` next to the index, which
   `execute.ts` resolves before its transaction (id, name, index, then `logTargetFor`; a context without `meals`
   from an older app keeps the four names and the index), prompt
@@ -685,6 +697,27 @@ label)` in `features/ai/image.ts` (pixel budget and at most 1080p, the stricter 
   the device has no copy of when it opens, one after the other, `loadSkin` shares a running download with a tap). `tools/skin-pack/build.mjs` builds
   packs; Elfenmagierin and Dämonin are packs (manifests in `tools/skin-pack/packs`, output in the git-ignored
   `skins/`), never part of the app.
+- Start of the day (ideas list point 3, 2026-11-27): the app's day changes at `settings.dayStartHour` (synced, null =
+  `DEFAULT_DAY_START_HOUR` 5, offered `DAY_START_HOURS` 0 to 8; Mehr → "Tagesbeginn", `/settings/day-start`,
+  `features/more/DayStartPage.tsx`, `/more` names it only when not 5). Shared `today(now, dayStartHour)` is the one
+  place that says what today is (`nextDayStart`, `nightEndHour`); in the web app call `today()` /
+  `dayStartHour()` from `src/lib/day.ts`, never the shared one without the setting: the module keeps the hour
+  (`ft.dayStartHour` in `localStorage` for the first paint, `watchDayStart(db)` in `session.tsx` follows the
+  settings record) and `useToday` fires at the boundary. Code that knows the moment and the settings passes them
+  (`contextFor`, `logTargetFor`, `buildDayMeals`, `newMealEatenAt`, `canBeNight`). A meal logged at 01:30 lands on the
+  day before as "Nacht auf <Tag>"; `isNightOf` has no limit, so a moon stays when the setting changes. A weight
+  before the boundary counts for the day before. Steps stay on the calendar day (import and `s:<date>` unchanged).
+  Server: `appDay` in `push.ts`, `ctx.today` in the assistant. Older app versions count from 0:00 and ignore the field.
+- Assistant and the day (ideas list point 2, 2026-11-27): the device sends `today` (the app's day; the server falls
+  back to the date of `now` for an older app), `days` of today, yesterday and, when it lies further back, the shown
+  day (`shownDate < yesterday`, at most 3), each with `closed` (`completedAt` of the day note). `utterancePrompt`
+  says "Now" (real clock), "Today" (the app's day), "The diary shows <Wochentag> <date>, an earlier day[, closed]"
+  and "Diary of the shown day". Rules in `ASSISTANT_SYSTEM` ("The day"): a named day and "heute" (always Today)
+  first, then the day of the utterance before for a follow-up, then an earlier shown day for "hier" or no day, else
+  Today. A closed shown day is asked about first with `ask` ("Der <Wochentag> ist abgeschlossen. Trotzdem dort
+  eintragen?", "Ja"/"Nein"; "Nein" replies "Nicht eingetragen."), never when the day is named or for a follow-up.
+  The date checks of `host.ts` count from `ctx.today`; `get_day` answers "in the prompt" for every sent day. The
+  result text names a day that is not today (`dayLabel` in `execute.ts`).
 
 ## Deployment
 

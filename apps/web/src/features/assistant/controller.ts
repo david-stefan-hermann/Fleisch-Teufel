@@ -3,10 +3,11 @@
  * recording, text mode, sending, the result as toast or bubble, the camera. One instance per
  * signed-in session; React reads it with `useSyncExternalStore`.
  */
-import { MAX_RECORD_MS, today as todayOf, uuidv7, type ISODate } from '@ft/shared';
+import { MAX_RECORD_MS, uuidv7, type ISODate } from '@ft/shared';
 import { toast } from 'sonner';
 import type { UserDb } from '@/db/dexie';
 import { errorMessage } from '@/lib/api';
+import { dayStartHour, today as todayOf } from '@/lib/day';
 import { summaryText, targetFor, type CameraOp } from './execute';
 import { storeAssistantHint } from './hint';
 import {
@@ -431,7 +432,11 @@ export class AssistantController {
 
   private async openCamera(op: CameraOp) {
     // A new meal with a name of its own opens as the next meal: its name is picked on the page.
-    const { date, meal, dm } = await targetFor(this.deps.db, op, { now: Date.now(), today: todayOf() });
+    const { date, meal, dm } = await targetFor(this.deps.db, op, {
+      now: Date.now(),
+      today: todayOf(),
+      dayStartHour: dayStartHour(),
+    });
     storeAssistantHint(op.hint, op.replaces);
     this.deps.openPhoto({ date, meal, ...(dm && { dm }) });
   }

@@ -5,7 +5,6 @@ import {
   SETTINGS_ID,
   stripMark,
   summarizeDay,
-  today as todayOf,
   weightForDay,
   type DaySummary,
   type ExerciseEntry,
@@ -24,20 +23,38 @@ import { readDay, readMealChoice, type DiaryDayMeal, type MealChoice } from '@/d
 import { resolveFlowMeal } from '@/lib/logFlow';
 import { openPastDays } from '@/db/notes';
 import { DEFAULT_SETTINGS } from '@/db/settings';
+import { nextDayStart, subscribeDayStart, today as todayOf } from '@/lib/day';
 import { daySuggestions, type MealSuggestions } from '@/db/suggestions';
 import { trainingHistory, type TrainingHistory } from '@/db/trainingSuggestions';
 
 export { DEFAULT_SETTINGS };
 
-/** Current calendar day; rolls over at midnight and when the app returns to the foreground. */
+/**
+ * The app's current day (`lib/day.ts`): it changes at the start of the day the account chose, when
+ * that setting changes and when the app returns to the foreground.
+ */
 export function useToday(): ISODate {
   const [d, setD] = useState(() => todayOf());
   useEffect(() => {
-    const update = () => setD(todayOf());
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // A timer at the boundary itself; the interval only catches a device that slept through it.
+    const arm = () => {
+      clearTimeout(timer);
+      const wait = nextDayStart().getTime() - Date.now() + 50;
+      timer = setTimeout(update, Math.min(Math.max(wait, 1000), 0x7fffffff));
+    };
+    const update = () => {
+      setD(todayOf());
+      arm();
+    };
+    arm();
     const id = setInterval(update, 60_000);
+    const stop = subscribeDayStart(update);
     document.addEventListener('visibilitychange', update);
     return () => {
+      clearTimeout(timer);
       clearInterval(id);
+      stop();
       document.removeEventListener('visibilitychange', update);
     };
   }, []);

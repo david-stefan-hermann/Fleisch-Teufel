@@ -360,8 +360,30 @@ interface PreparedQuery {
   key: string;
 }
 
+const STOP_LIST = [...STOP];
+
+/**
+ * The words of a query that count, in the spelling typed (lower case): stop words are left out, and
+ * so is a last word that is only the start of one while a word stands before it ("skyr gut u" on the
+ * way to "skyr gut und günstig"), so the results do not vanish while such a word is being typed.
+ */
+export function queryTerms(query: string): string[] {
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => searchKey(w) !== '');
+  const last = words.length > 1 ? searchKey(words.at(-1)!) : null;
+  if (last && !STOP.has(last) && STOP_LIST.some((s) => s.startsWith(last))) words.pop();
+  return words.filter((w) => !STOP.has(searchKey(w)));
+}
+
+/** `queryTerms` as the folded words the search compares (`searchKey`). */
+export function queryWords(query: string): string[] {
+  return queryTerms(query).flatMap(keyWords);
+}
+
 function prepareQuery(index: readonly IndexedItem<Searchable>[], query: string): PreparedQuery | null {
-  const tokens = keyWords(query).filter((t) => !STOP.has(t));
+  const tokens = queryWords(query);
   if (tokens.length === 0) return null;
   const vocab = vocabulary(index);
   const typoCache = new Map<string, Map<string, number> | null>();

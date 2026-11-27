@@ -24,8 +24,9 @@ export interface WaitingFood {
  *
  * Someone who logs a meal piece by piece stays in it: up to `NEW_MEAL_GAP_MS` after the last entry
  * the next one goes into the same meal (also when that entry was moved meanwhile: the meal it is in
- * now counts), later a new meal begins. Over midnight the same holds for an entry made before
- * midnight for that day: the late snack still belongs to yesterday. On another day than today the
+ * now counts), later a new meal begins. Over the start of the day (`dayStartHour`, the account's
+ * setting) the same holds for an entry made before it for that day: the late snack still belongs to
+ * yesterday. On another day than today the
  * last entry made for that day counts, so that adding to a past day does not start a meal each time.
  */
 export function logTargetFor({
@@ -35,6 +36,7 @@ export function logTargetFor({
   entries,
   pending = [],
   newMealSlot = 0,
+  dayStartHour,
 }: {
   /** The day the diary shows (or the page the "+" was tapped on). */
   shownDate: ISODate;
@@ -46,12 +48,14 @@ export function logTargetFor({
   pending?: readonly WaitingFood[];
   /** The index a new meal of the shown day would write. */
   newMealSlot?: number;
+  /** `settings.dayStartHour` (null or missing = the default). */
+  dayStartHour?: number | null;
 }): { date: ISODate; meal: number; dm: string } {
   const yesterday = addDays(today, -1);
   // Today: made for today, or made yesterday for yesterday (not: added to yesterday today).
   const counts = (date: ISODate, at: number) =>
     shownDate === today
-      ? date === today || (date === yesterday && todayOf(new Date(at)) === yesterday)
+      ? date === today || (date === yesterday && todayOf(new Date(at), dayStartHour) === yesterday)
       : date === shownDate;
   const last = [
     ...entries.filter((e) => !e.deleted).map((e) => ({ ...e, at: e.loggedAt })),

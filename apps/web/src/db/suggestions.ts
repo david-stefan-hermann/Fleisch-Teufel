@@ -126,6 +126,7 @@ export async function daySuggestions(
   ]);
   const standard = settings?.mealNames ?? [...DEFAULT_MEAL_NAMES];
   const legacy = settings?.legacyMealNames ?? null;
+  const dayStartHour = settings?.dayStartHour ?? null;
   const keyOf = historyKeyOf(standard, legacy);
 
   const byDate = new Map<string, FoodEntry[]>();
@@ -139,6 +140,7 @@ export async function daySuggestions(
       // All of them: an entry can name a meal of another day (`buildDayMeals` takes the day's own).
       records,
       names: legacy ?? standard,
+      dayStartHour,
     });
     if (day === before) yesterdayMeals = meals;
     for (const m of meals) {
@@ -170,7 +172,10 @@ export async function daySuggestions(
 
   const out = new Map<string, MealSuggestions>();
   for (const m of today) out.set(m.id, await forMeal(m.name, m.eatenAt, m.entries));
-  out.set(NEXT_MEAL_KEY, await forMeal(next.name, newMealEatenAt(date, next.name, standard, at), []));
+  out.set(
+    NEXT_MEAL_KEY,
+    await forMeal(next.name, newMealEatenAt(date, next.name, standard, at, dayStartHour), []),
+  );
   return out;
 }
 

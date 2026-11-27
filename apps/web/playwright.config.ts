@@ -18,7 +18,7 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: 'de-DE',
-    timezoneId: 'Europe/Berlin',
+    timezoneId: process.env.E2E_TZ ?? 'Europe/Berlin',
     trace: 'retain-on-failure',
   },
   projects: [

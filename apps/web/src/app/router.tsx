@@ -1,5 +1,5 @@
 import { AssistantProvider } from '@/features/assistant/AssistantProvider';
-import { isISODate, today } from '@ft/shared';
+import { isISODate } from '@ft/shared';
 import {
   createRootRoute,
   createRoute,
@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { AddSheetProvider } from '@/components/AddSheet';
 import { TabBar } from '@/components/TabBar';
 import { ViewportVars } from '@/hooks/useVisualViewport';
+import { today } from '@/lib/day';
 import { recordError } from '@/lib/errorLog';
 import { intoParam, trainingIntoParam } from '@/lib/into';
 import { dmParam } from '@/lib/meals';
@@ -29,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { MorePage } from '@/features/more/MorePage';
 import { ProfilePage } from '@/features/more/ProfilePage';
 import { MealNamesPage } from '@/features/more/MealNamesPage';
+import { DayStartPage } from '@/features/more/DayStartPage';
 import { AccountPage } from '@/features/more/AccountPage';
 
 // ---------------------------------------------------------------- search param parsing
@@ -311,6 +313,7 @@ export const routes = {
   more: createRoute({ ...r('/more'), component: MorePage }),
   profile: createRoute({ ...r('/settings/profile'), component: ProfilePage }),
   mealNames: createRoute({ ...r('/settings/meals'), component: MealNamesPage }),
+  dayStart: createRoute({ ...r('/settings/day-start'), component: DayStartPage }),
   account: createRoute({ ...r('/settings/account'), component: AccountPage }),
   data: createRoute({
     ...r('/settings/data'),

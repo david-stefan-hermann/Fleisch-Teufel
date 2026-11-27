@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { shiftDay } from './days';
+import { appDay, shiftDay } from './days';
 
 async function register(page: Page) {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));
@@ -19,12 +19,7 @@ const stripLinks = (page: Page) =>
     .locator('ol')
     .filter({ has: page.locator('a[aria-current]') })
     .getByRole('link');
-const isoDay = (page: Page, delta: number) =>
-  page.evaluate((d) => {
-    const t = new Date();
-    t.setDate(t.getDate() + d);
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  }, delta);
+const isoDay = appDay;
 
 test('Mehr → Aussehen: app theme and icon variant, kept per device', async ({ page }) => {
   await page.context().addInitScript(() => localStorage.setItem('ft.installHintDismissed', '1'));

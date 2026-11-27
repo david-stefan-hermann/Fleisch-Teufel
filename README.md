@@ -119,6 +119,11 @@ wenn alles grün ist, baut der Job `image` (`docker.yml`) das Image und veröffe
    `AI_BUDGET_MONTH_USD` (Standard 50) begrenzen die KI-Kosten je Konto über die letzten 24 Stunden bzw.
    30 Tage (`0` schaltet eine Grenze ab). Setze zusätzlich in der Anthropic Console ein Ausgabenlimit für
    den API-Schlüssel, damit auch ein Fehler im Server die Kosten nicht unbegrenzt treiben kann.
+   Markenprodukte: Der Server lädt nach dem ersten Start und danach wöchentlich den Datenexport von Open Food
+   Facts (rund 1,5 GB, wird beim Lesen verarbeitet und nicht gespeichert) und hält die Produkte aus Deutschland,
+   Österreich und der Schweiz in der eigenen Datenbank; bis dahin fragt die Suche Open Food Facts direkt.
+   `OFF_IMPORT=off` schaltet das ab, `OFF_DUMP_URL` nimmt eine andere Quelle. `/api/info` nennt `offProducts`
+   und `offImportedAt`.
 4. **Deploy**. Nach ~30 s liefert `http://<nas>:30300/health` `{"ok":true}` (Version und Katalog unter `/api/info`).
 5. Reverse Proxy (Nginx Proxy Manager): Host → `http://<nas-ip>:30300`, SSL erzwingen, Websockets an,
    Zugriffsliste nach Wunsch (z. B. nur LAN/VPN). Die App wertet `X-Forwarded-Proto` aus und setzt das

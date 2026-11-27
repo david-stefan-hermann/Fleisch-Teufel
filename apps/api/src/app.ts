@@ -105,6 +105,8 @@ export function createApp(deps: Deps, opts: { webDist?: string } = {}) {
       voiceEnabled: !!deps.assistant?.canTranscribe,
       blsVersion: deps.catalog.blsVersion,
       blsFoods: deps.catalog.blsCount,
+      offProducts: deps.catalog.catalogState?.rows ?? 0,
+      offImportedAt: deps.catalog.catalogState?.importedAt ?? null,
     };
     return c.json(info);
   });

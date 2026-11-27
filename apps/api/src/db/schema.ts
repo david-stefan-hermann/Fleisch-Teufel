@@ -105,6 +105,7 @@ export const userSettings = pgTable(
     addStepsCalories: boolean(),
     customMealNames: jsonb().$type<string[]>(),
     legacyMealNames: jsonb().$type<string[]>(),
+    dayStartHour: integer(),
   },
   syncExtras,
 );
@@ -290,6 +291,33 @@ export const foods = pgTable(
     fetchedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index().on(t.source, t.sourceId)],
+);
+
+/**
+ * The branded products of Open Food Facts sold in Germany, Austria and Switzerland, imported from
+ * OFF's weekly data export (`off/import.ts`). Server only, never synced: the text search answers
+ * from here; a product someone opens or scans is copied into `foods` under the id `off:<code>`.
+ */
+export const offCatalog = pgTable(
+  'off_catalog',
+  {
+    code: text().primaryKey(),
+    name: text().notNull(),
+    brand: text(),
+    unit: text({ enum: ['g', 'ml'] }).notNull(),
+    nutrients: jsonb().$type<NutrientMap>().notNull(),
+    portions: jsonb().$type<Portion[]>().notNull(),
+    imageUrl: text(),
+    /** Number of people who scanned the product. */
+    popularity: integer().notNull().default(0),
+    /** Sold in Germany (ranks before Austria and Switzerland on equal points). */
+    german: boolean().notNull(),
+    /** `searchKey` of name and brand: what the candidate query matches. */
+    searchKey: text().notNull(),
+    /** The import run that wrote the row last; rows of older runs are deleted when a run ends. */
+    run: integer().notNull(),
+  },
+  (t) => [index().using('gin', t.searchKey.op('gin_trgm_ops')), index().on(t.run)],
 );
 
 /** Barcodes OFF does not know (cached briefly so repeated scans don't hit the rate limit). */

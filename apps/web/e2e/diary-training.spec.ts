@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { appDay } from './days';
 
 /** Registers a fresh account and leaves the onboarding (lands on the diary). */
 async function register(page: Page) {
@@ -63,9 +64,9 @@ async function swipeRight(page: Page, target: Locator) {
 
 test('copy a training to another day, "Wie gestern" on an empty card', async ({ page }) => {
   await register(page);
-  // Days as the app sees them (Berlin time, like the browser of the test).
-  const day = (offset: number) =>
-    new Date(Date.now() + offset * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  // Days as the app sees them.
+  const days = await Promise.all([-3, -2, -1, 0].map((o) => appDay(page, o)));
+  const day = (offset: number) => days[offset + 3]!;
   await page.goto(`/exercise?date=${day(-1)}`);
   await searchTraining(page, 'rad');
   await page.getByRole('link', { name: /^Radfahren/ }).click();
@@ -92,8 +93,8 @@ test('copy a training to another day, "Wie gestern" on an empty card', async ({ 
 
 test('⋯ of the training card copies the whole day, pasting gives the same rows', async ({ page }) => {
   await register(page);
-  const day = (offset: number) =>
-    new Date(Date.now() + offset * 86_400_000).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  const days = await Promise.all([-3, -2, -1, 0].map((o) => appDay(page, o)));
+  const day = (offset: number) => days[offset + 3]!;
   for (const [query, sport] of [
     ['rad', 'Radfahren'],
     ['yoga', 'Yoga'],
@@ -839,7 +840,8 @@ test('saved meals delete by swipe, with undo', async ({ page }) => {
 
 test('steps from Apple Health: access, import by the shortcut, typed kcal stay, trash', async ({ page }) => {
   await register(page);
-  const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  // The app's day: before the day start the shortcut's calendar day is not the day the diary shows.
+  const today = await appDay(page);
   // Without an access the training card has no footprints to fetch steps.
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /^Training/ })).toBeVisible();
