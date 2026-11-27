@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { indexItem, normalize, queryTerms, queryWords, search, searchKey } from '../src/search.js';
+import {
+  indexItem,
+  normalize,
+  queryTerms,
+  queryWords,
+  search,
+  searchKey,
+  suggestQuery,
+} from '../src/search.js';
 
 const foods = [
   { id: '1', name: 'Hühnerei roh' },
@@ -104,6 +112,49 @@ describe('search rules', () => {
     expect(ids('arla')).toEqual(['off']);
     expect(ids('butter')).toEqual(['meal']);
   });
+
+  it('forgives typos in a brand', () => {
+    const products = [
+      { id: 'milsani', name: 'Skyr Natur', brand: 'Milsani', source: 'off' },
+      { id: 'milka', name: 'Alpenmilch', brand: 'Milka', source: 'off' },
+      { id: 'gg', name: 'Skyr', brand: 'GUT&GÜNSTIG', source: 'off' },
+    ].map(indexItem);
+    const found = (q: string, opts?: { allTypos?: boolean }) =>
+      search(products, q, 50, undefined, opts).map((h) => (h.fuzzy ? `${h.item.id}~` : h.item.id));
+    expect(found('milsni skyr')).toEqual(['milsani~']);
+    expect(found('mikla')).toEqual(['milka~']);
+    expect(found('skyr gut und günstg')).toEqual(['gg~']);
+    // Four letters: a whole word one typo away, never the start of a longer one; doubled letters.
+    expect(found('mlka')).toEqual(['milka~']);
+    expect(found('mils')).toEqual(['milsani']);
+    expect(found('mlis')).toEqual([]);
+    expect(found('millka')).toEqual(['milka~']);
+    expect(found('millsanni')).toEqual(['milsani~']);
+    expect(suggestQuery([products], 'mlka')).toBeNull();
+    expect(suggestQuery([products], 'milsni skyr')).toBe('Milsani skyr');
+    // A word that matches something properly is no typo, unless the list was picked for the query.
+    const more = [...products, indexItem({ id: 'junk', name: 'Milsni', source: 'off' })];
+    expect(search(more, 'milsni').map((h) => h.item.id)).toEqual(['junk']);
+    expect(search(more, 'milsni', 50, undefined, { allTypos: true }).map((h) => h.item.id)).toEqual([
+      'junk',
+      'milsani',
+    ]);
+  });
+
+  it('reads "&", "und", "u", "and" and "n" as the same', () => {
+    const products = [
+      { id: 'gg', name: 'Gouda jung', brand: 'Gut & Günstig', source: 'off' },
+      { id: 'fish', name: 'Fish & Chips', source: 'off' },
+      { id: 'mac', name: "Mac 'n' Cheese", source: 'off' },
+    ].map(indexItem);
+    const found = (q: string) => search(products, q).map((h) => h.item.id);
+    for (const q of ['gut & günstig', 'gut und günstig', 'gut u günstig', 'gut u. günstig', 'gut günstig'])
+      expect(found(q), q).toEqual(['gg']);
+    for (const q of ['fish and chips', 'fish & chips', 'fish n chips', 'fish und chips'])
+      expect(found(q), q).toEqual(['fish']);
+    expect(found('mac and cheese')).toEqual(['mac']);
+    expect(found('mac & cheese')).toEqual(['mac']);
+  });
 });
 
 describe('queryTerms', () => {
@@ -118,7 +169,9 @@ describe('queryTerms', () => {
     expect(queryTerms('skyr gut u')).toEqual(['skyr', 'gut']);
     expect(queryTerms('skyr gut un')).toEqual(['skyr', 'gut']);
     // Alone it is the whole query, and in the middle it is a word.
-    expect(queryTerms('u')).toEqual(['u']);
-    expect(queryTerms('u skyr')).toEqual(['u', 'skyr']);
+    expect(queryTerms('a')).toEqual(['a']);
+    expect(queryTerms('a skyr')).toEqual(['a', 'skyr']);
+    expect(queryTerms('gut u günstig')).toEqual(['gut', 'günstig']);
+    expect(queryTerms('fish and chips')).toEqual(['fish', 'chips']);
   });
 });

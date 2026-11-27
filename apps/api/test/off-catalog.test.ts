@@ -201,6 +201,22 @@ describe('own product catalog', () => {
     expect(await names('xyzzy')).toEqual([]);
   });
 
+  it('forgives typos in brands, also with swapped letters', async () => {
+    expect(await names('milsni skyr')).toEqual(['Skyr Natur | Milsani']);
+    expect(await names('skyr mislani')).toEqual(['Skyr Natur | Milsani']);
+    expect(await names('mlibona')).toEqual(['Skyr natur | Milbona']);
+    expect((await names('skyr gut und günstg'))[0]).toBe('SKYR Natur | GUT&GÜNSTIG');
+    expect((await names('skyr gut u günstig'))[0]).toBe('SKYR Natur | GUT&GÜNSTIG');
+    // Four letters and doubled letters.
+    expect((await names('skyr alra'))[0]).toBe('Skyr Natur | Arla');
+    expect(await names('millsanni')).toEqual(['Skyr Natur | Milsani']);
+    // A word still being typed.
+    expect(await names('speisequra')).toEqual(['Speisequark Magerstufe | Gut Gunstig']);
+    // The device ranks the answer with the same rule.
+    const r = await c.get(`/api/foods/search?q=${encodeURIComponent('milsni skyr')}`);
+    expect(r.json.foods.map((f: { brand: string }) => f.brand)).toEqual(['Milsani']);
+  });
+
   it('serves a catalog product by id and by barcode and keeps it in foods', async () => {
     const byId = await c.get('/api/foods/off:4311501657751');
     expect(byId.json.food).toMatchObject({ name: 'SKYR Natur', brand: 'GUT&GÜNSTIG', source: 'off' });

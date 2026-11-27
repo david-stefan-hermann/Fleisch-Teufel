@@ -501,9 +501,11 @@ function OnlineStatus({ state }: { state: 'loading' | 'done' | 'offline' | 'limi
   const text =
     state === 'offline'
       ? 'Offline: nur lokale Ergebnisse. Markenprodukte und Barcode-Scan wieder, sobald du verbunden bist.'
-      : state === 'error'
-        ? 'Open Food Facts antwortet gerade nicht.'
-        : 'Markenprodukte: Open Food Facts.';
+      : state === 'limited'
+        ? 'Open Food Facts ist ausgelastet, zeige zwischengespeicherte Produkte.'
+        : state === 'error'
+          ? 'Open Food Facts antwortet gerade nicht.'
+          : 'Markenprodukte: Open Food Facts.';
   return (
     <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
       {state === 'offline' ? (

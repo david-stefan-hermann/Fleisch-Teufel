@@ -150,9 +150,12 @@ Serve the production web build through the API (same origin, service worker acti
   `playwright install webkit`).
 - Food search (`packages/shared/src/search.ts`, same code on device, server and in the AI `search_foods`):
   folded keys (`searchKey`: "kase" = "käse"), light stemming, compound heads ("brot" finds "Vollkornbrot" as
-  bread; in hyphenated names the last part is the head; words after "mit" count as ingredients), typos from 5
-  letters (`fuzzy` hits, `suggestQuery` for "Meintest du"), synonyms for words BLS spells differently
-  (`synonyms.ts`). Ranking: basic foods before dishes (BLS X/Y), dry products down, OFF products with
+  bread; in hyphenated names the last part is the head; words after "mit" count as ingredients), typos in names
+  and brands (`typoBudget`: one from 4 letters, two from 9; `typoDistance` also takes letters doubled or not,
+  "barrila"; from `TYPO_START_MIN` 5 letters also the start of a longer word and `suggestQuery` for "Meintest
+  du"; `fuzzy` hits; only for a word that matches nothing properly, unless `search(…, { allTypos: true })` for
+  a list already picked for the query), "&", "und", "u", "and" and "n" are the same (stop words), synonyms for
+  words BLS spells differently (`synonyms.ts`). Ranking: basic foods before dishes (BLS X/Y), dry products down, OFF products with
   `popularity` (scans). Branded products come from the server's own catalog (plan
   `docs/plans/2026-11-lebensmittelsuche.md`): table `off_catalog` (server only, about 335 000 products sold in
   Germany, Austria and Switzerland, `pg_trgm` index on `search_key`), filled by `off/import.ts` from OFF's data
@@ -160,11 +163,12 @@ Serve the production web build through the API (same origin, service worker acti
   weekly from `maintenance.ts`, in production by default, `OFF_IMPORT` on/off, `OFF_DUMP_URL`; by hand
   `pnpm --filter @ft/api off:import [file or URL]`; `/api/info` has `offProducts`, `offImportedAt`).
   `FoodCatalog.searchOff` asks it once it is imported (`searchCatalogHits`: SQL picks up to 300 candidates that
-  contain every word, a trigram fallback for typos, then the shared ranking together with the products in use,
-  German ones first on equal points) and OFF's live search only before that (`searchLive`: stop words removed via
+  contain every word; with fewer than `TYPO_BELOW` 5 it also asks for what each word may be a typo of,
+  `CatalogWords.corrections` in `foods/typos.ts` over the catalog's words kept in memory, same rule as the
+  ranking; then the shared ranking together with the products in use, German ones first on equal points) and OFF's live search only before that (`searchLive`: stop words removed via
   `queryTerms`, the three countries as filter, single words when the whole query finds too little). A catalog
   product somebody opens or scans is copied into `foods`. Brands are cleaned by `cleanBrand` ("xx:" prefixes, bare
-  tags); typos in brand names are not forgiven. The assistant's `search_foods` always includes the catalog. Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
+  tags). The assistant's `search_foods` always includes the catalog. Ranking quality is pinned by `apps/api/test/search-quality.test.ts` (real
   BLS): add a line whenever a real query ranks badly. On `/add` (`searchLocal`, `mergeOnline` in
   `foods/foodService.ts`) BLS, own and cached foods and saved meals form one list; the server's branded products are asked with the same
   text (2 characters, 150 ms, no status line while loading) and sorted into it when they arrive, but only below the rows that are on the screen at that moment (`pinned`, counted by

@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 import type { Db } from './db/client.js';
 import type { FoodCatalog } from './foods/catalog.js';
 import { log } from './log.js';
-import { importOffCatalog, offImportDue } from './off/import.js';
+import { importOffCatalog, offCatalogState, offImportDue } from './off/import.js';
 
 /** A photo must be this old before it may go: a device may still be about to push the meal that uses it. */
 export const PHOTO_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -100,7 +100,12 @@ export interface OffImportSource {
 /** Imports OFF's export into `off_catalog` when the weekly run is due. Never throws. */
 export async function runOffImport(db: Db, catalog: FoodCatalog, source: OffImportSource): Promise<void> {
   try {
-    if (!(await offImportDue(db))) return;
+    if (!(await offImportDue(db))) {
+      // An import by hand (`off:import`) may have run since: the server reads its state again.
+      const state = await offCatalogState(db);
+      if (state?.importedAt !== catalog.catalogState?.importedAt) await catalog.refreshCatalog();
+      return;
+    }
     log.info('OFF catalog import started');
     await importOffCatalog(db, source.url, source.userAgent);
     await catalog.refreshCatalog();

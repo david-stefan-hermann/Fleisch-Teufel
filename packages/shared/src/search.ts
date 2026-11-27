@@ -9,7 +9,8 @@
  * - light stemming ("kartoffeln" finds "Kartoffel", "tomaten" finds "Tomate");
  * - compounds carry their head at the end: "brot" finds "Vollkornbrot" as bread, while "Brotfrucht"
  *   only starts with it; in hyphenated names ("Käse-Grießnockerl") the last part is the head;
- * - a typo of one letter (from 5 letters on, two from 9 on) still finds the word, ranked lower;
+ * - a typo of one letter (from 4 letters on, two from 9 on) still finds the word, in a name or a
+ *   brand, ranked lower; letters doubled or not ("barrila" for "Barilla") are one typo;
  * - synonyms for everyday words the databases spell differently (`synonyms.ts`).
  * Ranking then prefers basic foods over dishes, unprepared over prepared, short over long names and
  * pushes dry products ("Instantpulver") down unless the query asks for them.
@@ -67,10 +68,13 @@ function keyWords(text: string): string[] {
   return k ? k.split(' ') : [];
 }
 
-/** Words that carry no meaning for ranking. */
+/** Words that carry no meaning for ranking ("&" is no word at all: "und", "u", "and", "n" equal it). */
 const STOP = new Set([
   'mit',
   'und',
+  'u',
+  'and',
+  'n',
   'ohne',
   'in',
   'aus',
@@ -151,6 +155,8 @@ interface IndexedWord {
   /** Position among the name words (position bonus); -1 outside the name. */
   pos: number;
   role: Role;
+  /** A word of the brand: typos are forgiven there as in the name. */
+  brand?: true;
 }
 
 export interface IndexedItem<T extends Searchable> {
@@ -220,8 +226,11 @@ export function indexItem<T extends Searchable>(item: T): IndexedItem<T> {
       });
     }
   }
-  for (const w of [item.nameEn, item.brand, item.keywords].flatMap((t) => keyWords(t ?? ''))) {
+  for (const w of [item.nameEn, item.keywords].flatMap((t) => keyWords(t ?? ''))) {
     words.push({ w, s: stem(w), pos: -1, role: 'minor' });
+  }
+  for (const w of keyWords(item.brand ?? '')) {
+    if (!STOP.has(w)) words.push({ w, s: stem(w), pos: -1, role: 'minor', brand: true });
   }
   const plain = key.split(' ').filter(Boolean);
   const length = plain.filter((w) => !STOP.has(w) && !SPEC.has(w) && !/^\d+$/.test(w)).length;
@@ -280,22 +289,41 @@ export function editDistance(a: string, b: string, max: number): number {
   return prev[b.length]!;
 }
 
-/** Allowed typos for a query word: one from 5 letters, two from 9. */
-function typoBudget(t: string): number {
-  return t.length >= 9 ? 2 : t.length >= 5 ? 1 : 0;
+/** Allowed typos for a query word: one from 4 letters, two from 9. */
+export function typoBudget(t: string): number {
+  return t.length >= 9 ? 2 : t.length >= 4 ? 1 : 0;
+}
+
+/**
+ * Shortest query word that may be a mistyped start of a longer word and gets a "Meintest du": four
+ * letters fit too many words for that, they only find a whole word one typo away ("mlka").
+ */
+export const TYPO_START_MIN = 5;
+
+/** A word with its doubled letters single: what `typoDistance` compares beside the edits. */
+export const squeeze = (w: string) => w.replace(/(.)\1+/g, '$1');
+
+/**
+ * `editDistance` for typos, capped at k + 1: words that differ only in which letters are doubled
+ * ("barrila", "Barilla"; "spagetti", "Spaghetti" is one letter anyway) are within any budget.
+ */
+export function typoDistance(t: string, w: string, k: number): number {
+  const d = editDistance(t, w, k);
+  if (d <= k || k === 0 || Math.abs(t.length - w.length) > 2) return d;
+  return squeeze(t) === squeeze(w) ? k : d;
 }
 
 /** Points of a query word that is a typo of this word: whole word 12, start of a longer word 8. */
 function typoScore(t: string, w: string, k: number): number {
-  if (editDistance(t, w, k) <= k) return 12;
-  if (w.length <= t.length) return 0;
+  if (typoDistance(t, w, k) <= k) return 12;
+  if (w.length <= t.length || t.length < TYPO_START_MIN) return 0;
   for (const len of [t.length, t.length + 1, t.length - 1]) {
     if (len >= 4 && len < w.length && editDistance(t, w.slice(0, len), k) <= k) return 8;
   }
   return 0;
 }
 
-/** Distinct name words of an index with their stem and the spelling of their first occurrence. */
+/** Distinct name and brand words of an index with their stem and the spelling of their first occurrence. */
 type Vocabulary = Map<string, { s: string; display: string }>;
 const vocabularies = new WeakMap<readonly IndexedItem<Searchable>[], Vocabulary>();
 
@@ -306,8 +334,8 @@ function vocabulary(index: readonly IndexedItem<Searchable>[]): Vocabulary {
     for (const e of index) {
       let display: string[] | null = null;
       for (const w of e.words) {
-        if (w.pos < 0 || v.has(w.w)) continue;
-        display ??= e.item.name.split(/[^\p{L}\p{N}]+/u);
+        if ((w.pos < 0 && !w.brand) || v.has(w.w)) continue;
+        display ??= `${e.item.name} ${e.item.brand ?? ''}`.split(/[^\p{L}\p{N}]+/u);
         v.set(w.w, { s: w.s, display: display.find((d) => searchKey(d) === w.w) ?? w.w });
       }
     }
@@ -323,10 +351,13 @@ function hasMatch(vocab: Vocabulary, t: string): boolean {
   return false;
 }
 
-/** The index words a query word may be a typo of, with their points; null when it matches properly. */
-function typosOf(vocab: Vocabulary, t: string): Map<string, number> | null {
+/**
+ * The index words a query word may be a typo of, with their points; null when it matches properly
+ * (with `always` only an item without any match for the word falls back to them).
+ */
+function typosOf(vocab: Vocabulary, t: string, always: boolean): Map<string, number> | null {
   const k = typoBudget(t);
-  if (k === 0 || hasMatch(vocab, t)) return null;
+  if (k === 0 || (!always && hasMatch(vocab, t))) return null;
   const typos = new Map<string, number>();
   for (const w of vocab.keys()) {
     const s = typoScore(t, w, k);
@@ -382,13 +413,17 @@ export function queryWords(query: string): string[] {
   return queryTerms(query).flatMap(keyWords);
 }
 
-function prepareQuery(index: readonly IndexedItem<Searchable>[], query: string): PreparedQuery | null {
+function prepareQuery(
+  index: readonly IndexedItem<Searchable>[],
+  query: string,
+  allTypos: boolean,
+): PreparedQuery | null {
   const tokens = queryWords(query);
   if (tokens.length === 0) return null;
   const vocab = vocabulary(index);
   const typoCache = new Map<string, Map<string, number> | null>();
   const word = (t: string): QueryWord => {
-    if (!typoCache.has(t)) typoCache.set(t, typosOf(vocab, t));
+    if (!typoCache.has(t)) typoCache.set(t, typosOf(vocab, t, allTypos));
     return { t, ts: stem(t), typos: typoCache.get(t)! };
   };
   const variant = (ts: string[], factor: number): QueryVariant => ({
@@ -490,8 +525,13 @@ export function search<T extends Searchable>(
   query: string,
   limit = 50,
   boost?: (item: T) => number,
+  /**
+   * `allTypos`: an item may match a word as a typo even while other items match it properly. For
+   * lists somebody already picked for this query (the server's candidates, its answer on the device).
+   */
+  opts: { allTypos?: boolean } = {},
 ): SearchHit<T>[] {
-  const q = prepareQuery(index, query);
+  const q = prepareQuery(index, query, opts.allTypos === true);
   if (!q) return [];
   const hits: SearchHit<T>[] = [];
   for (const e of index) {
@@ -521,12 +561,13 @@ export function suggestQuery(
   let changed = false;
   const out = keyWords(query).map((t) => {
     const k = typoBudget(t);
-    if (k === 0 || STOP.has(t) || SYNONYM_KEYS.has(t) || vocabs.some((v) => hasMatch(v, t))) return t;
+    // Four letters are near too many words to say what was meant ("milk" is not "mild").
+    if (k === 0 || t.length < TYPO_START_MIN || STOP.has(t) || SYNONYM_KEYS.has(t)) return t;
+    if (vocabs.some((v) => hasMatch(v, t))) return t;
     let best: { w: string; display: string; d: number } | null = null;
     for (const vocab of vocabs) {
       for (const [w, { display }] of vocab) {
-        if (Math.abs(w.length - t.length) > k) continue;
-        const d = editDistance(t, w, k);
+        const d = typoDistance(t, w, k);
         if (d <= k && (!best || d < best.d || (d === best.d && w.length < best.w.length))) {
           best = { w, display, d };
         }

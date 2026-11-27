@@ -145,3 +145,25 @@ die ersten 50 Treffer je Wort. „Sofort nach allem suchen“ geht nur mit eigen
 ## Offene Fragen
 
 Keine.
+
+## Nachtrag: Tippfehler und „&“ (2026-11-27, nach der Durchsicht von cde14b6)
+
+Wunsch: Marken und Produkte auch mit Tippfehlern finden; „und“ statt „&“ muss gehen.
+
+1. Rangfolge (shared `search.ts`, also Gerät und Server): Wörter der Marke zählen jetzt zum Wortschatz, in dem
+   Tippfehler gesucht werden („milsni skyr“ findet Milsani). Ein Tippfehler ab 4 Buchstaben (vorher 5), zwei ab 9;
+   doppelt oder einfach geschriebene Buchstaben zählen als ein Tippfehler („barrila“, „millka“). Vier Buchstaben
+   finden nur ein ganzes Wort („mlka“), keinen Wortanfang und kein „Meintest du“.
+2. „&“, „und“, „u“, „u.“, „and“ und „n“ sind dasselbe: alle sind Füllwörter („gut u günstig“, „fish and chips“,
+   „mac n cheese“).
+3. Server: die Trigramm-Ausweichsuche ist ersetzt. Der Server hält die Wörter des Bestands im Speicher (rund 79 000,
+   beim Start und nach jedem Import gelesen, unter 1 s) und fragt bei weniger als 5 Treffern zusätzlich nach den
+   Schreibweisen, für die ein Wort stehen kann, mit derselben Regel wie die Rangfolge (vertauschte Buchstaben zählen
+   einmal; Trigramme scheiterten daran bei kurzen Wörtern wie „mikla“). Gemessen am echten Bestand: 30 bis 90 ms je
+   neuem Wort, danach aus dem Zwischenspeicher.
+4. Probe am echten Bestand: „mikla“, „mlka“, „nutela“, „harbio“, „kerygold“, „coca coal“, „ritter sprot“,
+   „spaghetti barrila“, „ehrmann high protien“, „weihenstefan milch“, „oatly barrista“, „gut und günstg skyr“
+   finden das Gemeinte. Nicht gefunden: Tippfehler in Wörtern mit 3 Buchstaben („jaa“), zwei Fehler in Wörtern unter
+   9 Buchstaben, zusammengeschriebene Marken ohne Vorbild im Bestand.
+5. Aus der Durchsicht: ein Import von Hand (`off:import`) wird vom laufenden Server beim nächsten täglichen Lauf
+   bemerkt (vorher erst beim Neustart); die Statuszeile nennt wieder „ausgelastet“, solange noch live gesucht wird.

@@ -28,6 +28,7 @@ import { log } from '../log.js';
 import { OffRateLimitedError, type OffClient } from '../off/client.js';
 import { catalogRowToFood, offCatalogState, type OffCatalogState } from '../off/import.js';
 import { cleanBrand, hasTagBrand, normalizeBarcode } from '../off/normalize.js';
+import { CatalogWords } from './typos.js';
 
 export interface BlsFile {
   version: string;
@@ -84,10 +85,10 @@ const LIVE_PAGE = 50;
 const RELAX_BELOW = 5;
 /** Products of the own catalog handed to the ranking per query (the most scanned that match). */
 const CANDIDATES = 300;
-/** Fewer candidates than this let words also match as typos (`pg_trgm`). */
+/** Fewer candidates than this let words also match as typos (`CatalogWords`). */
 const TYPO_BELOW = 5;
-/** Trigram word similarity from which a product counts as a candidate for a mistyped word. */
-const TYPO_SIMILARITY = 0.45;
+/** Words of the catalog shorter than this are no corrections (typos count from 4 letters). */
+const MIN_WORD = 4;
 
 export interface OffSearchResult {
   foods: Food[];
@@ -171,11 +172,20 @@ export class FoodCatalog {
   /** State of the own product catalog (`off_catalog`); null until the first import ended. */
   catalogState: OffCatalogState | null = null;
   private catalogRows = 0;
+  /** The words of the catalog's names and brands (`CatalogWords`), for mistyped queries. */
+  private catalogWords = new CatalogWords(new Map());
 
   /** Reads the state of `off_catalog` again (after an import). */
   async refreshCatalog(): Promise<void> {
     this.catalogState = await offCatalogState(this.db);
     this.catalogRows = await this.db.$count(offCatalog);
+    const words = (await this.db.execute(sql`
+      select w, count(*)::int as n
+      from ${offCatalog}, unnest(string_to_array(${offCatalog.searchKey}, ' ')) as w
+      where length(w) >= ${MIN_WORD} and w !~ '^[0-9]+$'
+      group by w
+    `)) as unknown as { w: string; n: number }[];
+    this.catalogWords = new CatalogWords(new Map(words.map((r) => [r.w, r.n])));
   }
 
   get blsCount(): number {
@@ -280,30 +290,30 @@ export class FoodCatalog {
     const words = queryWords(query);
     if (words.length === 0) return [];
     const like = (w: string) => sql`${offCatalog.searchKey} like ${`%${stem(w)}%`}`;
-    const candidates = (conds: SQL[], db: Pick<Db, 'select'> = this.db) =>
-      db
+    const candidates = (conds: SQL[]) =>
+      this.db
         .select()
         .from(offCatalog)
         .where(and(...conds))
         .orderBy(sql`${offCatalog.popularity} desc, length(${offCatalog.name})`)
         .limit(CANDIDATES);
     let rows = await candidates(words.map(like));
-    if (rows.length < TYPO_BELOW && words.some((w) => w.length >= 5)) {
-      // Swapped letters cost a short word half its trigrams, hence the low threshold.
-      const loose = await this.db.transaction(async (tx) => {
-        await tx.execute(
-          sql`set local pg_trgm.word_similarity_threshold = ${sql.raw(String(TYPO_SIMILARITY))}`,
-        );
-        return candidates(
-          words.map((w) => (w.length >= 5 ? sql`(${like(w)} or ${w} <% ${offCatalog.searchKey})` : like(w))),
-          tx,
-        );
+    if (rows.length < TYPO_BELOW) {
+      // Hardly anything has these letters: ask for what the words may stand for as well.
+      const loose = words.map((w, i) => {
+        const fixes = this.catalogWords.corrections(w, i === words.length - 1);
+        return fixes.length > 0
+          ? sql`(${sql.join([like(w), ...fixes.map((f) => sql`${offCatalog.searchKey} like ${`%${f}%`}`)], sql` or `)})`
+          : null;
       });
-      rows = [...new Map([...rows, ...loose].map((r) => [r.code, r])).values()];
+      if (loose.some(Boolean)) {
+        const more = await candidates(words.map((w, i) => loose[i] ?? like(w)));
+        rows = [...new Map([...rows, ...more].map((r) => [r.code, r])).values()];
+      }
     }
     const german = new Map(rows.map((r) => [`off:${r.code}`, r.german]));
     const hits = [
-      ...search(rows.map(catalogRowToFood).map(indexItem), query, limit * 2),
+      ...search(rows.map(catalogRowToFood).map(indexItem), query, limit * 2, undefined, { allTypos: true }),
       ...search(this.offList(), query, limit * 2),
     ].sort(
       // On equal points (to the whole point) products sold in Germany come first.

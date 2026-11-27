@@ -224,7 +224,10 @@ export function mergeOnline(
   const ids = new Set(rows.map((r) => r.id));
   const fresh = online.filter((f) => !ids.has(f.id) && !shadowedByOwn(f, corrected));
   if (fresh.length === 0) return rows;
-  const ranked = search(fresh.map(indexItem), query, fresh.length, (f) => usageBoost(usage, f.id));
+  // The server picked these for the query: a brand it found through a typo ranks, too.
+  const ranked = search(fresh.map(indexItem), query, fresh.length, (f) => usageBoost(usage, f.id), {
+    allTypos: true,
+  });
   const matched = new Set(ranked.map((h) => h.item.id));
   const keep = Math.max(0, Math.min(rows.length, pinned));
   const merged: SearchRow[] = [
